@@ -102,10 +102,19 @@ src-tauri/libs/
 bench/out/
 .compare/
 
- Private to this machine - working rules and one-time setup.
-CLAUDE.md
+# ── Private to this machine ──────────────────────────────────────────────
+# Working rules, agent tooling and one-time setup. None of it is part of the
+# application, and none of it should reach a contributor's clone.
 setup.ps1
- Editor directories and files
+
+# Claude Code: the repo guide, its local overrides, and the per-machine
+# settings, agents, skills and command definitions under .claude/. No leading
+# slash, so these are ignored at any depth.
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
