@@ -65,5 +65,12 @@
   "superResolutionApplyBatch": "Apply to selection",
   "superResolutionSave": "Save enlarged photo",
   "superResolutionCancel": "Cancel",
-  "superResolutionToolbar": "Open Super Resolution"
+  "superResolutionToolbar": "Open Super Resolution",
+  "analyticsIso": "ISO",
+  "analyticsAperture": "Aperture",
+  "analyticsShutter": "Shutter speed",
+  "analyticsFocalLength": "Focal length",
+  "analyticsCamera": "Camera",
+  "analyticsLens": "Lens",
+  "analyticsMultiSelection": "{count} photos selected"
 }

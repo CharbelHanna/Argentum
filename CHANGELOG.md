@@ -4,6 +4,18 @@ Newest first.
 
 **Based on RapidRAW `1.6.4` @ `71a07921`** — updated whenever upstream is merged.
 
+## 26.39.3 — 2026-09-30
+
+### Added
+
+- **The Analytics display now shows how the picture was taken.** ISO, aperture,
+  shutter speed and focal length, with the camera body and lens beneath them,
+  sit in the top-left corner of the scope. Judging an exposure no longer means
+  leaving the histogram to go and look up the shutter speed in another panel.
+  Shown for one selected picture; with several selected it says so rather than
+  showing the open photo's settings. Nothing is re-read from disk — these
+  values were already decoded when the photo opened.
+
 ## 26.39.1 — 2026-09-22
 
 ### Added

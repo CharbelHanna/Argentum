@@ -45,6 +45,7 @@ import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
 import SuperResolutionModal from './SuperResolutionModal';
 import SuperResolutionButton from './SuperResolutionButton';
+import CameraSettings from './CameraSettings';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -163,6 +164,12 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
         )}
       {gear && createPortal(<MyGear />, gear)}
       <RgbReadout />
+      {/*
+       * No anchor: the Analytics band is upstream's and carries no marker, so
+       * this one finds their band itself and floats over it rather than
+       * spending a line of their file. See its header for the trade.
+       */}
+      <CameraSettings />
       <SuperResolutionModal onImageSelect={onImageSelect} onLibraryRefresh={onLibraryRefresh} />
     </>
   );

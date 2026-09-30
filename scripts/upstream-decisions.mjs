@@ -407,6 +407,24 @@ const review164CompositionDecisions = [
   review164Decision('40a112e1', 'ai-super-resolution:src/components/panel/Editor.tsx', 'combine', 'Keep both independent editor changes: RapidRAW adds the optional neutral-grey canvas, while super-resolution adjusts the minimum zoom bound so enlarged images can fit back into the viewport.'),
 ];
 
+// Overlaps that appeared in this same window only because the
+// analytics-camera-settings entry was added to the registry afterwards. The
+// feature takes no anchor, so none of these is a change to code of ours; each
+// is upstream touching a file we now declare a dependency on. Every one was
+// read against the specific key or symbol the entry names, which is why the
+// reasons below are narrower than "the commit is unrelated".
+const review164CameraSettingsDecisions = [
+  review164Decision('798a734d', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'The commit renames the Basic-panel slider label evShift to brightness. The tooltips block is untouched, so the string the overlay matches on is unchanged.'),
+  review164Decision('40a112e1', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'The commit adds the neutral-grey canvas strings and reorders two TIFF bit-depth keys. It does not touch editor.adjustments.tooltips.'),
+  review164Decision('ad179a45', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'The commit adds TIFF bit-depth export strings only; the analytics tooltip is not among them.'),
+  review164Decision('e9d6cc74', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'Merge commit for the TIFF pull request. It makes no change of its own to en.json, so the overlap is merge bookkeeping rather than an edit to the key.'),
+  review164Decision('0e8cd159', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'Merge commit syncing the TIFF branch. No en.json change of its own; the key is untouched.'),
+  review164Decision('88415dcc', 'analytics-camera-settings:src/i18n/locales/en.json:editor.adjustments.tooltips.toggleAnalytics', 'not-applicable', 'Merge commit. Its only en.json change is a single inserted line elsewhere in the file; the analytics tooltip is unchanged.'),
+  review164Decision('88415dcc', 'analytics-camera-settings:src/components/panel/right/MasksPanel.tsx:toggleAnalyticsTooltip', 'not-applicable', 'The merge makes no change to MasksPanel.tsx. Both analytics tooltip keys, and the isAdjustmentsPanelVisible switch between them that the overlay relies on to stay out of the Masks panel, are intact.'),
+  review164Decision('88415dcc', 'analytics-camera-settings:src-tauri/src/exif_processing.rs:FocalLength', 'not-applicable', 'The merge makes no change to exif_processing.rs. FocalLength and FocalLengthIn35mmFilm are still written from the same rational, which is the behaviour the entry records.'),
+  review164Decision('e50cfb6b', 'analytics-camera-settings:src/store/useUIStore.ts:activePanels', 'not-applicable', 'The commit adds quickFilter to uiVisibility so the Quick Filter persists. It adds no panel region and does not touch activePanels or the leftPanel/rightPanel flags the Adjustments-visible predicate reads.'),
+];
+
 export const REVIEW_164_DECISIONS = [
   ...review164ShaderDecisions,
   ...review164OtherDecisions,
@@ -414,10 +432,11 @@ export const REVIEW_164_DECISIONS = [
   ...review164CatchupDecisions,
   ...review164PresetDecisions,
   ...review164CompositionDecisions,
+  ...review164CameraSettingsDecisions,
 ];
 
-if (REVIEW_164_DECISIONS.length !== 219) {
-  throw new Error(`RapidRAW 1.6.4 review should account for 219 overlaps, found ${REVIEW_164_DECISIONS.length}`);
+if (REVIEW_164_DECISIONS.length !== 228) {
+  throw new Error(`RapidRAW 1.6.4 review should account for 228 overlaps, found ${REVIEW_164_DECISIONS.length}`);
 }
 
 export const REVIEWS = [

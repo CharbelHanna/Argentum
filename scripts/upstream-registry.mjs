@@ -263,6 +263,48 @@ export const REGISTRY = [
     keywords: /readout|pixel.?value|sample|colou?r.?pick|histogram/i,
   },
   {
+    id: 'analytics-camera-settings',
+    kind: 'feature',
+    what: 'ISO, aperture, shutter, focal length, body and lens over the Analytics scope.',
+    ours: ['src/argentum/CameraSettings.tsx'],
+    dependsOn: [
+      { file: 'src/i18n/locales/en.json', key: 'editor.adjustments.tooltips.toggleAnalytics', how: 'calls',
+        note: 'The overlay locates the analytics band by translating this key and matching the resulting '
+          + 'data-tooltip. Reword it and the strip silently stops appearing. That is the price of taking '
+          + 'no anchor, and it is the first thing to check if this feature ever goes quiet.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', how: 'calls',
+        note: 'DOM shape, not code: toggle button -> button group -> header row -> nextElementSibling is '
+          + 'the band. Falls back to a box below the header if that walk breaks, so a restructure moves '
+          + 'the strip rather than crashing.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', key: 'toggleAnalyticsTooltip', how: 'calls',
+        note: 'The trap. MasksPanel renders a SECOND analytics band whose toggle carries the same English '
+          + 'text ("Toggle Analytics Display") under a different key, so the key being different is no '
+          + 'protection. We gate on upstream\'s own isAdjustmentsPanelVisible test, copied from this file '
+          + '(:257-273), because when Adjustments is visible their button switches to '
+          + 'toggleAnalyticsInAdjustments and our string becomes unique again. If upstream ever makes '
+          + 'these two tooltips differ, or drops the switch, re-read that gate.' },
+      { file: 'src/store/useUIStore.ts', key: 'activePanels', how: 'calls',
+        note: 'uiVisibility + activePanels reproduce the Adjustments-visible predicate above. Add a panel '
+          + 'region and this test silently stops covering it.' },
+      { file: 'src/store/useEditorStore.ts', key: 'isWaveformVisible', how: 'calls',
+        note: 'Whether the band is open at all. Deliberately NOT waveformHeight: the strip hangs from the '
+          + 'band\'s top edge, which does not move while the band animates or is dragged taller, so '
+          + 'reading the height would only cost a re-render per animation frame.' },
+      { file: 'src/components/panel/editor/ExifIcons.tsx', how: 'calls',
+        note: 'Imports five camera icons so the strip and their Metadata panel look like one thing. '
+          + 'Ours importing theirs is not a hook; a rename breaks the build loudly, which is the point.' },
+      { file: 'src/components/panel/right/MetadataPanel.tsx', symbol: 'KEY_CAMERA_SETTINGS_MAP', how: 'shadows',
+        note: 'Their formatters are a non-exported const and ours are a copy of it. If upstream changes how '
+          + 'an aperture or a shutter speed is written, the two panels disagree and nothing errors.' },
+      { file: 'src-tauri/src/exif_processing.rs', key: 'FocalLength', how: 'calls',
+        note: 'Reads FocalLength, not FocalLengthIn35mmFilm as their Metadata panel does: extract_metadata '
+          + 'writes the same uncorrected number into both keys, so the 35mm one is wrong on every crop '
+          + 'body. Identical today; correct if that is ever fixed.' },
+    ],
+    tests: ['NONE — a floating overlay over a measured rectangle, proven only by use.'],
+    keywords: /exif|metadata|iso|aperture|shutter|focal.?length|lens.?model|waveform|analytics|scope|histogram|tooltip|panel.?layout/i,
+  },
+  {
     id: 'highlight-recovery',
     kind: 'feature',
     what: 'Highlight recovery, and the sigmoid that lands it.',
