@@ -36,13 +36,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { Camera } from 'lucide-react';
-import {
-  IconAperture,
-  IconFocalLength,
-  IconIso,
-  IconLens,
-  IconShutter,
-} from '../components/panel/editor/ExifIcons';
+import { IconAperture, IconFocalLength, IconIso, IconLens, IconShutter } from '../components/panel/editor/ExifIcons';
 import { Panel } from '../components/ui/AppProperties';
 import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
@@ -213,13 +207,7 @@ function useBandCorner(active: boolean, tooltip: string): Corner | null {
       }
 
       setCorner((current) => {
-        if (
-          current &&
-          next &&
-          current.left === next.left &&
-          current.top === next.top &&
-          current.width === next.width
-        ) {
+        if (current && next && current.left === next.left && current.top === next.top && current.width === next.width) {
           return current;
         }
         return next;
@@ -249,10 +237,19 @@ interface ChipProps {
   className?: string;
 }
 
+/**
+ * `aria-label` rather than `data-tooltip`, deliberately. The strip is
+ * `pointer-events-none` so that it never eats a hover meant for the scope
+ * underneath, which also means a tooltip on it could never be triggered — it
+ * would be a string nobody can ever read. A label still names the value for a
+ * screen reader, where pointer events are irrelevant.
+ */
 function Chip({ icon, label, value, className }: ChipProps) {
   return (
-    <span className={`flex items-center gap-1 min-w-0 ${className ?? ''}`} data-tooltip={label}>
-      <span className="shrink-0 opacity-60">{icon}</span>
+    <span className={`flex items-center gap-1 min-w-0 ${className ?? ''}`} aria-label={`${label}: ${value}`}>
+      <span className="shrink-0 opacity-60" aria-hidden="true">
+        {icon}
+      </span>
       <span className="truncate">{value}</span>
     </span>
   );
@@ -262,9 +259,9 @@ export default function CameraSettings() {
   const { t } = useTranslation();
   const agT = useAgTranslation();
 
-  const selectedImage = useEditorStore((s: any) => s.selectedImage);
-  const isWaveformVisible = useEditorStore((s: any) => s.isWaveformVisible);
-  const multiSelectedPaths = useLibraryStore((s: any) => s.multiSelectedPaths);
+  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const isWaveformVisible = useEditorStore((s) => s.isWaveformVisible);
+  const multiSelectedPaths = useLibraryStore((s) => s.multiSelectedPaths);
 
   /**
    * Upstream's own test for whether the Adjustments panel is on screen, copied
@@ -284,14 +281,12 @@ export default function CameraSettings() {
    * is what makes the locator unambiguous — and it also enforces the decision
    * that this feature belongs to the Adjustments panel only.
    */
-  const isAdjustmentsVisible = useUIStore((s: any) => {
+  const isAdjustmentsVisible = useUIStore((s) => {
     const visible = s.uiVisibility;
     const panels = s.activePanels;
     return Boolean(
-      (visible?.leftPanel &&
-        (panels?.leftTop === Panel.Adjustments || panels?.leftBottom === Panel.Adjustments)) ||
-        (visible?.rightPanel &&
-          (panels?.rightTop === Panel.Adjustments || panels?.rightBottom === Panel.Adjustments)),
+      (visible?.leftPanel && (panels?.leftTop === Panel.Adjustments || panels?.leftBottom === Panel.Adjustments)) ||
+      (visible?.rightPanel && (panels?.rightTop === Panel.Adjustments || panels?.rightBottom === Panel.Adjustments)),
     );
   });
 
@@ -377,14 +372,7 @@ export default function CameraSettings() {
       </div>
       {(body || lens) && (
         <div className="flex items-center gap-2.5 text-white/60 min-w-0">
-          {body && (
-            <Chip
-              icon={<Camera size={11} />}
-              label={agT('analyticsCamera')}
-              value={body}
-              className="shrink"
-            />
-          )}
+          {body && <Chip icon={<Camera size={11} />} label={agT('analyticsCamera')} value={body} className="shrink" />}
           {lens && (
             <Chip
               icon={<IconLens width={11} height={11} />}
