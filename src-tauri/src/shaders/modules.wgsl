@@ -78,7 +78,7 @@
 /// `mods/input_stage.rs` before this shader starts, and what arrives here as
 /// `input_texture` is already sharpened. The struct exists so their
 /// `GlobalAdjustments` has the same layout on both sides of the buffer -
-/// 176 bytes, field for field with `sharpen::Params`.
+/// 560 bytes, field for field with `sharpen::Params`.
 struct AgSharpen {
     capture_amount: f32,
     capture_radius: f32,
@@ -90,9 +90,12 @@ struct AgSharpen {
     contrast: f32,
     flags: u32,
     usm_contrast: f32,
-    _pad1: u32,
-    _pad2: u32,
+    local_auto: u32,
+    local_show: u32,
     local: array<f32, 32>,
+    local_radius: array<f32, 32>,
+    local_threshold: array<f32, 32>,
+    local_contrast: array<f32, 32>,
 }
 
 /// The camera profile, as a correction on already-decoded pixels.
@@ -221,14 +224,14 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
 /// `mode` is their `show_clipping` uniform, which was already a `u32` holding
 /// nothing but 0 and 1 — see mods/clipping.rs.
 ///
-/// Modes 7 and 8 are the sharpening masks, capture's and the manual
-/// sharpen's. The input stage has already written the
+/// Modes 7, 8 and 9 are the sharpening masks: capture's, the manual
+/// sharpen's and a photo mask's own. The input stage has already written the
 /// mask into this render's input in place of the photo, so it is read back
 /// here, at this pixel, exactly as written: every adjustment in between has
 /// been run on it and is thrown away, because a mask that went through the
 /// tone curve would no longer say how strongly each pixel is sharpened.
 fn ag_stage_display(color: vec3<f32>, mode: u32, coord: vec2<u32>) -> vec3<f32> {
-    if (mode == 7u || mode == 8u) {
+    if (mode == 7u || mode == 8u || mode == 9u) {
         return textureLoad(input_texture, coord, 0).rgb;
     }
     return ag_clipping_view(color, mode);

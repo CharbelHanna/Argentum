@@ -186,6 +186,9 @@ fn sharpening(
     let mask_view = match global.show_clipping {
         clipping::SHARPEN_MASK => MaskView::Capture,
         clipping::SHARPEN_MASK_USM => MaskView::Sharpen,
+        clipping::SHARPEN_MASK_LOCAL if params.local_show > 0 => {
+            MaskView::Local(params.local_show as usize - 1)
+        }
         _ => MaskView::Off,
     };
     let is_raw = global.is_raw_image == 1;
@@ -206,6 +209,7 @@ fn sharpening(
                 params,
                 contrast: 0.0,
                 usm_contrast: 0.0,
+                local_contrast: [0.0; sharpen::MAX_LOCAL],
                 px_scale,
                 mask_view: MaskView::Off,
                 masks: &[],
@@ -230,6 +234,7 @@ fn sharpening(
             params,
             contrast: thresholds.capture,
             usm_contrast: thresholds.usm,
+            local_contrast: thresholds.local,
             px_scale,
             mask_view,
             masks: request.mask_bitmaps,
