@@ -47,7 +47,10 @@ fn thresholds(setting: f32) -> (f32, f32) {
 }
 
 /// Blend `restored` into `source` through the detail mask for `setting`.
-/// Both are the sRGB-encoded framed photo the model saw, the same size.
+/// Both are the sRGB-encoded framed photo the model saw, the same size. The
+/// window keeps the photo's detail and calls `blend_through`; this is the
+/// whole of it in one call, for the tests.
+#[cfg(test)]
 pub fn blend(source: &Rgb32FImage, restored: &Rgb32FImage, setting: f32) -> Rgb32FImage {
     blend_through(source, restored, &detail_mask(source, setting))
 }
