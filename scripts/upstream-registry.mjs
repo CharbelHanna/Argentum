@@ -878,6 +878,39 @@ export const REGISTRY = [
     keywords: /upscale|super.?resolution|zoom|image.?size/i,
   },
   {
+    id: 'restore',
+    kind: 'feature',
+    what: 'Restore: OmniLens undoes lens softness at the photo’s own size, through a detail mask, '
+      + 'before Capture sharpening. In the Super Resolution window, alone or before an enlargement; one file.',
+    ours: [
+      'src-tauri/src/mods/restore.rs',
+      'src-tauri/src/mods/super_resolution.rs',
+      'src-tauri/src/mods/sharpen.rs',
+      'src/argentum/SuperResolutionModal.tsx',
+      'src/argentum/Sharpening.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'load_base_image_from_bytes', how: 'calls',
+        note:
+          'Restore decodes the RAW through it, as Super Resolution does, and that decode is what records '
+          + 'the RAW’s capture-sharpening radius (mods::decode::on_raw_decoded). The restored file carries '
+          + 'that radius in agRestore, because a TIFF has no mosaic to measure it from.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'srgb_to_linear', how: 'calls',
+        note:
+          'Capture sharpening on a restored file relies on their pipeline handing a TIFF to the GPU '
+          + 'sRGB-encoded, as encode_for_reopening wrote it; the sharpening shader linearises a non-RAW '
+          + 'before deconvolving. If upstream starts linearising TIFFs on load, a restored file would be '
+          + 'linearised twice and Capture would deconvolve the wrong light.' },
+    ],
+    tests: [
+      'restore tests: the default is the tuned threshold; smooth areas keep the original; edges take the restored photo; 0 is the whole photo; a tighter mask never reaches further; the kept result is found by its pixels only',
+      'super_resolution tests: the file is named for what was done; a recipe does something and only known scales; only a restored RAW carries its capture radius; Restore runs at its one tile',
+      'sharpen tests: a restored RAW keeps capture sharpening at its RAW’s radius',
+      'Manual: Restore a wide-open telephoto RAW at the default mask; eyes, whiskers and fur edges are crisper, a soft background is unchanged, and the _Restored file opens with Capture sharpening on at the RAW’s radius.',
+    ],
+    keywords: /restor|deblur|aberration|lens.?soft|omnilens|swinir/i,
+  },
+  {
     id: 'object-brush',
     kind: 'feature',
     what: 'Paint roughly over something and the mask snaps to it (Lightroom\'s Select Object).',

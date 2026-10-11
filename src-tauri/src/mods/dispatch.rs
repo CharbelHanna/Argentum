@@ -92,6 +92,9 @@ struct OnArgs {
 struct SuperResolutionPreviewArgs {
     path: String,
     scale: u32,
+    /// Restore's Mask slider, when Restore is on.
+    #[serde(default)]
+    restore: Option<f32>,
 }
 
 #[derive(Deserialize)]
@@ -105,6 +108,8 @@ struct SuperResolutionSaveArgs {
 struct SuperResolutionBatchArgs {
     paths: Vec<String>,
     scale: u32,
+    #[serde(default)]
+    restore: Option<f32>,
 }
 
 /// A TIFF bit depth as the interface names it: 8 or 16.
@@ -252,7 +257,7 @@ pub async fn ag(
         "super_resolution_preview" => {
             let a: SuperResolutionPreviewArgs = args_for(&name, args)?;
             serde_json::to_value(
-                crate::mods::super_resolution::preview(a.path, a.scale, app_handle)
+                crate::mods::super_resolution::preview(a.path, a.scale, a.restore, app_handle)
                     .await
                     .map_err(|e| e.to_string())?,
             )
@@ -263,10 +268,14 @@ pub async fn ag(
             serde_json::to_value(crate::mods::super_resolution::save(a.path, app_handle).await?)
                 .map_err(|e| e.to_string())
         }
+        "discard_super_resolution" => {
+            crate::mods::super_resolution::discard();
+            Ok(serde_json::Value::Null)
+        }
         "batch_super_resolution" => {
             let a: SuperResolutionBatchArgs = args_for(&name, args)?;
             serde_json::to_value(
-                crate::mods::super_resolution::batch(a.paths, a.scale, app_handle)
+                crate::mods::super_resolution::batch(a.paths, a.scale, a.restore, app_handle)
                     .await
                     .map_err(|e| e.to_string())?,
             )

@@ -42,6 +42,7 @@ pub mod profiles;
 pub mod profiles_online;
 pub mod raw_tone;
 pub mod redecode;
+pub mod restore;
 pub mod shader_check;
 pub mod sharpen;
 pub mod sharpen_gpu;

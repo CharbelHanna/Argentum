@@ -112,7 +112,7 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
-    heading: 'AI enlargement',
+    heading: 'AI enlargement and restoration',
     blurb: 'Local models, downloaded on first use and verified before inference.',
     entries: [
       {
@@ -123,11 +123,19 @@ export const CREDITS: CreditGroup[] = [
           'The original project is released under the BSD-3-Clause licence.',
       },
       {
+        name: 'OmniLens',
+        href: 'https://github.com/zju-jiangqi/OmniLens',
+        what:
+          'Restore’s model, by Qi Jiang and colleagues at Zhejiang University: a SwinIR network ' +
+          '(Jingyun Liang et al.) trained on thousands of simulated lens designs, so it undoes the ' +
+          'softness of a lens it has never seen. Apache-2.0.',
+      },
+      {
         name: 'ONNX Runtime with DirectML',
         href: 'https://github.com/microsoft/onnxruntime',
         what:
           'Microsoft’s DirectML build of the runtime RapidRAW already uses. On Windows it is ' +
-          'downloaded the first time you enlarge a photo, and runs the enlargement on the ' +
+          'downloaded the first time you enlarge or restore a photo, and runs it on the ' +
           'graphics card. MIT licence.',
       },
     ],

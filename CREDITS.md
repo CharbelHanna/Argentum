@@ -61,7 +61,7 @@ published it, not from us.
 
 ---
 
-## AI enlargement
+## AI enlargement and restoration
 
 ### [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
 
@@ -69,6 +69,15 @@ The local 2x and 4x photo enlargement models. Argentum downloads the selected
 ONNX artifact on first use, verifies its SHA-256 digest, and runs it locally
 through ONNX Runtime. The original project is released under the BSD-3-Clause
 licence.
+
+### [OmniLens](https://github.com/zju-jiangqi/OmniLens)
+
+Restore's model, by Qi Jiang and colleagues at Zhejiang University: a SwinIR
+network (Jingyun Liang et al.) pretrained on a library of thousands of
+simulated lens designs, so it undoes the softness of a lens it has never seen.
+Argentum converts it to ONNX, publishes that copy in
+[argentum-models](https://github.com/akhater/argentum-models), and downloads it
+the first time Restore is used. Code and weights are Apache-2.0.
 
 ---
 
