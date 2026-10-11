@@ -35,6 +35,12 @@ export const RELEASES: Release[] = [
     version: '26.41.12',
     date: '2026-10-11',
     notes: [
+      'Restore, in the ✨ window: makes a lens that is soft wide open look closer to its sharpest, '
+      + 'at the photo\x27s own size. A Mask slider and an eye show where it works; a soft '
+      + 'background is left alone. Capture sharpening still works on the restored photo.',
+      'Super Resolution is now Restore & Enlarge: either or both, saved as one file named for '
+      + 'what was done (_Restored, _Upscaled_x2, _Restored_Upscaled_x4).',
+      'Enlarging a RAW now applies its capture sharpening first, so enlargements are crisper.',
       'Each mask\x27s Sharpen has its own Radius, Mask and Threshold, under More, and an eye that '
       + 'shows where it sharpens. Two masks can now be sharpened differently from each other and '
       + 'from the rest of the photo.',

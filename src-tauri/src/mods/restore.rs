@@ -12,9 +12,11 @@
 //! Correction via LensLib-to-Specific Domain Adaptation"), the SwinIR network
 //! pretrained on its AODLib-EAOD lens library: thousands of simulated lens
 //! designs, so it corrects aberrations blindly, for a lens it has never seen.
-//! github.com/zju-jiangqi/OmniLens @ 2025-12-03, weights
+//! github.com/zju-jiangqi/OmniLens `basicsr/archs/swinir_arch.py`
+//! @ 89dcbc7ff7e79edc6aea2b58f83750d575c2f4bf, weights
 //! huggingface.co/datasets/Strange97/OmniLens-PretrainedModel
-//! `SwinIR_AODLib_EAOD.pth`, both Apache-2.0. Converted to ONNX at a fixed
+//! `SwinIR_AODLib_EAOD.pth` @ fb0ded25e63fc2c18f8f59e5519e3a659ea796a7, both
+//! Apache-2.0. Converted to ONNX at a fixed
 //! 256 px tile (its window attention fixes the shape) and published in
 //! github.com/akhater/argentum-models, so Argentum's own download stays
 //! small. Measured against the PyTorch original on random tiles: identical.

@@ -85,6 +85,8 @@ pub fn capture(
         params,
         contrast: thresholds.capture,
         usm_contrast: thresholds.usm,
+        // No masks here: each mask's Sharpen is the editor's, live.
+        local_contrast: [0.0; MAX_LOCAL],
         px_scale: 1.0,
         mask_view: MaskView::Off,
         masks: &[],
@@ -150,9 +152,10 @@ fn read_back(
     for y in 0..height as usize {
         let start = y * row as usize;
         let line = &bytes[start..start + (width * BYTES_PER_TEXEL) as usize];
-        for texel in line.chunks_exact(BYTES_PER_TEXEL as usize) {
-            for channel in texel.chunks_exact(2).take(3) {
-                out.push(half::f16::from_le_bytes([channel[0], channel[1]]).to_f32());
+        // Four little-endian halves a texel; alpha is dropped.
+        for texel in line.as_chunks::<8>().0 {
+            for channel in &texel.as_chunks::<2>().0[..3] {
+                out.push(half::f16::from_le_bytes(*channel).to_f32());
             }
         }
     }

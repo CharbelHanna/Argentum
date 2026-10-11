@@ -101,6 +101,15 @@ const MILESTONES: Milestone[] = [
       + 'that shows where each one works, and a Sharpen slider on every mask.',
   },
   {
+    stage: 'done',
+    what: 'Restore',
+    release: '26.41.12',
+    why:
+      'A lens used wide open is soft from its own aberrations, and sharpening only goes so far. '
+      + 'Restore uses an AI model trained on thousands of simulated lenses to undo that softness '
+      + 'at the photo\x27s own size, only where the photo has detail, before capture sharpening.',
+  },
+  {
     stage: 'planned',
     what: 'White balance on RAW files only',
     why:
