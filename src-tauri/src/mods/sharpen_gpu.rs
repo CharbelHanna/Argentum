@@ -59,7 +59,7 @@ use std::time::{Duration, Instant};
 
 use bytemuck::{Pod, Zeroable};
 
-use super::sharpen::{FLAG_ITER_CHECK, Params};
+use super::sharpen::{FLAG_ITER_CHECK, MAX_LOCAL, Params};
 use crate::image_processing::GpuContext;
 
 const TILE: u32 = 1024;
@@ -88,6 +88,10 @@ const FLAG_ITER: u32 = 8;
 const FLAG_MASK: u32 = 16;
 const FLAG_USM_MASK: u32 = 32;
 const FLAG_CLIP: u32 = 64;
+const FLAG_LAYER_MASK: u32 = 128;
+/// Ours alone, never read by the shader: some photo mask has a Sharpen of
+/// its own to run.
+const FLAG_LOCAL: u32 = 256;
 
 /// `Params` in sharpen.wgsl, field for field.
 #[repr(C)]
@@ -117,11 +121,10 @@ struct Uniform {
     centre_y: f32,
     clip: f32,
     usm_contrast: f32,
-    local_count: u32,
+    layer: i32,
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
-    local_amount: [[f32; 4]; 8],
 }
 
 /// One of RapidRAW's mask bitmaps, as a render carries them.
@@ -146,6 +149,8 @@ pub struct Job<'a> {
     pub contrast: f32,
     /// The manual sharpen's: the same number unless it has its own mask.
     pub usm_contrast: f32,
+    /// Each photo mask's own, indexed as `params.local` is.
+    pub local_contrast: [f32; MAX_LOCAL],
     /// Render pixels per full-resolution pixel.
     pub px_scale: f32,
     /// Show a mask instead of sharpening.
@@ -167,6 +172,8 @@ pub enum MaskView {
     Off,
     Capture,
     Sharpen,
+    /// A photo mask's own, by its index in `params.local`.
+    Local(usize),
 }
 
 /// What is going to run, worked out before anything touches the GPU.
@@ -244,7 +251,11 @@ pub fn needs_work(
     px_scale: f32,
     mask_view: MaskView,
 ) -> bool {
-    plan_for(params, width, height, px_scale, mask_view, 0.0, 0.0, None).is_some()
+    let none = [0.0; MAX_LOCAL];
+    plan_for(
+        params, width, height, px_scale, mask_view, 0.0, 0.0, &none, None,
+    )
+    .is_some()
 }
 
 fn plan(job: &Job) -> Option<Plan> {
@@ -256,28 +267,57 @@ fn plan(job: &Job) -> Option<Plan> {
         job.mask_view,
         job.contrast,
         job.usm_contrast,
+        &job.local_contrast,
         job.region,
     )
     .map(|mut plan| {
-        if plan.flags & FLAG_USM != 0 {
-            plan.local_key = local_key(&local_layers(job));
-        }
+        plan.local_key = local_key(&local_layers(job));
         plan
     })
 }
 
-/// The masks whose own Sharpen is not zero, with their bitmap - skipping any
-/// whose bitmap is missing or not this render's size, which would mean the
-/// indices no longer line up with theirs.
-fn local_layers<'a>(job: &'a Job) -> Vec<(&'a MaskBitmap, f32)> {
-    job.params
-        .local
-        .iter()
-        .enumerate()
-        .filter(|(_, a)| **a != 0.0)
-        .filter_map(|(i, a)| {
-            let bitmap = job.masks.get(i)?;
-            (bitmap.width() == job.width && bitmap.height() == job.height).then_some((bitmap, *a))
+/// A photo mask's own Sharpen, as the passes run it.
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Layer {
+    amount: f32,
+    /// Render pixels.
+    sigma: f32,
+    threshold: f32,
+    /// 0..1; 0 for no contrast mask, which softening never has.
+    contrast: f32,
+}
+
+/// Whether mask k's own Sharpen does anything at this scale.
+fn runs(p: &Params, k: usize, s: f32) -> bool {
+    p.local[k] != 0.0 && p.local_radius[k] * s >= MIN_SIGMA
+}
+
+/// The masks whose own Sharpen runs - or the one whose mask is on show - with
+/// their bitmap, skipping any whose bitmap is missing or not this render's
+/// size, which would mean the indices no longer line up with theirs.
+fn local_layers<'a>(job: &'a Job) -> Vec<(&'a MaskBitmap, Layer)> {
+    let p = &job.params;
+    let s = job.px_scale.clamp(1.0e-3, 1.0);
+    (0..MAX_LOCAL)
+        .filter(|&k| match job.mask_view {
+            MaskView::Off => runs(p, k, s),
+            MaskView::Local(shown) => k == shown,
+            _ => false,
+        })
+        .filter_map(|k| {
+            let bitmap = job.masks.get(k)?;
+            let layer = Layer {
+                amount: p.local[k],
+                sigma: p.local_radius[k] * s,
+                threshold: p.local_threshold[k],
+                contrast: if p.local[k] < 0.0 {
+                    0.0
+                } else {
+                    job.local_contrast[k]
+                },
+            };
+            (bitmap.width() == job.width && bitmap.height() == job.height)
+                .then_some((bitmap, layer))
         })
         .collect()
 }
@@ -286,13 +326,15 @@ fn local_layers<'a>(job: &'a Job) -> Vec<(&'a MaskBitmap, f32)> {
 /// every render, kept or not, and SipHash over five masks of a 32 MP photo
 /// took a tenth of a second. Four lanes of multiply-rotate: each step is a
 /// bijection, so any one changed word changes the key.
-fn local_key(layers: &[(&MaskBitmap, f32)]) -> u64 {
+fn local_key(layers: &[(&MaskBitmap, Layer)]) -> u64 {
     const K: u64 = 0x517c_c1b7_2722_0a95;
     let step = |h: u64, v: u64| (h.rotate_left(5) ^ v).wrapping_mul(K);
     let mut lanes = [1u64, 2, 3, 4];
-    for (bitmap, amount) in layers {
+    for (bitmap, layer) in layers {
         let raw = bitmap.as_raw();
-        lanes[0] = step(lanes[0], u64::from(amount.to_bits()));
+        for v in [layer.amount, layer.sigma, layer.threshold, layer.contrast] {
+            lanes[0] = step(lanes[0], u64::from(v.to_bits()));
+        }
         lanes[1] = step(lanes[1], raw.len() as u64);
         let (blocks, rest) = raw.as_chunks::<32>();
         for block in blocks {
@@ -316,6 +358,7 @@ fn plan_for(
     mask_view: MaskView,
     contrast: f32,
     usm_contrast: f32,
+    local_contrast: &[f32; MAX_LOCAL],
     region: Option<[u32; 4]>,
 ) -> Option<Plan> {
     let showing = mask_view != MaskView::Off;
@@ -331,22 +374,27 @@ fn plan_for(
     let capture = !showing && p.capture_on() && cap_sigma.max(corner_sigma) >= MIN_SIGMA;
 
     let usm_sigma = p.usm_radius * s;
-    // A mask's own Sharpen runs the same unsharp mask, at Sharpen's radius,
-    // even with the global Amount at 0.
-    let usm =
-        !showing && (p.usm_on() || p.local_on()) && p.usm_radius > 0.0 && usm_sigma >= MIN_SIGMA;
+    let usm = !showing && p.usm_on() && usm_sigma >= MIN_SIGMA;
+    // Each photo mask's own Sharpen is an unsharp mask of its own, whatever
+    // the main card says.
+    let local = !showing && (0..MAX_LOCAL).any(|k| runs(p, k, s));
 
-    if !capture && !usm && !showing {
+    if !capture && !usm && !local && !showing {
         return None;
     }
 
     // The mask the first passes build: capture's, with its clip guard, unless
-    // the manual sharpen is all that runs or its mask is the one on show.
+    // the manual sharpen is all that runs or its mask is the one on show. A
+    // photo mask builds its own, later.
     let (first, clip) = match mask_view {
         MaskView::Capture => (contrast, true),
         MaskView::Sharpen => (usm_contrast, false),
+        // Softening has no contrast mask, so neither does its view.
+        MaskView::Local(k) if p.local[k] < 0.0 => (0.0, false),
+        MaskView::Local(k) => (local_contrast[k], false),
         MaskView::Off if capture => (contrast, true),
-        MaskView::Off => (usm_contrast, false),
+        MaskView::Off if usm => (usm_contrast, false),
+        MaskView::Off => (0.0, false),
     };
 
     let mut flags = 0;
@@ -358,6 +406,9 @@ fn plan_for(
     }
     if usm {
         flags |= FLAG_USM;
+    }
+    if local {
+        flags |= FLAG_LOCAL;
     }
     if showing {
         flags |= FLAG_MASK_VIEW;
@@ -447,9 +498,38 @@ struct Engine {
 /// The drag preview, the still one, and the mask while it is on show.
 const KEEP: usize = 3;
 
-/// The masks with a Sharpen of their own as one texture, how many, and their
-/// amounts - kept with a result, so panning does not upload them again.
-type Local = (Option<wgpu::TextureView>, u32, [[f32; 4]; 8]);
+/// The masks with a Sharpen of their own as one texture, and each layer's
+/// settings with the box its pixels are in - kept with a result, so panning
+/// does not upload them again.
+#[derive(Default)]
+struct Local {
+    masks: Option<wgpu::TextureView>,
+    layers: Vec<(Layer, [u32; 4])>,
+}
+
+/// x0, y0, x1, y1 of a mask's pixels that are not zero. Nothing intersects
+/// it when there are none.
+fn extent(bitmap: &MaskBitmap) -> [u32; 4] {
+    let mut b = [u32::MAX, u32::MAX, 0, 0];
+    for (y, row) in bitmap
+        .as_raw()
+        .chunks_exact(bitmap.width() as usize)
+        .enumerate()
+    {
+        if let (Some(x0), Some(x1)) = (
+            row.iter().position(|&v| v != 0),
+            row.iter().rposition(|&v| v != 0),
+        ) {
+            b = [
+                b[0].min(x0 as u32),
+                b[1].min(y as u32),
+                b[2].max(x1 as u32 + 1),
+                y as u32 + 1,
+            ];
+        }
+    }
+    b
+}
 
 /// The last result, and what it was made from.
 ///
@@ -635,23 +715,18 @@ impl Engine {
     }
 
     /// The masks with a Sharpen of their own, as one layered texture, and
-    /// each one's amount in the order of its layer.
-    fn local_masks(&self, queue: &wgpu::Queue, job: &Job, plan: &Plan) -> Local {
-        let mut amounts = [[0.0f32; 4]; 8];
-        if plan.flags & FLAG_USM == 0 {
-            return (None, 0, amounts);
-        }
+    /// each one's settings in the order of its layer.
+    fn local_masks(&self, queue: &wgpu::Queue, job: &Job) -> Local {
         let layers = local_layers(job);
         if layers.is_empty() {
-            return (None, 0, amounts);
+            return Local::default();
         }
         let mut data = Vec::with_capacity(layers.len() * (job.width * job.height) as usize);
-        for (k, (bitmap, amount)) in layers.iter().enumerate() {
+        for (bitmap, _) in &layers {
             data.extend_from_slice(bitmap.as_raw());
-            amounts[k / 4][k % 4] = *amount;
         }
         // Never one layer: on OpenGL that is a plain texture, not an array.
-        // The extra layer is blank and local_count never reaches it.
+        // The extra layer is blank and no pass is given its index.
         let depth = layers.len().max(2);
         data.resize(depth * (job.width * job.height) as usize, 0);
         use wgpu::util::DeviceExt;
@@ -678,7 +753,13 @@ impl Engine {
             dimension: Some(wgpu::TextureViewDimension::D2Array),
             ..Default::default()
         });
-        (Some(view), layers.len() as u32, amounts)
+        Local {
+            masks: Some(view),
+            layers: layers
+                .iter()
+                .map(|(bitmap, layer)| (*layer, extent(bitmap)))
+                .collect(),
+        }
     }
 
     fn output(&self, width: u32, height: u32) -> (wgpu::Texture, wgpu::TextureView) {
@@ -717,8 +798,6 @@ impl Engine {
         areas: &[[u32; 4]],
         fill: bool,
     ) {
-        let (masks, local_count, local_amount) = local;
-        let (local_count, local_amount) = (*local_count, *local_amount);
         let mut entries = vec![
             wgpu::BindGroupEntry {
                 binding: 0,
@@ -749,7 +828,9 @@ impl Engine {
         });
         entries.push(wgpu::BindGroupEntry {
             binding: 10,
-            resource: wgpu::BindingResource::TextureView(masks.as_ref().unwrap_or(&self.no_masks)),
+            resource: wgpu::BindingResource::TextureView(
+                local.masks.as_ref().unwrap_or(&self.no_masks),
+            ),
         });
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Argentum Sharpen BG"),
@@ -774,8 +855,11 @@ impl Engine {
             centre_x: job.width as f32 * 0.5,
             centre_y: job.height as f32 * 0.5,
             clip: if job.is_raw { CLIP_LEVEL } else { 1.0e30 },
-            local_count,
-            local_amount,
+            // A photo mask's own on show: its one layer, for compose.
+            layer: match (job.mask_view, &local.masks) {
+                (MaskView::Local(_), Some(_)) => 0,
+                _ => -1,
+            },
             ..Default::default()
         };
 
@@ -822,7 +906,7 @@ impl Engine {
                         inner_h: th,
                         ..base
                     };
-                    self.tile(queue, &bind_group, &uniform, plan);
+                    self.tile(queue, &bind_group, &uniform, plan, &local.layers);
                     tx += TILE;
                 }
                 ty += TILE;
@@ -861,7 +945,7 @@ impl Engine {
                 }
                 kept.done = done;
             } else {
-                kept.local = self.local_masks(queue, job, &plan);
+                kept.local = self.local_masks(queue, job);
                 self.encode(
                     queue,
                     job,
@@ -891,7 +975,7 @@ impl Engine {
             }
         };
         let view = reuse.unwrap_or_else(|| self.output(job.width, job.height).1);
-        let local = self.local_masks(queue, job, &plan);
+        let local = self.local_masks(queue, job);
         self.encode(queue, job, &plan, &view, &local, &[plan.area], !whole);
         self.kept.push(Kept {
             family: job.family,
@@ -906,8 +990,14 @@ impl Engine {
         view
     }
 
-    fn tile(&self, queue: &wgpu::Queue, bind_group: &wgpu::BindGroup, u: &Uniform, plan: &Plan) {
-        queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(u));
+    fn tile(
+        &self,
+        queue: &wgpu::Queue,
+        bind_group: &wgpu::BindGroup,
+        u: &Uniform,
+        plan: &Plan,
+        layers: &[(Layer, [u32; 4])],
+    ) {
         let whole = (u.ext_w.div_ceil(WORKGROUP), u.ext_h.div_ceil(WORKGROUP));
         let one = (1, 1);
         let p = &self.pipelines;
@@ -941,49 +1031,103 @@ impl Engine {
                 (&p.mask_v, whole),
             ]);
         }
-        if plan.flags & FLAG_USM != 0 {
-            steps.push(vec![
-                (&p.usm_prep, whole),
-                (&p.usm_h, whole),
-                (&p.usm_v, whole),
-            ]);
+        if plan.flags & (FLAG_USM | FLAG_LOCAL) != 0 {
+            steps.push(vec![(&p.usm_prep, whole)]);
         }
-        steps.push(vec![(&p.compose, whole)]);
+        if plan.flags & FLAG_USM != 0 {
+            steps.push(vec![(&p.usm_h, whole), (&p.usm_v, whole)]);
+        }
 
-        // On GL a few steps at a time: twelve iterations of a tile is tens of
-        // milliseconds, well inside the second GL allows another thread.
-        let chunks: Vec<Vec<_>> = if self.gl {
-            steps
-                .chunks(12)
-                .map(|group| group.iter().flatten().copied().collect())
-                .collect()
-        } else {
-            vec![steps.into_iter().flatten().collect()]
-        };
-        for (n, chunk) in chunks.iter().enumerate() {
-            let mut encoder = self
-                .device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("Argentum Sharpen Tile"),
-                });
-            if n == 0 {
-                encoder.clear_buffer(&self.stopped, 0, None);
-                encoder.clear_buffer(&self.counter, 0, None);
-            }
-            {
-                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                    label: Some("Argentum Sharpen"),
-                    timestamp_writes: None,
-                });
-                pass.set_bind_group(0, bind_group, &[]);
-                for (pipeline, groups) in chunk {
-                    pass.set_pipeline(pipeline);
-                    pass.dispatch_workgroups(groups.0, groups.1, 1);
+        // Then each photo mask's own Sharpen in turn, the same passes with
+        // its own settings in the uniform - so its own submission - and only
+        // in tiles its pixels reach.
+        let mut segments = vec![(*u, steps)];
+        if plan.flags & FLAG_LOCAL != 0 {
+            // What `blend` holds by now, so a mask with the same contrast
+            // threshold does not build it again.
+            let mut held = if plan.flags & FLAG_USM_MASK != 0 {
+                Some(plan.usm_contrast)
+            } else if plan.flags & (FLAG_MASK | FLAG_CLIP) == FLAG_MASK {
+                Some(plan.contrast)
+            } else {
+                None
+            };
+            let (x0, y0) = (u.origin_x as u32, u.origin_y as u32);
+            let (x1, y1) = (x0 + u.ext_w, y0 + u.ext_h);
+            for (i, (layer, b)) in layers.iter().enumerate() {
+                if b[0] >= x1 || b[2] <= x0 || b[1] >= y1 || b[3] <= y0 {
+                    continue;
                 }
+                let mut steps = Vec::new();
+                if layer.contrast > 0.0 && held != Some(layer.contrast) {
+                    steps.push(vec![
+                        (&p.usm_mask_prep, whole),
+                        (&p.mask_h, whole),
+                        (&p.mask_v, whole),
+                    ]);
+                    held = Some(layer.contrast);
+                }
+                steps.push(vec![(&p.usm_h, whole), (&p.usm_v, whole)]);
+                let own = Uniform {
+                    layer: i as i32,
+                    flags: u.flags
+                        | if layer.contrast > 0.0 {
+                            FLAG_LAYER_MASK
+                        } else {
+                            0
+                        },
+                    usm_amount: layer.amount,
+                    usm_sigma: layer.sigma,
+                    usm_threshold: layer.threshold,
+                    usm_contrast: layer.contrast,
+                    ..*u
+                };
+                segments.push((own, steps));
             }
-            let index = queue.submit(Some(encoder.finish()));
-            if self.gl {
-                wait_briefly(&self.device, index);
+        }
+        if let Some((_, steps)) = segments.last_mut() {
+            steps.push(vec![(&p.compose, whole)]);
+        }
+
+        let mut cleared = false;
+        for (uniform, steps) in &segments {
+            queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(uniform));
+            // On GL a few steps at a time: twelve iterations of a tile is tens
+            // of milliseconds, well inside the second GL allows another thread.
+            let chunks: Vec<Vec<_>> = if self.gl {
+                steps
+                    .chunks(12)
+                    .map(|group| group.iter().flatten().copied().collect())
+                    .collect()
+            } else {
+                vec![steps.iter().flatten().copied().collect()]
+            };
+            for chunk in &chunks {
+                let mut encoder =
+                    self.device
+                        .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                            label: Some("Argentum Sharpen Tile"),
+                        });
+                if !cleared {
+                    encoder.clear_buffer(&self.stopped, 0, None);
+                    encoder.clear_buffer(&self.counter, 0, None);
+                    cleared = true;
+                }
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: Some("Argentum Sharpen"),
+                        timestamp_writes: None,
+                    });
+                    pass.set_bind_group(0, bind_group, &[]);
+                    for (pipeline, groups) in chunk {
+                        pass.set_pipeline(pipeline);
+                        pass.dispatch_workgroups(groups.0, groups.1, 1);
+                    }
+                }
+                let index = queue.submit(Some(encoder.finish()));
+                if self.gl {
+                    wait_briefly(&self.device, index);
+                }
             }
         }
     }
@@ -1045,7 +1189,7 @@ pub fn run(context: &GpuContext, job: &Job, target: Target) -> Option<wgpu::Text
         Target::Kept => engine.keep(&context.queue, job, plan),
         Target::Fresh => {
             let (_texture, view) = engine.output(job.width, job.height);
-            let local = engine.local_masks(&context.queue, job, &plan);
+            let local = engine.local_masks(&context.queue, job);
             let whole = plan.area == [0, 0, job.width, job.height];
             engine.encode(
                 &context.queue,
@@ -1081,13 +1225,23 @@ mod tests {
     }
 
     fn plan_at(params: &Params, scale: f32, mask_view: MaskView) -> Option<Plan> {
-        plan_for(params, 6000, 4000, scale, mask_view, 0.1, 0.1, None)
+        plan_for(
+            params,
+            6000,
+            4000,
+            scale,
+            mask_view,
+            0.1,
+            0.1,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
     }
 
     #[test]
     fn the_uniform_matches_the_shader_struct() {
-        // 28 four-byte fields in sharpen.wgsl's Params, then 8 vec4s.
-        assert_eq!(std::mem::size_of::<Uniform>(), 112 + 128);
+        // 28 four-byte fields in sharpen.wgsl's Params.
+        assert_eq!(std::mem::size_of::<Uniform>(), 112);
     }
 
     #[test]
@@ -1176,6 +1330,7 @@ mod tests {
             MaskView::Off,
             0.1,
             0.1,
+            &[0.1; MAX_LOCAL],
             Some([100, 3900, 500, 100]),
         )
         .unwrap();
@@ -1186,15 +1341,48 @@ mod tests {
     fn the_manual_sharpen_gets_its_own_mask_only_when_it_differs() {
         let mut p = defaults();
         p.usm_amount = 0.5;
-        let same = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.1, None).unwrap();
+        let same = plan_for(
+            &p,
+            6000,
+            4000,
+            1.0,
+            MaskView::Off,
+            0.1,
+            0.1,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
+        .unwrap();
         assert_eq!(same.flags & FLAG_USM_MASK, 0);
-        let own = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.4, None).unwrap();
+        let own = plan_for(
+            &p,
+            6000,
+            4000,
+            1.0,
+            MaskView::Off,
+            0.1,
+            0.4,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
+        .unwrap();
         assert_eq!(own.flags & FLAG_USM_MASK, FLAG_USM_MASK);
         assert_eq!((own.contrast, own.usm_contrast), (0.1, 0.4));
         // Capture off: the manual sharpen's mask is the only one, built first,
         // and without capture's clip guard.
         p.capture_amount = 0.0;
-        let alone = plan_for(&p, 6000, 4000, 1.0, MaskView::Off, 0.1, 0.4, None).unwrap();
+        let alone = plan_for(
+            &p,
+            6000,
+            4000,
+            1.0,
+            MaskView::Off,
+            0.1,
+            0.4,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
+        .unwrap();
         assert_eq!(alone.contrast, 0.4);
         assert_eq!(alone.flags & (FLAG_USM_MASK | FLAG_CLIP), 0);
     }
@@ -1205,19 +1393,96 @@ mod tests {
         p.capture_amount = 0.0;
         assert!(plan_at(&p, 1.0, MaskView::Off).is_none(), "nothing on");
         p.local[3] = -0.5;
+        p.local_radius[3] = 2.0;
         let plan = plan_at(&p, 1.0, MaskView::Off).expect("a mask's own Sharpen runs");
-        assert_eq!(plan.flags & FLAG_USM, FLAG_USM);
+        assert_eq!(plan.flags & (FLAG_LOCAL | FLAG_USM), FLAG_LOCAL);
+        // Too fine a radius to see at this scale is skipped, as capture is.
+        p.local_radius[3] = 0.2;
+        assert!(plan_at(&p, 1.0, MaskView::Off).is_none());
     }
 
     #[test]
     fn each_eye_shows_its_own_mask() {
         let p = defaults();
-        let capture = plan_for(&p, 6000, 4000, 0.3, MaskView::Capture, 0.1, 0.4, None).unwrap();
+        let capture = plan_for(
+            &p,
+            6000,
+            4000,
+            0.3,
+            MaskView::Capture,
+            0.1,
+            0.4,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
+        .unwrap();
         assert_eq!(capture.contrast, 0.1);
         assert_eq!(capture.flags & FLAG_CLIP, FLAG_CLIP);
-        let sharpen = plan_for(&p, 6000, 4000, 0.3, MaskView::Sharpen, 0.1, 0.4, None).unwrap();
+        let sharpen = plan_for(
+            &p,
+            6000,
+            4000,
+            0.3,
+            MaskView::Sharpen,
+            0.1,
+            0.4,
+            &[0.1; MAX_LOCAL],
+            None,
+        )
+        .unwrap();
         assert_eq!(sharpen.contrast, 0.4);
         assert_eq!(sharpen.flags & FLAG_CLIP, 0);
+        let mut own = [0.1; MAX_LOCAL];
+        own[2] = 0.3;
+        let mut p = p;
+        p.local[2] = 0.5;
+        let local = plan_for(
+            &p,
+            6000,
+            4000,
+            0.3,
+            MaskView::Local(2),
+            0.1,
+            0.4,
+            &own,
+            None,
+        )
+        .unwrap();
+        assert_eq!(local.contrast, 0.3);
+        assert_eq!(
+            local.flags & (FLAG_CLIP | FLAG_LOCAL),
+            0,
+            "a view, not a sharpen"
+        );
+        // Softening has no contrast mask to show: the mask alone.
+        p.local[2] = -0.5;
+        let soft = plan_for(
+            &p,
+            6000,
+            4000,
+            0.3,
+            MaskView::Local(2),
+            0.1,
+            0.4,
+            &own,
+            None,
+        )
+        .unwrap();
+        assert_eq!(soft.flags & FLAG_MASK, 0);
+    }
+
+    #[test]
+    fn a_mask_reaches_only_the_tiles_its_pixels_are_in() {
+        let corner = MaskBitmap::from_fn(300, 200, |x, y| {
+            image::Luma([if (10..20).contains(&x) && (100..150).contains(&y) {
+                9
+            } else {
+                0
+            }])
+        });
+        assert_eq!(extent(&corner), [10, 100, 20, 150]);
+        let none = extent(&MaskBitmap::new(300, 200));
+        assert!(none[0] >= none[2], "an empty mask reaches nothing");
     }
 
     #[test]
@@ -1405,6 +1670,7 @@ mod tests {
             params,
             contrast,
             usm_contrast: contrast,
+            local_contrast: [0.0; MAX_LOCAL],
             px_scale: 1.0,
             mask_view: MaskView::Off,
             masks: &[],
@@ -1480,6 +1746,7 @@ mod tests {
             params,
             contrast: 0.0,
             usm_contrast: 0.0,
+            local_contrast: [0.0; MAX_LOCAL],
             px_scale: 1.0,
             mask_view: MaskView::Off,
             masks: &[],
@@ -1757,6 +2024,7 @@ mod tests {
                             params: adjustments.global.ag_sharpen,
                             contrast: 0.1,
                             usm_contrast: 0.1,
+                            local_contrast: [0.0; MAX_LOCAL],
                             px_scale: 1.0,
                             mask_view: MaskView::Off,
                             masks: &masks,
@@ -1911,6 +2179,7 @@ mod tests {
                     params,
                     contrast: t.capture,
                     usm_contrast: t.usm,
+                    local_contrast: [0.0; MAX_LOCAL],
                     px_scale: 1.0,
                     mask_view: MaskView::Off,
                     masks: &[],
@@ -1943,6 +2212,39 @@ mod tests {
                 eprintln!(
                     "{name} {w}x{h}: mask on {mask_on:.0} ms, off again {mask_off:.0} ms, a pan step {pan_step:.0} ms"
                 );
+
+                // Photo masks with a Sharpen of their own, each with its own
+                // radius: two eye-sized ones, then one over the whole frame.
+                let eye = |cx: u32| {
+                    MaskBitmap::from_fn(w, h, |x, y| {
+                        image::Luma(
+                            [u8::from(x.abs_diff(cx) < 150 && y.abs_diff(h / 3) < 80) * 255],
+                        )
+                    })
+                };
+                let masks = [
+                    eye(w * 2 / 5),
+                    eye(w * 3 / 5),
+                    MaskBitmap::from_pixel(w, h, image::Luma([255])),
+                ];
+                let with = |n: usize| {
+                    let mut params = params;
+                    for k in 0..n {
+                        params.local[k] = 0.5;
+                        params.local_radius[k] = 1.0 + k as f32;
+                        params.local_threshold[k] = 0.5;
+                    }
+                    times(&Job {
+                        params,
+                        local_contrast: [t.capture; MAX_LOCAL],
+                        masks: &masks,
+                        ..job
+                    })
+                };
+                let (eyes, frame) = (with(2), with(3));
+                eprintln!(
+                    "{name} {w}x{h}: first render with two eye masks {eyes:.0} ms, and a whole-frame one {frame:.0} ms"
+                );
                 let plan = plan(&job).unwrap();
                 eprintln!(
                     "{name} {w}x{h}: theirs {alone:.0} ms | measure {measure_cold:.0} then {measure_warm:.1} ms | \
@@ -1961,7 +2263,7 @@ mod tests {
         let px = edge(w, h, 1.5);
         let src = upload(ctx, w, h, &px);
         let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
-        let mut local = [0.0; super::super::sharpen::MAX_LOCAL];
+        let mut local = [0.0; MAX_LOCAL];
         local[0] = 0.8;
         let job = Job {
             src: &src,
@@ -1974,10 +2276,13 @@ mod tests {
                 usm_radius: 2.0,
                 usm_threshold: 0.5,
                 local,
+                local_radius: [2.0; MAX_LOCAL],
+                local_threshold: [0.5; MAX_LOCAL],
                 ..Params::default()
             },
             contrast: 0.0,
             usm_contrast: 0.0,
+            local_contrast: [0.0; MAX_LOCAL],
             px_scale: 1.0,
             mask_view: MaskView::Off,
             masks: std::slice::from_ref(&mask),
@@ -2057,7 +2362,7 @@ mod tests {
         let px = edge(w, h, 1.5);
         let src = upload(&ctx, w, h, &px);
         let mask = MaskBitmap::from_pixel(w, h, image::Luma([255]));
-        let mut local = [0.0; super::super::sharpen::MAX_LOCAL];
+        let mut local = [0.0; MAX_LOCAL];
         local[0] = 0.8;
         let job = Job {
             src: &src,
@@ -2070,10 +2375,13 @@ mod tests {
                 usm_radius: 2.0,
                 usm_threshold: 0.5,
                 local,
+                local_radius: [2.0; MAX_LOCAL],
+                local_threshold: [0.5; MAX_LOCAL],
                 ..Params::default()
             },
             contrast: 0.0,
             usm_contrast: 0.0,
+            local_contrast: [0.0; MAX_LOCAL],
             px_scale: 1.0,
             mask_view: MaskView::Off,
             masks: std::slice::from_ref(&mask),
@@ -2170,6 +2478,7 @@ mod tests {
             params,
             contrast: 0.0,
             usm_contrast: 0.0,
+            local_contrast: [0.0; MAX_LOCAL],
             px_scale: 1.0,
             mask_view: MaskView::Off,
             masks: &[],
@@ -2197,12 +2506,14 @@ mod tests {
         let top = MaskBitmap::from_fn(w, h, |_, y| image::Luma([if y < h / 2 { 255 } else { 0 }]));
         let masks = [top];
         let run_with = |amount: f32| {
-            let mut local = [0.0; super::super::sharpen::MAX_LOCAL];
+            let mut local = [0.0; MAX_LOCAL];
             local[0] = amount;
             let params = Params {
                 usm_radius: 2.0,
                 usm_threshold: 0.5,
                 local,
+                local_radius: [2.0; MAX_LOCAL],
+                local_threshold: [0.5; MAX_LOCAL],
                 ..Params::default()
             };
             let job = Job {
@@ -2215,6 +2526,7 @@ mod tests {
                 params,
                 contrast: 0.0,
                 usm_contrast: 0.0,
+                local_contrast: [0.0; MAX_LOCAL],
                 px_scale: 1.0,
                 mask_view: MaskView::Off,
                 masks: &masks,
@@ -2251,6 +2563,73 @@ mod tests {
         assert!(
             steepest(&row(&softer, 8)) < original * 0.9,
             "a negative amount softens"
+        );
+    }
+
+    /// Each mask's radius is its own, and its eye shows where it lands:
+    /// inside it and nowhere else.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_masks_own_radius_and_its_mask_view() {
+        let ctx = device(false).expect("no wgpu adapter");
+        let (w, h) = (256u32, 64u32);
+        let px = edge(w, h, 1.5);
+        let src = upload(&ctx, w, h, &px);
+        let top = MaskBitmap::from_fn(w, h, |_, y| image::Luma([if y < h / 2 { 255 } else { 0 }]));
+        let masks = [top];
+        let run_with = |radius: f32, mask_view: MaskView| {
+            let mut params = Params::default();
+            params.local[0] = 0.8;
+            params.local_radius[0] = radius;
+            let job = Job {
+                src: &src,
+                source: 0,
+                family: 0,
+                width: w,
+                height: h,
+                is_raw: true,
+                params,
+                contrast: 0.0,
+                usm_contrast: 0.0,
+                local_contrast: [0.0; MAX_LOCAL],
+                px_scale: 1.0,
+                mask_view,
+                masks: &masks,
+                region: None,
+            };
+            read(
+                &ctx,
+                &run(&ctx, &job, Target::Fresh).expect("work to do"),
+                w,
+                h,
+            )
+        };
+        let row = |img: &[[f32; 4]], y: u32| img[(y * w) as usize..((y + 1) * w) as usize].to_vec();
+        // How far from the edge the picture moved.
+        let reach = |img: &[[f32; 4]]| {
+            row(img, 8)
+                .iter()
+                .zip(row(&px, 8))
+                .filter(|(a, b)| (a[1] - b[1]).abs() > 1e-3)
+                .count()
+        };
+        let (fine, wide) = (
+            reach(&run_with(0.5, MaskView::Off)),
+            reach(&run_with(4.0, MaskView::Off)),
+        );
+        assert!(
+            wide > fine + 8,
+            "radius 4 reaches {wide} px, radius 0.5 {fine}"
+        );
+
+        let view = run_with(0.5, MaskView::Local(0));
+        assert!(
+            row(&view, 8).iter().all(|p| p[0] > 0.99),
+            "inside the mask: white"
+        );
+        assert!(
+            row(&view, 56).iter().all(|p| p[0] == 0.0),
+            "outside it: black"
         );
     }
 

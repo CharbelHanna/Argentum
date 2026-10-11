@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.41.12',
+    date: '2026-10-11',
+    notes: [
+      'Each mask\x27s Sharpen has its own Radius, Mask and Threshold, under More, and an eye that '
+      + 'shows where it sharpens. Two masks can now be sharpened differently from each other and '
+      + 'from the rest of the photo.',
+      'The Sharpening switch in Details turns off the whole photo\x27s sharpening only; masks keep '
+      + 'their own.',
+    ],
+  },
+  {
     version: '26.41.11',
     date: '2026-10-10',
     notes: [

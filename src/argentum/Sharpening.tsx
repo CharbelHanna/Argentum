@@ -53,7 +53,7 @@ interface AutoValues {
 }
 
 /** What auto picked for this photo, asked again whenever the picture changes. */
-function useAutoValues(path: string | undefined, adjustments: any): AutoValues {
+export function useAutoValues(path: string | undefined, adjustments: any): AutoValues {
   const [values, setValues] = useState<AutoValues>({ radius: null, contrast: null });
   useEffect(() => {
     setValues({ radius: null, contrast: null });
@@ -73,7 +73,7 @@ function useAutoValues(path: string | undefined, adjustments: any): AutoValues {
   return values;
 }
 
-function Chip({ on, label, title, onClick }: { on: boolean; label: string; title?: string; onClick(): void }) {
+export function Chip({ on, label, title, onClick }: { on: boolean; label: string; title?: string; onClick(): void }) {
   return (
     <button
       type="button"
@@ -89,7 +89,7 @@ function Chip({ on, label, title, onClick }: { on: boolean; label: string; title
   );
 }
 
-function EyeButton({ on, title, onClick }: { on: boolean; title: string; onClick(): void }) {
+export function EyeButton({ on, title, onClick }: { on: boolean; title: string; onClick(): void }) {
   return (
     <button
       type="button"
@@ -121,7 +121,7 @@ function Group({ title, right, children }: { title: string; right?: React.ReactN
   );
 }
 
-function More({ children }: { children: React.ReactNode }) {
+export function More({ children }: { children: React.ReactNode }) {
   const t = useAgTranslation();
   const [open, setOpen] = useState(false);
   return (
