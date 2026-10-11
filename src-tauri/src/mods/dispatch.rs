@@ -105,6 +105,19 @@ struct SuperResolutionSaveArgs {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+struct RestoreMaskArgs {
+    path: String,
+    mask: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RestoreReblendArgs {
+    mask: f32,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct SuperResolutionBatchArgs {
     paths: Vec<String>,
     scale: u32,
@@ -271,6 +284,18 @@ pub async fn ag(
         "discard_super_resolution" => {
             crate::mods::super_resolution::discard();
             Ok(serde_json::Value::Null)
+        }
+        "restore_mask" => {
+            let a: RestoreMaskArgs = args_for(&name, args)?;
+            serde_json::to_value(
+                crate::mods::super_resolution::restore_mask(a.path, a.mask, app_handle).await?,
+            )
+            .map_err(|e| e.to_string())
+        }
+        "restore_reblend" => {
+            let a: RestoreReblendArgs = args_for(&name, args)?;
+            serde_json::to_value(crate::mods::super_resolution::restore_reblend(a.mask).await?)
+                .map_err(|e| e.to_string())
         }
         "batch_super_resolution" => {
             let a: SuperResolutionBatchArgs = args_for(&name, args)?;

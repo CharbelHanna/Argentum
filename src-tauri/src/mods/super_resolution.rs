@@ -162,6 +162,13 @@ pub struct Recipe {
 
 impl Recipe {
     pub fn new(restore: Option<f32>, scale: u32) -> Result<Self> {
+        let restore = restore.map(|mask| {
+            if mask.is_finite() {
+                mask.clamp(0.0, 100.0)
+            } else {
+                super::restore::DEFAULT_MASK
+            }
+        });
         match (restore, scale) {
             (None, 1) => Err(anyhow!("Choose Restore, an enlargement, or both")),
             (_, 1 | 2 | 4) => Ok(Self { restore, scale }),
@@ -757,15 +764,15 @@ async fn models_for(app_handle: &tauri::AppHandle, recipe: Recipe) -> Result<Mod
 /// One framed photo through what the recipe asks for: Restore at its own
 /// size first, where lens softness lives, then the enlargement.
 fn develop(
-    source: &Rgb32FImage,
+    framed: &super::restore::Framed,
     recipe: Recipe,
     models: &Models,
     app_handle: &tauri::AppHandle,
 ) -> Result<Rgb32FImage> {
+    let source = framed.source.as_ref();
     let restored = match (recipe.restore, &models.restore) {
         (Some(mask), Some(model)) => {
-            let key = super::restore::key_of(source);
-            let output = match super::restore::kept(&key) {
+            let output = match super::restore::kept(&framed.key) {
                 Some(kept) => kept,
                 None => {
                     let output = Arc::new(run_with_fallback(
@@ -774,11 +781,14 @@ fn develop(
                         app_handle,
                         ModelKind::Restore.scale(),
                     )?);
-                    super::restore::keep(key, output.clone());
+                    super::restore::keep(framed.key, output.clone());
                     output
                 }
             };
-            Some(super::restore::blend(source, &output, mask))
+            let (w, h) = source.dimensions();
+            let mask =
+                super::restore::mask_from_detail(&framed.detail, w as usize, h as usize, mask);
+            Some(super::restore::blend_through(source, &output, &mask))
         }
         _ => None,
     };
@@ -791,6 +801,75 @@ fn develop(
         ),
         None => restored.context("Nothing to do: choose Restore or an enlargement"),
     }
+}
+
+/// The framed photo for `path`, decoded once while the window has it open.
+fn framed_for(path: &str, app_handle: &tauri::AppHandle) -> Result<Arc<super::restore::Framed>> {
+    super::restore::framed(path, || {
+        let (source, source_size) = load_source(path, app_handle)?;
+        Ok((source.to_rgb32f(), source_size))
+    })
+}
+
+/// The window's preview of a framed photo, from its floats.
+fn encode_preview_of(image: &Rgb32FImage) -> Result<String> {
+    let (w, h) = image.dimensions();
+    let scale = (2400.0 / w.max(h) as f32).min(1.0);
+    let small = if scale < 1.0 {
+        image::imageops::resize(
+            image,
+            ((w as f32 * scale).round() as u32).max(1),
+            ((h as f32 * scale).round() as u32).max(1),
+            FilterType::Lanczos3,
+        )
+    } else {
+        image.clone()
+    };
+    encode_preview(&DynamicImage::ImageRgb32F(small))
+}
+
+/// Restore's mask for the photo in the window, white where it applies, as a
+/// picture to show. The model is not involved: the mask comes from the photo.
+pub async fn restore_mask(
+    path: String,
+    mask: f32,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let framed = framed_for(&path, &app_handle)?;
+        let preview = super::restore::mask_preview(&framed, mask, 2400);
+        encode_preview(&DynamicImage::ImageLuma8(preview))
+    })
+    .await
+    .map_err(|error| format!("Restore mask failed: {error}"))?
+    .map_err(|error| error.to_string())
+}
+
+/// A new Mask setting on the result already in the window - Restore alone -
+/// without running the model again: its output is kept.
+pub async fn restore_reblend(mask: f32) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let framed = super::restore::current_framed().context("No photo is open in the window")?;
+        let restored =
+            super::restore::kept(&framed.key).context("Restore has not run on this photo yet")?;
+        let mut slot = result_slot()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let result = slot.as_mut().context("No result to update")?;
+        if result.recipe.restore.is_none() || result.recipe.scale != 1 {
+            return Err(anyhow!("Only Restore on its own updates as the Mask moves"));
+        }
+        let (w, h) = framed.source.dimensions();
+        let plane = super::restore::mask_from_detail(&framed.detail, w as usize, h as usize, mask);
+        let blended = super::restore::blend_through(&framed.source, &restored, &plane);
+        let preview = encode_preview_of(&blended)?;
+        result.image = DynamicImage::ImageRgb32F(blended);
+        result.recipe.restore = Some(mask);
+        Ok(preview)
+    })
+    .await
+    .map_err(|error| format!("Restore failed: {error}"))?
+    .map_err(|error: anyhow::Error| error.to_string())
 }
 
 /// The radius capture sharpening uses on this RAW, for a restored copy of it
@@ -812,21 +891,20 @@ fn develop_path(
     recipe: Recipe,
     models: &Models,
     app_handle: &tauri::AppHandle,
-) -> Result<(DynamicImage, Enlargement)> {
-    let (source, source_size) = load_source(path, app_handle)?;
-    let result = DynamicImage::ImageRgb32F(
-        develop(&source.to_rgb32f(), recipe, models, app_handle).with_context(|| {
-            format!("Cannot process '{path}': the model could not process this image")
-        })?,
-    );
+) -> Result<(Arc<super::restore::Framed>, Enlargement)> {
+    let framed = framed_for(path, app_handle)?;
+    let result =
+        DynamicImage::ImageRgb32F(develop(&framed, recipe, models, app_handle).with_context(
+            || format!("Cannot process '{path}': the model could not process this image"),
+        )?);
     let enlarged = Enlargement {
         image: result,
         scale: recipe.scale,
-        source_size,
+        source_size: framed.source_size,
         recipe,
         capture_radius: capture_radius_for(path, recipe),
     };
-    Ok((source, enlarged))
+    Ok((framed, enlarged))
 }
 
 async fn upscale(
@@ -836,8 +914,8 @@ async fn upscale(
     recipe: Recipe,
 ) -> Result<PreviewPayload> {
     let result = tokio::task::spawn_blocking(move || {
-        let (source, enlarged) = develop_path(&path, recipe, &models, &app_handle)?;
-        let original_preview = encode_preview(&source).with_context(|| {
+        let (framed, enlarged) = develop_path(&path, recipe, &models, &app_handle)?;
+        let original_preview = encode_preview_of(&framed.source).with_context(|| {
             format!(
                 "Cannot create a preview for '{}'. The decoded image format is not supported",
                 path

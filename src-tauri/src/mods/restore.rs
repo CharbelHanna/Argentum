@@ -49,7 +49,11 @@ fn thresholds(setting: f32) -> (f32, f32) {
 /// Blend `restored` into `source` through the detail mask for `setting`.
 /// Both are the sRGB-encoded framed photo the model saw, the same size.
 pub fn blend(source: &Rgb32FImage, restored: &Rgb32FImage, setting: f32) -> Rgb32FImage {
-    let mask = detail_mask(source, setting);
+    blend_through(source, restored, &detail_mask(source, setting))
+}
+
+/// The same, with the mask already made.
+pub fn blend_through(source: &Rgb32FImage, restored: &Rgb32FImage, mask: &[f32]) -> Rgb32FImage {
     let mut out = source.clone();
     out.par_chunks_mut(3)
         .zip(restored.par_chunks(3))
@@ -65,10 +69,31 @@ pub fn blend(source: &Rgb32FImage, restored: &Rgb32FImage, setting: f32) -> Rgb3
 /// 0..1 per pixel: how much of the restored photo to take.
 pub fn detail_mask(image: &Rgb32FImage, setting: f32) -> Vec<f32> {
     let (w, h) = (image.width() as usize, image.height() as usize);
+    mask_from_detail(&detail(image), w, h, setting)
+}
+
+/// The mask for `setting`, from a photo's `detail`. The slow part of the mask
+/// does not depend on the slider, so the window keeps it and this is all a
+/// slider move costs.
+pub fn mask_from_detail(detail: &[f32], w: usize, h: usize, setting: f32) -> Vec<f32> {
     let (low, high) = thresholds(setting);
     if high <= 1e-6 {
         return vec![1.0; w * h];
     }
+    let mut g: Vec<f32> = detail
+        .par_iter()
+        .map(|v| {
+            let t = ((*v - low) / (high - low)).clamp(0.0, 1.0);
+            t * t * (3.0 - 2.0 * t)
+        })
+        .collect();
+    gaussian_blur(&mut g, w, h, 1.5);
+    g
+}
+
+/// Local contrast: the gradient of a lightly blurred luminance, blurred.
+pub fn detail(image: &Rgb32FImage) -> Vec<f32> {
+    let (w, h) = (image.width() as usize, image.height() as usize);
     let mut y: Vec<f32> = image
         .par_chunks(3)
         .map(|p| 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2])
@@ -94,11 +119,6 @@ pub fn detail_mask(image: &Rgb32FImage, setting: f32) -> Vec<f32> {
         }
     });
     gaussian_blur(&mut g, w, h, 2.0);
-    g.par_iter_mut().for_each(|v| {
-        let t = ((*v - low) / (high - low)).clamp(0.0, 1.0);
-        *v = t * t * (3.0 - 2.0 * t);
-    });
-    gaussian_blur(&mut g, w, h, 1.5);
     g
 }
 
@@ -173,19 +193,101 @@ pub fn keep(key: blake3::Hash, restored: Arc<Rgb32FImage>) {
     }
 }
 
-/// Let the kept result go: the window closed, or a file was saved.
+/// The photo the window is showing, framed as it will be restored, with its
+/// detail: so the Mask view, every slider move and Enhance answer without
+/// decoding the RAW again.
+pub struct Framed {
+    pub path: String,
+    pub source: Arc<Rgb32FImage>,
+    /// The decoded photo's size before framing, which masks are placed in.
+    pub source_size: (u32, u32),
+    pub detail: Arc<Vec<f32>>,
+    /// `key_of(source)`, which finds the model's kept output.
+    pub key: blake3::Hash,
+}
+
+/// The photo the window has open, if it has loaded one.
+pub fn current_framed() -> Option<Arc<Framed>> {
+    FRAMED.lock().ok()?.clone()
+}
+
+static FRAMED: Mutex<Option<Arc<Framed>>> = Mutex::new(None);
+
+/// The framed photo for `path`, loaded with `load` the first time.
+pub fn framed(
+    path: &str,
+    load: impl FnOnce() -> anyhow::Result<(Rgb32FImage, (u32, u32))>,
+) -> anyhow::Result<Arc<Framed>> {
+    if let Ok(slot) = FRAMED.lock()
+        && let Some(framed) = slot.as_ref().filter(|f| f.path == path)
+    {
+        return Ok(framed.clone());
+    }
+    let (source, source_size) = load()?;
+    let framed = Arc::new(Framed {
+        path: path.to_string(),
+        detail: Arc::new(detail(&source)),
+        key: key_of(&source),
+        source: Arc::new(source),
+        source_size,
+    });
+    if let Ok(mut slot) = FRAMED.lock() {
+        *slot = Some(framed.clone());
+    }
+    Ok(framed)
+}
+
+/// Let the kept results go: the window closed, or a file was saved.
 pub fn forget() {
     if let Ok(mut slot) = KEPT.lock() {
         *slot = None;
     }
+    if let Ok(mut slot) = FRAMED.lock() {
+        *slot = None;
+    }
 }
 
-/// For mods::memory's report. Zero if the slot is busy.
+/// For mods::memory's report. Zero if a slot is busy.
 pub fn kept_bytes() -> usize {
-    KEPT.try_lock()
+    let kept = KEPT
+        .try_lock()
         .ok()
         .and_then(|slot| slot.as_ref().map(|k| k.restored.as_raw().len() * 4))
-        .unwrap_or(0)
+        .unwrap_or(0);
+    let framed = FRAMED
+        .try_lock()
+        .ok()
+        .and_then(|slot| {
+            slot.as_ref()
+                .map(|f| f.source.as_raw().len() * 4 + f.detail.len() * 4)
+        })
+        .unwrap_or(0);
+    kept + framed
+}
+
+/// The mask as a small grey picture, white where Restore applies, at most
+/// `longest` pixels on its long side - what the window shows.
+pub fn mask_preview(framed: &Framed, setting: f32, longest: u32) -> image::GrayImage {
+    let (w, h) = framed.source.dimensions();
+    let mask = mask_from_detail(&framed.detail, w as usize, h as usize, setting);
+    let full = image::GrayImage::from_raw(
+        w,
+        h,
+        mask.par_iter()
+            .map(|m| (m.clamp(0.0, 1.0) * 255.0).round() as u8)
+            .collect(),
+    )
+    .expect("one byte per pixel");
+    let scale = (longest as f32 / w.max(h) as f32).min(1.0);
+    if scale >= 1.0 {
+        return full;
+    }
+    image::imageops::resize(
+        &full,
+        ((w as f32 * scale).round() as u32).max(1),
+        ((h as f32 * scale).round() as u32).max(1),
+        image::imageops::FilterType::Triangle,
+    )
 }
 
 /// The mask as a picture, white where Restore applies - for tests and for
@@ -263,15 +365,43 @@ mod tests {
         assert!(loose.iter().zip(&tight).all(|(l, t)| t <= &(l + 1e-4)));
     }
 
+    /// One test, because both slots are shared by the whole process.
     #[test]
-    fn the_kept_result_is_found_by_its_pixels_only() {
+    fn the_window_keeps_one_photo_and_one_model_output() {
         let a = bars(8, 8);
         let mut b = bars(8, 8);
         b.put_pixel(0, 0, Rgb([0.0, 0.0, 0.0]));
         keep(key_of(&a), Arc::new(flat(8, 8, 0.5)));
         assert!(kept(&key_of(&a)).is_some());
         assert!(kept(&key_of(&b)).is_none());
+
+        // The photo decodes once while the window has it; the mask view is
+        // small whatever the photo's size.
+        let mut loads = 0;
+        let first = framed("a.CR3", || {
+            loads += 1;
+            Ok((bars(3000, 2000), (3000, 2000)))
+        })
+        .unwrap();
+        let again = framed("a.CR3", || {
+            loads += 1;
+            Ok((bars(3000, 2000), (3000, 2000)))
+        })
+        .unwrap();
+        assert_eq!(loads, 1);
+        assert!(Arc::ptr_eq(&first, &again));
+        assert_eq!(first.key, key_of(&first.source));
+        assert_eq!(
+            mask_preview(&first, DEFAULT_MASK, 2400).dimensions(),
+            (2400, 1600)
+        );
+        assert_eq!(
+            mask_from_detail(&first.detail, 3000, 2000, DEFAULT_MASK),
+            detail_mask(&first.source, DEFAULT_MASK)
+        );
+
         forget();
         assert!(kept(&key_of(&a)).is_none());
+        assert!(current_framed().is_none());
     }
 }

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
-import { Loader2, Save, Sparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Save, Sparkles, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { ag } from './ag';
 import { SUPER_RESOLUTION_OPEN_EVENT } from './superResolution';
 import { useAgTranslation } from './locales';
@@ -44,11 +44,21 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
   const [progressPercent, setProgressPercent] = useState<number | null>(null);
   const [split, setSplit] = useState(50);
   const [zoom, setZoom] = useState(1);
+  // The mask view: white where Restore applies. It comes from the photo, not
+  // the model, so it shows before Enhance and follows the slider.
+  const [showMask, setShowMask] = useState(false);
+  const [maskUrl, setMaskUrl] = useState<string | null>(null);
+  const [maskBusy, setMaskBusy] = useState(false);
+  // The Mask the shown result was blended with; moving the slider re-blends.
+  const [previewMask, setPreviewMask] = useState<number | null>(null);
 
   const reset = () => {
     setScale(2);
     setRestore(false);
     setMask(DEFAULT_MASK);
+    setShowMask(false);
+    setMaskUrl(null);
+    setPreviewMask(null);
   };
 
   const close = () => {
@@ -90,6 +100,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
 
     setIsProcessing(true);
     setPreview(null);
+    setShowMask(false);
     setError(null);
     setProgress(agT('superResolutionPreparing'));
     setProgressPercent(null);
@@ -100,6 +111,8 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
         restore: restoreArg,
       });
       setPreview(result);
+      setPreviewMask(restore ? mask : null);
+      setShowMask(false);
       setProgress(null);
       setProgressPercent(100);
     } catch (reason) {
@@ -131,6 +144,47 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
       unlisten.then((stop) => stop()).catch(() => {});
     };
   }, [paths.length]);
+
+  // Redraw the mask as the slider moves; the backend keeps the photo decoded.
+  useEffect(() => {
+    if (paths.length === 0 || !restore || !showMask) return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      setMaskBusy(true);
+      try {
+        const url = await ag<string>('restore_mask', { path: paths[0], mask });
+        if (active) setMaskUrl(url);
+      } catch (reason) {
+        if (active) setError(String(reason));
+      } finally {
+        if (active) setMaskBusy(false);
+      }
+    }, 120);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [paths, restore, showMask, mask]);
+
+  // Restore on its own: a new Mask re-blends the kept model output, no rerun.
+  useEffect(() => {
+    if (!preview || !restore || scale !== 1 || previewMask === null || mask === previewMask) return;
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      try {
+        const url = await ag<string>('restore_reblend', { mask });
+        if (!active) return;
+        setPreview((shown) => (shown ? { ...shown, result: url } : shown));
+        setPreviewMask(mask);
+      } catch (reason) {
+        if (active) setError(String(reason));
+      }
+    }, 150);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [mask, preview, restore, scale, previewMask]);
 
   const saveOne = async () => {
     setIsProcessing(true);
@@ -185,11 +239,24 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     changed();
   };
 
+  // Restore on its own keeps its result and re-blends it (the effect above);
+  // with an enlargement after it, a new Mask needs a new Enhance.
+  const chooseMask = (nextMask: number) => {
+    setMask(nextMask);
+    if (scale !== 1) changed();
+  };
+
   const resultLabel = restore
     ? scale > 1
       ? agT('restoreResultEnlarged').replace('{scale}', String(scale))
       : agT('restoreResult')
     : agT('superResolutionResult').replace('{scale}', String(scale));
+  const recipeLabel = restore
+    ? scale > 1
+      ? agT('recipeRestoreEnlarge').replace('{scale}', String(scale))
+      : agT('recipeRestore')
+    : agT('recipeEnlarge').replace('{scale}', String(scale));
+  const maskShown = restore && showMask && maskUrl !== null;
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-6 backdrop-blur-sm">
@@ -211,7 +278,21 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
         </div>
 
         <div className="relative min-h-[320px] flex-1 overflow-hidden bg-[#111] p-4">
-          {preview ? (
+          {maskShown ? (
+            <div className="relative flex h-[60vh] min-h-[320px] items-center justify-center overflow-hidden rounded-lg">
+              <div className="absolute inset-0" style={{ transform: `scale(${zoom})` }}>
+                <img
+                  src={maskUrl ?? undefined}
+                  alt={agT('restoreMaskView')}
+                  className="absolute inset-0 h-full w-full object-contain"
+                />
+              </div>
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded bg-black/70 px-2 py-1 text-xs text-white">
+                {maskBusy && <Loader2 className="animate-spin" size={12} />}
+                {agT('restoreMaskView')}
+              </div>
+            </div>
+          ) : preview ? (
             <div className="relative flex h-[60vh] min-h-[320px] items-center justify-center overflow-hidden rounded-lg">
               {/* Absolutely filled, not h-full: a percentage of a parent with only a
                   min-height resolves to auto, and with both images absolute the box
@@ -274,6 +355,8 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
               disabled={isBusy}
               onChange={(event) => {
                 setRestore(event.target.checked);
+                // Show what it will touch straight away: that is the decision.
+                setShowMask(event.target.checked);
                 // Nothing left to do: enlarging is what the window did before.
                 if (!event.target.checked && scale === 1) setScale(2);
                 changed();
@@ -284,6 +367,17 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
           </label>
           {restore && (
             <div className="flex items-center gap-2 text-xs text-text-secondary" title={agT('restoreMaskHelp')}>
+              <button
+                aria-label={agT('restoreShowMask')}
+                aria-pressed={showMask}
+                className={`rounded p-1 hover:bg-surface ${showMask ? 'text-accent' : 'hover:text-text-primary'}`}
+                data-tooltip={agT('restoreShowMask')}
+                disabled={isBusy}
+                onClick={() => setShowMask((on) => !on)}
+                type="button"
+              >
+                {showMask ? <Eye size={15} /> : <EyeOff size={15} />}
+              </button>
               <span>{agT('restoreMask')}</span>
               <input
                 aria-label={agT('restoreMask')}
@@ -291,10 +385,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
                 disabled={isBusy}
                 max={100}
                 min={0}
-                onChange={(event) => {
-                  setMask(Number(event.target.value));
-                  changed();
-                }}
+                onChange={(event) => chooseMask(Number(event.target.value))}
                 type="range"
                 value={mask}
               />
@@ -303,10 +394,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
                 <button
                   className="rounded px-1.5 py-0.5 hover:bg-surface hover:text-text-primary"
                   disabled={isBusy}
-                  onClick={() => {
-                    setMask(DEFAULT_MASK);
-                    changed();
-                  }}
+                  onClick={() => chooseMask(DEFAULT_MASK)}
                   type="button"
                 >
                   {agT('restoreMaskReset')}
@@ -355,7 +443,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
             <span className="ml-2 text-xs">
               {paths.length > 1
                 ? agT('superResolutionBatchCount').replace('{count}', String(paths.length))
-                : resultLabel}
+                : recipeLabel}
             </span>
           </div>
           <div className="flex items-center gap-2">

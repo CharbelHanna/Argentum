@@ -903,7 +903,7 @@ export const REGISTRY = [
           + 'linearised twice and Capture would deconvolve the wrong light.' },
     ],
     tests: [
-      'restore tests: the default is the tuned threshold; smooth areas keep the original; edges take the restored photo; 0 is the whole photo; a tighter mask never reaches further; the kept result is found by its pixels only',
+      'restore tests: the default is the tuned threshold; smooth areas keep the original; edges take the restored photo; 0 is the whole photo; a tighter mask never reaches further; the window keeps one photo (decoded once, a small mask view) and one model output',
       'super_resolution tests: the file is named for what was done; a recipe does something and only known scales; only a restored RAW carries its capture radius; Restore runs at its one tile',
       'sharpen tests: a restored RAW keeps capture sharpening at its RAW’s radius',
       'Manual: Restore a wide-open telephoto RAW at the default mask; eyes, whiskers and fur edges are crisper, a soft background is unchanged, and the _Restored file opens with Capture sharpening on at the RAW’s radius.',
