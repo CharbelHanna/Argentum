@@ -357,6 +357,10 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
                 setRestore(event.target.checked);
                 // Show what it will touch straight away: that is the decision.
                 setShowMask(event.target.checked);
+                // Restore on its own is the usual job, and keeps Capture
+                // sharpening live on the file; AK saved a 2x by accident when
+                // Enlarge stayed at its default. 2x and 4x are a click away.
+                if (event.target.checked) setScale(1);
                 // Nothing left to do: enlarging is what the window did before.
                 if (!event.target.checked && scale === 1) setScale(2);
                 changed();

@@ -761,8 +761,11 @@ async fn models_for(app_handle: &tauri::AppHandle, recipe: Recipe) -> Result<Mod
     Ok(Models { restore, enlarge })
 }
 
-/// One framed photo through what the recipe asks for: Restore at its own
-/// size first, where lens softness lives, then the enlargement.
+/// One framed photo through what the recipe asks for, in the order measured
+/// on AK's frames (DEC-25): Restore at its own size, where lens softness
+/// lives; then, before an enlargement, capture sharpening at the camera's
+/// size; then the enlargement. Restore on its own leaves capture to the
+/// editor, live (`mark_restored`).
 fn develop(
     framed: &super::restore::Framed,
     recipe: Recipe,
@@ -792,15 +795,46 @@ fn develop(
         }
         _ => None,
     };
-    match &models.enlarge {
-        Some(model) => run_with_fallback(
-            restored.as_ref().unwrap_or(source),
-            model,
-            app_handle,
-            recipe.scale,
-        ),
-        None => restored.context("Nothing to do: choose Restore or an enlargement"),
+    let Some(model) = &models.enlarge else {
+        return restored.context("Nothing to do: choose Restore or an enlargement");
+    };
+    let native = restored.as_ref().unwrap_or(source);
+    let captured = capture_before_enlarging(&framed.path, native, app_handle);
+    run_with_fallback(
+        captured.as_ref().unwrap_or(native),
+        model,
+        app_handle,
+        recipe.scale,
+    )
+}
+
+/// A RAW's capture sharpening, as its sidecar asks, applied before it is
+/// enlarged - the enlarged file is an ordinary image and would never get it.
+/// None for anything else, or if it cannot run: the enlargement goes ahead
+/// without it, as it did before, and the log says why.
+fn capture_before_enlarging(
+    path: &str,
+    image: &Rgb32FImage,
+    app_handle: &tauri::AppHandle,
+) -> Option<Rgb32FImage> {
+    let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(path);
+    if !crate::formats::is_raw_file(&source_path) {
+        return None;
     }
+    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
+    let state = app_handle.state::<crate::app_state::AppState>();
+    let context = crate::gpu_processing::get_or_init_gpu_context(&state, app_handle)
+        .map_err(|error| log::warn!("Enlarging without capture sharpening: {error}"))
+        .ok()?;
+    super::capture_bake::capture(
+        &context,
+        image,
+        &adjustments,
+        &source_path.to_string_lossy(),
+    )
+    .map_err(|error| log::warn!("Enlarging without capture sharpening: {error:#}"))
+    .ok()
+    .flatten()
 }
 
 /// The framed photo for `path`, decoded once while the window has it open.
@@ -1728,6 +1762,21 @@ mod tests {
         crate::mods::restore::mask_image(&source, crate::mods::restore::DEFAULT_MASK)
             .save(out.join("mask.png"))
             .expect("save");
+
+        // What an enlargement starts from: the restored photo with the RAW's
+        // own capture sharpening, through the editor's engine.
+        let sidecar = crate::exif_processing::get_primary_sidecar_path(Path::new(&raw));
+        let adjustments = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+        let context = crate::mods::capture_bake::test_device().expect("a graphics device");
+        let started = std::time::Instant::now();
+        let captured = crate::mods::capture_bake::capture(&context, &blended, &adjustments, &raw)
+            .expect("capture ran")
+            .expect("capture is on for this RAW");
+        println!(
+            "capture before enlarging: {:.2} s for {megapixels:.2} MP",
+            started.elapsed().as_secs_f32()
+        );
+        png(&captured, "restored_then_captured.png");
     }
 
     #[test]
