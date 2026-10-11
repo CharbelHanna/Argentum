@@ -774,7 +774,8 @@ impl Engine {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Rgba16Float,
-            // COPY_SRC so a test can read it back; nothing else copies it.
+            // COPY_SRC so it can be read back: by the tests, and by
+            // capture_bake, which sharpens a photo before it is enlarged.
             usage: wgpu::TextureUsages::STORAGE_BINDING
                 | wgpu::TextureUsages::TEXTURE_BINDING
                 | wgpu::TextureUsages::COPY_SRC,

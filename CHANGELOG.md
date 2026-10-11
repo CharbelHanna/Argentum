@@ -6,7 +6,54 @@ Newest first.
 
 ## 26.41.12 — 2026-10-11
 
+### Added
+
+- **Restore: undo lens softness at the photo's own size.** For a lens that
+  is soft wide open - AK's 100-400 L at 400 mm on the R6 Mark III - rather
+  than missed focus. The model is OmniLens (Jiang et al., Zhejiang
+  University): SwinIR pretrained on a library of simulated lens designs, so
+  it corrects a lens it has never seen. Code `basicsr/archs/swinir_arch.py`
+  @ `89dcbc7ff7e79edc6aea2b58f83750d575c2f4bf` of
+  [zju-jiangqi/OmniLens](https://github.com/zju-jiangqi/OmniLens), weights
+  `SwinIR_AODLib_EAOD.pth` @ `fb0ded25e63fc2c18f8f59e5519e3a659ea796a7`, both
+  Apache-2.0. Converted to ONNX at a fixed 256 px tile and published in
+  [akhater/argentum-models](https://github.com/akhater/argentum-models/releases/tag/omnilens-v1)
+  (54 MB, SHA-256 `c28ec547…`), downloaded on first use; identical to the
+  PyTorch original on random tiles. `mods/restore.rs`.
+  - It runs through a **detail mask** (the shape of RawTherapee's contrast
+    mask): trained on clean renders, it turns grain in a soft background to
+    grit. Tight by default, AK's choice; a Mask slider loosens it, and an
+    eye shows it, white where Restore applies, live as the slider moves -
+    the mask comes from the photo, so it shows before Enhance. With Restore
+    on its own, a new Mask re-blends the kept model output without running
+    it again.
+  - **Capture sharpening still applies to the restored file.** It is saved
+    as a TIFF but is the RAW's light before any sharpening, so it carries
+    `agRestore.captureRadius` - the radius measured on the RAW's mosaic,
+    which the TIFF no longer has - and `sharpen::from_json` and the
+    Sharpening card treat it as a RAW for Capture. Live and adjustable.
+  - Chosen by side-by-side on AK's RAWs: over enlarging models shrunk back
+    to size (their detail is under a pixel at 1x - "0 diff"), GRL and
+    Restormer defocus models (smears, or no change), and HAT (lab tests by a
+    hair, 14 min on the GPU for a 700 mm crop). 2.9 s/MP on an Arc 140T with
+    DirectML, about 1.5 min for 32 MP, measured through this code.
+
 ### Changed
+
+- **Super Resolution is now Restore & Enlarge**: one ✨ window, Restore and
+  Enlarge (Off, 2x, 4x) each optional, one file named for what was done -
+  `_Restored`, `_Upscaled_x2`, `_Restored_Upscaled_x4` (was `_Upscaled`).
+  Ticking Restore sets Enlarge to Off.
+- **An enlarged RAW is capture-sharpened first, at the camera's size.** An
+  enlargement is an ordinary image, which the editor never
+  capture-sharpens, and it started from the RAW before Capture, so enlarged
+  RAWs had none. The order was measured, not assumed: Capture after the
+  enlargement doubled and outlined whiskers; Capture before Restore was
+  softer on all six test photos. So Restore, then Capture, then Enlarge;
+  output Sharpen stays live on the enlarged file. The editor's own engine on
+  a texture of its own, 0.05 s/MP (`mods/capture_bake.rs`). Enlarge keeps
+  Real-ESRGAN: a photo-trained RealPLKSR model was better on fur and
+  invented texture in soft areas on 4 of 7 photos.
 
 - **A mask's Sharpen has its own Radius, Mask and Threshold**, under More,
   and an eye that shows where it lands: inside the mask, where its Mask lets

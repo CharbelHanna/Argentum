@@ -1323,6 +1323,34 @@ const sharpening165 = [
   review165('f4a4c8d0', 'sharpening:src/components/adjustments/Details.tsx', 'combine', 'Orders each section by toolOrder. The marker is inside Sharpening, so our card moves wherever the section is placed.'),
 ];
 
+// Restore (OmniLens before capture sharpening), registered 2026-10-11. It
+// changes no file of theirs; it rests on the RAW decode recording the capture
+// radius, and on a TIFF reaching the GPU sRGB-encoded. Each commit was read
+// for those two things.
+const SRGB_INPUT_UNCHANGED =
+  'A non-RAW input is still sRGB-encoded in input_texture and linearised by their shader where is_raw == 0, so a restored TIFF still reaches the sharpening stage encoded, as encode_for_reopening wrote it.';
+const restore165 = [
+  review165('1cc99d56', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Mid-scale detail reinjection for shadows and highlights. ${SRGB_INPUT_UNCHANGED}`),
+  review165('28fa5120', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Consolidates white balance code; no decode of the input changes. ${SRGB_INPUT_UNCHANGED}`),
+  review165('66fa1600', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Moves srgb_to_linear calls into the log-space guided filter (refined_dark_channel and its samples), each still under is_raw == 0. ${SRGB_INPUT_UNCHANGED}`),
+  review165('89020724', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `NaN guard in vibrance and skipping an inactive HSL panel. ${SRGB_INPUT_UNCHANGED}`),
+  review165('9ba20c02', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Kelvin white balance as log-LMS gains; the input decode is untouched. ${SRGB_INPUT_UNCHANGED}`),
+  review165('c91e0bf7', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Rewrites the Whites adjustment. ${SRGB_INPUT_UNCHANGED}`),
+  review165('e8834210', 'restore:src-tauri/src/shaders/shader.wgsl#srgb_to_linear', 'not-applicable', `Computes the HSL mixer hue in perceptual space and linearises its result; that is inside the HSL step, after the input decode. ${SRGB_INPUT_UNCHANGED}`),
+  review165('43248097', 'restore:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'not-applicable', 'Shares the embedded-preview fallback with thumbnails. The rawler decode, and mods::decode::on_raw_decoded recording the capture radius, are unchanged.'),
+  review165('9b7e3368', 'restore:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'not-applicable', 'Adds Apple RAW 9 (macOS, off by default) ahead of rawler. A RAW developed that way records no capture radius, so its restored file carries RawTherapee\'s default 0.75 - the radius the editor uses for that RAW too. Everything else falls back to rawler as before.'),
+  review165('9ba20c02', 'restore:src-tauri/src/image_loader.rs#load_base_image_from_bytes', 'not-applicable', 'Reads the as-shot white balance from the source path for Kelvin mode. Nothing about decoding or the photo path the decode is told changes.'),
+  review165('d6cda855', 'restore:src-tauri/src/gpu_processing.rs#to_rgba_f16', 'not-applicable', 'Avoids float copies during upload: an Rgb32F image now goes to f16 pixel by pixel with alpha one, the same texels as before, still Rgba16Float. capture_bake uploads through it and reads back 8 bytes a texel, unchanged.'),
+  review165('d6cda855', 'restore:src-tauri/src/gpu_processing.rs#get_or_init_gpu_context', 'not-applicable', 'The upload change is elsewhere in the file; how the shared graphics context is made and returned is untouched.'),
+  review165('66fa1600', 'restore:src-tauri/src/gpu_processing.rs#to_rgba_f16', 'not-applicable', 'Adds guided-filter coefficient passes in the same file; to_rgba_f16 is not touched.'),
+  review165('66fa1600', 'restore:src-tauri/src/gpu_processing.rs#get_or_init_gpu_context', 'not-applicable', 'Guided-filter work elsewhere in the file; the context is made as before.'),
+  review165('c91e0bf7', 'restore:src-tauri/src/gpu_processing.rs#to_rgba_f16', 'not-applicable', 'Rewrites the Whites adjustment; neither the upload nor its format changes.'),
+  review165('c91e0bf7', 'restore:src-tauri/src/gpu_processing.rs#get_or_init_gpu_context', 'not-applicable', 'Rewrites the Whites adjustment; the graphics context is untouched.'),
+  review165('667f2e4d', 'restore', 'not-applicable', '"Restore sensible size and position after unmaximizing": the window, not the photo. Unrelated.', 'feature'),
+  review165('6d348a0d', 'restore', 'not-applicable', '"Restore Button import" in the crop panel: an import fix. Unrelated.', 'feature'),
+  review165('b4a9d1a3', 'restore', 'not-applicable', 'Hides chromatic aberration and calibration by default. Their chromatic aberration is the lens-correction TCA slider: it moves colour channels, it does not undo blur. Nothing upstream corrects lens softness.', 'feature'),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1330,6 +1358,7 @@ export const REVIEW_165_DECISIONS = [
   ...reached165,
   ...hints165,
   ...sharpening165,
+  ...restore165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1340,9 +1369,10 @@ export const REVIEW_165_DECISIONS = [
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
-// sharpening, 11 of them for a mask's own Sharpen (26.41.11).
-if (REVIEW_165_DECISIONS.length !== 1145) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1145 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
+// Restore, 6 of them for capture before an enlargement.
+if (REVIEW_165_DECISIONS.length !== 1164) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1164 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

@@ -63,6 +63,9 @@ pub const DEFAULT_ITERATIONS: u32 = 20;
 pub const DEFAULT_USM_RADIUS: f32 = 2.0;
 pub const DEFAULT_USM_THRESHOLD: f32 = 0.5;
 
+/// The adjustments key a restored RAW's file carries: `{ "captureRadius": r }`.
+pub const RESTORED_KEY: &str = "agRestore";
+
 /// RawTherapee's ceiling for an automatic radius (`maxSigma`).
 const MAX_AUTO_RADIUS: f32 = 2.0;
 
@@ -188,10 +191,22 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     }
 
     // RAW only, as in RawTherapee: a JPEG has already been sharpened by the
-    // camera, and there is no RAW to read the radius from.
-    let capture = is_raw && flag(&s, "capture", true);
+    // camera, and there is no RAW to read the radius from. A RAW restored by
+    // Restore counts: it is the RAW's light, saved before any sharpening, and
+    // carries the radius its mosaic gave (`super_resolution::mark_restored`).
+    let restored_radius = js
+        .get(RESTORED_KEY)
+        .and_then(|r| r.get("captureRadius"))
+        .and_then(Value::as_f64)
+        .map(|r| r as f32)
+        .filter(|r| r.is_finite() && *r > 0.0);
+    let raw_like = is_raw || restored_radius.is_some();
+    let capture = raw_like && flag(&s, "capture", true);
     let capture_radius = if flag(&s, "autoRadius", true) {
-        photo.and_then(auto_radius).unwrap_or(DEFAULT_RADIUS)
+        photo
+            .and_then(auto_radius)
+            .or(restored_radius)
+            .unwrap_or(DEFAULT_RADIUS)
     } else {
         number(&s, "radius", DEFAULT_RADIUS).clamp(0.4, 2.0)
     };
@@ -205,7 +220,7 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     }
     // The manual sharpen follows capture's mask unless it was given its own.
     // A JPEG has no capture sharpening, so its mask is always its own.
-    if !is_raw || flag(&s, "usmOwnMask", false) {
+    if !raw_like || flag(&s, "usmOwnMask", false) {
         flags |= FLAG_USM_OWN_MASK;
         if flag(&s, "usmAutoContrast", true) {
             flags |= FLAG_USM_AUTO_CONTRAST;
@@ -985,6 +1000,28 @@ mod tests {
     fn a_jpeg_is_never_capture_sharpened() {
         let p = from_json(&json!({ "agSharpen": { "capture": true } }), false, None);
         assert!(!p.capture_on());
+    }
+
+    /// A restored RAW is a TIFF to the editor, but it is the RAW's light with
+    /// no sharpening yet: capture runs, at the radius the RAW's mosaic gave,
+    /// and the manual sharpen follows capture's mask as on a RAW.
+    #[test]
+    fn a_restored_raw_keeps_capture_sharpening_at_its_raws_radius() {
+        let js = json!({ RESTORED_KEY: { "captureRadius": 0.72 } });
+        let p = from_json(&js, false, Some("photo_Restored.tif"));
+        assert!(p.capture_on());
+        assert!((p.capture_radius - 0.72).abs() < 1e-6);
+        assert!(!p.usm_own_mask());
+
+        let manual = json!({
+            RESTORED_KEY: { "captureRadius": 0.72 },
+            "agSharpen": { "autoRadius": false, "radius": 1.1 },
+        });
+        assert!((from_json(&manual, false, None).capture_radius - 1.1).abs() < 1e-6);
+
+        let off =
+            json!({ RESTORED_KEY: { "captureRadius": 0.72 }, "agSharpen": { "capture": false } });
+        assert!(!from_json(&off, false, None).capture_on());
     }
 
     #[test]

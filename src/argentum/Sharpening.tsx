@@ -146,7 +146,12 @@ export default function Sharpening() {
   const setEditor = useEditorStore((s: any) => s.setEditor);
   const { setAdjustments } = useEditorActions();
   const path: string | undefined = selectedImage?.path;
-  const isRaw = selectedImage?.isRaw === true;
+  // A RAW saved by Restore opens as a TIFF, but it is the RAW's light before
+  // any sharpening, and carries the radius its mosaic gave (sharpen.rs reads
+  // the same key): Capture stays.
+  const restoredRadius: number | undefined =
+    typeof adjustments?.agRestore?.captureRadius === 'number' ? adjustments.agRestore.captureRadius : undefined;
+  const isRaw = selectedImage?.isRaw === true || restoredRadius !== undefined;
   const s = readSharpen(adjustments);
   const auto = useAutoValues(path, adjustments);
   const mask = useSharpenMask();
@@ -173,7 +178,7 @@ export default function Sharpening() {
 
   // On a JPEG the manual sharpen is all there is, and its mask is its own.
   const usmOwn = !isRaw || s.usmOwnMask;
-  const radiusShown = s.autoRadius ? (auto.radius ?? SHARPEN_DEFAULTS.radius) : s.radius;
+  const radiusShown = s.autoRadius ? (auto.radius ?? restoredRadius ?? SHARPEN_DEFAULTS.radius) : s.radius;
   const contrastShown = s.autoContrast ? (auto.contrast ?? s.contrast) : s.contrast;
   const usmContrastShown = s.usmAutoContrast ? (auto.contrast ?? s.usmContrast) : s.usmContrast;
   const legacy = Number(adjustments?.sharpness) || 0;

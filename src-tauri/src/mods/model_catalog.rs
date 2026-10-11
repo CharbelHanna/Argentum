@@ -192,9 +192,21 @@ pub const CATALOGUE: &[Model] = &[
         listed_when_missing: true,
     },
     Model {
+        id: "restore",
+        label: "Restore",
+        purpose: "Undoes lens softness, such as a lens used wide open, at the photo's own size. Used by Restore in the Super Resolution window.",
+        stored: Stored::Files(&[(
+            "omnilens_swinir_aodlib_256.onnx",
+            "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
+        )]),
+        download_bytes: Some(53_592_179),
+        upstream: false,
+        listed_when_missing: true,
+    },
+    Model {
         id: GPU_RUNTIME,
         label: "Graphics card support",
-        purpose: "Lets Super Resolution run on the graphics card, many times faster than without it. Windows only.",
+        purpose: "Lets Super Resolution and Restore run on the graphics card, many times faster than without it. Windows only.",
         stored: Stored::FoldersStartingWith {
             prefix: "onnxruntime-directml-",
             url: "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
@@ -353,7 +365,7 @@ mod tests {
     /// Ours are copies too, of `super_resolution` and `gpu_runtime`.
     #[test]
     fn our_names_and_addresses_match_the_features_that_download_them() {
-        for id in ["super-resolution-2x", "super-resolution-4x"] {
+        for id in ["super-resolution-2x", "super-resolution-4x", "restore"] {
             let model = find(id).expect("listed");
             for (name, url) in files(model) {
                 assert!(

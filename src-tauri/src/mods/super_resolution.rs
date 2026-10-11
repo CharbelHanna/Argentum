@@ -1,4 +1,9 @@
-//! Local photo enlargement with Real-ESRGAN.
+//! Local photo enlargement with Real-ESRGAN, and Restore before it.
+//!
+//! One window, one file: Restore (OmniLens at the photo's own size, through a
+//! detail mask - `restore.rs`), an enlargement, or Restore then an
+//! enlargement. The file is named for what was done: `_Restored`,
+//! `_Upscaled_x2`, `_Restored_Upscaled_x4`.
 //!
 //! The model is downloaded lazily into the same per-user model directory used
 //! by the other AI features. Inference is tiled so normal camera files do not
@@ -47,10 +52,12 @@ const TILE_OVERLAP_DENOMINATOR: u32 = 32;
 const MEMORY_HEADROOM_NUMERATOR: u64 = 7;
 const MEMORY_HEADROOM_DENOMINATOR: u64 = 10;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum ModelKind {
     X2,
     X4,
+    /// OmniLens, same size: see `restore.rs`.
+    Restore,
 }
 
 impl ModelKind {
@@ -66,9 +73,38 @@ impl ModelKind {
         match self {
             Self::X2 => "2x",
             Self::X4 => "4x",
+            Self::Restore => "Restore",
+        }
+    }
+
+    /// What the download notice calls it.
+    fn download_name(self) -> String {
+        match self {
+            Self::Restore => "OmniLens Restore Model".to_string(),
+            _ => format!("Real-ESRGAN {} Super Resolution Model", self.label()),
+        }
+    }
+
+    const fn scale(self) -> u32 {
+        match self {
+            Self::X2 => 2,
+            Self::X4 => 4,
+            Self::Restore => 1,
+        }
+    }
+
+    /// A model exported at one tile size takes only that size. Real-ESRGAN
+    /// takes any, so its tile follows the memory there is.
+    const fn fixed_tile(self) -> Option<u32> {
+        match self {
+            Self::Restore => Some(RESTORE_TILE),
+            _ => None,
         }
     }
 }
+
+/// OmniLens's window attention fixes the shape it was exported at.
+const RESTORE_TILE: u32 = 256;
 
 struct ModelSpec {
     url: &'static str,
@@ -90,6 +126,12 @@ fn model_spec(kind: ModelKind) -> ModelSpec {
             // SHA-256 of the published Real-ESRGAN x4plus ONNX artifact.
             sha256: "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
         },
+        ModelKind::Restore => ModelSpec {
+            url: "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
+            filename: "omnilens_swinir_aodlib_256.onnx",
+            // SHA-256 of Argentum's ONNX export of SwinIR_AODLib_EAOD.pth.
+            sha256: "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
+        },
     }
 }
 
@@ -97,13 +139,59 @@ struct LoadedModel {
     session: Mutex<Session>,
     device: Device,
     path: PathBuf,
+    kind: ModelKind,
 }
 
 static MODEL_X2: OnceLock<Arc<LoadedModel>> = OnceLock::new();
 static MODEL_X4: OnceLock<Arc<LoadedModel>> = OnceLock::new();
+static MODEL_RESTORE: OnceLock<Arc<LoadedModel>> = OnceLock::new();
 static MODEL_INIT_X2: OnceLock<TokioMutex<()>> = OnceLock::new();
 static MODEL_INIT_X4: OnceLock<TokioMutex<()>> = OnceLock::new();
+static MODEL_INIT_RESTORE: OnceLock<TokioMutex<()>> = OnceLock::new();
 static RESULT: OnceLock<Mutex<Option<Enlargement>>> = OnceLock::new();
+
+/// What the window asked for: Restore, an enlargement, or Restore and then
+/// an enlargement. One file either way.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Recipe {
+    /// Restore's Mask slider, 0..100, when Restore is on.
+    pub restore: Option<f32>,
+    /// 1 when there is no enlargement.
+    pub scale: u32,
+}
+
+impl Recipe {
+    pub fn new(restore: Option<f32>, scale: u32) -> Result<Self> {
+        let restore = restore.map(|mask| {
+            if mask.is_finite() {
+                mask.clamp(0.0, 100.0)
+            } else {
+                super::restore::DEFAULT_MASK
+            }
+        });
+        match (restore, scale) {
+            (None, 1) => Err(anyhow!("Choose Restore, an enlargement, or both")),
+            (_, 1 | 2 | 4) => Ok(Self { restore, scale }),
+            _ => Err(anyhow!("Super resolution only supports 2x and 4x")),
+        }
+    }
+
+    fn enlarge(self) -> Option<ModelKind> {
+        ModelKind::from_scale(self.scale).ok()
+    }
+
+    /// `photo_Restored`, `photo_Upscaled_x2`, `photo_Restored_Upscaled_x4`.
+    fn file_stem(self, stem: &str) -> String {
+        let mut name = stem.to_string();
+        if self.restore.is_some() {
+            name.push_str("_Restored");
+        }
+        if self.scale > 1 {
+            name.push_str(&format!("_Upscaled_x{}", self.scale));
+        }
+        name
+    }
+}
 
 /// An enlarged photo, with what is needed to move its masks into it.
 struct Enlargement {
@@ -112,6 +200,10 @@ struct Enlargement {
     /// The decoded source photo's size, which AI masks and colour-mask sample
     /// points are placed against.
     source_size: (u32, u32),
+    recipe: Recipe,
+    /// The RAW's capture-sharpening radius, carried to a restored file so
+    /// Capture keeps working on it. None for a JPEG, which has no capture.
+    capture_radius: Option<f32>,
 }
 
 #[derive(Serialize)]
@@ -131,14 +223,16 @@ fn result_slot() -> &'static Mutex<Option<Enlargement>> {
     RESULT.get_or_init(|| Mutex::new(None))
 }
 
-/// The bytes held by the last enlargement, for mods::memory's report. Zero if
-/// the slot is busy: that thread is never made to wait.
+/// The bytes held by the last enlargement, and by Restore's kept model
+/// output, for mods::memory's report. Zero if the slot is busy: that thread
+/// is never made to wait.
 pub fn result_bytes() -> usize {
     RESULT
         .get()
         .and_then(|slot| slot.try_lock().ok())
         .and_then(|g| g.as_ref().map(|enlarged| enlarged.image.as_bytes().len()))
         .unwrap_or(0)
+        + super::restore::kept_bytes()
 }
 
 fn models_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
@@ -170,6 +264,7 @@ fn model_slot(kind: ModelKind) -> &'static OnceLock<Arc<LoadedModel>> {
     match kind {
         ModelKind::X2 => &MODEL_X2,
         ModelKind::X4 => &MODEL_X4,
+        ModelKind::Restore => &MODEL_RESTORE,
     }
 }
 
@@ -177,6 +272,7 @@ fn model_init(kind: ModelKind) -> &'static TokioMutex<()> {
     match kind {
         ModelKind::X2 => MODEL_INIT_X2.get_or_init(|| TokioMutex::new(())),
         ModelKind::X4 => MODEL_INIT_X4.get_or_init(|| TokioMutex::new(())),
+        ModelKind::Restore => MODEL_INIT_RESTORE.get_or_init(|| TokioMutex::new(())),
     }
 }
 
@@ -190,10 +286,7 @@ async fn ensure_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<
             fs::remove_file(&path)?;
         }
 
-        let _ = app_handle.emit(
-            "ai-model-download-start",
-            format!("Real-ESRGAN {} Super Resolution Model", kind.label()),
-        );
+        let _ = app_handle.emit("ai-model-download-start", kind.download_name());
         let download = async {
             let bytes = reqwest::get(spec.url)
                 .await
@@ -230,16 +323,13 @@ async fn ensure_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<
             Ok::<(), anyhow::Error>(())
         }
         .await;
-        let _ = app_handle.emit(
-            "ai-model-download-finish",
-            format!("Real-ESRGAN {} Super Resolution Model", kind.label()),
-        );
+        let _ = app_handle.emit("ai-model-download-finish", kind.download_name());
         download?;
 
         if !verify_sha256(&path, spec.sha256)? {
             return Err(anyhow!(
-                "Real-ESRGAN {} model failed integrity verification",
-                kind.label()
+                "The {} failed integrity verification",
+                kind.download_name()
             ));
         }
     }
@@ -269,6 +359,7 @@ async fn get_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<Arc
         session: Mutex::new(session),
         device,
         path,
+        kind,
     });
     let _ = slot.set(model.clone());
     drop(guard);
@@ -394,10 +485,11 @@ fn adaptive_tile_size(scale: u32, output_pixels: u64) -> Result<(u32, u64)> {
     ))
 }
 
+/// `progress` hears about each tile; the window shows it, a test need not.
 fn run_model(
     image: &Rgb32FImage,
     model: &LoadedModel,
-    app_handle: &tauri::AppHandle,
+    progress: &dyn Fn(ProgressPayload),
     scale: u32,
 ) -> Result<Rgb32FImage> {
     let (width, height) = image.dimensions();
@@ -406,8 +498,14 @@ fn run_model(
         .checked_mul(scale)
         .context("Output height overflow")?;
     let output_pixels = u64::from(output_width) * u64::from(output_height);
-    let (tile_size, output_memory) = adaptive_tile_size(scale, output_pixels)?;
+    let (adaptive_tile, output_memory) = adaptive_tile_size(scale, output_pixels)?;
+    let tile_size = model.kind.fixed_tile().unwrap_or(adaptive_tile);
     let overlap = tile_overlap(tile_size);
+    let verb = if model.kind == ModelKind::Restore {
+        "Restoring"
+    } else {
+        "Upscaling"
+    };
 
     let positions_x = tile_positions(width, tile_size, overlap);
     let positions_y = tile_positions(height, tile_size, overlap);
@@ -437,20 +535,17 @@ fn run_model(
     for (tile_index, y0) in positions_y.iter().enumerate() {
         for (x_index, x0) in positions_x.iter().enumerate() {
             let tile_number = tile_index * positions_x.len() + x_index;
-            let _ = app_handle.emit(
-                "super-resolution-progress",
-                ProgressPayload {
-                    completed: tile_number + 1,
-                    total: total_tiles,
-                    message: format!(
-                        "Upscaling tile {}/{} on the {} using {}px tiles...",
-                        tile_number + 1,
-                        total_tiles,
-                        model.device.label(),
-                        tile_size
-                    ),
-                },
-            );
+            progress(ProgressPayload {
+                completed: tile_number + 1,
+                total: total_tiles,
+                message: format!(
+                    "{verb} tile {}/{} on the {} using {}px tiles...",
+                    tile_number + 1,
+                    total_tiles,
+                    model.device.label(),
+                    tile_size
+                ),
+            });
 
             let input = padded_tile(image, *x0, *y0, tile_size);
             let output = {
@@ -470,8 +565,8 @@ fn run_model(
             let tile_output_height = output.shape()[2] as u32;
             if tile_output_width != tile_size * scale || tile_output_height != tile_size * scale {
                 return Err(anyhow!(
-                    "Real-ESRGAN {}x model returned {}x{} for a {}x{} tile",
-                    scale,
+                    "The {} model returned {}x{} for a {}x{} tile",
+                    model.kind.label(),
                     tile_output_width,
                     tile_output_height,
                     tile_size,
@@ -534,7 +629,10 @@ fn run_with_fallback(
     app_handle: &tauri::AppHandle,
     scale: u32,
 ) -> Result<Rgb32FImage> {
-    match run_model(image, model, app_handle, scale) {
+    let progress = |payload: ProgressPayload| {
+        let _ = app_handle.emit("super-resolution-progress", payload);
+    };
+    match run_model(image, model, &progress, scale) {
         Err(error) if model.device == Device::Gpu => {
             log::warn!("GPU enlargement failed, retrying on the CPU: {error:#}");
             let (session, device) = gpu_runtime::session(&model.path, Device::Cpu)?;
@@ -542,8 +640,9 @@ fn run_with_fallback(
                 session: Mutex::new(session),
                 device,
                 path: model.path.clone(),
+                kind: model.kind,
             };
-            run_model(image, &cpu, app_handle, scale)
+            run_model(image, &cpu, &progress, scale)
         }
         result => result,
     }
@@ -634,38 +733,232 @@ fn srgb_encode(linear: f32) -> f32 {
     }
 }
 
+/// The models a recipe needs, loaded (and downloaded, once) before any work.
+struct Models {
+    restore: Option<Arc<LoadedModel>>,
+    enlarge: Option<Arc<LoadedModel>>,
+}
+
+async fn models_for(app_handle: &tauri::AppHandle, recipe: Recipe) -> Result<Models, String> {
+    let restore = match recipe.restore {
+        Some(_) => Some(
+            get_model(app_handle, ModelKind::Restore)
+                .await
+                .map_err(|error| format!("Cannot prepare Restore: {error}"))?,
+        ),
+        None => None,
+    };
+    let enlarge = match recipe.enlarge() {
+        Some(kind) => Some(get_model(app_handle, kind).await.map_err(|error| {
+            format!(
+                "Cannot prepare {} super resolution: {}",
+                kind.label(),
+                error
+            )
+        })?),
+        None => None,
+    };
+    Ok(Models { restore, enlarge })
+}
+
+/// One framed photo through what the recipe asks for, in the order measured
+/// on AK's frames (DEC-25): Restore at its own size, where lens softness
+/// lives; then, before an enlargement, capture sharpening at the camera's
+/// size; then the enlargement. Restore on its own leaves capture to the
+/// editor, live (`mark_restored`).
+fn develop(
+    framed: &super::restore::Framed,
+    recipe: Recipe,
+    models: &Models,
+    app_handle: &tauri::AppHandle,
+) -> Result<Rgb32FImage> {
+    let source = framed.source.as_ref();
+    let restored = match (recipe.restore, &models.restore) {
+        (Some(mask), Some(model)) => {
+            let output = match super::restore::kept(&framed.key) {
+                Some(kept) => kept,
+                None => {
+                    let output = Arc::new(run_with_fallback(
+                        source,
+                        model,
+                        app_handle,
+                        ModelKind::Restore.scale(),
+                    )?);
+                    super::restore::keep(framed.key, output.clone());
+                    output
+                }
+            };
+            let (w, h) = source.dimensions();
+            let mask =
+                super::restore::mask_from_detail(&framed.detail, w as usize, h as usize, mask);
+            Some(super::restore::blend_through(source, &output, &mask))
+        }
+        _ => None,
+    };
+    let Some(model) = &models.enlarge else {
+        return restored.context("Nothing to do: choose Restore or an enlargement");
+    };
+    let native = restored.as_ref().unwrap_or(source);
+    let captured = capture_before_enlarging(&framed.path, native, app_handle);
+    run_with_fallback(
+        captured.as_ref().unwrap_or(native),
+        model,
+        app_handle,
+        recipe.scale,
+    )
+}
+
+/// A RAW's capture sharpening, as its sidecar asks, applied before it is
+/// enlarged - the enlarged file is an ordinary image and would never get it.
+/// None for anything else, or if it cannot run: the enlargement goes ahead
+/// without it, as it did before, and the log says why.
+fn capture_before_enlarging(
+    path: &str,
+    image: &Rgb32FImage,
+    app_handle: &tauri::AppHandle,
+) -> Option<Rgb32FImage> {
+    let (source_path, sidecar_path) = crate::file_management::parse_virtual_path(path);
+    if !crate::formats::is_raw_file(&source_path) {
+        return None;
+    }
+    let adjustments = crate::exif_processing::load_sidecar(&sidecar_path).adjustments;
+    let state = app_handle.state::<crate::app_state::AppState>();
+    let context = crate::gpu_processing::get_or_init_gpu_context(&state, app_handle)
+        .map_err(|error| log::warn!("Enlarging without capture sharpening: {error}"))
+        .ok()?;
+    super::capture_bake::capture(
+        &context,
+        image,
+        &adjustments,
+        &source_path.to_string_lossy(),
+    )
+    .map_err(|error| log::warn!("Enlarging without capture sharpening: {error:#}"))
+    .ok()
+    .flatten()
+}
+
+/// The framed photo for `path`, decoded once while the window has it open.
+fn framed_for(path: &str, app_handle: &tauri::AppHandle) -> Result<Arc<super::restore::Framed>> {
+    super::restore::framed(path, || {
+        let (source, source_size) = load_source(path, app_handle)?;
+        Ok((source.to_rgb32f(), source_size))
+    })
+}
+
+/// The window's preview of a framed photo, from its floats.
+fn encode_preview_of(image: &Rgb32FImage) -> Result<String> {
+    let (w, h) = image.dimensions();
+    let scale = (2400.0 / w.max(h) as f32).min(1.0);
+    let small = if scale < 1.0 {
+        image::imageops::resize(
+            image,
+            ((w as f32 * scale).round() as u32).max(1),
+            ((h as f32 * scale).round() as u32).max(1),
+            FilterType::Lanczos3,
+        )
+    } else {
+        image.clone()
+    };
+    encode_preview(&DynamicImage::ImageRgb32F(small))
+}
+
+/// Restore's mask for the photo in the window, white where it applies, as a
+/// picture to show. The model is not involved: the mask comes from the photo.
+pub async fn restore_mask(
+    path: String,
+    mask: f32,
+    app_handle: tauri::AppHandle,
+) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let framed = framed_for(&path, &app_handle)?;
+        let preview = super::restore::mask_preview(&framed, mask, 2400);
+        encode_preview(&DynamicImage::ImageLuma8(preview))
+    })
+    .await
+    .map_err(|error| format!("Restore mask failed: {error}"))?
+    .map_err(|error| error.to_string())
+}
+
+/// A new Mask setting on the result already in the window - Restore alone -
+/// without running the model again: its output is kept.
+pub async fn restore_reblend(mask: f32) -> Result<String, String> {
+    tokio::task::spawn_blocking(move || {
+        let framed = super::restore::current_framed().context("No photo is open in the window")?;
+        let restored =
+            super::restore::kept(&framed.key).context("Restore has not run on this photo yet")?;
+        let mut slot = result_slot()
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let result = slot.as_mut().context("No result to update")?;
+        if result.recipe.restore.is_none() || result.recipe.scale != 1 {
+            return Err(anyhow!("Only Restore on its own updates as the Mask moves"));
+        }
+        let (w, h) = framed.source.dimensions();
+        let plane = super::restore::mask_from_detail(&framed.detail, w as usize, h as usize, mask);
+        let blended = super::restore::blend_through(&framed.source, &restored, &plane);
+        let preview = encode_preview_of(&blended)?;
+        result.image = DynamicImage::ImageRgb32F(blended);
+        result.recipe.restore = Some(mask);
+        Ok(preview)
+    })
+    .await
+    .map_err(|error| format!("Restore failed: {error}"))?
+    .map_err(|error: anyhow::Error| error.to_string())
+}
+
+/// The radius capture sharpening uses on this RAW, for a restored copy of it
+/// to keep using. Restore only: an enlargement's own model sharpens.
+fn capture_radius_for(path: &str, recipe: Recipe) -> Option<f32> {
+    let (source_path, _) = crate::file_management::parse_virtual_path(path);
+    if recipe.restore.is_none() || recipe.scale != 1 || !crate::formats::is_raw_file(&source_path) {
+        return None;
+    }
+    Some(
+        super::sharpen::auto_radius(&source_path.to_string_lossy())
+            .unwrap_or(super::sharpen::DEFAULT_RADIUS),
+    )
+}
+
+/// Load, develop and keep one photo for the window's preview and its Save.
+fn develop_path(
+    path: &str,
+    recipe: Recipe,
+    models: &Models,
+    app_handle: &tauri::AppHandle,
+) -> Result<(Arc<super::restore::Framed>, Enlargement)> {
+    let framed = framed_for(path, app_handle)?;
+    let result =
+        DynamicImage::ImageRgb32F(develop(&framed, recipe, models, app_handle).with_context(
+            || format!("Cannot process '{path}': the model could not process this image"),
+        )?);
+    let enlarged = Enlargement {
+        image: result,
+        scale: recipe.scale,
+        source_size: framed.source_size,
+        recipe,
+        capture_radius: capture_radius_for(path, recipe),
+    };
+    Ok((framed, enlarged))
+}
+
 async fn upscale(
     path: String,
     app_handle: tauri::AppHandle,
-    model: Arc<LoadedModel>,
-    scale: u32,
+    models: Models,
+    recipe: Recipe,
 ) -> Result<PreviewPayload> {
     let result = tokio::task::spawn_blocking(move || {
-        let (source, source_size) = load_source(&path, &app_handle)?;
-        let original_preview = encode_preview(&source).with_context(|| {
+        let (framed, enlarged) = develop_path(&path, recipe, &models, &app_handle)?;
+        let original_preview = encode_preview_of(&framed.source).with_context(|| {
             format!(
                 "Cannot create a preview for '{}'. The decoded image format is not supported",
                 path
             )
         })?;
-        let result = DynamicImage::ImageRgb32F(
-            run_with_fallback(&source.to_rgb32f(), &model, &app_handle, scale).with_context(
-                || {
-                    format!(
-                        "Cannot upscale '{}': the model could not process this image",
-                        path
-                    )
-                },
-            )?,
-        );
-        let result_preview = encode_preview(&result)?;
+        let result_preview = encode_preview(&enlarged.image)?;
         *result_slot()
             .lock()
-            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(Enlargement {
-            image: result,
-            scale,
-            source_size,
-        });
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(enlarged);
         Ok::<PreviewPayload, anyhow::Error>(PreviewPayload {
             result: result_preview,
             original: original_preview,
@@ -676,20 +969,17 @@ async fn upscale(
     Ok(result)
 }
 
+/// `restore` is Restore's Mask slider when Restore is on; `scale` is 1 for
+/// no enlargement.
 pub async fn preview(
     path: String,
     scale: u32,
+    restore: Option<f32>,
     app_handle: tauri::AppHandle,
 ) -> Result<PreviewPayload, String> {
-    let kind = ModelKind::from_scale(scale).map_err(|error| error.to_string())?;
-    let model = get_model(&app_handle, kind).await.map_err(|error| {
-        format!(
-            "Cannot prepare {} super resolution: {}",
-            kind.label(),
-            error
-        )
-    })?;
-    upscale(path, app_handle, model, scale)
+    let recipe = Recipe::new(restore, scale).map_err(|error| error.to_string())?;
+    let models = models_for(&app_handle, recipe).await?;
+    upscale(path, app_handle, models, recipe)
         .await
         .map_err(|error| error.to_string())
 }
@@ -700,7 +990,16 @@ pub async fn save(original_path: String, app_handle: tauri::AppHandle) -> Result
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .take()
         .ok_or_else(|| "No super-resolution result found in memory".to_string())?;
+    super::restore::forget();
     save_image(&original_path, enlarged, &app_handle).map_err(|error| error.to_string())
+}
+
+/// The window closed without saving: let go of what it was holding.
+pub fn discard() {
+    if let Some(slot) = RESULT.get() {
+        *slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    }
+    super::restore::forget();
 }
 
 fn save_image(
@@ -732,7 +1031,11 @@ fn save_image(
     } else {
         ("png", ImageFormat::Png)
     };
-    let output_path = parent.join(format!("{}_Upscaled.{}", stem, output_extension));
+    let output_path = parent.join(format!(
+        "{}.{}",
+        enlarged.recipe.file_stem(stem),
+        output_extension
+    ));
     let save_result = if format == ImageFormat::Tiff {
         image.to_rgb16().save_with_format(&output_path, format)
     } else {
@@ -832,6 +1135,7 @@ fn write_super_resolution_sidecar(
     let frame = Frame::of(&metadata.adjustments, enlarged);
     carry_masks(&mut metadata.adjustments, &frame);
     strip_non_transferable_adjustments(&mut metadata.adjustments);
+    mark_restored(&mut metadata.adjustments, enlarged.capture_radius);
 
     let output_sidecar = crate::exif_processing::get_primary_sidecar_path(output_path);
     let json = serde_json::to_string_pretty(&metadata)
@@ -846,6 +1150,20 @@ fn write_super_resolution_sidecar(
     crate::exif_processing::write_rrexif_sidecar(&source_path.to_string_lossy(), output_path)
         .map_err(|error| anyhow!(error))?;
     Ok(())
+}
+
+/// A restored RAW is saved as an ordinary image, and capture sharpening is a
+/// RAW's. Restore was asked for so that capture sharpening would have real
+/// edges to work on, so the restored file says what it is, and the radius
+/// measured on the RAW's mosaic - which the file no longer has -
+/// for `sharpen::from_json`.
+fn mark_restored(adjustments: &mut Value, capture_radius: Option<f32>) {
+    if let (Some(radius), Some(object)) = (capture_radius, adjustments.as_object_mut()) {
+        object.insert(
+            super::sharpen::RESTORED_KEY.to_string(),
+            json!({ "captureRadius": radius }),
+        );
+    }
 }
 
 /// Restate a raw's look for its enlargement, which the editor opens as an
@@ -1308,16 +1626,11 @@ fn straightened_from_source(
 pub async fn batch(
     paths: Vec<String>,
     scale: u32,
+    restore: Option<f32>,
     app_handle: tauri::AppHandle,
 ) -> Result<Vec<String>, String> {
-    let kind = ModelKind::from_scale(scale).map_err(|error| error.to_string())?;
-    let model = get_model(&app_handle, kind).await.map_err(|error| {
-        format!(
-            "Cannot prepare {} super resolution: {}",
-            kind.label(),
-            error
-        )
-    })?;
+    let recipe = Recipe::new(restore, scale).map_err(|error| error.to_string())?;
+    let models = models_for(&app_handle, recipe).await?;
     tokio::task::spawn_blocking(move || {
         let mut saved = Vec::new();
         for (index, path) in paths.iter().enumerate() {
@@ -1326,22 +1639,14 @@ pub async fn batch(
                 ProgressPayload {
                     completed: index,
                     total: paths.len(),
-                    message: format!("Upscaling photo {}/{}...", index + 1, paths.len()),
+                    message: format!("Processing photo {}/{}...", index + 1, paths.len()),
                 },
             );
-            let (source, source_size) =
-                load_source(path, &app_handle).map_err(|error| error.to_string())?;
-            let result = DynamicImage::ImageRgb32F(
-                run_with_fallback(&source.to_rgb32f(), &model, &app_handle, scale)
-                    .map_err(|error| format!("Cannot upscale '{}': {}", path, error))?,
-            );
-            let enlarged = Enlargement {
-                image: result,
-                scale,
-                source_size,
-            };
+            let (_, enlarged) = develop_path(path, recipe, &models, &app_handle)
+                .map_err(|error| format!("Cannot process '{}': {}", path, error))?;
             saved.push(save_image(path, enlarged, &app_handle).map_err(|error| error.to_string())?);
         }
+        super::restore::forget();
         Ok(saved)
     })
     .await
@@ -1351,6 +1656,135 @@ pub async fn batch(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_file_is_named_for_what_was_done() {
+        let name = |restore, scale| Recipe::new(restore, scale).unwrap().file_stem("IMG_1");
+        assert_eq!(name(Some(60.0), 1), "IMG_1_Restored");
+        assert_eq!(name(None, 2), "IMG_1_Upscaled_x2");
+        assert_eq!(name(None, 4), "IMG_1_Upscaled_x4");
+        assert_eq!(name(Some(60.0), 4), "IMG_1_Restored_Upscaled_x4");
+    }
+
+    #[test]
+    fn a_recipe_does_something_and_only_known_scales() {
+        assert!(Recipe::new(None, 1).is_err());
+        assert!(Recipe::new(Some(60.0), 3).is_err());
+        assert_eq!(Recipe::new(Some(60.0), 1).unwrap().enlarge(), None);
+        assert_eq!(Recipe::new(None, 2).unwrap().enlarge(), Some(ModelKind::X2));
+    }
+
+    /// Only a restored RAW at its own size keeps capture sharpening: an
+    /// enlargement's model sharpens, and a JPEG never had capture.
+    #[test]
+    fn only_a_restored_raw_carries_its_capture_radius() {
+        let restore = Recipe::new(Some(60.0), 1).unwrap();
+        let both = Recipe::new(Some(60.0), 2).unwrap();
+        assert_eq!(capture_radius_for("a.jpg", restore), None);
+        assert_eq!(capture_radius_for("a.CR3", both), None);
+        assert!(capture_radius_for("a.CR3", restore).is_some());
+
+        let mut adjustments = json!({ "exposure": 1.0 });
+        mark_restored(&mut adjustments, Some(0.72));
+        assert_eq!(adjustments["agRestore"]["captureRadius"], json!(0.72f32));
+        let mut untouched = json!({ "exposure": 1.0 });
+        mark_restored(&mut untouched, None);
+        assert!(untouched.get("agRestore").is_none());
+    }
+
+    /// Restore on a real RAW through the code the window runs: their decode,
+    /// a framed region encoded for reopening, OmniLens in 256 px tiles, the
+    /// detail mask. Writes as_shot, restored and mask PNGs and prints the time.
+    ///
+    /// `AG_RESTORE_RAW` the RAW; `AG_RESTORE_MODEL` the ONNX file;
+    /// `AG_RESTORE_REGION` x,y,w,h of the decoded frame; `AG_RESTORE_OUT` a
+    /// folder; `AG_ORT_DYLIB` the ONNX Runtime library to load (the DirectML
+    /// build for the graphics card); `AG_RESTORE_DEVICE` gpu or cpu.
+    #[test]
+    #[ignore = "reads AK's photos and a local model; run by hand"]
+    fn restore_on_a_real_raw() {
+        let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("set {name}"));
+        let raw = var("AG_RESTORE_RAW");
+        let model_path = PathBuf::from(var("AG_RESTORE_MODEL"));
+        let out = PathBuf::from(var("AG_RESTORE_OUT"));
+        let region: Vec<u32> = var("AG_RESTORE_REGION")
+            .split(',')
+            .map(|v| v.trim().parse().expect("x,y,w,h"))
+            .collect();
+        let _ = ort::init_from(var("AG_ORT_DYLIB")).commit();
+        let device = if var("AG_RESTORE_DEVICE") == "gpu" {
+            Device::Gpu
+        } else {
+            Device::Cpu
+        };
+
+        let bytes = fs::read(&raw).expect("read the RAW");
+        let settings = crate::app_settings::AppSettings::default();
+        let decoded =
+            crate::image_loader::load_base_image_from_bytes(&bytes, &raw, false, &settings, None)
+                .expect("decode");
+        println!(
+            "capture radius recorded at decode: {:?}",
+            crate::mods::sharpen::auto_radius(&raw)
+        );
+        let mut framed = decoded.crop_imm(region[0], region[1], region[2], region[3]);
+        encode_for_reopening(&mut framed);
+        let source = framed.to_rgb32f();
+
+        let (session, device) = gpu_runtime::session(&model_path, device).expect("session");
+        let model = LoadedModel {
+            session: Mutex::new(session),
+            device,
+            path: model_path,
+            kind: ModelKind::Restore,
+        };
+        let started = std::time::Instant::now();
+        let restored = run_model(&source, &model, &|_| {}, 1).expect("restore");
+        let seconds = started.elapsed().as_secs_f32();
+        let megapixels = f64::from(source.width() * source.height()) / 1e6;
+        println!(
+            "restore: {seconds:.1} s for {megapixels:.2} MP on the {} ({:.1} s/MP)",
+            model.device.label(),
+            seconds as f64 / megapixels
+        );
+        let blended =
+            crate::mods::restore::blend(&source, &restored, crate::mods::restore::DEFAULT_MASK);
+        fs::create_dir_all(&out).expect("out");
+        let png = |image: &Rgb32FImage, name: &str| {
+            DynamicImage::ImageRgb32F(image.clone())
+                .to_rgb8()
+                .save(out.join(name))
+                .expect("save");
+        };
+        png(&source, "as_shot.png");
+        png(&restored, "omnilens_whole.png");
+        png(&blended, "restored_default_mask.png");
+        crate::mods::restore::mask_image(&source, crate::mods::restore::DEFAULT_MASK)
+            .save(out.join("mask.png"))
+            .expect("save");
+
+        // What an enlargement starts from: the restored photo with the RAW's
+        // own capture sharpening, through the editor's engine.
+        let sidecar = crate::exif_processing::get_primary_sidecar_path(Path::new(&raw));
+        let adjustments = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+        let context = crate::mods::capture_bake::test_device().expect("a graphics device");
+        let started = std::time::Instant::now();
+        let captured = crate::mods::capture_bake::capture(&context, &blended, &adjustments, &raw)
+            .expect("capture ran")
+            .expect("capture is on for this RAW");
+        println!(
+            "capture before enlarging: {:.2} s for {megapixels:.2} MP",
+            started.elapsed().as_secs_f32()
+        );
+        png(&captured, "restored_then_captured.png");
+    }
+
+    #[test]
+    fn restore_runs_at_its_one_tile_and_enlargements_choose_theirs() {
+        assert_eq!(ModelKind::Restore.fixed_tile(), Some(256));
+        assert_eq!(ModelKind::Restore.scale(), 1);
+        assert_eq!(ModelKind::X4.fixed_tile(), None);
+    }
 
     #[test]
     fn tiles_overlap_by_48px_at_512_and_never_less_than_the_minimum() {
