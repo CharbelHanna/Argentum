@@ -62,8 +62,11 @@ pub const BLACK_POINT: u32 = 6;
 pub const SHARPEN_MASK: u32 = 7;
 /// The same for the manual sharpen's mask, when it has its own.
 pub const SHARPEN_MASK_USM: u32 = 8;
+/// The same for a photo mask's own Sharpen, inside that mask - the one
+/// `agSharpenMask` names.
+pub const SHARPEN_MASK_LOCAL: u32 = 9;
 /// Every mode, including the held ones.
-pub const LAST: u32 = 8;
+pub const LAST: u32 = 9;
 
 /// Read the mode out of the adjustments the frontend sent.
 ///
@@ -117,6 +120,7 @@ mod tests {
         assert_eq!(mode(&json!({ "showClipping": 6 })), BLACK_POINT);
         assert_eq!(mode(&json!({ "showClipping": 7 })), SHARPEN_MASK);
         assert_eq!(mode(&json!({ "showClipping": 8 })), SHARPEN_MASK_USM);
+        assert_eq!(mode(&json!({ "showClipping": 9 })), SHARPEN_MASK_LOCAL);
         assert_eq!(mode(&json!({ "showClipping": 99 })), OFF);
         assert_eq!(mode(&json!({ "showClipping": "yes" })), OFF);
     }

@@ -4,6 +4,21 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## 26.41.12 — 2026-10-11
+
+### Changed
+
+- **A mask's Sharpen has its own Radius, Mask and Threshold**, under More,
+  and an eye that shows where it lands: inside the mask, where its Mask lets
+  it. It used the main card's Sharpen radius and mask, which were hidden
+  until the photo's own Sharpen Amount was raised, so a mask could not be
+  sharpened differently from the photo. Each mask runs the same unsharp mask
+  passes with its own settings, one after another, only in the tiles its
+  pixels reach (`mods/sharpen_gpu.rs`, `LocalSharpening.tsx`). A new mask
+  starts from darktable's Sharpen defaults; an existing one keeps its amount.
+- The main Sharpening switch is the whole photo's: it no longer turns a
+  mask's own Sharpen off.
+
 ## 26.41.11 — 2026-10-10
 
 ### Added

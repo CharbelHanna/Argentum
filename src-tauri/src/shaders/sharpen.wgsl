@@ -52,13 +52,13 @@ struct Params {
     centre_y: f32,
     clip: f32,
     usm_contrast: f32,
-    // Masks with a Sharpen of their own: how many layers local_masks has, and
-    // each one's amount, four to a vec4 as a uniform array has to be.
-    local_count: u32,
+    // The layer of local_masks a photo mask's own Sharpen is working in, or
+    // -1 for the whole photo's. Each mask is its own submission, with its
+    // own amount, radius, threshold and contrast in the usm_ fields above.
+    layer: i32,
     _pad0: u32,
     _pad1: u32,
     _pad2: u32,
-    local_amount: array<vec4<f32>, 8>,
 }
 
 const FLAG_CAPTURE: u32 = 1u;
@@ -70,6 +70,8 @@ const FLAG_MASK: u32 = 16u;
 const FLAG_USM_MASK: u32 = 32u;
 // The first mask is capture's, which keeps off near-clipped highlights.
 const FLAG_CLIP: u32 = 64u;
+// A photo mask's own Sharpen has a contrast mask, built into `blend`.
+const FLAG_LAYER_MASK: u32 = 128u;
 
 @group(0) @binding(0) var<uniform> p: Params;
 @group(0) @binding(1) var src: texture_2d<f32>;
@@ -81,7 +83,8 @@ const FLAG_CLIP: u32 = 64u;
 @group(0) @binding(7) var<storage, read_write> blend: array<f32>;
 @group(0) @binding(8) var<storage, read_write> stopped: array<atomic<u32>>;
 @group(0) @binding(9) var<storage, read_write> counter: array<u32>;
-// RapidRAW's own mask bitmaps for those masks, one layer each, render size.
+// RapidRAW's own mask bitmaps for the masks with a Sharpen of their own, one
+// layer each, render size.
 @group(0) @binding(10) var local_masks: texture_2d_array<f32>;
 
 // The largest blur any pass asks for. darktable caps its sharpen kernel at
@@ -239,7 +242,6 @@ fn prep(@builtin(global_invocation_id) id: vec3<u32>) {
     if ((p.flags & FLAG_MASK) == 0u) {
         // A contrast threshold of 0 sharpens everywhere, as in RawTherapee,
         // where it also skips the clip mask.
-        aux[i] = 1.0;
         blend[i] = 1.0;
         return;
     }
@@ -250,20 +252,20 @@ fn prep(@builtin(global_invocation_id) id: vec3<u32>) {
     if ((p.flags & FLAG_CLIP) != 0u && rt_near_clip(g.x, g.y)) {
         b = 0.0;
     }
-    aux[i] = b;
+    blend[i] = b;
 }
 
-/// The manual sharpen's own mask, unblurred, built once capture no longer
-/// needs capture's. Blurred by mask_h and mask_v into `blend` as before.
+/// The manual sharpen's own mask, or a photo mask's, unblurred, built once
+/// capture no longer needs capture's. Blurred by mask_h and mask_v in place.
 @compute @workgroup_size(16, 16, 1)
 fn usm_mask_prep(@builtin(global_invocation_id) id: vec3<u32>) {
     if (!in_ext(id)) { return; }
     let i = idx(id.x, id.y);
     if (p.usm_contrast <= 0.0) {
-        aux[i] = 1.0;
+        blend[i] = 1.0;
         return;
     }
-    aux[i] = rt_blend_factor(rt_local_contrast(global_of(id.x, id.y)), p.usm_contrast);
+    blend[i] = rt_blend_factor(rt_local_contrast(global_of(id.x, id.y)), p.usm_contrast);
 }
 
 /// The mask is blurred to smooth its transitions: RawTherapee uses sigma 2.
@@ -277,7 +279,7 @@ fn mask_h(@builtin(global_invocation_id) id: vec3<u32>) {
     for (var k = -r; k <= r; k = k + 1) {
         let x = u32(clamp(i32(id.x) + k, 0, i32(p.ext_w) - 1));
         let w = gauss(f32(k), s);
-        sum += aux[idx(x, id.y)] * w;
+        sum += blend[idx(x, id.y)] * w;
         wsum += w;
     }
     tmp[idx(id.x, id.y)] = sum / wsum;
@@ -450,33 +452,37 @@ fn usm_v(@builtin(global_invocation_id) id: vec3<u32>) {
     }
     let i = idx(id.x, id.y);
     let l = aux[i];
-    // sharpen_mix: amount * copysign(max(0, |delta| - threshold), delta).
     let delta = l - sum / wsum;
-    let detail = sign(delta) * max(abs(delta) - p.usm_threshold, 0.0);
 
     // The contrast mask decides where sharpening lands, as it does for
-    // RawTherapee's own unsharp mask, so the mask view tells the truth.
-    var sharpen = p.usm_amount * blend[i];
-    // A mask's own Sharpen adds where the mask is. Softening is the same
-    // move the other way, towards the blur, and is not held back by the
-    // contrast mask or the threshold: flat areas and fine noise are exactly
-    // what a negative amount is for.
-    var soften = 0.0;
-    let g = global_of(id.x, id.y);
-    for (var k = 0u; k < p.local_count; k = k + 1u) {
-        let a = p.local_amount[k / 4u][k % 4u];
-        let m = textureLoad(local_masks, g, i32(k), 0).r;
-        if (a > 0.0) {
-            sharpen += a * m * blend[i];
-        } else {
-            soften += a * m;
+    // RawTherapee's own unsharp mask, so the mask view tells the truth. A
+    // photo mask's own Sharpen lands inside that mask, with a contrast mask
+    // of its own or none.
+    var m = 1.0;
+    var w = blend[i];
+    if (p.layer >= 0) {
+        m = textureLoad(local_masks, global_of(id.x, id.y), p.layer, 0).r;
+        if ((p.flags & FLAG_LAYER_MASK) == 0u) {
+            w = 1.0;
         }
+    }
+    var moved = 0.0;
+    if (p.usm_amount > 0.0) {
+        // sharpen_mix: amount * copysign(max(0, |delta| - threshold), delta).
+        let detail = sign(delta) * max(abs(delta) - p.usm_threshold, 0.0);
+        moved = p.usm_amount * m * w * detail;
+    } else {
+        // A mask's negative Sharpen: the same move the other way, towards
+        // the blur, and not held back by the contrast mask or the threshold -
+        // flat areas and fine noise are exactly what it is for.
+        moved = p.usm_amount * m * delta;
     }
     // Where nothing moves the pixel keeps its luminance exactly, rather than
     // a round trip through L* that is off in the last bit - outside every
-    // mask, with the global Amount at 0, that is the whole picture.
-    let moved = sharpen * detail + max(soften, -1.0) * delta;
+    // mask, with the global Amount at 0, that is the whole picture. Each
+    // mask after this one starts from what this one left.
     if (moved != 0.0) {
+        aux[i] = l + moved;
         est[i] = y_from_lstar(l + moved);
     }
 }
@@ -492,8 +498,12 @@ fn compose(@builtin(global_invocation_id) id: vec3<u32>) {
 
     if ((p.flags & FLAG_MASK_VIEW) != 0u) {
         // Read back unchanged by ag_stage_display: white is sharpened, black
-        // is left alone.
-        textureStore(dst, g, vec4<f32>(vec3<f32>(blend[i]), raw_px.a));
+        // is left alone - for a photo mask's own, only inside that mask.
+        var v = blend[i];
+        if (p.layer >= 0) {
+            v = v * textureLoad(local_masks, g, p.layer, 0).r;
+        }
+        textureStore(dst, g, vec4<f32>(vec3<f32>(v), raw_px.a));
         return;
     }
 

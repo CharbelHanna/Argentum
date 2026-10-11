@@ -61,10 +61,46 @@ export const SHARPEN_DEFAULTS: AgSharpen = {
   usmContrast: 10,
 };
 
-/** `mods/clipping.rs`: SHARPEN_MASK (capture's) and SHARPEN_MASK_USM. */
+/**
+ * A mask's own Sharpen, under `agSharpen` in that mask's adjustments. Its
+ * own unsharp mask, which nothing in the main card reaches.
+ */
+export interface AgLocalSharpen {
+  /** -100..100: right sharpens, left softens. */
+  amount: number;
+  radius: number;
+  threshold: number;
+  autoContrast: boolean;
+  contrast: number;
+}
+
+/** The main card's Sharpen defaults, so a mask starts where Sharpen does. */
+export const LOCAL_SHARPEN_DEFAULTS: AgLocalSharpen = {
+  amount: 0,
+  radius: SHARPEN_DEFAULTS.usmRadius,
+  threshold: SHARPEN_DEFAULTS.threshold,
+  autoContrast: true,
+  contrast: SHARPEN_DEFAULTS.usmContrast,
+};
+
+/**
+ * `mods/clipping.rs`: SHARPEN_MASK (capture's), SHARPEN_MASK_USM and
+ * SHARPEN_MASK_LOCAL (the active photo mask's own).
+ */
 export const CAPTURE_MASK = 7;
 export const SHARPEN_MASK = 8;
-export type MaskMode = typeof CAPTURE_MASK | typeof SHARPEN_MASK;
+export const LOCAL_MASK = 9;
+export type MaskMode = typeof CAPTURE_MASK | typeof SHARPEN_MASK | typeof LOCAL_MASK;
+
+/** The render that shows a mask: never saved. */
+function maskOverride(state: any, mode: MaskMode) {
+  return {
+    ...state.adjustments,
+    showClipping: mode,
+    // Which photo mask's own, for mods/sharpen.rs.
+    ...(mode === LOCAL_MASK ? { agSharpenMask: state.activeMaskContainerId } : {}),
+  };
+}
 
 export function readSharpen(adjustments: any): AgSharpen {
   return { ...SHARPEN_DEFAULTS, ...(adjustments?.agSharpen ?? {}) };
@@ -98,7 +134,7 @@ export function useSharpenMask() {
         return;
       }
       showing.current = want;
-      state.setEditor({ previewOverride: { ...state.adjustments, showClipping: want } });
+      state.setEditor({ previewOverride: maskOverride(state, want) });
     } else if (showing.current !== null) {
       showing.current = null;
       state.setEditor({ previewOverride: null });
@@ -142,7 +178,7 @@ export function useSharpenMask() {
     };
     const unsubscribe = useEditorStore.subscribe((s: any, prev: any) => {
       if (showing.current !== null && s.adjustments !== prev.adjustments) {
-        s.setEditor({ previewOverride: { ...s.adjustments, showClipping: showing.current } });
+        s.setEditor({ previewOverride: maskOverride(s, showing.current) });
       }
     });
     window.addEventListener('keydown', onKey, true);

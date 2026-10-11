@@ -1457,7 +1457,8 @@ export const REGISTRY = [
       + 'deciding where either lands, with a view of that mask. Whole-image GPU passes before their '
       + 'shader, through the input-stage anchor. Replaces their Sharpness slider in Details, whose '
       + 'radius grew with the sensor size, and their local Sharpness in a mask\'s Details with a '
-      + 'Sharpen of its own on the same engine.',
+      + 'Sharpen of its own on the same engine - its own radius, threshold and contrast mask, which '
+      + 'nothing in the main card reaches.',
     ours: [
       'src-tauri/src/mods/input_stage.rs',
       'src-tauri/src/mods/sharpen.rs',
@@ -1489,13 +1490,13 @@ export const REGISTRY = [
           + 'tiles read 128 px past it. Raise their overlap past 160 and the edge of a zoomed drag '
           + 'reads unsharpened texels.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'ag_sharpen (sharpen::Params, 176 bytes) at the end of their struct, filled by '
+        note: 'ag_sharpen (sharpen::Params, 560 bytes) at the end of their struct, filled by '
           + 'sharpen::from_json. The settings reach the stage the way every other adjustment reaches a render.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'calls',
         note:
           'Each mask\'s Sharpen is placed at the index their shader gives the mask: the masks that are '
-          + 'visible and have a sub-mask, in order, up to MAX_MASKS. sharpen::local_amounts repeats that '
-          + 'rule on the JSON. Change their filter and the amounts land on the wrong masks.' },
+          + 'visible and have a sub-mask, in order, up to MAX_MASKS. sharpen::locals repeats that '
+          + 'rule on the JSON. Change their filter and the settings land on the wrong masks.' },
       { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_mask_bitmap', how: 'calls',
         note:
           'The render carries the mask bitmaps their shader reads, built by the same rule (None for a '
@@ -1510,7 +1511,7 @@ export const REGISTRY = [
         note: 'AgSharpen mirrored at the end of their WGSL struct, never read there. '
           + 'shader_check::the_adjustments_have_the_same_layout_on_both_sides fails if the sides drift.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'absolute_coord', how: 'calls',
-        note: 'Passed to ag_stage_display, which in mode 7 reads input_texture at that pixel: the mask '
+        note: 'Passed to ag_stage_display, which in modes 7 to 9 reads input_texture at that pixel: the mask '
           + 'the stage wrote there, unchanged by every adjustment in between.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_sharpen', how: 'shadows',
         note:

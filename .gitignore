@@ -134,3 +134,6 @@ src-tauri/libs/
 
 # bench/replay.js result dumps
 bench/out/
+
+# Worktrees the Claude desktop app makes for other sessions
+.claude/worktrees/

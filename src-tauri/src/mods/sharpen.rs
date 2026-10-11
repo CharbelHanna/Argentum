@@ -83,7 +83,7 @@ pub const FLAG_USM_AUTO_CONTRAST: u32 = 8;
 /// their uniform layout lined up. Their shader never reads it; the stage in
 /// `input_stage.rs` does.
 ///
-/// 176 bytes, a multiple of 16, so it does not move anything after it.
+/// 560 bytes, a multiple of 16, so it does not move anything after it.
 #[repr(C)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default, PartialEq)]
 pub struct Params {
@@ -106,11 +106,19 @@ pub struct Params {
     pub flags: u32,
     /// The same, for the manual sharpen's own mask when it has one.
     pub usm_contrast: f32,
-    pub _pad: [u32; 2],
+    /// Bit k: mask k's own Mask is on auto.
+    pub local_auto: u32,
+    /// The mask whose own Mask is on show, plus one; 0 for none.
+    pub local_show: u32,
     /// Each mask's own Sharpen, -1..1, indexed as their shader indexes masks.
-    /// Positive sharpens with darktable's unsharp mask at Sharpen's radius and
-    /// mask; negative softens towards that blur.
+    /// Positive sharpens with darktable's unsharp mask; negative softens
+    /// towards its blur.
     pub local: [f32; MAX_LOCAL],
+    /// And that unsharp mask's own radius, threshold and contrast threshold,
+    /// as Sharpen's above. Nothing in the main card reaches any of it.
+    pub local_radius: [f32; MAX_LOCAL],
+    pub local_threshold: [f32; MAX_LOCAL],
+    pub local_contrast: [f32; MAX_LOCAL],
 }
 
 /// RapidRAW's MAX_MASKS.
@@ -140,6 +148,11 @@ impl Params {
     pub fn local_on(&self) -> bool {
         self.local.iter().any(|a| *a != 0.0)
     }
+
+    /// Whether mask k's own Mask is wanted on auto: it sharpens, or is on show.
+    fn local_wants_auto(&self, k: usize) -> bool {
+        self.local_auto & (1 << k) != 0 && (self.local[k] != 0.0 || self.local_show == k as u32 + 1)
+    }
 }
 
 fn number(section: &Value, key: &str, default: f32) -> f32 {
@@ -162,9 +175,9 @@ fn flag(section: &Value, key: &str, default: bool) -> bool {
 /// cache hash, so writing defaults into every photo would rebuild the library
 /// for nothing. Absent means the defaults below, which the frontend shows.
 ///
-/// The card's own switch turns all of it off, and so does turning off
-/// RapidRAW's Details section (their eye on the panel), as it does their own
-/// sharpening.
+/// The card's own switch turns the whole photo's sharpening off, and so does
+/// turning off RapidRAW's Details section (their eye on the panel), as it
+/// does their own sharpening. A mask's own Sharpen answers only to that mask.
 pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     let details_visible = js
         .get("sectionVisibility")
@@ -172,8 +185,9 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         .and_then(Value::as_bool)
         .unwrap_or(true);
     let s = js.get("agSharpen").cloned().unwrap_or(Value::Null);
+    let locals = locals(js);
     if !details_visible || !flag(&s, "enabled", true) {
-        return Params::default();
+        return locals;
     }
 
     // RAW only, as in RawTherapee: a JPEG has already been sharpened by the
@@ -229,42 +243,57 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
         contrast: number(&s, "contrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
         flags,
         usm_contrast: number(&s, "usmContrast", DEFAULT_CONTRAST).clamp(0.0, 200.0),
-        _pad: [0; 2],
-        local: local_amounts(js),
+        ..locals
     }
 }
 
-/// Each mask's Sharpen, in the order RapidRAW's shader indexes masks.
+/// Each mask's own Sharpen, in the order RapidRAW's shader indexes masks, in
+/// an otherwise empty `Params`.
 ///
 /// Their `get_all_adjustments_from_json` keeps the masks that are visible and
 /// have at least one sub-mask, in order, up to MAX_MASKS, and the mask
 /// bitmaps a render carries are built with the same rule. Read straight from
 /// the JSON rather than through their MaskDefinition, which would mean cloning
-/// every sub-mask's painted data for one number per mask.
-fn local_amounts(js: &Value) -> [f32; MAX_LOCAL] {
-    let mut out = [0.0; MAX_LOCAL];
+/// every sub-mask's painted data for a few numbers per mask.
+///
+/// The mask on show is named by `agSharpenMask`, which only the mask view's
+/// render carries (see `sharpenSettings.ts`); it is never saved.
+fn locals(js: &Value) -> Params {
+    let mut p = Params::default();
     let Some(masks) = js.get("masks").and_then(Value::as_array) else {
-        return out;
+        return p;
     };
+    let show = js.get("agSharpenMask").and_then(Value::as_str);
     let kept = masks.iter().filter(|m| {
         m.get("visible").and_then(Value::as_bool).unwrap_or(false)
             && m.get("subMasks")
                 .and_then(Value::as_array)
                 .is_some_and(|s| !s.is_empty())
     });
-    for (slot, mask) in out.iter_mut().zip(kept) {
-        let adjustments = mask.get("adjustments").cloned().unwrap_or(Value::Null);
+    let null = Value::Null;
+    for (k, mask) in kept.take(MAX_LOCAL).enumerate() {
+        if show.is_some() && mask.get("id").and_then(Value::as_str) == show {
+            p.local_show = k as u32 + 1;
+        }
+        let adjustments = mask.get("adjustments").unwrap_or(&null);
         let details_visible = adjustments
             .get("sectionVisibility")
             .and_then(|v| v.get("details"))
             .and_then(Value::as_bool)
             .unwrap_or(true);
-        if details_visible {
-            let own = adjustments.get("agSharpen").cloned().unwrap_or(Value::Null);
-            *slot = (number(&own, "amount", 0.0) / 100.0).clamp(-1.0, 1.0);
+        if !details_visible {
+            continue;
+        }
+        let own = adjustments.get("agSharpen").unwrap_or(&null);
+        p.local[k] = (number(own, "amount", 0.0) / 100.0).clamp(-1.0, 1.0);
+        p.local_radius[k] = number(own, "radius", DEFAULT_USM_RADIUS).clamp(0.1, 8.0);
+        p.local_threshold[k] = number(own, "threshold", DEFAULT_USM_THRESHOLD).clamp(0.0, 100.0);
+        p.local_contrast[k] = number(own, "contrast", DEFAULT_CONTRAST).clamp(0.0, 200.0);
+        if flag(own, "autoContrast", true) {
+            p.local_auto |= 1 << k;
         }
     }
-    out
+    p
 }
 
 // ---------------------------------------------------------------------------
@@ -815,16 +844,17 @@ fn auto_contrast_threshold(l: &[f32], w: usize, h: usize) -> f32 {
 type ContrastKey = (u64, u32, u32, usize);
 static AUTO_CONTRAST: Mutex<Vec<(ContrastKey, f32)>> = Mutex::new(Vec::new());
 
-/// The two masks' thresholds (0..1) for a render, and the measured one when
-/// either asked for auto.
+/// The masks' thresholds (0..1) for a render - capture's, Sharpen's and each
+/// photo mask's own - and the measured one when any asked for auto.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Thresholds {
     pub capture: f32,
     pub usm: f32,
+    pub local: [f32; MAX_LOCAL],
     pub measured: Option<f32>,
 }
 
-/// Resolve both masks' thresholds, measuring on `image` only if one of them
+/// Resolve every mask's threshold, measuring on `image` only if one of them
 /// is on auto. `image` should be the full-resolution picture when there is
 /// one: RawTherapee measures on the full RAW, and the flattest tile of a
 /// downscaled preview is smoother than the real one.
@@ -834,9 +864,14 @@ pub fn thresholds(
     transform_hash: u64,
     is_raw: bool,
 ) -> Thresholds {
-    let wants_auto =
-        params.auto_contrast() || (params.usm_own_mask() && params.usm_auto_contrast());
+    let wants_auto = params.auto_contrast()
+        || (params.usm_own_mask() && params.usm_auto_contrast())
+        || (0..MAX_LOCAL).any(|k| params.local_wants_auto(k));
     let measured = wants_auto.then(|| measured_threshold(image, transform_hash, is_raw));
+    let local = std::array::from_fn(|k| match measured {
+        Some(m) if params.local_wants_auto(k) => m,
+        _ => params.local_contrast[k] / 100.0,
+    });
     let capture = match measured {
         Some(m) if params.auto_contrast() => m,
         _ => params.contrast / 100.0,
@@ -852,6 +887,7 @@ pub fn thresholds(
     Thresholds {
         capture,
         usm,
+        local,
         measured,
     }
 }
@@ -943,10 +979,10 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn the_gpu_struct_is_176_bytes() {
+    fn the_gpu_struct_is_560_bytes() {
         // modules.wgsl's AgSharpen mirrors this; a size change shifts every
         // field of their adjustments that comes after it.
-        assert_eq!(std::mem::size_of::<Params>(), 176);
+        assert_eq!(std::mem::size_of::<Params>(), 560);
     }
 
     #[test]
@@ -1042,9 +1078,30 @@ mod tests {
         let p = from_json(&js, true, None);
         assert_eq!(&p.local[..4], &[0.5, -0.4, 1.0, 0.0]);
         assert!(p.local_on());
-        // The card's switch turns the local ones off with the rest.
+        // The card's switch is the whole photo's: a mask keeps its own.
         let off = json!({ "agSharpen": { "enabled": false }, "masks": js["masks"].clone() });
-        assert!(!from_json(&off, true, None).local_on());
+        let off = from_json(&off, true, None);
+        assert!(!off.capture_on() && off.local_on());
+    }
+
+    #[test]
+    fn each_mask_has_its_own_radius_threshold_and_mask() {
+        let js = json!({ "agSharpenMask": "b", "masks": [
+            { "id": "a", "visible": true, "subMasks": [{}],
+              "adjustments": { "agSharpen": { "amount": 40 } } },
+            { "id": "b", "visible": true, "subMasks": [{}],
+              "adjustments": { "agSharpen": { "amount": 60, "radius": 0.6, "threshold": 2,
+                                              "autoContrast": false, "contrast": 900 } } },
+        ] });
+        let p = from_json(&js, true, None);
+        // Untouched: darktable's defaults and an automatic mask, whatever
+        // the main card says.
+        assert_eq!((p.local_radius[0], p.local_threshold[0]), (2.0, 0.5));
+        assert_eq!(p.local_auto & 1, 1);
+        assert_eq!((p.local_radius[1], p.local_threshold[1]), (0.6, 2.0));
+        assert_eq!(p.local_auto & 2, 0);
+        assert_eq!(p.local_contrast[1], 200.0, "clamped");
+        assert_eq!(p.local_show, 2, "the second mask is on show");
     }
 
     #[test]
