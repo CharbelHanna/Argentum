@@ -84,17 +84,22 @@ pub fn curve_for_photo(photo: Option<&str>) -> Vec<ToneCurvePoint> {
         return points.clone();
     }
     let (source, _) = crate::file_management::parse_virtual_path(photo);
-    let points = crate::file_management::read_file_mapped(&source)
+    let read = crate::file_management::read_file_mapped(&source)
         .map_err(|e| e.to_string())
-        .and_then(|bytes| curve(&bytes))
-        .unwrap_or_else(|e| {
-            log::warn!("DNG Standard: {e}; using the median exposure offset");
+        .and_then(|bytes| curve(&bytes));
+    match read {
+        Ok(points) => {
+            kept.lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .insert(photo.to_string(), points.clone());
+            points
+        }
+        // Not kept: a file that is busy now is read again on the next render.
+        Err(e) => {
+            log::warn!("DNG Standard: {e}; using the median exposure offset for now");
             curve_points(baseline(&Facts::default()).ev)
-        });
-    kept.lock()
-        .unwrap_or_else(|e| e.into_inner())
-        .insert(photo.to_string(), points.clone());
-    points
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
