@@ -101,9 +101,11 @@ export const CREDITS: CreditGroup[] = [
         name: 'RAWmakase',
         href: 'https://github.com/pch/rawmakase',
         what:
-          'DNG Standard’s exposure offset for each camera comes from RAWmakase’s camera table, ' +
-          'which its contributors measured against Camera Raw: 230 bodies across 10 makes. ' +
-          'RAWmakase also showed what Argentum’s default rendering was missing. MIT.',
+          'DNG Standard, the look every RAW now starts in, follows RAWmakase’s default rendering: ' +
+          'each camera’s exposure offset, from RAWmakase’s camera table, which its contributors ' +
+          'measured against Camera Raw (230 bodies across 10 makes); Adobe’s default tone curve, ' +
+          'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
+          'output. RAWmakase is also where the comparison started. MIT.',
       },
       {
         name: 'RawTherapee',

@@ -69,13 +69,23 @@ applies it. Three sources:
 
 ### [RAWmakase](https://github.com/pch/rawmakase)
 
-The exposure offset for each camera body: RAWmakase's camera table
-(`data/cameras.toml` @ `7c3c81ab`), measured by its contributors against Camera
-Raw - 230 bodies across 10 makes, kept in Argentum as
-`src-tauri/src/mods/dng_baseline.tsv`. RAWmakase is also where the comparison
-started: it showed that the flatness of Argentum's default rendering was the
-tone, not the decoder. MIT licence, in full in
-[docs/licenses/RAWmakase-MIT.txt](docs/licenses/RAWmakase-MIT.txt).
+DNG Standard - the look every RAW now starts in - follows RAWmakase's default
+rendering, its *Standard* profile with Lightroom's default sharpening:
+
+- **The exposure offset for each camera body** is RAWmakase's camera table
+  (`data/cameras.toml` @ `7c3c81ab`), measured by its contributors against Camera
+  Raw - 230 bodies across 10 makes, kept in Argentum as
+  `src-tauri/src/mods/dng_baseline.tsv`.
+- **The approach** - camera matrix, exposure offset, then Adobe's default tone
+  curve applied so hues hold - is the one RAWmakase's Standard profile takes.
+- **The default sharpening** (Sharpen 25 at radius 1) was matched against
+  RAWmakase 0.3.3's render of Camera Raw's defaults on 200% crops.
+
+RAWmakase is also where the comparison started: it showed that the flatness of
+Argentum's default rendering was the tone, not the decoder. What Argentum does not
+take from it: its own decoder and demosaic, its *Color* look, its measured
+highlight and shadow tables, and its default colour noise reduction. MIT licence, in
+full in [docs/licenses/RAWmakase-MIT.txt](docs/licenses/RAWmakase-MIT.txt).
 
 ### [RawTherapee](https://github.com/RawTherapee/RawTherapee)
 
