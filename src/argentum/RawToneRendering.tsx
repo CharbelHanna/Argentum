@@ -58,8 +58,18 @@ export default function RawToneRendering() {
     [path, setAdjustments],
   );
 
+  // DNG Standard needs nothing fitted: the renderer reads the photo's curve
+  // itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
+  // written to.
   useEffect(() => {
-    if (!isRaw || !path || current === 'default' || adjustments?.rawToneCurve?.length >= 2 || busy) {
+    if (
+      !isRaw ||
+      !path ||
+      current === 'default' ||
+      current === 'dngStandard' ||
+      adjustments?.rawToneCurve?.length >= 2 ||
+      busy
+    ) {
       return;
     }
     ensureCurve(current);

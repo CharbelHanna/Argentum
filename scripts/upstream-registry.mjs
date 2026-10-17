@@ -1214,6 +1214,46 @@ export const REGISTRY = [
     keywords: /baseline.?exposure|dng.?(render|sdk|standard)|acr3|camera.?raw|prophoto|rgb.?tone/i,
   },
   {
+    id: 'raw-starting-look',
+    kind: 'behaviour-change',
+    what:
+      'A RAW whose edit names no rendering - one nobody has edited, one reset, settings pasted '
+      + 'onto an unedited photo - starts in DNG Standard, which brings Sharpen 25 at radius 1 until '
+      + 'someone sets their own. Edits that name RapidRAW’s rendering keep it; edits saved '
+      + 'before 2026-09-22 name none and now open in DNG Standard. Read the same everywhere: '
+      + 'raw_tone::mode_of and sharpen::from_json for the renderers, INITIAL_ADJUSTMENTS and their '
+      + 'loader for the editor.',
+    ours: [
+      'src-tauri/src/mods/raw_tone.rs', 'src-tauri/src/mods/sharpen.rs',
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/super_resolution.rs',
+      'src-tauri/src/mods/cache_version.rs', 'src/argentum/sharpenSettings.ts',
+      'src/argentum/Sharpening.tsx', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'INITIAL_ADJUSTMENTS starts it at dngStandard, and their loader fills a saved edit '
+          + 'without it from INITIAL_ADJUSTMENTS, as mode_of does.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'raw_tone_mode', how: 'calls',
+        note: 'Their get_global_adjustments_from_json asks raw_tone::mode_of for the mode and '
+          + 'raw_tone::fill_missing for the photo’s points.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'is_image_edited', how: 'calls',
+        note: 'Compares an edit against json!({}), which now reads as DNG Standard: a photo nobody '
+          + 'edited still counts as unedited; an edit naming RapidRAW’s rendering now counts as edited.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'reset_adjustments_for_paths', how: 'calls',
+        note: 'Their reset writes an empty edit, which now renders as the new start, as the '
+          + 'editor’s reset to INITIAL_ADJUSTMENTS does.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'load_sidecar', how: 'calls',
+        note: 'A photo without a sidecar has no adjustments, which every renderer reads as the new '
+          + 'start. If upstream ever fills in a rendering here, unedited RAWs lose it.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/raw_tone.rs #[cfg(test)]',
+      'src-tauri/src/mods/sharpen.rs #[cfg(test)]',
+      'src-tauri/src/mods/super_resolution.rs #[cfg(test)]',
+    ],
+    keywords: /default.?(look|render|sharpen|preset)|initial.?adjust|unedited|reset/i,
+  },
+  {
     id: 'object-label',
     kind: 'behaviour-change',
     what:

@@ -580,7 +580,7 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lensMaker: null,
   lensModel: null,
   lumaNoiseReduction: 0,
-  rawToneRendering: 'default',
+  rawToneRendering: 'dngStandard',
   rawToneCurve: null,
   lutData: null,
   lutIntensity: 100,

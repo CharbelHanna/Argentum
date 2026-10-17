@@ -68,6 +68,35 @@ pub fn curve(bytes: &[u8]) -> Result<Vec<ToneCurvePoint>, String> {
     Ok(curve_points(baseline.ev))
 }
 
+/// The curve for a photo the renderer is handed without one: a photo nobody has
+/// edited, which starts in DNG Standard (`raw_tone::mode_of`). Read from the
+/// file's metadata once per photo and kept, since every render of the photo asks
+/// again. Without a readable photo, the offset is the table's median.
+pub fn curve_for_photo(photo: Option<&str>) -> Vec<ToneCurvePoint> {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+    static KEPT: OnceLock<Mutex<HashMap<String, Vec<ToneCurvePoint>>>> = OnceLock::new();
+    let Some(photo) = photo else {
+        return curve_points(baseline(&Facts::default()).ev);
+    };
+    let kept = KEPT.get_or_init(Default::default);
+    if let Some(points) = kept.lock().unwrap_or_else(|e| e.into_inner()).get(photo) {
+        return points.clone();
+    }
+    let (source, _) = crate::file_management::parse_virtual_path(photo);
+    let points = crate::file_management::read_file_mapped(&source)
+        .map_err(|e| e.to_string())
+        .and_then(|bytes| curve(&bytes))
+        .unwrap_or_else(|e| {
+            log::warn!("DNG Standard: {e}; using the median exposure offset");
+            curve_points(baseline(&Facts::default()).ev)
+        });
+    kept.lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(photo.to_string(), points.clone());
+    points
+}
+
 // ---------------------------------------------------------------------------
 // The tone curve
 // ---------------------------------------------------------------------------
@@ -872,7 +901,7 @@ mod gpu {
             let js = serde_json::json!({
                 "rawToneRendering": MODE,
                 "rawToneCurve": json_points(&curve_points(ev)),
-                "agSharpen": { "capture": false },
+                "agSharpen": { "capture": false, "amount": 0 },
             });
             let got = render(
                 &ctx,
@@ -889,6 +918,43 @@ mod gpu {
         }
     }
 
+    /// A photo nobody has edited is rendered from no adjustments at all, in
+    /// thumbnails and exports as in the editor: DNG Standard with its Sharpen,
+    /// exactly as if both had been chosen by hand.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn an_unedited_raw_renders_as_dng_standard_with_its_sharpen() {
+        let ctx = device().expect("no wgpu adapter");
+        let image = image_of(&patches());
+        let wb = crate::white_balance::WhiteBalance::reference();
+        let unedited = render(&ctx, &image, serde_json::Value::Null, wb);
+        let chosen = render(
+            &ctx,
+            &image,
+            serde_json::json!({
+                "rawToneRendering": MODE,
+                "rawToneCurve": json_points(&curve_for_photo(None)),
+                "agSharpen": {
+                    "amount": crate::mods::sharpen::DNG_STANDARD_AMOUNT,
+                    "usmRadius": crate::mods::sharpen::DNG_STANDARD_USM_RADIUS,
+                },
+            }),
+            wb,
+        );
+        assert_eq!(unedited.as_raw(), chosen.as_raw());
+        let plain = render(
+            &ctx,
+            &image,
+            serde_json::json!({ "rawToneRendering": "default" }),
+            wb,
+        );
+        assert_ne!(
+            unedited.as_raw(),
+            plain.as_raw(),
+            "and it is not RapidRAW's rendering"
+        );
+    }
+
     /// Moving the RAW tone renderings out of their main() must not move a
     /// pixel of the ones that were there: their own raw branch with no mode
     /// set, and Base Curve's per-channel curve.
@@ -902,7 +968,7 @@ mod gpu {
         let theirs = render(
             &ctx,
             &image,
-            serde_json::json!({ "agSharpen": { "capture": false } }),
+            serde_json::json!({ "rawToneRendering": "default", "agSharpen": { "capture": false } }),
             wb,
         );
         let miss = worst(&theirs, |c| {
@@ -918,7 +984,7 @@ mod gpu {
         let js = serde_json::json!({
             "rawToneRendering": "baseCurve",
             "rawToneCurve": json_points(&base),
-            "agSharpen": { "capture": false },
+            "agSharpen": { "capture": false, "amount": 0 },
         });
         let got = render(&ctx, &image, js, wb);
         let miss = worst(&got, |c| {
@@ -977,11 +1043,11 @@ mod gpu {
                 .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
             let facts = facts(&bytes).expect("metadata");
             let base = baseline(&facts);
-            let off = serde_json::json!({ "agSharpen": { "capture": false } });
+            let off = serde_json::json!({ "agSharpen": { "capture": false, "amount": 0 } });
             let dng = serde_json::json!({
                 "rawToneRendering": MODE,
                 "rawToneCurve": json_points(&curve_points(base.ev)),
-                "agSharpen": { "capture": false },
+                "agSharpen": { "capture": false, "amount": 0 },
             });
             let a = DynamicImage::ImageRgba32F(render(&ctx, &small, off, wb));
             let b = DynamicImage::ImageRgba32F(render(&ctx, &small, dng, wb));
@@ -1022,5 +1088,368 @@ mod gpu {
             eprintln!("{name}: {:+.2} EV ({:?})", base.ev, base.origin);
         }
         std::fs::write(out.join("sheet.html"), html).unwrap();
+    }
+    /// The most detailed window of a photo, where sharpening shows: the
+    /// `w` x `h` area with the most luminance gradient, searched at an eighth
+    /// of the size.
+    fn busiest(image: &DynamicImage, w: u32, h: u32) -> (u32, u32) {
+        let (iw, ih) = (image.width(), image.height());
+        let small = crate::image_processing::downscale_f32_image(image, iw / 8, ih / 8).to_rgb32f();
+        let luma = |x: u32, y: u32| {
+            let p = small.get_pixel(x.min(small.width() - 1), y.min(small.height() - 1));
+            encode(0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2])
+        };
+        let (sw, sh) = (w / 8, h / 8);
+        let mut best = (0.0f32, 0, 0);
+        for y0 in (0..small.height().saturating_sub(sh)).step_by(4) {
+            for x0 in (0..small.width().saturating_sub(sw)).step_by(4) {
+                let mut energy = 0.0;
+                for y in y0..y0 + sh {
+                    for x in x0..x0 + sw {
+                        energy += (luma(x + 1, y) - luma(x, y)).abs()
+                            + (luma(x, y + 1) - luma(x, y)).abs();
+                    }
+                }
+                if energy > best.0 {
+                    best = (energy, x0 * 8, y0 * 8);
+                }
+            }
+        }
+        (best.1, best.2)
+    }
+
+    /// Sharpening sheets at 200%. Each RAW in AG_RAWS, cropped at full size to
+    /// its most detailed area and rendered with DNG Standard and capture
+    /// sharpening on, once per Sharpen setting in AG_SHARPEN
+    /// ("amount/radius" separated by ';', amount 0 being today's default).
+    #[test]
+    #[ignore = "reads RAW files; run by hand"]
+    fn sharpening_sheets() {
+        use base64::Engine;
+        let raws = std::env::var("AG_RAWS").expect("set AG_RAWS");
+        let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("set AG_OUT"));
+        let settings: Vec<(f32, f32)> = std::env::var("AG_SHARPEN")
+            .unwrap_or_else(|_| "0/2;50/2;100/2".into())
+            .split(';')
+            .map(|s| {
+                let (a, r) = s.split_once('/').expect("amount/radius");
+                (a.parse().unwrap(), r.parse().unwrap())
+            })
+            .collect();
+        std::fs::create_dir_all(&out).unwrap();
+        let ctx = device().expect("no wgpu adapter");
+        // Rendered with a margin, shown from the middle, twice the size.
+        let (cw, ch, show_w, show_h) = (720u32, 560u32, 360u32, 280u32);
+        let mut html = String::from(
+            "<!doctype html><meta charset=utf-8><title>Sharpening sheets</title><style>\
+             body{background:#1b1b1b;color:#ddd;font:14px system-ui;margin:16px}\
+             .row{display:flex;gap:8px;margin:0 0 28px}figure{margin:0}\
+             img{width:720px;height:560px;image-rendering:pixelated;display:block}\
+             figcaption{padding:4px 0}h2{font-size:15px;margin:8px 0}</style>",
+        );
+        for (n, path) in raws.split(';').filter(|p| !p.trim().is_empty()).enumerate() {
+            let bytes = std::fs::read(path).expect("read raw");
+            let linear = crate::raw_processing::develop_raw_image(
+                &bytes,
+                false,
+                2.5,
+                "default".to_string(),
+                None,
+                Some(path),
+            )
+            .expect("decodes");
+            let (x, y) = busiest(&linear, cw, ch);
+            let crop = linear.crop_imm(x, y, cw, ch);
+            let wb = crate::raw_processing::read_as_shot_white_balance(&bytes)
+                .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
+            let base = baseline(&facts(&bytes).expect("metadata"));
+            let radius = crate::mods::sharpen::auto_radius(path);
+            html += &format!(
+                "<h2>{} - {} (capture radius {:?})</h2><div class=row>",
+                n + 1,
+                std::path::Path::new(path)
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy(),
+                radius
+            );
+            for (i, &(amount, usm_radius)) in settings.iter().enumerate() {
+                let js = serde_json::json!({
+                    "rawToneRendering": MODE,
+                    "rawToneCurve": json_points(&curve_points(base.ev)),
+                    "agSharpen": { "amount": amount, "usmRadius": usm_radius },
+                });
+                let got = DynamicImage::ImageRgba32F(render(&ctx, &crop, js, wb));
+                let shown = got
+                    .crop_imm((cw - show_w) / 2, (ch - show_h) / 2, show_w, show_h)
+                    .to_rgb8();
+                let mut bytes = Vec::new();
+                DynamicImage::ImageRgb8(shown)
+                    .write_to(
+                        &mut std::io::Cursor::new(&mut bytes),
+                        image::ImageFormat::Png,
+                    )
+                    .unwrap();
+                let label = if amount == 0.0 {
+                    "today: capture sharpening only".to_string()
+                } else {
+                    format!("+ Sharpen {amount}, radius {usm_radius}")
+                };
+                html += &format!(
+                    "<figure><img src='data:image/png;base64,{}'><figcaption>{} - {label}</figcaption></figure>",
+                    base64::engine::general_purpose::STANDARD.encode(bytes),
+                    (b'A' + i as u8) as char,
+                );
+            }
+            html += "</div>";
+        }
+        std::fs::write(out.join("sharpening.html"), html).unwrap();
+    }
+    /// Luma of an image at 1/`step` of its size, normalised to mean 0 and
+    /// spread 1, so renders with different tone can be lined up.
+    fn normalised_luma(image: &DynamicImage, step: u32) -> (Vec<f32>, u32, u32) {
+        let rgb = image.to_rgb32f();
+        let (w, h) = (rgb.width() / step, rgb.height() / step);
+        let mut v: Vec<f32> = (0..h)
+            .flat_map(|y| (0..w).map(move |x| (x, y)))
+            .map(|(x, y)| {
+                let p = rgb.get_pixel(x * step, y * step);
+                0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
+            })
+            .collect();
+        let mean = v.iter().sum::<f32>() / v.len() as f32;
+        let spread = (v.iter().map(|x| (x - mean).powi(2)).sum::<f32>() / v.len() as f32).sqrt();
+        v.iter_mut()
+            .for_each(|x| *x = (*x - mean) / spread.max(1e-6));
+        (v, w, h)
+    }
+
+    /// Where `theirs` sits in `ours`' frame: the rotation and offset that best
+    /// match, searched at an eighth of the size and refined at full size.
+    fn line_up(ours: &DynamicImage, theirs: &DynamicImage) -> (DynamicImage, i32, i32) {
+        let (a, aw, ah) = normalised_luma(ours, 8);
+        let mut best = (f32::MAX, theirs.clone(), 0i32, 0i32);
+        for candidate in [
+            theirs.clone(),
+            theirs.rotate90(),
+            theirs.rotate270(),
+            theirs.rotate180(),
+        ] {
+            let (cw, ch) = (candidate.width() as f32, candidate.height() as f32);
+            if (cw / ours.width() as f32 - 1.0).abs() > 0.05
+                || (ch / ours.height() as f32 - 1.0).abs() > 0.05
+            {
+                continue;
+            }
+            let (b, bw, bh) = normalised_luma(&candidate, 8);
+            for dy in -12i32..=12 {
+                for dx in -12i32..=12 {
+                    let (mut sum, mut n) = (0.0f32, 0u32);
+                    for y in (ah / 4..ah * 3 / 4).step_by(2) {
+                        for x in (aw / 4..aw * 3 / 4).step_by(2) {
+                            let (bx, by) = (x as i32 + dx, y as i32 + dy);
+                            if bx < 0 || by < 0 || bx >= bw as i32 || by >= bh as i32 {
+                                continue;
+                            }
+                            sum += (a[(y * aw + x) as usize]
+                                - b[(by as u32 * bw + bx as u32) as usize])
+                                .abs();
+                            n += 1;
+                        }
+                    }
+                    let miss = sum / n.max(1) as f32;
+                    if miss < best.0 {
+                        best = (miss, candidate.clone(), dx * 8, dy * 8);
+                    }
+                }
+            }
+        }
+        (best.1, best.2, best.3)
+    }
+
+    /// Refine an offset at full size over one window: the best of +-8 px.
+    fn refine(
+        ours: &DynamicImage,
+        theirs: &DynamicImage,
+        (x, y, w, h): (u32, u32, u32, u32),
+        (dx, dy): (i32, i32),
+    ) -> (i32, i32) {
+        let a = normalised_luma(&ours.crop_imm(x, y, w, h), 1).0;
+        let mut best = (f32::MAX, dx, dy);
+        for ey in -8..=8 {
+            for ex in -8..=8 {
+                let (tx, ty) = (x as i32 + dx + ex, y as i32 + dy + ey);
+                if tx < 0
+                    || ty < 0
+                    || tx as u32 + w > theirs.width()
+                    || ty as u32 + h > theirs.height()
+                {
+                    continue;
+                }
+                let b = normalised_luma(&theirs.crop_imm(tx as u32, ty as u32, w, h), 1).0;
+                let miss = a.iter().zip(&b).map(|(p, q)| (p - q).abs()).sum::<f32>();
+                if miss < best.0 {
+                    best = (miss, dx + ex, dy + ey);
+                }
+            }
+        }
+        (best.1, best.2)
+    }
+
+    /// Mean absolute Laplacian of sRGB-encoded luma, x100: how much fine
+    /// edge contrast a crop holds. Higher is crisper (and noisier).
+    fn crispness(image: &DynamicImage) -> f32 {
+        let rgb = image.to_rgb32f();
+        let l = |x: u32, y: u32| {
+            let p = rgb.get_pixel(x, y);
+            0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
+        };
+        let (w, h) = (rgb.width(), rgb.height());
+        let mut sum = 0.0;
+        for y in 1..h - 1 {
+            for x in 1..w - 1 {
+                sum +=
+                    (4.0 * l(x, y) - l(x - 1, y) - l(x + 1, y) - l(x, y - 1) - l(x, y + 1)).abs();
+            }
+        }
+        100.0 * sum / ((w - 2) * (h - 2)) as f32
+    }
+
+    /// One photo at 200% against RAWmakase's render of it and the camera's
+    /// JPEG. AG_RAW the RAW, AG_REF RAWmakase's full-size render
+    /// (`rawmakase render`), AG_OUT the folder, AG_CROP "x,y,w,h" in
+    /// Argentum's frame (else the busiest area).
+    #[test]
+    #[ignore = "reads RAW files; run by hand"]
+    fn against_rawmakase() {
+        use base64::Engine;
+        let path = std::env::var("AG_RAW").expect("set AG_RAW");
+        let reference =
+            image::open(std::env::var("AG_REF").expect("set AG_REF")).expect("reads AG_REF");
+        let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("set AG_OUT"));
+        let ctx = device().expect("no wgpu adapter");
+        let bytes = std::fs::read(&path).expect("read raw");
+        let linear = crate::raw_processing::develop_raw_image(
+            &bytes,
+            false,
+            2.5,
+            "default".to_string(),
+            None,
+            Some(&path),
+        )
+        .expect("decodes");
+        let wb = crate::raw_processing::read_as_shot_white_balance(&bytes)
+            .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
+        let base = baseline(&facts(&bytes).expect("metadata"));
+        eprintln!(
+            "ours {}x{}, RAWmakase {}x{}",
+            linear.width(),
+            linear.height(),
+            reference.width(),
+            reference.height()
+        );
+        let today = DynamicImage::ImageRgba32F(render(&ctx, &linear, serde_json::json!({}), wb));
+        let dng = DynamicImage::ImageRgba32F(render(
+            &ctx,
+            &linear,
+            serde_json::json!({ "rawToneRendering": MODE, "rawToneCurve": json_points(&curve_points(base.ev)) }),
+            wb,
+        ));
+        let (w, h) = (360u32, 280u32);
+        let (x, y) = match std::env::var("AG_CROP") {
+            Ok(c) => {
+                let v: Vec<u32> = c.split(',').map(|s| s.trim().parse().unwrap()).collect();
+                (v[0], v[1])
+            }
+            Err(_) => busiest(&today, w, h),
+        };
+        eprintln!("crop at {x},{y}");
+        let overview = crate::image_processing::downscale_f32_image(
+            &today,
+            today.width() / 8,
+            today.height() / 8,
+        );
+        DynamicImage::ImageRgb8(overview.to_rgb8())
+            .save(out.join("overview.png"))
+            .unwrap();
+        let mut columns: Vec<(String, DynamicImage)> = vec![
+            (
+                "Argentum today (capture sharpening)".into(),
+                today.crop_imm(x, y, w, h),
+            ),
+            (
+                "Argentum, DNG Standard (with its Sharpen 25)".into(),
+                dng.crop_imm(x, y, w, h),
+            ),
+        ];
+        // Extra columns: DNG Standard with Argentum's Sharpen, "amount/radius;...".
+        for setting in std::env::var("AG_SHARPEN")
+            .unwrap_or_default()
+            .split(';')
+            .filter(|s| !s.is_empty())
+        {
+            let (amount, radius) = setting.split_once('/').expect("amount/radius");
+            let (amount, radius): (f32, f32) = (amount.parse().unwrap(), radius.parse().unwrap());
+            let js = serde_json::json!({
+                "rawToneRendering": MODE,
+                "rawToneCurve": json_points(&curve_points(base.ev)),
+                "agSharpen": { "amount": amount, "usmRadius": radius },
+            });
+            let got = DynamicImage::ImageRgba32F(render(&ctx, &linear, js, wb));
+            columns.push((
+                format!("DNG Standard + Sharpen {amount}, radius {radius}"),
+                got.crop_imm(x, y, w, h),
+            ));
+        }
+        let camera = crate::image_loader::embedded_preview_fallback(&bytes);
+        for (label, theirs) in [
+            ("RAWmakase 0.3.3 default".to_string(), Some(reference)),
+            ("Camera JPEG".to_string(), camera),
+        ] {
+            let Some(theirs) = theirs else { continue };
+            let (theirs, dx, dy) = line_up(&today, &theirs);
+            let (dx, dy) = refine(&today, &theirs, (x, y, w, h), (dx, dy));
+            eprintln!(
+                "{label}: {}x{} offset {dx},{dy}",
+                theirs.width(),
+                theirs.height()
+            );
+            columns.push((
+                label,
+                theirs.crop_imm((x as i32 + dx) as u32, (y as i32 + dy) as u32, w, h),
+            ));
+        }
+        let mut html = String::from(
+            "<!doctype html><meta charset=utf-8><title>Against RAWmakase</title><style>\
+             body{background:#1b1b1b;color:#ddd;font:14px system-ui;margin:16px}\
+             .row{display:flex;flex-wrap:wrap;gap:8px}figure{margin:0}\
+             img{width:720px;height:560px;image-rendering:pixelated;display:block}\
+             figcaption{padding:4px 0}</style>",
+        );
+        html += &format!(
+            "<h2>{} - 200%</h2><div class=row>",
+            std::path::Path::new(&path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+        );
+        for (i, (label, crop)) in columns.iter().enumerate() {
+            let mut png = Vec::new();
+            DynamicImage::ImageRgb8(crop.to_rgb8())
+                .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+                .unwrap();
+            let score = crispness(crop);
+            eprintln!("{label}: crispness {score:.2}");
+            html += &format!(
+                "<figure><img src='data:image/png;base64,{}'><figcaption>{} - {label} (edge contrast {score:.1})</figcaption></figure>",
+                base64::engine::general_purpose::STANDARD.encode(png),
+                (b'A' + i as u8) as char,
+            );
+            DynamicImage::ImageRgb8(crop.to_rgb8())
+                .save(out.join(format!("against_{i}.png")))
+                .unwrap();
+        }
+        html += "</div>";
+        std::fs::write(out.join("against-rawmakase.html"), html).unwrap();
     }
 }
