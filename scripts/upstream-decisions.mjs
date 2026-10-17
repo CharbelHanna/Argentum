@@ -1351,6 +1351,38 @@ const restore165 = [
   review165('b4a9d1a3', 'restore', 'not-applicable', 'Hides chromatic aberration and calibration by default. Their chromatic aberration is the lens-correction TCA slider: it moves colour channels, it does not undo blur. Nothing upstream corrects lens softness.', 'feature'),
 ];
 
+// DNG Standard was registered after this review (26.41.13), so its window is
+// checked here, from each commit's diff of the file. None reaches what it relies
+// on: the tone-mapper chain that fills default_tonemapped, after which
+// ag_stage_tone is called; their apply_curve and linear_to_srgb, which it calls;
+// and rawToneRendering in their adjustments. [commit, file, where its hunks are,
+// symbol or key].
+const UNREACHED_DNG_STANDARD_165 = [
+  ...['c91e0bf7', '89020724', '28fa5120', '9ba20c02', 'e8834210'].flatMap((commit) =>
+    ['default_tonemapped', 'apply_curve', 'linear_to_srgb'].map((symbol) => [commit, 'src-tauri/src/shaders/shader.wgsl', symbol])),
+  ...['1cc99d56', '66fa1600'].flatMap((commit) =>
+    ['default_tonemapped', 'linear_to_srgb'].map((symbol) => [commit, 'src-tauri/src/shaders/shader.wgsl', symbol])),
+  ...['9ba20c02', '181a7e32', 'b4a9d1a3', '7514c8f6', '2f907e36', 'f4a4c8d0', 'c7c42306', '0f564b59']
+    .map((commit) => [commit, 'src/utils/adjustments.ts', 'rawToneRendering']),
+];
+
+// Where each commit's hunks are, as UNREACHED_165 records them for the same file.
+const hunksIn165 = (commit, file) => UNREACHED_165.find(([c, f]) => c === commit && f === file)[2];
+
+const dngStandard165 = [
+  ...UNREACHED_DNG_STANDARD_165.map(([commit, file, symbol]) => review165(
+    commit,
+    `dng-standard:${file}${file.endsWith('.ts') ? ':' : '#'}${symbol}`,
+    'not-applicable',
+    `${DID_165[commit]} In ${file} it changes ${hunksIn165(commit, file)}; no changed line names ${symbol}, and no hunk is labelled with it.`,
+  )),
+  // A hunk is labelled apply_curve only because it starts just below it: the
+  // lines it changes are the parameters of apply_tonal_adjustments, next in the
+  // file. apply_curve itself is the same, line for line.
+  review165('1cc99d56', 'dng-standard:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', `${DID_165['1cc99d56']} One hunk is labelled apply_curve because it starts just below it; what it changes is a parameter of apply_tonal_adjustments (mid_log_detail). apply_curve is unchanged, line for line.`),
+  review165('66fa1600', 'dng-standard:src-tauri/src/shaders/shader.wgsl#apply_curve', 'not-applicable', `${DID_165['66fa1600']} One hunk is labelled apply_curve because it starts just below it; what it changes is a parameter of apply_tonal_adjustments (blurred_color_input_space becomes local_log_detail). apply_curve is unchanged, line for line.`),
+];
+
 export const REVIEW_165_DECISIONS = [
   ...unreached165,
   ...fileLevel165,
@@ -1359,6 +1391,7 @@ export const REVIEW_165_DECISIONS = [
   ...hints165,
   ...sharpening165,
   ...restore165,
+  ...dngStandard165,
 ];
 
 // 818 at the merge, plus 14 for object-label and 30 for compact-sliders,
@@ -1369,10 +1402,11 @@ export const REVIEW_165_DECISIONS = [
 // shared-unchanged-copies, 2 for ai-sessions-without-arena, and 27 for
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
-// sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
-// Restore, 6 of them for capture before an enlargement.
-if (REVIEW_165_DECISIONS.length !== 1164) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1164 decisions, found ${REVIEW_165_DECISIONS.length}`);
+// sharpening, 11 of them for a mask's own Sharpen (26.41.11), 19 for
+// Restore, 6 of them for capture before an enlargement, and 29 for DNG Standard
+// (26.41.13).
+if (REVIEW_165_DECISIONS.length !== 1193) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1193 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {

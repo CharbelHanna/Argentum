@@ -238,7 +238,7 @@ export interface Adjustments {
   lensMaker: string | null;
   lensModel: string | null;
   lumaNoiseReduction: number;
-  rawToneRendering: 'default' | 'baseCurve' | 'autoMatched';
+  rawToneRendering: 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
   rawToneCurve: Coord[] | null;
   lutData?: string | null;
   lutIntensity?: number;
@@ -740,7 +740,9 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
     cameraProfile: loadedAdjustments.cameraProfile ?? null, // Argentum
-    rawToneRendering: ['default', 'baseCurve', 'autoMatched'].includes(loadedAdjustments.rawToneRendering)
+    rawToneRendering: ['default', 'baseCurve', 'autoMatched', 'dngStandard'].includes(
+      loadedAdjustments.rawToneRendering,
+    )
       ? loadedAdjustments.rawToneRendering
       : INITIAL_ADJUSTMENTS.rawToneRendering,
     rawToneCurve: Array.isArray(loadedAdjustments.rawToneCurve)

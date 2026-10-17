@@ -2274,11 +2274,7 @@ fn get_global_adjustments_from_json(
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
 
     let raw_tone_mode = if is_raw {
-        match js_adjustments["rawToneRendering"].as_str().unwrap_or("default") {
-            "baseCurve" => 1,
-            "autoMatched" => 2,
-            _ => 0,
-        }
+        raw_tone::mode_index(js_adjustments["rawToneRendering"].as_str().unwrap_or("default"))
     } else {
         0
     };

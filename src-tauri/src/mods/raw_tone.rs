@@ -3,8 +3,11 @@
 //! Default leaves RapidRAW/Argentum's existing RAW view transform alone.
 //! Camera Base Curve is a small camera-style view curve. Auto-Matched fits a
 //! monotonic tone curve from the scene-linear RAW and the camera JPEG embedded
-//! in the same file. The curve is applied on the GPU; this module only builds
-//! the small per-photo data that crosses into the renderer.
+//! in the same file. DNG Standard is a DNG renderer's default: the camera's
+//! exposure offset and Adobe's default tone curve, applied as Adobe applies it
+//! (see dng_standard.rs). The curve is applied on the GPU, in `ag_stage_tone`
+//! (modules.wgsl); this module only builds the small per-photo data that
+//! crosses into the renderer.
 
 use crate::app_settings::AppSettings;
 use crate::image_processing::downscale_f32_image;
@@ -37,6 +40,17 @@ pub fn base_curve() -> Vec<ToneCurvePoint> {
     ]
 }
 
+/// The number the shader switches on, `raw_tone_mode` in their
+/// `GlobalAdjustments`. 0 is RapidRAW's own rendering.
+pub fn mode_index(mode: &str) -> u32 {
+    match mode {
+        "baseCurve" => 1,
+        "autoMatched" => 2,
+        crate::mods::dng_standard::MODE => 3,
+        _ => 0,
+    }
+}
+
 pub fn curve_for(
     bytes: &[u8],
     path: &str,
@@ -46,6 +60,7 @@ pub fn curve_for(
     match mode {
         "baseCurve" => Ok(base_curve()),
         "autoMatched" => auto_matched_curve(bytes, path, settings),
+        crate::mods::dng_standard::MODE => crate::mods::dng_standard::curve(bytes),
         _ => Err(format!("unknown RAW tone rendering mode: {mode}")),
     }
 }

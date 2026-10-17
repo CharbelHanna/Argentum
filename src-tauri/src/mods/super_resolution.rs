@@ -1231,7 +1231,10 @@ enum RawViewCurve {
     Nothing,
     /// The basic tone mapper's raw branch.
     Basic,
-    /// Raw tone rendering: the camera base curve, or the auto-matched one.
+    /// Raw tone rendering: the camera base curve, the auto-matched one, or DNG
+    /// Standard's. DNG Standard's is applied to the largest and smallest
+    /// channel in ProPhoto (ag_dng_standard); carried in the luma curve it runs
+    /// on each channel instead, so saturated colours land a little stronger.
     Points(Vec<(f32, f32)>),
 }
 
@@ -1239,7 +1242,7 @@ fn raw_view_curve(adjustments: &Value, raw_override: Option<u32>) -> RawViewCurv
     let mode = adjustments["rawToneRendering"]
         .as_str()
         .unwrap_or("default");
-    if mode == "baseCurve" || mode == "autoMatched" {
+    if mode == "baseCurve" || mode == "autoMatched" || mode == crate::mods::dng_standard::MODE {
         let mut points = curve_points(&adjustments["rawToneCurve"]);
         if mode == "baseCurve" && points.len() < 2 {
             points = crate::mods::raw_tone::base_curve()

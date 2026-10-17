@@ -95,6 +95,34 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'RAW rendering',
+    entries: [
+      {
+        name: 'RAWmakase',
+        href: 'https://github.com/pch/rawmakase',
+        what:
+          'DNG Standard’s exposure offset for each camera comes from RAWmakase’s camera table, ' +
+          'which its contributors measured against Camera Raw: 230 bodies across 10 makes. ' +
+          'RAWmakase also showed what Argentum’s default rendering was missing. MIT.',
+      },
+      {
+        name: 'RawTherapee',
+        href: 'https://github.com/RawTherapee/RawTherapee',
+        what:
+          'DNG Standard’s tone curve is applied as RawTherapee applies a camera profile’s: to the ' +
+          'largest and smallest channel, with the middle one kept between them ' +
+          '(rtengine/curves.h). The curve itself is taken from RawTherapee’s rtengine/dcp.cc.',
+      },
+      {
+        name: 'Adobe DNG SDK',
+        href: 'https://helpx.adobe.com/camera-raw/digital-negative.html',
+        what:
+          'The default tone curve DNG Standard applies is the DNG SDK’s, copyright Adobe Inc., ' +
+          'under the SDK’s licence. Argentum is not affiliated with or endorsed by Adobe.',
+      },
+    ],
+  },
+  {
     heading: 'Camera profiles',
     blurb:
       'Argentum reads camera profiles but ships none — the free collections are ' +

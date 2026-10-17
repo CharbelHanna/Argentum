@@ -1165,8 +1165,9 @@ export const REGISTRY = [
       { file: 'src-tauri/src/image_processing.rs', symbol: 'GlobalAdjustments', how: 'extends',
         note: 'raw_tone_mode, the curve and its count, filled from rawToneRendering/rawToneCurve.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'The same fields on the GPU side, and two blocks in main() that replace their tone '
-          + 'mapper for a RAW when a curve is set. Their struct and ours must stay in step.' },
+        note: 'The same fields on the GPU side, read by ag_stage_tone (modules.wgsl), which replaces '
+          + 'their tone mapper’s result for a RAW when a curve is set. Until 2026-10-17 that was two '
+          + 'blocks inside their main(). Their struct and ours must stay in step.' },
       { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
         note: 'rawToneRendering and rawToneCurve in their adjustments type, defaults and loader.' },
       { file: 'src-tauri/src/image_loader.rs', symbol: 'embedded_preview_fallback', how: 'calls',
@@ -1179,6 +1180,38 @@ export const REGISTRY = [
     ],
     tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
     keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,
+  },
+  {
+    id: 'dng-standard',
+    kind: 'feature',
+    what:
+      'DNG Standard, a fourth RAW tone rendering, opt-in: the camera’s exposure offset '
+      + '(BaselineExposure, from a DNG or a per-body table taken from RAWmakase) and Adobe’s default '
+      + 'tone curve, applied in linear ProPhoto to each pixel’s largest and smallest channel as '
+      + 'Adobe’s RGBTone does, so hues hold.',
+    ours: [
+      'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/dng_baseline.tsv',
+      'src-tauri/src/shaders/modules.wgsl', 'src/argentum/RawToneRendering.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'default_tonemapped', how: 'extends',
+        note: 'One call, ag_stage_tone, right after their tone-mapper chain, which fills default_tonemapped. It is handed their result '
+          + 'and the scene-linear colour, and returns theirs unless a RAW tone rendering is set. If '
+          + 'upstream moves their tone mapping, the call has to move with it, or ours runs on the '
+          + 'wrong colour.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'apply_curve', how: 'calls',
+        note: 'The 16 points are read with their monotone spline. mods/dng_standard.rs tests the '
+          + 'points against a copy of it, so a change to their spline must be copied there too.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'linear_to_srgb', how: 'calls',
+        note: 'The final encode, which is also the per-channel clip of colours beyond sRGB.' },
+      { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
+        note: 'dngStandard in their type and in the loader’s list of values it keeps.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/dng_standard.rs #[cfg(test)]',
+      'src-tauri/src/mods/shader_check.rs #[cfg(test)]',
+    ],
+    keywords: /baseline.?exposure|dng.?(render|sdk|standard)|acr3|camera.?raw|prophoto|rgb.?tone/i,
   },
   {
     id: 'object-label',
