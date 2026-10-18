@@ -269,6 +269,8 @@ name = "argentum-engine"
 version = "0.1.0"
 dependencies = [
  "bytemuck",
+ "glam 0.33.5",
+ "half",
  "pollster",
  "rawler",
  "rayon",
