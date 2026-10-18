@@ -74,9 +74,10 @@ pub fn apply_window_resize(window: &tauri::Window, size: PhysicalSize<u32>) {
     // Never wait here: this is the event thread, and a render may hold the lock.
     let presented = match ctx.display.try_lock() {
         Ok(mut guard) => guard.as_mut().map(|d| fit_and_render(d, &ctx, size)),
-        Err(TryLockError::Poisoned(poisoned)) => {
-            poisoned.into_inner().as_mut().map(|d| fit_and_render(d, &ctx, size))
-        }
+        Err(TryLockError::Poisoned(poisoned)) => poisoned
+            .into_inner()
+            .as_mut()
+            .map(|d| fit_and_render(d, &ctx, size)),
         Err(TryLockError::WouldBlock) => None,
     };
 
