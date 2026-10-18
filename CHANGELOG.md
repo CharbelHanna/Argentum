@@ -46,6 +46,29 @@ Newest first.
     folder (`radius`, `contrast`, `gpu`) with one `MAX_RADIUS_PX` and no
     second clamp, origins and the fit are each defined once, and the
     TypeScript generator builds only for the tests.
+- **Dev and test builds wait less.** Measured on Windows x64 after a one-line
+  change in `mods/sharpen.rs`: `cargo build` 26-28 s → 20 s, `cargo test --lib
+  sharpen::` 29 s → 26 s; a cold build into a new target directory 739 s →
+  633 s. Shipped builds are unchanged.
+  - The app library is built as an rlib only. Upstream's staticlib (iOS) and
+    cdylib (Android) were written by every desktop build, the staticlib alone
+    640 MB, and Argentum builds no mobile app. A mobile build needs them back
+    in `Cargo.toml`.
+  - Windows x64 dev and test builds link with rust-lld, which ships with Rust
+    (`.cargo/config.toml`): the app relinks in 5.6 s instead of 7-10 s.
+    Shipped Windows builds keep MSVC's linker.
+  - Dependencies carry no debug info in dev builds: the app's PDB is 86 MB
+    instead of 194 MB, and a full rebuild of the dependencies took 368 s
+    instead of 528 s. A backtrace through a dependency keeps its function
+    names but not file and line.
+  - `build.rs` does not hash the ONNX Runtime library again once it has been
+    checked, and a new git worktree copies it from the main checkout instead
+    of downloading it.
+  - `npm start` no longer runs the mergeability check, about 45 s before
+    every dev window. It is still the required check in CI, and
+    `npm run check:merge` runs it by hand.
+  - The first build after this change rebuilds every crate once: cargo and
+    sccache both key on the linker and the debug settings.
 
 ## 26.41.12 — 2026-10-11
 
