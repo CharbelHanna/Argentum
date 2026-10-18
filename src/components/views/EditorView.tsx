@@ -40,8 +40,6 @@ interface EditorViewProps {
   handlePanelSelect: (panelId: any) => void;
   requestThumbnails: any;
   renderAppPanel: (panelId: any) => React.ReactNode;
-  besideEditor?: React.ReactNode;
-  toolbarBelow?: boolean;
 }
 
 export default function EditorView({
@@ -68,8 +66,6 @@ export default function EditorView({
   handlePanelSelect,
   requestThumbnails,
   renderAppPanel,
-  besideEditor,
-  toolbarBelow,
 }: EditorViewProps) {
   const { selectedImage } = useEditorStore(
     useShallow((state) => ({
@@ -110,7 +106,6 @@ export default function EditorView({
       onContextMenu={handleEditorContextMenu}
       onImageSelect={handleImageClick}
       transformWrapperRef={transformWrapperRef}
-      toolbarBelow={toolbarBelow}
     />
   );
 
@@ -213,16 +208,7 @@ export default function EditorView({
 
   return (
     <div className={clsx('flex grow h-full min-h-0', layoutMode === 'compact' ? 'flex-col gap-2' : 'flex-col')}>
-      <div
-        className={clsx(
-          'flex-1 flex min-w-0',
-          besideEditor ? 'flex-row min-h-0' : 'flex-col',
-          layoutMode === 'compact' && 'min-h-0',
-        )}
-      >
-        {editorNode}
-        {besideEditor}
-      </div>
+      <div className={clsx('flex-1 flex flex-col min-w-0', layoutMode === 'compact' && 'min-h-0')}>{editorNode}</div>
       {layoutMode === 'compact' ? editorMobilePanelNode : editorBottomBarNode}
     </div>
   );

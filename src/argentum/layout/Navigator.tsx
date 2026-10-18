@@ -62,9 +62,14 @@ export interface TransformHandle {
 interface NavigatorProps {
   transformWrapperRef: RefObject<TransformHandle | null>;
   onZoomChange: (zoom: number, fitToWindow?: boolean) => void;
+  /**
+   * The Modern window's map: only the photo and the viewport, over the photo's
+   * bottom-right corner, shown only while zoomed past Fit. No section around it.
+   */
+  overlay?: boolean;
 }
 
-export default function Navigator({ transformWrapperRef, onZoomChange }: NavigatorProps) {
+export default function Navigator({ transformWrapperRef, onZoomChange, overlay = false }: NavigatorProps) {
   const agT = useAgTranslation();
   const open = useEditorLayout((s) => s.panels.navigatorOpen);
   const changePanels = useEditorLayout((s) => s.changePanels);
@@ -148,6 +153,38 @@ export default function Navigator({ transformWrapperRef, onZoomChange }: Navigat
   };
 
   const src = thumbnail || preview;
+
+  if (overlay) {
+    if (scale <= 1.01 || !src) return null;
+    return (
+      <div className="agm-navmap">
+        <div
+          className="relative cursor-crosshair touch-none"
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId);
+            pointAt(e);
+          }}
+          onPointerMove={(e) => {
+            if (e.currentTarget.hasPointerCapture(e.pointerId)) pointAt(e);
+          }}
+        >
+          <img src={src} className="block max-w-[176px] max-h-[118px] select-none" draggable={false} alt="" />
+          {inView && (
+            <div
+              className="absolute border border-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)] pointer-events-none"
+              style={{
+                left: `${inView.left * 100}%`,
+                top: `${inView.top * 100}%`,
+                width: `${inView.width * 100}%`,
+                height: `${inView.height * 100}%`,
+              }}
+            />
+          )}
+        </div>
+        <div className="agm-navmap-label">{agT('mwNavLabel').replace('{zoom}', String(Math.round(percent * 100)))}</div>
+      </div>
+    );
+  }
 
   return (
     <CollapsibleSection

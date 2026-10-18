@@ -68,7 +68,8 @@ export default function LibraryView({
   handlePasteAdjustments,
   handleResetAdjustments,
   requestThumbnails,
-}: LibraryViewProps) {
+  modern = false,
+}: LibraryViewProps & { modern?: boolean }) {
   const { activeView, setUI } = useUIStore(
     useShallow((state) => ({
       activeView: state.activeView,
@@ -132,6 +133,7 @@ export default function LibraryView({
           />
         ) : (
           <MainLibrary
+            modern={modern}
             activePath={libraryActivePath}
             aiModelDownloadStatus={aiModelDownloadStatus}
             appSettings={appSettings}
@@ -170,7 +172,8 @@ export default function LibraryView({
             onNavigateToCommunity={() => setUI({ activeView: 'community' })}
           />
         )}
-        {rootPaths && rootPaths.length > 0 && (
+        {/* Argentum: the Modern window has its own filmstrip and no bottom bar. */}
+        {!modern && rootPaths && rootPaths.length > 0 && (
           <BottomBar
             isCopied={isCopied}
             isCopyDisabled={multiSelectedPaths.length !== 1}

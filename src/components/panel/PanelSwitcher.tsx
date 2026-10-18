@@ -30,7 +30,7 @@ export const PANEL_ICONS: Record<Panel, LucideIcon> = {
   [Panel.Tethering]: Camera,
 };
 
-export const PANEL_TITLES: Record<Panel, string> = {
+const PANEL_TITLES: Record<Panel, string> = {
   [Panel.Metadata]: 'editor.switcher.tooltips.info',
   [Panel.Adjustments]: 'editor.switcher.tooltips.adjust',
   [Panel.Crop]: 'editor.switcher.tooltips.crop',

@@ -1,5 +1,6 @@
 import Argentum from './argentum/Argentum';
-import { ModernEditor, useModernLayout } from './argentum/layout';
+import { useModernLayout } from './argentum/layout';
+import { ModernWindow, refreshModernTrees, rootImageCounts, startModernLibrary } from './argentum/modern';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -370,11 +371,21 @@ function App() {
     handleLibraryImageSingleClick,
     handleImageClick,
     handleSetFlag,
-    refreshAllFolderTrees,
+    refreshAllFolderTrees: refreshLibraryTrees,
     handleTogglePinFolder,
     handleCreateAlbumItem,
     handleRenameAlbumItem,
   } = useLibraryActions(handleImageSelect);
+
+  // Argentum: under the Modern layout the folder tree's roots are the disks. It
+  // starts on them with no start screen, and its refresh leaves their photos
+  // uncounted, which would read every folder on a disk.
+  const isModernLayout = useModernLayout();
+  const refreshAllFolderTrees = isModernLayout ? refreshModernTrees : refreshLibraryTrees;
+  const handleModernStart = useCallback(
+    () => startModernLibrary(preloadedDataRef, handleSelectSubfolder),
+    [handleSelectSubfolder],
+  );
 
   useEffect(() => {
     const { setImageSelectHandler } = useUIStore.getState();
@@ -691,7 +702,7 @@ function App() {
       });
       if (!isExpanding) return;
       try {
-        const showCounts = appSettings?.enableFolderImageCounts ?? false;
+        const showCounts = rootImageCounts(appSettings?.enableFolderImageCounts ?? false);
         const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
           path,
           showImageCounts: showCounts,
@@ -794,8 +805,36 @@ function App() {
     selectedImage?.isReady &&
     hasRenderedFirstFrame;
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
-  const EditorViewLayout = useModernLayout() && layoutMode === 'full' ? ModernEditor : EditorView;
-  const isModernEditor = EditorViewLayout === ModernEditor && activeView === 'editor' && !!selectedImage;
+  // Argentum: the Modern window replaces today's title bar, side panels and views (argentum/modern).
+  const isModernWindow = isModernLayout && layoutMode === 'full' && !isAndroid;
+
+  const libraryViewProps = {
+    sortedImageList,
+    groupBadgeInfo,
+    thumbnailSize,
+    thumbnailAspectRatio,
+    libraryViewMode,
+    isAndroid,
+    layoutMode,
+    setThumbnailSize,
+    setThumbnailAspectRatio,
+    setLibraryViewMode,
+    handleClearSelection,
+    handleLibraryImageSingleClick,
+    handleImageSelect,
+    handleRate,
+    handleThumbnailContextMenu,
+    handleMainLibraryContextMenu,
+    handleContinueSession,
+    handleGoHome,
+    handleOpenFolder,
+    handleImportClick,
+    handleLibraryRefresh,
+    handleCopyAdjustments,
+    handlePasteAdjustments,
+    handleResetAdjustments,
+    requestThumbnails,
+  };
 
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const handleDragStart = (e: any) => {
@@ -871,7 +910,7 @@ function App() {
           isWgpuActive ? 'bg-transparent' : 'bg-bg-primary',
         )}
       >
-        {!isAndroid && (
+        {!isAndroid && !isModernWindow && (
           <div
             className={clsx(
               'shrink-0 overflow-hidden z-50',
@@ -886,7 +925,7 @@ function App() {
           className={clsx(
             'flex-1 flex flex-col min-h-0',
             isLayoutReady && hasMainContent && !isInstantTransition && 'transition-all duration-300 ease-in-out',
-            [hasMainContent && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
+            [hasMainContent && !isModernWindow && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
           )}
         >
           <DndContext
@@ -900,124 +939,141 @@ function App() {
               },
             }}
           >
-            <div className="flex flex-row grow h-full min-h-0">
-              {!shouldHideFolderTree && hasMainContent && !isModernEditor && (
-                <SidePanelArea
-                  side="left"
-                  width={effectiveLeftWidth}
-                  topRegion="leftTop"
-                  bottomRegion="leftBottom"
-                  renderPanel={renderAppPanel}
-                  onWidthChange={createResizeHandler('left', effectiveLeftWidth)}
-                  onWidthReset={createResizeResetHandler('left')}
-                  isResizing={isResizing}
-                />
-              )}
-              <div className="relative flex-1 flex flex-col min-w-0">
-                {selectedImage && externalEditSession && (
-                  <ExternalEditBar
-                    session={externalEditSession}
-                    isFinishing={isExternalEditFinishing}
-                    errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
-                    onDone={finishExternalEdit}
+            {isModernWindow ? (
+              <ModernWindow
+                gpu={appSettings?.useWgpuRenderer !== false}
+                renderAppPanel={renderAppPanel}
+                createResizeHandler={createResizeHandler}
+                createResizeResetHandler={createResizeResetHandler}
+                onStart={handleModernStart}
+                onSelectFolder={(path) => handleSelectSubfolder(path, false, undefined, true)}
+                onNavBack={handleNavBack}
+                onNavForward={handleNavForward}
+                transformWrapperRef={transformWrapperRef}
+                onBackToLibrary={handleBackToLibrary}
+                onEditorContextMenu={handleEditorContextMenu}
+                onOpenInEditor={handleImageClick}
+                onOpenPhoto={handleImageSelect}
+                onZoom={handleZoomChange}
+                libraryProps={libraryViewProps}
+                sortedImageList={sortedImageList}
+                thumbnailAspectRatio={thumbnailAspectRatio}
+                onSelectInGrid={handleLibraryImageSingleClick}
+                onClearSelection={handleClearSelection}
+                onThumbnailContextMenu={handleThumbnailContextMenu}
+                onEmptyAreaContextMenu={handleMainLibraryContextMenu}
+                onRequestThumbnails={requestThumbnails}
+                settingsProps={{
+                  appSettings,
+                  onLibraryRefresh: handleLibraryRefresh,
+                  onSettingsChange: handleSettingsChange,
+                  rootPaths,
+                }}
+                externalEditBar={
+                  selectedImage && externalEditSession ? (
+                    <ExternalEditBar
+                      session={externalEditSession}
+                      isFinishing={isExternalEditFinishing}
+                      errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
+                      onDone={finishExternalEdit}
+                    />
+                  ) : undefined
+                }
+              />
+            ) : (
+              <div className="flex flex-row grow h-full min-h-0">
+                {!shouldHideFolderTree && hasMainContent && (
+                  <SidePanelArea
+                    side="left"
+                    width={effectiveLeftWidth}
+                    topRegion="leftTop"
+                    bottomRegion="leftBottom"
+                    renderPanel={renderAppPanel}
+                    onWidthChange={createResizeHandler('left', effectiveLeftWidth)}
+                    onWidthReset={createResizeResetHandler('left')}
+                    isResizing={isResizing}
                   />
                 )}
-                <div
-                  className={clsx(
-                    'flex-1 flex flex-col min-w-0 h-full',
-                    activeView === 'editor' && selectedImage ? 'flex' : 'hidden',
-                  )}
-                >
-                  {selectedImage && (
-                    <EditorViewLayout
-                      transformWrapperRef={transformWrapperRef}
-                      isResizing={isResizing}
-                      layoutMode={layoutMode}
-                      isAndroid={isAndroid}
-                      compactEditorPanelHeight={compactEditorPanelHeight}
-                      compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
-                      thumbnailAspectRatio={thumbnailAspectRatio}
-                      sortedImageList={sortedImageList}
-                      createResizeHandler={createResizeHandler}
-                      createResizeResetHandler={createResizeResetHandler}
-                      handleBackToLibrary={handleBackToLibrary}
-                      handleEditorContextMenu={handleEditorContextMenu}
-                      handleThumbnailContextMenu={handleThumbnailContextMenu}
-                      handleMainLibraryContextMenu={handleMainLibraryContextMenu}
-                      handleImageClick={handleImageClick}
-                      handleClearSelection={handleClearSelection}
-                      handleCopyAdjustments={handleCopyAdjustments}
-                      handlePasteAdjustments={handlePasteAdjustments}
-                      handleRate={handleRate}
-                      handleZoomChange={handleZoomChange}
-                      handlePanelSelect={handlePanelSelect}
-                      requestThumbnails={requestThumbnails}
-                      renderAppPanel={renderAppPanel}
+                <div className="relative flex-1 flex flex-col min-w-0">
+                  {selectedImage && externalEditSession && (
+                    <ExternalEditBar
+                      session={externalEditSession}
+                      isFinishing={isExternalEditFinishing}
+                      errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
+                      onDone={finishExternalEdit}
                     />
                   )}
-                </div>
-                <div
-                  className={clsx(
-                    'flex-1 flex flex-col min-w-0 h-full',
-                    activeView === 'editor' && selectedImage ? 'hidden' : 'flex',
-                  )}
-                >
-                  <LibraryView
-                    sortedImageList={sortedImageList}
-                    groupBadgeInfo={groupBadgeInfo}
-                    thumbnailSize={thumbnailSize}
-                    thumbnailAspectRatio={thumbnailAspectRatio}
-                    libraryViewMode={libraryViewMode}
-                    isAndroid={isAndroid}
-                    layoutMode={layoutMode}
-                    setThumbnailSize={setThumbnailSize}
-                    setThumbnailAspectRatio={setThumbnailAspectRatio}
-                    setLibraryViewMode={setLibraryViewMode}
-                    handleClearSelection={handleClearSelection}
-                    handleLibraryImageSingleClick={handleLibraryImageSingleClick}
-                    handleImageSelect={handleImageSelect}
-                    handleRate={handleRate}
-                    handleThumbnailContextMenu={handleThumbnailContextMenu}
-                    handleMainLibraryContextMenu={handleMainLibraryContextMenu}
-                    handleContinueSession={handleContinueSession}
-                    handleGoHome={handleGoHome}
-                    handleOpenFolder={handleOpenFolder}
-                    handleImportClick={handleImportClick}
-                    handleLibraryRefresh={handleLibraryRefresh}
-                    handleCopyAdjustments={handleCopyAdjustments}
-                    handlePasteAdjustments={handlePasteAdjustments}
-                    handleResetAdjustments={handleResetAdjustments}
-                    requestThumbnails={requestThumbnails}
-                  />
-                </div>
-                {isSettingsOpen && appSettings && hasRoots && (
-                  <div className="absolute inset-0 z-50 flex bg-bg-secondary rounded-lg">
-                    <div className="w-full h-full flex flex-col p-4 lg:p-8 overflow-y-auto custom-scrollbar">
-                      <SettingsPanel
-                        appSettings={appSettings}
-                        onBack={() => setUI({ isSettingsOpen: false })}
-                        onLibraryRefresh={handleLibraryRefresh}
-                        onSettingsChange={handleSettingsChange}
-                        rootPaths={rootPaths}
+                  <div
+                    className={clsx(
+                      'flex-1 flex flex-col min-w-0 h-full',
+                      activeView === 'editor' && selectedImage ? 'flex' : 'hidden',
+                    )}
+                  >
+                    {selectedImage && (
+                      <EditorView
+                        transformWrapperRef={transformWrapperRef}
+                        isResizing={isResizing}
+                        layoutMode={layoutMode}
+                        isAndroid={isAndroid}
+                        compactEditorPanelHeight={compactEditorPanelHeight}
+                        compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
+                        thumbnailAspectRatio={thumbnailAspectRatio}
+                        sortedImageList={sortedImageList}
+                        createResizeHandler={createResizeHandler}
+                        createResizeResetHandler={createResizeResetHandler}
+                        handleBackToLibrary={handleBackToLibrary}
+                        handleEditorContextMenu={handleEditorContextMenu}
+                        handleThumbnailContextMenu={handleThumbnailContextMenu}
+                        handleMainLibraryContextMenu={handleMainLibraryContextMenu}
+                        handleImageClick={handleImageClick}
+                        handleClearSelection={handleClearSelection}
+                        handleCopyAdjustments={handleCopyAdjustments}
+                        handlePasteAdjustments={handlePasteAdjustments}
+                        handleRate={handleRate}
+                        handleZoomChange={handleZoomChange}
+                        handlePanelSelect={handlePanelSelect}
+                        requestThumbnails={requestThumbnails}
+                        renderAppPanel={renderAppPanel}
                       />
-                    </div>
+                    )}
                   </div>
+                  <div
+                    className={clsx(
+                      'flex-1 flex flex-col min-w-0 h-full',
+                      activeView === 'editor' && selectedImage ? 'hidden' : 'flex',
+                    )}
+                  >
+                    <LibraryView {...libraryViewProps} />
+                  </div>
+                  {isSettingsOpen && appSettings && hasRoots && (
+                    <div className="absolute inset-0 z-50 flex bg-bg-secondary rounded-lg">
+                      <div className="w-full h-full flex flex-col p-4 lg:p-8 overflow-y-auto custom-scrollbar">
+                        <SettingsPanel
+                          appSettings={appSettings}
+                          onBack={() => setUI({ isSettingsOpen: false })}
+                          onLibraryRefresh={handleLibraryRefresh}
+                          onSettingsChange={handleSettingsChange}
+                          rootPaths={rootPaths}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {!useCompactPanels && hasMainContent && (
+                  <SidePanelArea
+                    side="right"
+                    width={effectiveRightWidth}
+                    topRegion="rightTop"
+                    bottomRegion="rightBottom"
+                    renderPanel={renderAppPanel}
+                    onWidthChange={createResizeHandler('right', effectiveRightWidth)}
+                    onWidthReset={createResizeResetHandler('right')}
+                    isResizing={isResizing}
+                    showAdditionalTabs={useWidePanels}
+                  />
                 )}
               </div>
-              {!useCompactPanels && hasMainContent && !isModernEditor && (
-                <SidePanelArea
-                  side="right"
-                  width={effectiveRightWidth}
-                  topRegion="rightTop"
-                  bottomRegion="rightBottom"
-                  renderPanel={renderAppPanel}
-                  onWidthChange={createResizeHandler('right', effectiveRightWidth)}
-                  onWidthReset={createResizeResetHandler('right')}
-                  isResizing={isResizing}
-                  showAdditionalTabs={useWidePanels}
-                />
-              )}
-            </div>
+            )}
             <DragOverlay modifiers={activeImageDragItem ? [imageDragModifier] : undefined} dropAnimation={null}>
               {activeLayoutDragItem && ActiveOverlayIcon ? (
                 <div className="w-10 h-10 bg-surface shadow-2xl rounded-md flex items-center justify-center text-text-primary ring-1 ring-border-color">

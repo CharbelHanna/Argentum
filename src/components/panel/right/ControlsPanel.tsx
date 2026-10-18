@@ -30,12 +30,33 @@ import { useUIStore } from '../../../store/useUIStore';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 import { useWaveformControls } from '../../../hooks/useWaveformControls';
 
-export default function Controls({ showWaveform = true }: { showWaveform?: boolean }) {
+/**
+ * Argentum: the Modern window's grid shows the selected photo's settings here,
+ * read-only, without opening it: its values come in `readOnly`, nothing can be
+ * changed, and Enter opens the photo to edit it.
+ */
+export interface ReadOnlyAdjustments {
+  adjustments: Adjustments;
+}
+
+export default function Controls({
+  showWaveform = true,
+  readOnly,
+}: {
+  showWaveform?: boolean;
+  readOnly?: ReadOnlyAdjustments;
+}) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
   const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, handleWaveformResize } =
     useWaveformControls();
-  const { setAdjustments, handleAutoAdjustments, handleLutSelect, setLutPreviewOverride } = useEditorActions();
+  const {
+    setAdjustments: setLiveAdjustments,
+    handleAutoAdjustments,
+    handleLutSelect,
+    setLutPreviewOverride,
+  } = useEditorActions();
+  const setAdjustments = readOnly ? () => {} : setLiveAdjustments;
 
   const { appSettings, theme } = useSettingsStore(
     useShallow((state) => ({
@@ -54,7 +75,7 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
   );
 
   const {
-    adjustments,
+    liveAdjustments,
     copiedSectionAdjustments,
     histogram,
     selectedImage,
@@ -66,7 +87,7 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
     setEditor,
   } = useEditorStore(
     useShallow((state) => ({
-      adjustments: state.adjustments,
+      liveAdjustments: state.adjustments,
       copiedSectionAdjustments: state.copiedSectionAdjustments,
       histogram: state.histogram,
       selectedImage: state.selectedImage,
@@ -78,6 +99,8 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
       setEditor: state.setEditor,
     })),
   );
+
+  const adjustments = readOnly?.adjustments ?? liveAdjustments;
 
   const setCopiedSectionAdjustments = useCallback(
     (val: any) => setEditor({ copiedSectionAdjustments: val }),
@@ -143,6 +166,27 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
     });
   };
 
+  // Argentum: the section menu's Reset, also the reset button in a section's
+  // header in the Modern look.
+  const resetSection = (sectionName: string) => {
+    const sectionKeys = ADJUSTMENT_SECTIONS[sectionName];
+    if (!sectionKeys) {
+      return;
+    }
+    const resetValues: any = {};
+    for (const key of sectionKeys) {
+      resetValues[key] = JSON.parse(JSON.stringify(INITIAL_ADJUSTMENTS[key as keyof Adjustments]));
+    }
+    setAdjustments((prev: Adjustments) => ({
+      ...prev,
+      ...resetValues,
+      sectionVisibility: {
+        ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
+        [sectionName]: true,
+      },
+    }));
+  };
+
   const handleSectionContextMenu = (event: any, sectionName: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -176,21 +220,6 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
       }));
     };
 
-    const handleReset = () => {
-      const resetValues: any = {};
-      for (const key of sectionKeys) {
-        resetValues[key] = JSON.parse(JSON.stringify(INITIAL_ADJUSTMENTS[key as keyof Adjustments]));
-      }
-      setAdjustments((prev: Adjustments) => ({
-        ...prev,
-        ...resetValues,
-        sectionVisibility: {
-          ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
-          [sectionName]: true,
-        },
-      }));
-    };
-
     const isPasteAllowed = copiedSectionAdjustments && copiedSectionAdjustments.section === sectionName;
     const translatedSection = t(`editor.adjustments.sections.${sectionName}`);
 
@@ -209,7 +238,7 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
       {
         label: t('editor.adjustments.actions.resetSectionSettings', { section: translatedSection }),
         icon: RotateCcw,
-        onClick: handleReset,
+        onClick: () => resetSection(sectionName),
       },
       { type: OPTION_SEPARATOR },
       {
@@ -223,7 +252,8 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
   };
 
   return (
-    <div className="flex flex-col h-full">
+    // Argentum: data-ag-adjustments is what the Modern look (modern/modern.css) restyles.
+    <div className="flex flex-col h-full" data-ag-adjustments>
       <div className="p-3 flex justify-between items-center shrink-0 border-b border-surface">
         <Text variant={TextVariants.title}>{t('editor.adjustments.title')}</Text>
         <div className="flex items-center gap-1">
@@ -287,8 +317,11 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
         )}
       </AnimatePresence>
 
-      <div className="grow overflow-y-scroll p-3 flex flex-col gap-2">
-        {selectedImage ? (
+      <div
+        className={clsx('grow overflow-y-scroll p-3 flex flex-col gap-2', readOnly && 'agm-readonly')}
+        inert={!!readOnly}
+      >
+        {selectedImage || readOnly ? (
           visibleSections.map((sectionName: string) => {
             const SectionComponent: any = {
               basic: BasicAdjustments,
@@ -302,7 +335,7 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
             const sectionVisibility = adjustments.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility;
 
             return (
-              <div className="shrink-0 group" key={sectionName}>
+              <div className="shrink-0 group relative" key={sectionName}>
                 <CollapsibleSection
                   isContentVisible={sectionVisibility[sectionName as keyof SectionVisibility]}
                   isOpen={collapsibleSectionsState[sectionName as keyof typeof collapsibleSectionsState]}
@@ -319,12 +352,21 @@ export default function Controls({ showWaveform = true }: { showWaveform?: boole
                     handleLutSelect={handleLutSelect}
                     onLutHover={setLutPreviewOverride}
                     appSettings={appSettings}
-                    asShotWhiteBalance={selectedImage.asShotWhiteBalance}
+                    asShotWhiteBalance={readOnly ? undefined : selectedImage?.asShotWhiteBalance}
                     isWbPickerActive={isWbPickerActive}
                     toggleWbPicker={toggleWbPicker}
                     onDragStateChange={onDragStateChange}
                   />
                 </CollapsibleSection>
+                {/* Argentum: over the header's right end, shown only in the Modern look (modernLook.css). */}
+                <button
+                  className="ag-section-reset"
+                  onClick={() => resetSection(sectionName)}
+                  data-tooltip={t('editor.adjustments.actions.resetSectionSettings', { section: title })}
+                  aria-label={t('editor.adjustments.actions.resetSectionSettings', { section: title })}
+                >
+                  <RotateCcw size={13} />
+                </button>
               </div>
             );
           })

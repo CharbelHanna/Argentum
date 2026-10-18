@@ -1,0 +1,1100 @@
+/*
+ * The Modern window's look. Ours.
+ *
+ * Keyed on data-ag-look="modern" on <html> (look.ts), set while the Modern
+ * layout is chosen; Classic never has it and is drawn as before.
+ * data-ag-theme names the palette: grey (the default), deep or light,
+ * Lightroom Classic's neutral greys.
+ *
+ * Two halves. The palette and type are mapped onto the colour tokens today's
+ * panels already draw with (styles.css @theme), so their panels take the look
+ * unchanged. Their parts are found by their shape, without a marker of ours, so
+ * a part reshaped later stops matching and is drawn its own way again. Then the
+ * Modern window's own regions, the .agm-* classes, drawn by modern/*.tsx.
+ */
+
+/* ------------------------------------------------------------------ palettes */
+
+html[data-ag-look='modern'] {
+  --agm-side: #161616;
+  --agm-bar: #1a1a1a;
+  --agm-backdrop: #232323;
+  --agm-surface: #2b2b2b;
+  --agm-line: #303030;
+  --agm-hover: #3b3b3b;
+  --agm-active: #434343;
+  --agm-text: #e1e1e1;
+  --agm-sec: #a0a0a0;
+  --agm-dim: #7d7d7d;
+  --agm-selrow: #2f3a42;
+  --agm-marker: #87a0b0;
+  --agm-accent: #3e5873;
+  --agm-accent-hover: #4a6888;
+  --agm-track: #4a4a4a;
+  --agm-knob: #c8c8c8;
+  --agm-cell: #1d1d1d;
+  --agm-cellsel: #2c2c2c;
+  --agm-menu: #262626;
+  --agm-star: #d2b36a;
+  --agm-danger: #d6786e;
+  --agm-button-text: #ffffff;
+}
+
+html[data-ag-look='modern'][data-ag-theme='deep'] {
+  --agm-side: #0e0e0e;
+  --agm-bar: #111111;
+  --agm-backdrop: #161616;
+  --agm-surface: #1f1f1f;
+  --agm-line: #232323;
+  --agm-hover: #2a2a2a;
+  --agm-active: #333333;
+  --agm-text: #dcdcdc;
+  --agm-sec: #9a9a9a;
+  --agm-dim: #6c6c6c;
+  --agm-selrow: #28323a;
+  --agm-track: #3a3a3a;
+  --agm-knob: #c0c0c0;
+  --agm-cell: #151515;
+  --agm-cellsel: #242424;
+  --agm-menu: #1c1c1c;
+}
+
+html[data-ag-look='modern'][data-ag-theme='light'] {
+  --agm-side: #dedede;
+  --agm-bar: #e4e4e4;
+  --agm-backdrop: #ececec;
+  --agm-surface: #d2d2d2;
+  --agm-line: #c4c4c4;
+  --agm-hover: #c6c6c6;
+  --agm-active: #bcbcbc;
+  --agm-text: #1c1c1c;
+  --agm-sec: #505050;
+  --agm-dim: #787878;
+  --agm-selrow: #c3ced6;
+  --agm-marker: #345e8c;
+  --agm-accent: #345e8c;
+  --agm-accent-hover: #3f6c9c;
+  --agm-track: #a8a8a8;
+  --agm-knob: #3a3a3a;
+  --agm-cell: #e4e4e4;
+  --agm-cellsel: #d0d0d0;
+  --agm-menu: #ececec;
+  --agm-star: #a8811f;
+  --agm-danger: #b43c3c;
+}
+
+/*
+ * Their tokens, onto the palette. --color-bg-secondary is every panel, so it
+ * is the side colour; the centre's backdrop is set on the centre itself below.
+ * The accent was white, which made every selected thing a solid white pill: it
+ * is the slate marker now, and the deep slate wherever it fills a control.
+ */
+html[data-ag-look='modern'] {
+  --color-bg-primary: var(--agm-side);
+  --color-bg-secondary: var(--agm-side);
+  --color-surface: var(--agm-surface);
+  --color-card-active: var(--agm-hover);
+  --color-border-color: var(--agm-line);
+  --color-text-primary: var(--agm-text);
+  --color-text-secondary: var(--agm-sec);
+  --color-accent: var(--agm-marker);
+  --color-button-text: var(--agm-button-text);
+  --color-hover-color: var(--agm-marker);
+  /*
+   * The GPU display clears behind the photo with --app-bg-primary, read from
+   * <html> (Editor.tsx); this is the one value of the theme's set over the
+   * inline one, so the photo sits on the backdrop.
+   */
+  --app-bg-primary: var(--agm-backdrop) !important;
+}
+
+html[data-ag-look='modern'] :is(.bg-accent, .hover\:bg-accent:hover, .group:hover .group-hover\:bg-accent) {
+  background-color: var(--agm-accent);
+}
+
+html[data-ag-look='modern'] :is(.bg-accent\/90, .hover\:bg-accent\/90:hover) {
+  background-color: var(--agm-accent-hover);
+}
+
+/* A mark rather than a fill (a switch's knob, a progress bar) stays the light slate. */
+html[data-ag-look='modern'] .bg-accent.rounded-full:empty {
+  background-color: var(--agm-marker);
+}
+
+html[data-ag-look='modern'] label:has(input:checked) .w-full.h-full.rounded-full.shadow-inner {
+  background-color: var(--agm-accent);
+}
+
+/* ---------------------------------------------------------- type and shape */
+
+/*
+ * 12 px body text: their text-sm is 0.875rem, so the root is 12/0.875 px.
+ * Their spacing is in rem too, so the panels tighten in proportion.
+ */
+html[data-ag-look='modern'] {
+  font-size: 13.714px;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-variant-numeric: tabular-nums;
+  --radius-lg: 4px;
+  --radius-md: 3px;
+}
+
+html[data-ag-look='modern'] .text-shadow-shiny {
+  text-shadow: none;
+}
+
+/* One header scale: their 20 px bold panel titles and section names become small capitals. */
+html[data-ag-look='modern'] .p-3.flex.items-center.shrink-0.border-b.border-surface > h2,
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 h2,
+html[data-ag-look='modern'] .p-1.rounded-md > .flex.cursor-pointer > h3 {
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agm-dim);
+}
+
+/* A panel's own title bar (Presets, Crop, Masks, Export...): a slim header, not a 56 px one. */
+html[data-ag-look='modern'] .p-3.flex.items-center.shrink-0.border-b.border-surface:has(> h2) {
+  min-height: 36px;
+  padding: 4px 6px 4px 12px;
+  border-color: var(--agm-line);
+}
+
+/* Adjustments: the tab already names it; its buttons stay, at the right. */
+html[data-ag-look='modern'] [data-ag-adjustments] > :first-child > h2 {
+  display: none;
+}
+
+html[data-ag-look='modern'] [data-ag-adjustments] > :first-child {
+  justify-content: flex-end;
+}
+
+html[data-ag-look='modern'] [data-ag-adjustments] > .grow {
+  padding: 4px 0;
+  gap: 0;
+}
+
+html[data-ag-look='modern'] [data-ag-adjustments] :is(.text-sm, .text-base) {
+  font-size: 12px;
+  line-height: 16px;
+}
+
+/*
+ * Their CollapsibleSection was a card inside the panel's card with a 20 px
+ * title. Here: no card, a flat 30 px header with a line under it, the eye always there.
+ *
+ *   div.bg-surface.rounded-lg.overflow-hidden.shrink-0   the section
+ *     div.w-full.px-4.py-3                               the header
+ *       div.flex > h2, div.w-6.h-6 > button              title, the eye
+ *       svg                                              the chevron
+ *     div.overflow-hidden > div.px-4.pb-4                the contents
+ */
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0:has(> .w-full.px-4.py-3) {
+  background-color: transparent;
+  border-radius: 0;
+  border-bottom: 1px solid var(--agm-line);
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 {
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 0;
+  background-color: transparent;
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3:hover {
+  background-color: var(--agm-hover);
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 > .flex {
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 > .flex > .w-6.h-6 {
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 button.opacity-0 {
+  opacity: 0.45;
+  pointer-events: auto;
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 > .flex button {
+  padding: 4px;
+  border-radius: 3px;
+}
+
+html[data-ag-look='modern']
+  .bg-surface.rounded-lg.overflow-hidden.shrink-0
+  > .w-full.px-4.py-3
+  :is(button, > svg)
+  > svg,
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 > svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  color: var(--agm-dim);
+}
+
+html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .overflow-hidden > .px-4.pb-4 {
+  padding: 6px 10px 8px;
+}
+
+/* The section's reset (ControlsPanel.tsx), between the eye and the chevron. Classic resets from the menu. */
+.ag-section-reset {
+  display: none;
+}
+
+html[data-ag-look='modern'] .ag-section-reset {
+  position: absolute;
+  top: 4px;
+  right: 28px;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  color: var(--agm-dim);
+}
+
+html[data-ag-look='modern'] .ag-section-reset:hover {
+  color: var(--agm-text);
+  background-color: var(--agm-active);
+}
+
+html[data-ag-look='modern']
+  .group:has(> .ag-section-reset)
+  > .bg-surface.rounded-lg.overflow-hidden.shrink-0
+  > .w-full.px-4.py-3
+  > .flex {
+  padding-right: 26px;
+}
+
+/* Their sub-sections (Details > Sharpening...): the same small capitals, quieter. */
+html[data-ag-look='modern'] .p-1.rounded-md > .flex.cursor-pointer:has(> h3) {
+  min-height: 24px;
+}
+
+html[data-ag-look='modern'] .p-1.rounded-md > .flex.cursor-pointer:has(> h3) > svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* Sliders: compact panels are always on here (compactSliders.ts); a 24 px row, light labels. */
+html[data-ag-look='modern']
+  .group:has(> .relative.w-full.h-5 > input.slider-input):not(
+    :has(.cg-hue-gradient, .cg-sat-gradient, .cg-lum-gradient)
+  ) {
+  min-height: 20px;
+}
+
+html[data-ag-look='modern'] .group:has(> .relative.w-full.h-5 > input.slider-input) > .flex:first-child > .grid > span {
+  font-weight: 400;
+}
+
+/* Scrollbars: thin, in the line colour. */
+html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: var(--agm-active);
+  border-radius: 4px;
+}
+
+/* ------------------------------------------------------------- the window */
+
+.agm-window {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  color: var(--agm-text);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow: hidden;
+}
+
+/* While the GPU draws the photo, the window is see-through where the photo is; the regions stay opaque. */
+.agm-window:not(.agm-gpu) {
+  background: var(--agm-side);
+}
+
+.agm-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+.agm-col {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--agm-side);
+  flex: none;
+  position: relative;
+}
+
+.agm-left {
+  border-right: 1px solid var(--agm-line);
+}
+
+.agm-right {
+  border-left: 1px solid var(--agm-line);
+}
+
+.agm-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+.agm-left > .agm-resize {
+  right: -3px;
+}
+
+.agm-right > .agm-resize {
+  left: -3px;
+}
+
+.agm-centre {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.agm-view {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* The grid sits on the backdrop, lighter than the panels, as the photo does. */
+.agm-window:not(.agm-gpu) .agm-view,
+.agm-view.agm-grid-view {
+  background: var(--agm-backdrop);
+}
+
+/* Their library and editor fill the centre flush: no card, no rounding, no padding around them. */
+.agm-view > .relative.z-20.flex-1.bg-bg-secondary.rounded-lg {
+  background: var(--agm-backdrop);
+  border-radius: 0;
+}
+
+.agm-view .flex-1.flex.flex-col.relative.overflow-hidden.min-h-0.rounded-lg.p-2 {
+  border-radius: 0;
+  padding: 20px;
+}
+
+html[data-ag-look='modern'] .agm-view .ring-bg-secondary {
+  --tw-ring-color: var(--agm-backdrop);
+}
+
+html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-none.bg-bg-secondary {
+  background-color: var(--agm-backdrop);
+}
+
+/* ----------------------------------------------------------------- top bar */
+
+.agm-top {
+  height: 44px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  background: var(--agm-bar);
+  border-bottom: 1px solid var(--agm-line);
+  color: var(--agm-sec);
+  position: relative;
+  z-index: 40;
+}
+
+.agm-top-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-left: 8px;
+  height: 100%;
+}
+
+.agm-drag {
+  flex: 1;
+  align-self: stretch;
+  min-width: 16px;
+}
+
+.agm-btn {
+  height: 28px;
+  min-width: 28px;
+  padding: 0 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 4px;
+  color: var(--agm-sec);
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.agm-btn:hover:not(:disabled) {
+  background: var(--agm-hover);
+  color: var(--agm-text);
+}
+
+.agm-btn:disabled {
+  opacity: 0.35;
+}
+
+.agm-btn.agm-on {
+  color: var(--agm-text);
+}
+
+.agm-btn.agm-off {
+  color: var(--agm-dim);
+}
+
+.agm-btn kbd {
+  font: inherit;
+  font-size: 10.5px;
+  color: var(--agm-dim);
+}
+
+.agm-sep {
+  width: 1px;
+  height: 18px;
+  background: var(--agm-line);
+  margin: 0 6px;
+  flex: none;
+}
+
+.agm-crumbs {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px;
+  border-radius: 4px;
+  cursor: text;
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+
+.agm-crumbs:hover {
+  background: var(--agm-surface);
+}
+
+.agm-crumb {
+  color: var(--agm-sec);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 18px;
+  cursor: pointer;
+  padding: 2px 3px;
+  border-radius: 3px;
+}
+
+.agm-crumb:hover {
+  color: var(--agm-text);
+}
+
+.agm-crumb.agm-last {
+  color: var(--agm-text);
+  flex: none;
+  max-width: 340px;
+}
+
+.agm-crumb-sep {
+  color: var(--agm-dim);
+  margin: 0 3px;
+  flex: none;
+}
+
+.agm-crumbs-hint {
+  color: var(--agm-dim);
+  white-space: nowrap;
+}
+
+.agm-path-input {
+  height: 30px;
+  min-width: 360px;
+  flex: 1;
+  max-width: 760px;
+  background: var(--agm-surface);
+  border: 1px solid var(--agm-marker);
+  border-radius: 4px;
+  color: var(--agm-text);
+  padding: 0 10px;
+  font: inherit;
+  outline: none;
+}
+
+.agm-context {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 10px;
+  flex: none;
+}
+
+.agm-size {
+  width: 96px;
+  accent-color: var(--agm-knob);
+}
+
+.agm-win {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 2px;
+  padding-left: 6px;
+}
+
+.agm-gear {
+  position: relative;
+}
+
+.agm-gear.agm-active {
+  color: var(--agm-text);
+  background: var(--agm-active);
+}
+
+.agm-dot {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #d9a441;
+}
+
+.agm-wc {
+  display: flex;
+  height: 100%;
+  margin-left: 6px;
+}
+
+.agm-wc button {
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--agm-sec);
+}
+
+.agm-wc button:hover {
+  background: var(--agm-hover);
+  color: var(--agm-text);
+}
+
+.agm-wc button.agm-close:hover {
+  background: #c42b1c;
+  color: #fff;
+}
+
+/* ------------------------------------------------------------------- menus */
+
+.agm-menu-wrap {
+  position: relative;
+}
+
+.agm-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--agm-menu);
+  border: 1px solid var(--agm-line);
+  border-radius: 5px;
+  padding: 4px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  z-index: 60;
+  color: var(--agm-text);
+}
+
+.agm-menu-head {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agm-dim);
+  padding: 8px 8px 4px;
+}
+
+.agm-menu-item {
+  width: 100%;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border-radius: 3px;
+  text-align: left;
+  color: var(--agm-text);
+}
+
+.agm-menu-item:hover {
+  background: var(--agm-accent);
+  color: #fff;
+}
+
+.agm-menu-item .agm-check {
+  width: 14px;
+  flex: none;
+  display: flex;
+}
+
+.agm-menu-item .agm-key {
+  margin-left: auto;
+  color: var(--agm-dim);
+  font-size: 11px;
+}
+
+.agm-menu-sep {
+  height: 1px;
+  background: var(--agm-line);
+  margin: 4px 2px;
+}
+
+/* ------------------------------------------------------------ left column */
+
+.agm-sec-head {
+  height: 28px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px 0 10px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agm-dim);
+  cursor: pointer;
+  user-select: none;
+}
+
+.agm-sec-head:hover {
+  color: var(--agm-sec);
+}
+
+.agm-sec-head .agm-sec-tools {
+  margin-left: auto;
+  display: flex;
+  gap: 2px;
+}
+
+.agm-sec-head .agm-btn {
+  height: 22px;
+  min-width: 22px;
+  padding: 0 4px;
+}
+
+.agm-group {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--agm-dim);
+  padding: 10px 10px 4px;
+}
+
+.agm-folders {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid var(--agm-line);
+}
+
+.agm-folders-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.agm-history {
+  flex: none;
+  max-height: 220px;
+  display: flex;
+  flex-direction: column;
+}
+
+.agm-history-body {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* Their tree rows: 24 px, the selected one a slate row with a marker bar. */
+html[data-ag-look='modern'] .agm-left .flex.items-center.gap-2.p-1\.5.rounded-md {
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 0;
+  gap: 6px;
+}
+
+html[data-ag-look='modern'] .agm-left .flex.items-center.gap-2.p-1\.5.rounded-md.bg-surface {
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+html[data-ag-look='modern'] .agm-left .flex.items-center.gap-2.p-1\.5.rounded-md:not(.bg-surface):hover {
+  background: var(--agm-hover);
+}
+
+html[data-ag-look='modern'] .agm-left .agm-tree svg {
+  width: 14px;
+  height: 14px;
+}
+
+.agm-folders-search {
+  margin: 0 8px 6px;
+  height: 26px;
+  background: var(--agm-surface);
+  border: 1px solid var(--agm-line);
+  border-radius: 4px;
+  color: var(--agm-text);
+  padding: 0 8px;
+  font: inherit;
+  outline: none;
+}
+
+.agm-hint {
+  color: var(--agm-dim);
+  padding: 4px 12px 8px;
+  font-size: 11.5px;
+}
+
+/* ------------------------------------------------------------ right panel */
+
+.agm-tabs {
+  height: 34px;
+  flex: none;
+  display: flex;
+  align-items: stretch;
+  background: var(--agm-bar);
+  border-top: 1px solid var(--agm-line);
+  border-bottom: 1px solid var(--agm-line);
+}
+
+.agm-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--agm-sec);
+  font-size: 12px;
+  position: relative;
+}
+
+.agm-tab:hover {
+  color: var(--agm-text);
+}
+
+.agm-tab.agm-on {
+  color: var(--agm-text);
+}
+
+.agm-tab.agm-on::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  background: var(--agm-marker);
+}
+
+.agm-tab.agm-dimtab {
+  color: var(--agm-dim);
+}
+
+.agm-tab-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.agm-tab-body > .agm-tab-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+}
+
+/* Their panels drew their own rounded card; the right panel is flat. */
+html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
+  border-radius: 0;
+}
+
+.agm-readonly-strip {
+  margin: 8px 10px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--agm-surface);
+  color: var(--agm-sec);
+  font-size: 11.5px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.agm-readonly-strip b {
+  color: var(--agm-text);
+  font-weight: 600;
+}
+
+/* Read-only: hollow knobs, quiet values, nothing reacts. */
+.agm-readonly {
+  pointer-events: none;
+}
+
+.agm-readonly input.slider-input::-webkit-slider-thumb {
+  background: transparent !important;
+  box-shadow: inset 0 0 0 1.5px var(--agm-sec) !important;
+}
+
+.agm-info-line {
+  margin-left: auto;
+  color: var(--agm-dim);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+/* --------------------------------------------------------------- filmstrip */
+
+.agm-strip {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  background: var(--agm-side);
+  border-top: 1px solid var(--agm-line);
+  min-height: 0;
+}
+
+.agm-strip-head {
+  height: 24px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  font-size: 11.5px;
+  color: var(--agm-dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.agm-strip-head .agm-strip-src {
+  color: var(--agm-sec);
+}
+
+.agm-strip-head .agm-strip-right {
+  margin-left: auto;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.agm-strip-body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* --------------------------------------------------------------- empty view */
+
+.agm-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--agm-backdrop);
+  color: var(--agm-sec);
+  text-align: center;
+  padding: 24px;
+}
+
+.agm-empty .agm-empty-arrow {
+  font-size: 28px;
+  color: var(--agm-dim);
+}
+
+.agm-empty .agm-empty-title {
+  font-size: 15px;
+  color: var(--agm-text);
+}
+
+.agm-empty .agm-empty-note {
+  color: var(--agm-dim);
+  max-width: 420px;
+}
+
+.agm-empty kbd {
+  font: inherit;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--agm-surface);
+  color: var(--agm-sec);
+}
+
+/* ---------------------------------------------------------------- settings */
+
+.agm-settings {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  background: var(--agm-backdrop);
+}
+
+.agm-settings-nav {
+  width: 190px;
+  flex: none;
+  background: var(--agm-side);
+  border-right: 1px solid var(--agm-line);
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+}
+
+.agm-settings-title {
+  display: flex;
+  align-items: center;
+  padding: 0 8px 10px 14px;
+  font-size: 13px;
+  color: var(--agm-text);
+}
+
+.agm-settings-title .agm-btn {
+  margin-left: auto;
+}
+
+.agm-settings-item {
+  height: 30px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  color: var(--agm-sec);
+  text-align: left;
+  position: relative;
+}
+
+.agm-settings-item:hover {
+  color: var(--agm-text);
+  background: var(--agm-hover);
+}
+
+.agm-settings-item.agm-on {
+  color: var(--agm-text);
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+.agm-settings-foot {
+  margin-top: auto;
+  padding: 10px 14px 4px;
+  color: var(--agm-dim);
+  font-size: 11px;
+}
+
+.agm-settings-body {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 22px 32px;
+}
+
+/* Their settings page drew its own list on the left and cards: in Modern the nav is ours. */
+html[data-ag-look='modern'] .agm-settings-body [data-ag-settings-nav] {
+  display: none;
+}
+
+html[data-ag-look='modern'] .agm-settings-body .p-6.bg-surface.rounded-xl {
+  background: transparent;
+  box-shadow: none;
+  padding: 0 0 18px;
+  max-width: 760px;
+  border-bottom: 1px solid var(--agm-line);
+  border-radius: 0;
+  margin-bottom: 18px;
+}
+
+/* History rows in the left column: 24 px, the current step a slate row with its marker. */
+.agm-history-body button {
+  padding: 0 10px !important;
+  height: 24px;
+  border-radius: 0 !important;
+}
+
+.agm-history-body .agm-history-current {
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+.agm-history-body > div > div:last-child {
+  padding: 0 !important;
+  gap: 0 !important;
+}
+
+/* The grid's root: on the backdrop, 12 px in from the panels round it. */
+.agm-grid-root {
+  background: var(--agm-backdrop);
+  padding: 12px 12px 0;
+}
+
+/* The photo's frame: 20 px of backdrop round the photo, square. */
+.agm-photo-frame {
+  padding: 20px;
+  gap: 0;
+  border-radius: 0;
+}
+
+/* The Navigator as the Modern window has it: a small map over the photo, only while zoomed. */
+.agm-navmap {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 20;
+  padding: 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.86);
+  color: var(--agm-sec);
+}
+
+.agm-navmap-label {
+  font-size: 10.5px;
+  padding-top: 4px;
+  text-align: center;
+}
+
+/* Tree rows at the body weight, as the mockup's are; favourites' stars in the star colour. */
+html[data-ag-look='modern'] .agm-left .font-medium {
+  font-weight: 400;
+}
+
+html[data-ag-look='modern'] .agm-left .lucide-star {
+  color: var(--agm-star);
+}

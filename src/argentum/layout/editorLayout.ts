@@ -3,7 +3,7 @@
  * the Modern arrangement has were left. Ours.
  *
  * Classic is today's arrangement and the default. Modern arranges the same
- * panels like Lightroom Classic; see ModernEditor.tsx. Chosen in Settings >
+ * window like Lightroom Classic; see argentum/modern/ModernWindow.tsx. Chosen in Settings >
  * General > Layout, read once at startup, and stored in
  * argentum-processing.json beside Compact panels through the same `ag`
  * commands (mods/editor_layout.rs), not in their settings.json.
@@ -17,17 +17,19 @@
 import { create } from 'zustand';
 import { Panel } from '../../components/ui/AppProperties';
 import { ag } from '../ag';
-import type { SideTabId } from './rail';
 
 /** Mirrors mods::editor_layout::EditorLayout. Hand-written: the app does not generate its types yet. */
 export type EditorLayoutName = 'classic' | 'modern';
+
+/** Mirrors mods::editor_layout::ModernTheme. Hand-written, as above. */
+export type ModernThemeName = 'grey' | 'deep' | 'light';
 
 /** Mirrors mods::editor_layout::LayoutPanels. Hand-written, as above. */
 export interface LayoutPanels {
   /** The Navigator section is open. */
   navigatorOpen: boolean;
-  /** The tab open beside the adjustments, or null while the tab panel is folded. */
-  tab: SideTabId | null;
+  /** Saved by an earlier form of the Modern layout, which had a tab panel; kept so the file still reads. */
+  tab: string | null;
   tabWidthPx: number;
 }
 
@@ -47,22 +49,27 @@ interface EditorLayoutState {
   /** Null until the preference has been read. */
   layout: EditorLayoutName | null;
   panels: LayoutPanels;
+  /** The Modern window's palette (Settings > General > Theme while Modern is chosen). */
+  theme: ModernThemeName;
   load: () => Promise<void>;
   choose: (layout: EditorLayoutName) => Promise<void>;
+  chooseTheme: (theme: ModernThemeName) => Promise<void>;
   changePanels: (change: Partial<LayoutPanels>) => void;
 }
 
 export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
   layout: null,
   panels: DEFAULT_PANELS,
+  theme: 'grey',
 
   load: async () => {
     // Unreadable is Classic, today's arrangement, and the panels as they first open.
-    const [layout, panels] = await Promise.all([
+    const [layout, panels, theme] = await Promise.all([
       ag<EditorLayoutName>('editor_layout').catch((): EditorLayoutName => 'classic'),
       ag<LayoutPanels | null>('editor_layout_panels').catch(() => null),
+      ag<ModernThemeName>('modern_theme').catch((): ModernThemeName => 'grey'),
     ]);
-    set({ layout, panels: panels ?? DEFAULT_PANELS });
+    set({ layout, panels: panels ?? DEFAULT_PANELS, theme });
   },
 
   choose: async (layout) => {
@@ -74,6 +81,16 @@ export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
     } catch {
       // Not saved, so not chosen: put back what will be there next start.
       set({ layout: previous });
+    }
+  },
+
+  chooseTheme: async (theme) => {
+    const previous = get().theme;
+    set({ theme });
+    try {
+      await ag('set_modern_theme', { theme });
+    } catch {
+      set({ theme: previous });
     }
   },
 

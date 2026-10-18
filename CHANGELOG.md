@@ -8,6 +8,31 @@ Newest first.
 
 ### Added
 
+- **The Modern window** (Settings > General > Layout > Modern): the whole app in one window
+  built from today's panels, in Lightroom Classic's neutral greys (Grey, Deep or Light, in
+  Settings > General > Theme). One bar per edge:
+  - The top bar is also the title bar: folder back and forward, the path (click it or press
+    Alt+D to type or paste one), the grid's sort, size and View options or the photo's undo,
+    Before, Clipping, RGB and zoom, the panel toggles, a Settings gear that never hides, and
+    the window controls.
+  - The left column holds the folders (Favourites, Recent, and This computer with every disk
+    and its free space) and the history.
+  - The centre shows the folder's grid or the open photo; opening a photo changes nothing
+    else. The filmstrip runs under it in both, with the status line in its header.
+  - One right panel holds the histogram, an Info fold and six tabs over today's tools: Edit,
+    Looks, Crop, Masks, Retouch and Export. In the grid, Edit shows the selected photo's
+    settings read-only; Enter opens it.
+  - There is no start screen: the window opens on the folder last open. Settings opens in
+    the centre with its own sections, including AI and models, My Gear and About; Esc closes
+    it and Ctrl+, opens it. Zoomed past Fit, a small map shows where you are.
+
+  Classic is unchanged. `src/argentum/modern/`, `mods/drives.rs`, `mods/recent_folders.rs`,
+  `mods/modern_start.rs`.
+  - The disk list is adapted from Shoebox `src-tauri/src/volumes.rs` @ `c34c8bc` (`mounted`,
+    `query`, `quiet_errors`). Network drives are left out; on macOS and Linux it lists
+    `/Volumes`, or `/` and the usual mount folders, without free space for now.
+  - Photos are not counted in the disks' folders, since counting reads every folder on a
+    disk; favourites follow the photo-count setting as before.
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
   Rendering). The default picture of a DNG renderer: the camera's exposure offset
   and Adobe's default tone curve, applied in linear ProPhoto RGB to each pixel's

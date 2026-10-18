@@ -26,6 +26,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import clsx from 'clsx';
+import ModernThemeChoice from '../../argentum/modern/ModernThemeChoice';
 import { ClerkProvider, SignIn, useClerk } from '@clerk/react';
 import { useShallow } from 'zustand/react/shallow';
 import { useCloudStore } from '../../store/useCloudStore';
@@ -96,6 +97,13 @@ interface SettingsPanelProps {
   onLibraryRefresh(): void;
   onSettingsChange(settings: any): Promise<void>;
   rootPaths: string[];
+  /**
+   * Argentum: the Modern window's section (general, ai, gear, processing,
+   * shortcuts, about). It draws the list itself, so the page leaves out its own
+   * header and shows that section; AI and models is the General page's AI card
+   * with the AI Models list under it. Unset, the page is as it always was.
+   */
+  modernCategory?: string;
 }
 
 interface TestStatus {
@@ -541,6 +549,7 @@ export default function SettingsPanel({
   onLibraryRefresh,
   onSettingsChange,
   rootPaths,
+  modernCategory,
 }: SettingsPanelProps) {
   const { authStatus, clerk, user, initAuth } = useCloudStore(
     useShallow((s) => ({ authStatus: s.authStatus, clerk: s.clerk, user: s.user, initAuth: s.initAuth })),
@@ -600,6 +609,8 @@ export default function SettingsPanel({
   });
   const [restartRequired, setRestartRequired] = useState(false);
   const [activeCategory, setActiveCategory] = useState('general');
+  const modern = modernCategory !== undefined;
+  const cat = modernCategory ?? activeCategory;
   const [logPath, setLogPath] = useState<string | null>(null);
   const [logPathLoading, setLogPathLoading] = useState(true);
   const [logPathError, setLogPathError] = useState(false);
@@ -1086,7 +1097,9 @@ export default function SettingsPanel({
       <ConfirmModal {...confirmModalState} onClose={closeConfirmModal} />
       <LayoutGroup id="settings-panel">
         <div className="flex flex-col h-full w-full text-text-primary">
-          <header className="shrink-0 flex flex-wrap items-center justify-between gap-y-4 mb-8 pt-4">
+          <header
+            className={clsx('shrink-0 flex flex-wrap items-center justify-between gap-y-4 mb-8 pt-4', modern && 'hidden')}
+          >
             <div className="flex items-center shrink-0">
               <Button
                 className="mr-4 hover:bg-surface text-text-primary rounded-full"
@@ -1135,7 +1148,7 @@ export default function SettingsPanel({
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2 -mr-2 custom-scrollbar">
             <AnimatePresence mode="wait">
-              {activeCategory === 'general' && (
+              {(cat === 'general' || cat === 'ai') && (
                 <motion.div
                   key="general"
                   initial={{ opacity: 0, x: 10 }}
@@ -1144,21 +1157,27 @@ export default function SettingsPanel({
                   transition={{ duration: 0.2 }}
                   className="space-y-10"
                 >
+                  {cat === 'general' && (
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
                       {t('settings.general.title')}
                     </Text>
                     <div className="space-y-8">
                       <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
-                        <Dropdown
-                          onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
-                          options={THEMES.map((theme: ThemeProps) => ({
-                            value: theme.id,
-                            label: t(theme.name as any),
-                          }))}
-                          value={appSettings?.theme || DEFAULT_THEME_ID}
-                          triggerClassName="bg-bg-primary"
-                        />
+                        {modern ? (
+                          // Argentum: the Modern window's own palettes.
+                          <ModernThemeChoice />
+                        ) : (
+                          <Dropdown
+                            onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
+                            options={THEMES.map((theme: ThemeProps) => ({
+                              value: theme.id,
+                              label: t(theme.name as any),
+                            }))}
+                            value={appSettings?.theme || DEFAULT_THEME_ID}
+                            triggerClassName="bg-bg-primary"
+                          />
+                        )}
                       </SettingItem>
 
                       <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
@@ -1321,7 +1340,9 @@ export default function SettingsPanel({
                       )}
                     </div>
                   </div>
+                  )}
 
+                  {(cat === 'ai' || (cat === 'general' && !modern)) && (
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
                       {t('settings.processing.ai.title')}
@@ -1499,8 +1520,10 @@ export default function SettingsPanel({
                       </AnimatePresence>
                     </div>
                   </div>
+                  )}
 
 
+                  {!modern && (
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
                       {t('settings.tagging.title')}
@@ -1724,10 +1747,11 @@ export default function SettingsPanel({
                       </div>
                     </div>
                   </div>
+                  )}
                 </motion.div>
               )}
-              {(activeCategory === 'about' || activeCategory === 'gear' || activeCategory === 'general') &&<div data-argentum={activeCategory} />}
-              {activeCategory === 'processing' && (
+              {(cat === 'about' || cat === 'gear' || cat === 'general' || cat === 'ai') && <div data-argentum={cat} />}
+              {cat === 'processing' && (
                 <motion.div
                   key="processing"
                   initial={{ opacity: 0, x: 10 }}
@@ -2266,7 +2290,7 @@ export default function SettingsPanel({
                 </motion.div>
               )}
 
-              {activeCategory === 'shortcuts' && (
+              {cat === 'shortcuts' && (
                 <motion.div
                   key="shortcuts"
                   initial={{ opacity: 0, x: 10 }}

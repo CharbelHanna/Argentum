@@ -22,6 +22,7 @@ use super::ag_settings;
 
 const LAYOUT_KEY: &str = "editorLayout";
 const PANELS_KEY: &str = "editorLayoutPanels";
+const THEME_KEY: &str = "modernTheme";
 
 /// The arrangement of the editor. Crosses to the interface as its lowercase
 /// name.
@@ -82,6 +83,39 @@ pub fn panels(library: &Path) -> Option<LayoutPanels> {
 pub fn save_panels(library: &Path, panels: &LayoutPanels) -> Result<(), String> {
     let value = serde_json::to_value(panels).map_err(|e| e.to_string())?;
     ag_settings::set(library, PANELS_KEY, value)
+}
+
+/// The Modern window's palette. Crosses to the interface as its lowercase
+/// name. Classic keeps the app's own theme setting and never reads this.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum ModernTheme {
+    /// Lightroom Classic's neutral greys, with a lighter backdrop behind the photo.
+    #[default]
+    Grey,
+    /// The same, darker.
+    Deep,
+    Light,
+}
+
+impl ModernTheme {
+    /// The palette a name stands for; an unknown name is Grey.
+    pub fn from_name(name: &str) -> Self {
+        serde_json::from_value(Value::from(name)).unwrap_or_default()
+    }
+}
+
+/// The chosen palette, or Grey.
+pub fn theme(library: &Path) -> ModernTheme {
+    ag_settings::get(library, THEME_KEY)
+        .and_then(|value| value.as_str().map(ModernTheme::from_name))
+        .unwrap_or_default()
+}
+
+/// Choose a palette.
+pub fn save_theme(library: &Path, theme: ModernTheme) -> Result<(), String> {
+    let value = serde_json::to_value(theme).map_err(|e| e.to_string())?;
+    ag_settings::set(library, THEME_KEY, value)
 }
 
 #[cfg(test)]
@@ -153,6 +187,20 @@ mod tests {
         assert_eq!(panels(&dir), None);
         ag_settings::set(&dir, PANELS_KEY, Value::from("not an object")).expect("write");
         assert_eq!(panels(&dir), None);
+    }
+
+    #[test]
+    fn grey_until_another_palette_is_chosen() {
+        let dir = scratch("theme");
+        assert_eq!(theme(&dir), ModernTheme::Grey);
+        save_theme(&dir, ModernTheme::Light).expect("write");
+        assert_eq!(theme(&dir), ModernTheme::Light);
+        assert_eq!(ModernTheme::from_name("deep"), ModernTheme::Deep);
+        assert_eq!(ModernTheme::from_name("dark"), ModernTheme::Grey);
+        assert_eq!(
+            serde_json::to_value(ModernTheme::Deep).expect("serialise"),
+            Value::from("deep")
+        );
     }
 
     /// The layout and its panels share a file with every other preference of
