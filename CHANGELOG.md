@@ -72,6 +72,21 @@ Newest first.
 
 ### Changed
 
+- **The Edit panel follows the order a photo is corrected in.** A new Profile section
+  comes first: the camera profile, the RAW rendering, the tone mapper (Basic or AgX)
+  and highlight recovery, which were a RAW card inside Color and a switch inside
+  Basic. Basic then starts with the white balance row (the preset menu, an Auto
+  button, K and the picker) with Temperature and Tint, then Tone (Exposure to
+  Brightness), then Presence (Clarity, Dehaze, Structure, Centre, Vibrance,
+  Saturation). Color keeps Hue, the colour mixer, colour grading and calibration;
+  Details keeps sharpening, noise reduction and chromatic aberration. Masks show
+  the same arrangement. Each section's eye, reset, copy and paste follow what it
+  shows: Basic's eye now turns off white balance and Presence too, so an edit saved
+  with Color or Details turned off shows those sliders' effect again. Reset all also
+  puts the profile, the RAW rendering and Auto white balance back.
+  `argentum/editSections.ts`, `argentum/ProfileSection.tsx`,
+  `components/adjustments/WhiteBalance.tsx` (their white balance code from
+  `Color.tsx` @ `79c2a46b`, moved unchanged).
 - **Effects > Vignette is now called Post-Crop Vignette**, in every language and
   in the edit history. Its rendering is unchanged: it was already drawn on the
   cropped photo, centred on the crop. The new name sets it apart from lens

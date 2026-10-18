@@ -63,53 +63,6 @@ export default function DetailsPanel({
         </AdjustmentSubSection>
       )}
 
-      {!hiddenTools.includes('presence') && (
-        <AdjustmentSubSection
-          id="presence"
-          order={toolOrder.indexOf('presence')}
-          title={t('adjustments.details.presence')}
-        >
-          <Slider
-            label={t('adjustments.details.clarity')}
-            max={100}
-            min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Clarity, e.target.value)}
-            step={1}
-            value={adjustments.clarity}
-            onDragStateChange={onDragStateChange}
-          />
-          <Slider
-            label={t('adjustments.details.dehaze')}
-            max={100}
-            min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Dehaze, e.target.value)}
-            step={1}
-            value={adjustments.dehaze}
-            onDragStateChange={onDragStateChange}
-          />
-          <Slider
-            label={t('adjustments.details.structure')}
-            max={100}
-            min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Structure, e.target.value)}
-            step={1}
-            value={adjustments.structure}
-            onDragStateChange={onDragStateChange}
-          />
-          {!isForMask && (
-            <Slider
-              label={t('adjustments.details.centre')}
-              max={100}
-              min={-100}
-              onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.Centré, e.target.value)}
-              step={1}
-              value={adjustments.centré}
-              onDragStateChange={onDragStateChange}
-            />
-          )}
-        </AdjustmentSubSection>
-      )}
-
       {!hiddenTools.includes('noiseReduction') && (
         <AdjustmentSubSection
           id="noiseReduction"

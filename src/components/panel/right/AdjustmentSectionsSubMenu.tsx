@@ -17,6 +17,7 @@ import {
   getHiddenAdjustmentTools,
   withAdjustmentLayout,
 } from '../../../utils/adjustments';
+import { MOVED_TOOLS } from '../../../argentum/editSections';
 
 interface DragHandleProps {
   dragControls: DragControls;
@@ -213,7 +214,8 @@ function AdjustmentSectionsSubMenu() {
       Object.fromEntries(
         Object.keys(ADJUSTMENT_SECTIONS).map((section) => [
           section,
-          getAdjustmentToolOrder(section, layout?.toolOrder),
+          // Argentum: not the tools that moved to Basic, which is not made of tools.
+          getAdjustmentToolOrder(section, layout?.toolOrder).filter((tool) => !MOVED_TOOLS.includes(tool)),
         ]),
       ),
     [layout?.toolOrder],

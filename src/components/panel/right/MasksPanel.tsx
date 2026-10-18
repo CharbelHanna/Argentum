@@ -78,9 +78,9 @@ import {
   INITIAL_MASK_ADJUSTMENTS,
   INITIAL_MASK_CONTAINER,
   MaskContainer,
-  ADJUSTMENT_SECTIONS,
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
+import { EDIT_SECTION_KEYS } from '../../../argentum/editSections';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation, Panel } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
@@ -2044,7 +2044,8 @@ function SettingsPanel({
     event.preventDefault();
     event.stopPropagation();
 
-    const sectionKeys = ADJUSTMENT_SECTIONS[sectionName];
+    // Argentum: as the panel arranges them (argentum/editSections.ts).
+    const sectionKeys = EDIT_SECTION_KEYS[sectionName];
     if (!sectionKeys) return;
 
     const handleCopy = () => {

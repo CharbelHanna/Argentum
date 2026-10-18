@@ -171,7 +171,7 @@ export const REGISTRY = [
       'Auto white balance: darktable\'s illuminant detection, answered in RapidRAW 1.6.5\'s '
       + 'white balance units. Until 1.6.5 the white balance engine and the picker were ours too; '
       + 'theirs replaced both (review 79c2a46b). Auto was a wand button until 26.41.8 and is now an '
-      + 'entry in the white balance menu (white-balance-presets).',
+      + 'entry in the white balance menu and a button beside it (white-balance-presets).',
     ours: [
       'src/argentum/WhiteBalanceMenu.tsx',
       'src-tauri/src/mods/auto_wb.rs',
@@ -188,9 +188,9 @@ export const REGISTRY = [
           + 'toRelativeWhiteBalance, getWhiteBalanceMode), exactly as their picker in ImageCanvas does.' },
       { file: 'src-tauri/src/app_state.rs', symbol: 'as_shot_white_balance', how: 'calls',
         note: 'The as-shot white balance of the open photo, which the answer is given on top of.' },
-      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'data-argentum="color-tools" mount point, in their white balance actions row beside '
-          + 'the K and picker buttons. If the white balance tool is hidden, Auto goes with it.' },
+      { file: 'src/components/adjustments/Basic.tsx', how: 'calls',
+        note: 'Basic starts with the white balance row (WhiteBalance.tsx, moved out of their Color '
+          + 'section), whose data-argentum="white-balance" slot holds the menu and the Auto button.' },
     ],
     tests: ['src-tauri/src/mods/auto_wb.rs #[cfg(test)]'],
     keywords: /white.?balance|temperature|tint|auto.?wb|grey.?world|gray.?world|eyedropper|wb.?picker/i,
@@ -215,15 +215,9 @@ export const REGISTRY = [
         note: 'Auto\'s answer is kept in the edit as whiteBalanceAuto, a key their type does not declare. '
           + 'It survives a reload only because their loader spreads the saved edit over the defaults. '
           + 'If the loader starts picking keys, the menu says Custom where it said Auto; nothing renders differently.' },
-      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'The data-argentum="color-tools" mount point in their white balance actions row, beside '
-          + 'the K and picker buttons. Shared with auto-white-balance. The menu is placed from it, '
-          + 'not in it.' },
-      { file: 'src/components/adjustments/AdjustmentSubSection.tsx', how: 'calls',
-        note: 'The menu is a row of ours put first in the section\'s folding body, found from the '
-          + 'marker by their markup: up to the header row (.cursor-pointer), across to the element after '
-          + 'it, into its first child, which must hold a range input. Reshape that and the menu falls '
-          + 'back into the header slot, where it crowds the title on a narrow panel.' },
+      { file: 'src/components/adjustments/Basic.tsx', how: 'calls',
+        note: 'The data-argentum="white-balance" slot in the white balance row at the top of Basic '
+          + '(WhiteBalance.tsx), beside their K and picker buttons. Shared with auto-white-balance.' },
     ],
     tests: [
       'Manual: on a RAW, each preset shows its kelvin on the Temperature slider in K mode and its name '
@@ -233,12 +227,61 @@ export const REGISTRY = [
     keywords: /white.?balance|wb.?preset|daylight|cloudy|tungsten|fluorescent|as.?shot/i,
   },
   {
+    id: 'edit-panel-order',
+    kind: 'feature',
+    what:
+      'The Edit panel in the order photos are corrected: Profile (camera profile, RAW rendering, '
+      + 'tone mapper, highlight recovery), then Basic (the white balance row with its menu, Auto and '
+      + 'picker, Temperature and Tint, then Tone, then Presence: Clarity, Dehaze, Structure, Centre, '
+      + 'Vibrance, Saturation), Tone curve, Color, Details, Effects. White balance, Vibrance and '
+      + 'Saturation came out of Color, Clarity to Centre out of Details, the tone mapper out of Basic, '
+      + 'and the RAW card out of the top of Color. Each section\'s eye, reset, copy and paste follow '
+      + 'what it shows, masks included.',
+    ours: [
+      'src/argentum/editSections.ts',
+      'src/argentum/ProfileSection.tsx',
+      'src/components/adjustments/WhiteBalance.tsx',
+    ],
+    dependsOn: [
+      { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_SECTIONS', how: 'calls',
+        note: 'The panel\'s section keys are derived from theirs (editSections.ts EDIT_SECTION_KEYS), '
+          + 'with the moved keys taken out of color and details and put in basic. A key they add to a '
+          + 'section arrives in it; a key they move between sections is not followed.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'is_section_visible', how: 'extends',
+        note: 'White balance, saturation, vibrance, clarity, dehaze, structure and centre, global '
+          + 'and in masks, are turned off by the basic eye, not by color\'s or details\'. An edit saved '
+          + 'with Color or Details turned off renders those with them on.' },
+      { file: 'src/components/adjustments/Basic.tsx', how: 'extends',
+        note: 'Basic renders the white balance row and sliders (WhiteBalance.tsx, their Color code '
+          + 'moved unchanged), Tone and Presence. ToneMapperSwitch is exported for Profile, without '
+          + 'the Exposure slider it held.' },
+      { file: 'src/components/adjustments/Color.tsx', how: 'extends',
+        note: 'Without its White Balance and Presence tools and the camera-profile slot.' },
+      { file: 'src/components/adjustments/Details.tsx', how: 'extends',
+        note: 'Without its Presence tool.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', how: 'extends',
+        note: 'Profile first; Reset all, a section\'s reset, copy and paste by EDIT_SECTION_KEYS. '
+          + 'Profile folds with their sections under "profile" in their open sections.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', how: 'extends',
+        note: 'A mask\'s section copy, paste and reset by EDIT_SECTION_KEYS.' },
+      { file: 'src/components/panel/right/AdjustmentSectionsSubMenu.tsx', how: 'extends',
+        note: 'The Customise menu leaves out the tools that moved into Basic (MOVED_TOOLS).' },
+    ],
+    tests: [
+      'src-tauri/src/image_processing.rs #[cfg(test)] section_eyes_follow_the_edit_panel.',
+      'Manual: open a RAW. Edit reads Profile, Basic, Curves, Color, Details, Effects; Basic starts '
+        + 'with White Balance (As Shot menu, Auto, K, picker). Turn Basic\'s eye off: white balance '
+        + 'and Presence go too; Color\'s eye leaves them. Reset Basic: Temperature and Clarity go back. '
+        + 'Reset all: the profile goes back to Built-in.',
+    ],
+    keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
+  },
+  {
     id: 'camera-profile',
     kind: 'feature',
     what: 'DCP camera profiles, and the matrix correction derived from them.',
     ours: [
       'src/argentum/CameraProfile.tsx',
-      'src/argentum/RawSection.tsx',
       'src-tauri/src/mods/dcp.rs',
       'src-tauri/src/mods/profile_correction.rs',
       'src-tauri/src/mods/profile_matrix.rs',
@@ -252,22 +295,9 @@ export const REGISTRY = [
         note: 'The same three rows on the GPU side. Their struct and ours must stay in step or every pixel is wrong.' },
       { file: 'src/utils/adjustments.ts', key: 'cameraProfile', how: 'extends',
         note: 'A key we added to their adjustments type and their defaults.' },
-      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'data-argentum="camera-profile" mount point, first in their Color panel and outside '
-          + 'their tool sections. RawSection.tsx renders the RAW card there, holding the profile, Raw '
-          + 'Tone Rendering and Highlight Recovery: it cannot be hidden or reordered on its own, and '
-          + 'hiding the whole Color section hides it.' },
-      { file: 'src/components/adjustments/AdjustmentSubSection.tsx', how: 'calls',
-        note: 'The RAW card is their section component, so it looks and folds like White Balance. '
-          + 'Its fold state is kept in their adjustmentLayout.collapsedTools under argentumRaw, an id '
-          + 'none of their tools has. Change its props, or start pruning unknown ids, and the card '
-          + 'stops building or forgets being folded. Their focus mode folds siblings from '
-          + 'ADJUSTMENT_SECTION_TOOLS, which ours is not in, so RawSection.tsx mirrors it by watching '
-          + 'collapsedTools with enableToolFocusMode and getAdjustmentSectionToolIds for color. If '
-          + 'focus mode changes what it folds, the RAW card no longer matches.' },
-      { file: 'src/utils/adjustments.ts', symbol: 'getAdjustmentSectionToolIds', how: 'calls',
-        note: 'The Color tools the RAW card folds in focus mode, and folds itself for. A tool added '
-          + 'to their color list is picked up; one moved out of it is not.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', how: 'calls',
+        note: 'Renders the Profile section (ProfileSection.tsx, edit-panel-order) first, holding the '
+          + 'profile, the RAW rendering, the tone mapper and highlight recovery.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'ag_stage_scene_linear', how: 'calls',
         note: 'The scene-linear anchor, placed immediately before their apply_white_balance so the '
           + 'profile decides what the colours are before their white balance decides the light. '
@@ -1295,8 +1325,8 @@ export const REGISTRY = [
           + 'argument and now finds the preview through raw_processing::extract_embedded_preview.' },
       { file: 'src-tauri/src/raw_processing.rs', symbol: 'develop_raw_image', how: 'calls',
         note: 'The scene-linear RAW the curve is fitted against.' },
-      { file: 'src/components/adjustments/Color.tsx', how: 'calls',
-        note: 'Rendered in the camera-profile slot.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', how: 'calls',
+        note: 'Rendered in the Profile section, which ControlsPanel shows first.' },
     ],
     tests: ['src-tauri/src/mods/raw_tone.rs #[cfg(test)]'],
     keywords: /tone.?(curve|map)|base.?curve|embedded.?(jpe?g|preview)|agx|filmic/i,

@@ -181,6 +181,23 @@ html[data-ag-look='modern'] [data-ag-adjustments] :is(.text-sm, .text-base) {
   line-height: 16px;
 }
 
+/* The panel's own buttons (Auto adjust, Reset all) at a section header's size. */
+html[data-ag-look='modern'] [data-ag-adjustments] > :first-child button {
+  padding: 4px;
+  border-radius: 3px;
+}
+
+html[data-ag-look='modern'] [data-ag-adjustments] > :first-child button svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Profile's rows and the white balance row read like the slider rows under them. */
+html[data-ag-look='modern'] [data-ag-adjustments] :is([data-ag-profile], [data-ag-wb-row]) .text-sm {
+  font-size: 0.75rem;
+  line-height: 16px;
+}
+
 /*
  * Their CollapsibleSection was a card inside the panel's card with a 20 px
  * title. Here: no card, a flat 30 px header with a line under it, the eye always there.

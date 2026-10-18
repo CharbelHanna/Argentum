@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import Slider from '../ui/Slider';
-import { Adjustments, BasicAdjustment } from '../../utils/adjustments';
+import { Adjustments, BasicAdjustment, ColorAdjustment, DetailsAdjustment } from '../../utils/adjustments';
+import { WhiteBalance } from '../../utils/whiteBalance';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import WhiteBalanceControls from './WhiteBalance';
 
 interface BasicAdjustmentsProps {
   adjustments: Adjustments;
@@ -11,23 +13,20 @@ interface BasicAdjustmentsProps {
   isForMask?: boolean;
   onDragStateChange?: (isDragging: boolean) => void;
   appSettings?: any;
+  // Argentum: for white balance, now Basic's first row (WhiteBalance.tsx).
+  asShotWhiteBalance?: WhiteBalance;
+  isWbPickerActive?: boolean;
+  toggleWbPicker?: () => void;
 }
 
 interface ToneMapperSwitchProps {
   selectedMapper: string;
   onMapperChange: (mapper: string) => void;
-  exposureValue: number;
-  onExposureChange: (value: number) => void;
-  onDragStateChange?: (isDragging: boolean) => void;
 }
 
-const ToneMapperSwitch = ({
-  selectedMapper,
-  onMapperChange,
-  exposureValue,
-  onExposureChange,
-  onDragStateChange,
-}: ToneMapperSwitchProps) => {
+// Argentum: shown in the Profile section (argentum/ProfileSection.tsx), without
+// the Exposure slider it used to hold, which is back among Basic's sliders.
+export const ToneMapperSwitch = ({ selectedMapper, onMapperChange }: ToneMapperSwitchProps) => {
   const { t } = useTranslation();
   const [bubbleStyle, setBubbleStyle] = useState({});
   const isInitialAnimation = useRef(true);
@@ -51,7 +50,6 @@ const ToneMapperSwitch = ({
 
   const handleReset = () => {
     onMapperChange('basic');
-    onExposureChange(0);
   };
 
   useEffect(() => {
@@ -84,8 +82,8 @@ const ToneMapperSwitch = ({
   }, [selectedMapper, toneMapperOptions]);
 
   return (
-    <div className="group mb-3">
-      <div className="flex justify-between items-center mb-2">
+    <div className="group flex items-center gap-3">
+      <div className="flex items-center shrink-0">
         <div
           className="grid cursor-pointer"
           onClick={handleReset}
@@ -111,7 +109,7 @@ const ToneMapperSwitch = ({
           </span>
         </div>
       </div>
-      <div className="w-full p-2 pb-1 bg-card-active rounded-md">
+      <div className="flex-1 min-w-0 p-0.5 bg-card-active rounded-md">
         <div className="relative flex w-full">
           <motion.div
             className="absolute top-0 bottom-0 z-0 bg-accent"
@@ -125,7 +123,7 @@ const ToneMapperSwitch = ({
               data-tooltip={mapper.title}
               onClick={() => onMapperChange(mapper.id)}
               className={clsx(
-                'relative flex-1 flex items-center justify-center gap-2 px-3 p-1.5 text-sm font-medium rounded-md transition-colors',
+                'relative flex-1 flex items-center justify-center gap-2 px-2 py-1 text-sm font-medium rounded-md transition-colors',
                 {
                   'text-text-primary hover:bg-surface': selectedMapper !== mapper.id,
                   'text-button-text': selectedMapper === mapper.id,
@@ -137,121 +135,79 @@ const ToneMapperSwitch = ({
             </button>
           ))}
         </div>
-        <div className="mt-2.5 px-1">
-          <Slider
-            label={t('adjustments.basic.exposure')}
-            max={5}
-            min={-5}
-            onChange={(e: any) => onExposureChange(parseFloat(e.target.value))}
-            step={0.01}
-            value={exposureValue}
-            trackClassName="bg-surface"
-            onDragStateChange={onDragStateChange}
-          />
-        </div>
       </div>
     </div>
   );
 };
 
+// Argentum: a small heading between groups of sliders, as Lightroom's Basic has.
+const Group = ({ children }: { children: string }) => (
+  <div className="pt-2 pb-1 text-center text-xs text-text-secondary select-none">{children}</div>
+);
+
+// Argentum: Basic is white balance, then Tone, then Presence: the corrections
+// most photos need, in the order they are made. White balance, Vibrance and
+// Saturation came from Color, Clarity, Dehaze, Structure and Centre from
+// Details; their section eye, reset, copy and paste moved with them
+// (argentum/editSections.ts, and the renderer's section checks). The tone
+// mapper went to Profile.
 export default function BasicAdjustments({
   adjustments,
   setAdjustments,
   isForMask = false,
   onDragStateChange,
   appSettings,
+  asShotWhiteBalance,
+  isWbPickerActive,
+  toggleWbPicker,
 }: BasicAdjustmentsProps) {
   const { t } = useTranslation();
 
-  const handleAdjustmentChange = (key: BasicAdjustment, value: any) => {
+  const handleAdjustmentChange = (key: BasicAdjustment | ColorAdjustment | DetailsAdjustment, value: any) => {
     const numericValue = parseFloat(value);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
   };
 
-  const handleToneMapperChange = (mapper: string) => {
-    setAdjustments((prev: Partial<Adjustments>) => ({
-      ...prev,
-      toneMapper: mapper as 'basic' | 'agx',
-    }));
-  };
-
-  const hideTonemapper = isForMask || appSettings?.tonemapperOverrideEnabled;
+  const slider = (key: BasicAdjustment | ColorAdjustment | DetailsAdjustment, label: string, range = 100) => (
+    <Slider
+      key={key}
+      label={label}
+      max={range}
+      min={-range}
+      onChange={(e: any) => handleAdjustmentChange(key, e.target.value)}
+      step={range === 100 ? 1 : 0.01}
+      value={(adjustments as any)[key] || 0}
+      onDragStateChange={onDragStateChange}
+    />
+  );
 
   return (
     <div>
-      {hideTonemapper ? (
-        <Slider
-          label={t('adjustments.basic.exposure')}
-          max={5}
-          min={-5}
-          onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Exposure, e.target.value)}
-          step={0.01}
-          value={adjustments.exposure}
-          onDragStateChange={onDragStateChange}
-        />
-      ) : (
-        <ToneMapperSwitch
-          selectedMapper={adjustments.toneMapper || 'agx'}
-          onMapperChange={handleToneMapperChange}
-          exposureValue={adjustments.exposure}
-          onExposureChange={(value) => handleAdjustmentChange(BasicAdjustment.Exposure, value)}
-          onDragStateChange={onDragStateChange}
-        />
-      )}
-      <Slider
-        label={t('adjustments.basic.contrast')}
-        max={100}
-        min={-100}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Contrast, e.target.value)}
-        step={1}
-        value={adjustments.contrast}
+      <WhiteBalanceControls
+        adjustments={adjustments}
+        setAdjustments={setAdjustments}
+        appSettings={appSettings}
+        asShotWhiteBalance={asShotWhiteBalance}
+        isForMask={isForMask}
+        isWbPickerActive={isWbPickerActive}
+        toggleWbPicker={toggleWbPicker}
         onDragStateChange={onDragStateChange}
       />
-      <Slider
-        label={t('adjustments.basic.highlights')}
-        max={100}
-        min={-100}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Highlights, e.target.value)}
-        step={1}
-        value={adjustments.highlights}
-        onDragStateChange={onDragStateChange}
-      />
-      <Slider
-        label={t('adjustments.basic.shadows')}
-        max={100}
-        min={-100}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Shadows, e.target.value)}
-        step={1}
-        value={adjustments.shadows}
-        onDragStateChange={onDragStateChange}
-      />
-      <Slider
-        label={t('adjustments.basic.whites')}
-        max={100}
-        min={-100}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Whites, e.target.value)}
-        step={1}
-        value={adjustments.whites}
-        onDragStateChange={onDragStateChange}
-      />
-      <Slider
-        label={t('adjustments.basic.blacks')}
-        max={100}
-        min={-100}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Blacks, e.target.value)}
-        step={1}
-        value={adjustments.blacks}
-        onDragStateChange={onDragStateChange}
-      />
-      <Slider
-        label={t('adjustments.basic.brightness')}
-        max={5}
-        min={-5}
-        onChange={(e: any) => handleAdjustmentChange(BasicAdjustment.Brightness, e.target.value)}
-        step={0.01}
-        value={adjustments.brightness}
-        onDragStateChange={onDragStateChange}
-      />
+      <Group>{t('adjustments.basic.toneGroup')}</Group>
+      {slider(BasicAdjustment.Exposure, t('adjustments.basic.exposure'), 5)}
+      {slider(BasicAdjustment.Contrast, t('adjustments.basic.contrast'))}
+      {slider(BasicAdjustment.Highlights, t('adjustments.basic.highlights'))}
+      {slider(BasicAdjustment.Shadows, t('adjustments.basic.shadows'))}
+      {slider(BasicAdjustment.Whites, t('adjustments.basic.whites'))}
+      {slider(BasicAdjustment.Blacks, t('adjustments.basic.blacks'))}
+      {slider(BasicAdjustment.Brightness, t('adjustments.basic.brightness'), 5)}
+      <Group>{t('adjustments.color.presence')}</Group>
+      {slider(DetailsAdjustment.Clarity, t('adjustments.details.clarity'))}
+      {slider(DetailsAdjustment.Dehaze, t('adjustments.details.dehaze'))}
+      {slider(DetailsAdjustment.Structure, t('adjustments.details.structure'))}
+      {!isForMask && slider(DetailsAdjustment.Centré, t('adjustments.details.centre'))}
+      {slider(ColorAdjustment.Vibrance, t('adjustments.color.vibrance'))}
+      {slider(ColorAdjustment.Saturation, t('adjustments.color.saturation'))}
     </div>
   );
 }
