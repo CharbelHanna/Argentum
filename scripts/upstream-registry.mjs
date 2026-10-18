@@ -1936,7 +1936,7 @@ export const REGISTRY = [
       + 'tree keys), the Navigator (docked there or floating over the photo) and the history; '
       + 'the centre showing the '
       + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
-      + 'header; one right panel with the histogram, an Info fold and six tabs over today\'s panels '
+      + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) that opens the metadata at full height, and six tabs over today\'s panels '
       + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
       + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
@@ -1997,6 +1997,9 @@ export const REGISTRY = [
           + 'grid. The section reset button is ours (.ag-section-reset), shown only in Modern.' },
       { file: 'src/components/panel/right/MasksPanel.tsx', symbol: 'showWaveform', how: 'extends',
         note: 'Same as ControlsPanel\'s showWaveform.' },
+      { file: 'src/components/panel/right/MetadataPanel.tsx', symbol: 'photo', how: 'extends',
+        note: 'Optional prop: a photo not open in the editor, the grid\'s selection, shown from the '
+          + 'path and EXIF the library already read. Without it, the open photo as before.' },
       { file: 'src/components/panel/SettingsPanel.tsx', symbol: 'modernCategory', how: 'extends',
         note: 'Optional prop: the Modern section to show, without the page\'s own header; AI and models '
           + 'is the General page\'s AI card plus the data-argentum="ai" slot. The Theme row offers the '

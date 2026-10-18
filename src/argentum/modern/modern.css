@@ -940,8 +940,11 @@ html[data-ag-look='modern'] .agm-left .agm-tree svg {
   border-bottom: 1px solid var(--agm-line);
 }
 
+/* Each tab as wide as its name, the room left shared out, so the names fit at 300 px. */
 .agm-tab {
-  flex: 1;
+  flex: 1 1 auto;
+  padding: 0 3px;
+  white-space: nowrap;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1018,14 +1021,29 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
 
 .agm-info-line {
   margin-left: auto;
-  color: var(--agm-dim);
+  min-width: 0;
+  color: var(--agm-sec);
   text-transform: none;
   letter-spacing: 0;
   font-size: calc(11px * var(--agm-text-scale, 1));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 220px;
+}
+
+/* The Info line while its tab is open: lit, and marked like a tab. */
+.agm-info-head {
+  position: relative;
+}
+
+.agm-info-head.agm-on {
+  color: var(--agm-text);
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+.agm-info-head.agm-on .agm-info-line {
+  color: var(--agm-text);
 }
 
 /* --------------------------------------------------------------- filmstrip */
