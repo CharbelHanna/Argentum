@@ -1936,8 +1936,8 @@ export const REGISTRY = [
       + 'tree keys), the Navigator (docked there or floating over the photo) and the history; '
       + 'the centre showing the '
       + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
-      + 'header; one right panel with the histogram, an Info fold and six tabs over today\'s panels '
-      + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
+      + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) and seven tabs over today\'s panels '
+      + '(Edit, Looks, Crop, Masks, Retouch, Export, Info: the metadata at full height). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
       + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
       + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',
