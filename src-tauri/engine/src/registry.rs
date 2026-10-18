@@ -218,6 +218,7 @@ registry! {
     "tools/rr_white_balance.rs"   => rr_white_balance::RrWhiteBalance,
     "tools/rr_basic_tone/mod.rs"  => rr_basic_tone::RrBasicTone,
     "tools/rr_presence.rs"        => rr_presence::RrPresence,
+    "tools/ag_dng_standard.rs"    => ag_dng_standard::AgDngStandard,
 }
 
 #[cfg(test)]
@@ -239,13 +240,14 @@ mod tests {
                 "rr_white_balance",
                 "rr_basic_tone",
                 "rr_presence",
+                "ag_dng_standard",
             ]
         );
         let stages: Vec<_> = registry.infos().iter().map(|t| t.stage).collect();
         assert_eq!(stages[0], Stage::Raw);
         assert!(stages[1..].iter().all(|s| *s == Stage::SceneLinear));
         let orders: Vec<_> = registry.descriptors().iter().map(|d| d.order).collect();
-        assert_eq!(orders, [0, 1, 2, 3, 4, 5]);
+        assert_eq!(orders, [0, 1, 2, 3, 4, 5, 6]);
     }
 
     #[test]
