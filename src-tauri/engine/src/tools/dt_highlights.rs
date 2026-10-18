@@ -49,7 +49,7 @@ pub struct DtHighlights;
 impl Tool for DtHighlights {
     const ID: &'static str = "dt_highlights";
     const STAGE: Stage = Stage::Raw;
-    const SECTION: Section = Section::Basic;
+    const SECTION: Section = Section::Tone;
     const KIND: Kind = Kind::Cpu;
     type Settings = Settings;
 

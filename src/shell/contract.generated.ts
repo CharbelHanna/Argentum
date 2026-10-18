@@ -19,14 +19,32 @@ export type Origin = "dt" | "rt" | "rr" | "rm" | "ag";
 export type Stage = "raw" | "scene" | "display";
 
 /**
- * The panel a tool is shown in. More can be added.
+ * The panel a tool is shown in. More can be added; `SECTIONS` says their
+ * order.
  */
 export type Section = "basic" | "tone" | "color" | "detail" | "lens" | "effects";
+
+/**
+ * One section, as the interface shows it.
+ */
+export type SectionDescriptor = {
+  id: Section,
+  /**
+   * An i18n key: `sections.<id>`.
+   */
+  label: string,
+};
 
 /**
  * What kind of control a setting is.
  */
 export type SettingKind = "float" | "int" | "bool" | "choice";
+
+/**
+ * How a float setting's control moves: evenly, or by ratio - so that, on a
+ * multiplier from 0.05 to 20, 1 sits in the middle.
+ */
+export type SettingScale = "linear" | "log";
 
 export type Choice = {
   value: string,
@@ -34,6 +52,18 @@ export type Choice = {
    * An i18n key.
    */
   label: string,
+};
+
+/**
+ * A setting that only means something while another setting has one value:
+ * a manual radius, say, only while the automatic one is off.
+ */
+export type EnabledWhen = {
+  /**
+   * The other setting's key, in the same tool.
+   */
+  key: string,
+  equals: SettingValue,
 };
 
 /**
@@ -54,7 +84,12 @@ export type SettingSpec = {
   max?: number,
   step?: number,
   unit?: string,
+  /**
+   * Float settings only.
+   */
+  scale?: SettingScale,
   choices?: Array<Choice>,
+  enabledWhen?: EnabledWhen,
   /**
    * Shown under "More" rather than in the panel's first view.
    */
@@ -166,11 +201,17 @@ export type View = {
 export type Event = {
   "event": "frame",
   ticket: RenderTicket,
+  /**
+   * The photo it is a view of: a late frame of the photo before can
+   * be told apart and dropped.
+   */
+  photoId: PhotoId,
   width: number,
   height: number,
 } | {
   "event": "histogram",
   ticket: RenderTicket,
+  photoId: PhotoId,
   bins: Array<number>,
 } | {
   "event": "error",

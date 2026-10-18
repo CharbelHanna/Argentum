@@ -12,8 +12,9 @@
 use std::path::PathBuf;
 
 use argentum_engine::contract::{
-    Choice, EDIT_VERSION, EditDocument, EditPatch, Event, Opened, Origin, PhotoId, RenderTicket,
-    Section, SettingKind, SettingSpec, Stage, ToolDescriptor, ToolEdit, View,
+    Choice, EDIT_VERSION, EditDocument, EditPatch, EnabledWhen, Event, Opened, Origin, PhotoId,
+    RenderTicket, Section, SectionDescriptor, SettingKind, SettingScale, SettingSpec, Stage,
+    ToolDescriptor, ToolEdit, View, sections,
 };
 use argentum_engine::{Pipeline, standard};
 use serde::{Deserialize, Serialize};
@@ -95,8 +96,11 @@ fn typescript() -> String {
         decl::<Origin>(),
         decl::<Stage>(),
         decl::<Section>(),
+        decl::<SectionDescriptor>(),
         decl::<SettingKind>(),
+        decl::<SettingScale>(),
         decl::<Choice>(),
+        decl::<EnabledWhen>(),
         decl::<SettingSpec>(),
         decl::<ToolDescriptor>(),
         decl::<ToolEdit>(),
@@ -119,6 +123,7 @@ fn typescript() -> String {
 /// One of each, made by the engine itself.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 struct Fixtures {
+    sections: Vec<SectionDescriptor>,
     tools: Vec<ToolDescriptor>,
     edit: EditDocument,
     patch: EditPatch,
@@ -138,6 +143,7 @@ fn fixtures() -> Fixtures {
     bins[118] = 1_000_000;
     bins[255] = 500_000;
     Fixtures {
+        sections: sections(),
         tools: standard().descriptors(),
         opened: Opened {
             photo_id: PhotoId(1),
@@ -157,11 +163,13 @@ fn fixtures() -> Fixtures {
         events: vec![
             Event::Frame {
                 ticket: RenderTicket(3),
+                photo_id: PhotoId(1),
                 width: 1786,
                 height: 1190,
             },
             Event::Histogram {
                 ticket: RenderTicket(3),
+                photo_id: PhotoId(1),
                 bins,
             },
             Event::Error {
@@ -222,14 +230,23 @@ fn the_fixtures_read_back_as_the_contract() {
 fn the_wire_names_are_the_contracts() {
     let event = serde_json::to_value(Event::Frame {
         ticket: RenderTicket(7),
+        photo_id: PhotoId(2),
         width: 10,
         height: 20,
     })
     .unwrap();
     assert_eq!(
         event,
-        serde_json::json!({ "event": "frame", "ticket": 7, "width": 10, "height": 20 })
+        serde_json::json!({ "event": "frame", "ticket": 7, "photoId": 2, "width": 10, "height": 20 })
     );
+    let radius = &fixtures().tools[1].settings[3];
+    assert_eq!(radius.key, "radius");
+    let spec = serde_json::to_value(radius).unwrap();
+    assert_eq!(
+        spec["enabledWhen"],
+        serde_json::json!({ "key": "autoRadius", "equals": false })
+    );
+    assert_eq!(spec["scale"], "linear");
     let opened = serde_json::to_value(&fixtures().opened).unwrap();
     assert!(opened.get("photoId").is_some());
     let view = serde_json::to_value(fixtures().view).unwrap();

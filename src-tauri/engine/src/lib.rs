@@ -19,14 +19,14 @@ pub mod pipeline;
 pub mod registry;
 pub mod tool;
 
-pub use contract::{Origin, Section, Stage};
+pub use contract::{Origin, Section, Stage, sections};
 pub use engine::{Engine, Frame};
 pub use error::{Error, Result};
 pub use gpu::{Gpu, GpuSlot};
 pub use image::{Image, Rgb};
 pub use pipeline::{Pipeline, Size, Source, Step};
 pub use registry::{Registry, standard, tools};
-pub use tool::{Context, Field, Kind, Settings, Tool};
+pub use tool::{Context, Equals, Field, Kind, Settings, Tool};
 
 /// RawImage and friends, as the tools receive them.
 pub use rawler;

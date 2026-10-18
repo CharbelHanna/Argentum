@@ -17,7 +17,10 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
-use crate::contract::{Choice, Origin, Section, SettingKind, SettingSpec, Stage, ToolDescriptor};
+use crate::contract::{
+    Choice, EnabledWhen, Origin, Section, SettingKind, SettingScale, SettingSpec, Stage,
+    ToolDescriptor,
+};
 use crate::{Error, Gpu, GpuSlot, Image, Result, Source};
 
 impl Origin {
@@ -94,7 +97,19 @@ pub struct Field {
     pub unit: Option<&'static str>,
     /// For a string setting: the values it may take.
     pub choices: &'static [&'static str],
+    /// For a float: its control moves by ratio rather than evenly.
+    pub log: bool,
+    /// Shown only while another setting of the tool has this value.
+    pub enabled_when: Option<(&'static str, Equals)>,
     pub advanced: bool,
+}
+
+/// A value another setting is compared with, in `Field::enabled_when`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Equals {
+    Bool(bool),
+    Number(f64),
+    Choice(&'static str),
 }
 
 impl Field {
@@ -106,6 +121,8 @@ impl Field {
             step: None,
             unit: None,
             choices: &[],
+            log: false,
+            enabled_when: None,
             advanced: false,
         }
     }
@@ -134,6 +151,17 @@ impl Field {
 
     pub const fn choices(self, choices: &'static [&'static str]) -> Self {
         Self { choices, ..self }
+    }
+
+    pub const fn log(self) -> Self {
+        Self { log: true, ..self }
+    }
+
+    pub const fn enabled_when(self, key: &'static str, equals: Equals) -> Self {
+        Self {
+            enabled_when: Some((key, equals)),
+            ..self
+        }
     }
 
     pub const fn advanced(self) -> Self {
@@ -308,8 +336,10 @@ fn clamp_json(mut value: Value, fields: &[Field]) -> std::result::Result<(Value,
 }
 
 /// A tool's descriptor, read off its settings' defaults and fields. Refused
-/// when a setting is not a number, a boolean or a choice, or a field names a
-/// setting that does not exist.
+/// when a setting is not a number, a boolean or a choice, a field names a
+/// setting that does not exist, a log scale is asked of something that is
+/// not a float, or a setting depends on itself, on a setting that does not
+/// exist, or on a value of the wrong type.
 fn describe(
     tool: ToolDescriptor,
     defaults: &Value,
@@ -352,6 +382,30 @@ fn describe(
                 ));
             }
         };
+        let log = field.is_some_and(|f| f.log);
+        if log && kind != SettingKind::Float {
+            return Err(format!("{id}: {key} is not a float, so has no log scale"));
+        }
+        let enabled_when = match field.and_then(|f| f.enabled_when) {
+            None => None,
+            Some((other, equals)) => {
+                let target = defaults.get(other).filter(|_| other != key.as_str());
+                let equals = match (equals, target) {
+                    (Equals::Bool(b), Some(Value::Bool(_))) => Value::Bool(b),
+                    (Equals::Number(n), Some(Value::Number(_))) => Value::from(n),
+                    (Equals::Choice(c), Some(Value::String(_))) => Value::from(c),
+                    _ => {
+                        return Err(format!(
+                            "{id}: {key} depends on {other}, which is not another setting of that type"
+                        ));
+                    }
+                };
+                Some(EnabledWhen {
+                    key: other.to_string(),
+                    equals,
+                })
+            }
+        };
         let label = format!("tools.{id}.{key}");
         settings.push(SettingSpec {
             key: key.clone(),
@@ -363,6 +417,12 @@ fn describe(
                 .and_then(|f| f.step)
                 .or((kind == SettingKind::Int).then_some(1.0)),
             unit: field.and_then(|f| f.unit).map(str::to_string),
+            scale: (kind == SettingKind::Float).then_some(if log {
+                SettingScale::Log
+            } else {
+                SettingScale::Linear
+            }),
+            enabled_when,
             choices: field.filter(|f| !f.choices.is_empty()).map(|f| {
                 f.choices
                     .iter()
@@ -550,7 +610,10 @@ mod tests {
         const VERSION: u32 = 2;
         const FIELDS: &'static [Field] = &[
             Field::new("amount").range(0.0, 1.0).step(0.01).unit("%"),
-            Field::new("count").range(1.0, 10.0).advanced(),
+            Field::new("count")
+                .range(1.0, 10.0)
+                .advanced()
+                .enabled_when("on", Equals::Bool(true)),
             Field::new("mode").choices(&["soft", "hard"]),
         ];
 
@@ -644,6 +707,17 @@ mod tests {
             (count.kind, count.step, count.advanced),
             (SettingKind::Int, Some(1.0), true)
         );
+        assert_eq!(
+            count.enabled_when,
+            Some(EnabledWhen {
+                key: "on".into(),
+                equals: Value::Bool(true)
+            })
+        );
+        assert_eq!(
+            (amount.scale, count.scale),
+            (Some(SettingScale::Linear), None)
+        );
         assert_eq!(mode.kind, SettingKind::Choice);
         assert_eq!(
             mode.choices.as_ref().unwrap()[1],
@@ -665,5 +739,24 @@ mod tests {
         assert!(describe(tool(), &arrays, &[]).is_err());
         let missing = [Field::new("nothing")];
         assert!(describe(tool(), &Demo::default().to_json(), &missing).is_err());
+        let defaults = Demo::default().to_json();
+        // Its choices declared, so `mode` is not what each case is refused for.
+        let mode = Field::new("mode").choices(&["soft", "hard"]);
+        assert!(describe(tool(), &defaults, &[mode]).is_ok());
+        for wrong in [
+            // A log scale on an integer.
+            Field::new("count").log(),
+            // Depending on itself, on nothing, or on a value of another type.
+            Field::new("count").enabled_when("count", Equals::Number(1.0)),
+            Field::new("count").enabled_when("nothing", Equals::Bool(true)),
+            Field::new("count").enabled_when("on", Equals::Choice("soft")),
+        ] {
+            assert!(
+                describe(tool(), &defaults, &[wrong, mode]).is_err(),
+                "{wrong:?}"
+            );
+        }
+        let log = describe(tool(), &defaults, &[Field::new("amount").log(), mode]).unwrap();
+        assert_eq!(log.settings[0].scale, Some(SettingScale::Log));
     }
 }

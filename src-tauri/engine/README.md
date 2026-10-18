@@ -35,8 +35,12 @@ AG_WRITE_CONTRACT=1 cargo test --test contract
 - **`ToolDescriptor`** - a tool's id, origin, label (an i18n key), section,
   order, stage, settings version and `SettingSpec`s: key, label, kind
   (`float`, `int`, `bool`, `choice`), default, and where the tool gives them
-  min, max, step, unit, choices and `advanced`. Read off the tool's own
-  settings struct, so a tool is still one file and one line.
+  min, max, step, unit, choices, `advanced`, a `scale` for a float (`linear`
+  or `log`) and `enabledWhen: { key, equals }` for a setting that only means
+  something while another has one value. Read off the tool's own settings
+  struct, so a tool is still one file and one line.
+- **`SectionDescriptor`** - the panels, in order, each with an id and a
+  label key, defined once in `contract.rs`; each tool names its own.
 - **`EditDocument`** - `{ version: 1, tools: { id: { v, settings } } }`.
 - **`EditPatch`** - `{ id: { key: value } }`, merged into the edit; `null`
   puts a setting back to its default. All or nothing: an unknown tool or
@@ -47,6 +51,7 @@ The calls, which step 2 makes into Tauri commands (`src/engine.rs`):
 
 | Call | Returns |
 |---|---|
+| `sections()` | every `SectionDescriptor`, in the order the panels are shown |
 | `tools()` | every `ToolDescriptor`, in pipeline order |
 | `open(path)` | `Opened { photoId, width, height, edit }`, without rendering |
 | `apply(photoId, EditPatch)` | a `RenderTicket`, at once |
@@ -55,9 +60,10 @@ The calls, which step 2 makes into Tauri commands (`src/engine.rs`):
 
 Renders happen on a thread of their own and are latest-wins: a newer ticket
 replaces a render still waiting, and stops one already running at its next
-step. Each finished render sends a `frame` event (`ticket`, `width`,
-`height`), then a `histogram` event (`ticket`, 256 luminance bins of the
-frame); a failed one an `error` event. An overtaken render sends nothing.
+step. Each finished render sends a `frame` event (`ticket`, `photoId`,
+`width`, `height`), then a `histogram` event (`ticket`, `photoId`, 256
+luminance bins of the frame); a failed one an `error` event. An overtaken
+render sends nothing.
 
 Below 100% the pipeline renders the whole photo at the zoom and the view is a
 cut of it, so panning re-renders nothing; at 100% and past it the view is cut
@@ -101,8 +107,9 @@ pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq +
   saves and what the cache key is made of. `VERSION` is saved with it; an
   edit saved by an older version goes through `migrate`, a newer one is
   refused. `FIELDS` gives a panel what the struct cannot say - range, step,
-  unit, choices, `advanced` - in the order the panel shows them, and numbers
-  outside a range are clamped whenever settings are read or set.
+  unit, choices, a log scale, `enabled_when`, `advanced` - in the order the
+  panel shows them, and numbers outside a range are clamped whenever
+  settings are read or set.
 - **process.** Takes the input by reference and returns a new image, or
   `Ok(None)` for "nothing to do": the pipeline then keeps the input as the
   output rather than a copy.
@@ -191,7 +198,7 @@ commit.
 
 | Id | Stage | Section | Kind | What | From |
 |---|---|---|---|---|---|
-| `dt_highlights` | Raw | basic | Cpu | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
+| `dt_highlights` | Raw | tone | Cpu | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
 | `rt_capture_sharpen` | SceneLinear | detail | GpuMultiPass | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl` |
 | `ag_exposure_wb` | SceneLinear | basic | PerPixel | Exposure in stops, times a red, green and blue multiplier, on top of the as-shot balance | Argentum |
 

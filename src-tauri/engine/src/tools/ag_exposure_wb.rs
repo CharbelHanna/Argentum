@@ -40,9 +40,9 @@ impl crate::Settings for Settings {
     const VERSION: u32 = 1;
     const FIELDS: &'static [Field] = &[
         Field::new("exposure").range(-10.0, 10.0).step(0.01).unit("EV"),
-        Field::new("red").range(0.05, 20.0).step(0.001),
-        Field::new("green").range(0.05, 20.0).step(0.001),
-        Field::new("blue").range(0.05, 20.0).step(0.001),
+        Field::new("red").range(0.05, 20.0).step(0.001).log(),
+        Field::new("green").range(0.05, 20.0).step(0.001).log(),
+        Field::new("blue").range(0.05, 20.0).step(0.001).log(),
     ];
 }
 

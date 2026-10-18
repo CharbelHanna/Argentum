@@ -41,7 +41,9 @@ use rawler::rawimage::{RawImage, RawImageData};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Field, Gpu, Image, Kind, Result, Rgb, Section, Stage, Tool};
+use crate::{
+    Context, Equals, Error, Field, Gpu, Image, Kind, Result, Rgb, Section, Stage, Tool,
+};
 
 /// RawTherapee's defaults, from `rtgui/tools/pdsharpening.cc`
 /// @ c777f374b4db9ec5ecec3dcfea2e857382208ea9: contrast 10 (auto on),
@@ -102,9 +104,16 @@ impl crate::Settings for Settings {
             .step(1.0)
             .unit("%"),
         Field::new("autoRadius"),
-        Field::new("radius").range(0.4, 2.0).step(0.01).unit("px"),
+        Field::new("radius")
+            .range(0.4, 2.0)
+            .step(0.01)
+            .unit("px")
+            .enabled_when("autoRadius", Equals::Bool(false)),
         Field::new("autoContrast"),
-        Field::new("contrast").range(0.0, 200.0).step(1.0),
+        Field::new("contrast")
+            .range(0.0, 200.0)
+            .step(1.0)
+            .enabled_when("autoContrast", Equals::Bool(false)),
         Field::new("cornerBoost")
             .range(-0.5, 0.5)
             .step(0.01)

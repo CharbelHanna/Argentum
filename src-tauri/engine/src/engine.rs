@@ -1,5 +1,5 @@
-//! The engine as the interface uses it: list the tools, open a photo, change
-//! its edit, look at part of it. Step 2 makes each of these a Tauri command
+//! The engine as the interface uses it: list the sections and tools, open a
+//! photo, change its edit, look at part of it. Step 2 makes each of these a Tauri command
 //! and forwards the events.
 //!
 //! `apply` and `view` return a ticket at once and the render happens on a
@@ -18,7 +18,8 @@ use std::thread::JoinHandle;
 use rayon::prelude::*;
 
 use crate::contract::{
-    EditDocument, EditPatch, Event, Opened, PhotoId, RenderTicket, ToolDescriptor, View,
+    EditDocument, EditPatch, Event, Opened, PhotoId, RenderTicket, SectionDescriptor,
+    ToolDescriptor, View,
 };
 use crate::{Error, Pipeline, Registry, Result, Rgb, Size, Source};
 
@@ -68,6 +69,7 @@ struct Photo {
 
 struct Job {
     ticket: RenderTicket,
+    photo: PhotoId,
     source: Arc<Source>,
     size: (u32, u32),
     edit: EditDocument,
@@ -116,6 +118,11 @@ impl Engine {
             shared,
             worker: Some(worker),
         })
+    }
+
+    /// Every section, in the order the interface shows them.
+    pub fn sections(&self) -> Vec<SectionDescriptor> {
+        crate::contract::sections()
     }
 
     /// Every tool, as the interface builds its panels, in pipeline order.
@@ -204,6 +211,7 @@ impl Engine {
         let p = state.photo(photo)?;
         let job = Job {
             ticket,
+            photo,
             source: p.source.clone(),
             size: p.size,
             edit: p.edit.clone(),
@@ -267,11 +275,13 @@ fn work(shared: &Shared, mut pipeline: Pipeline) {
                 *shared.frame.lock().unwrap_or_else(|e| e.into_inner()) = Some(Arc::new(frame));
                 (shared.sink)(Event::Frame {
                     ticket: job.ticket,
+                    photo_id: job.photo,
                     width,
                     height,
                 });
                 (shared.sink)(Event::Histogram {
                     ticket: job.ticket,
+                    photo_id: job.photo,
                     bins,
                 });
             }

@@ -46,7 +46,8 @@ pub enum Stage {
     Display,
 }
 
-/// The panel a tool is shown in. More can be added.
+/// The panel a tool is shown in. More can be added; `SECTIONS` says their
+/// order.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "lowercase")]
 pub enum Section {
@@ -56,6 +57,68 @@ pub enum Section {
     Detail,
     Lens,
     Effects,
+}
+
+/// Every section, in the order the interface shows them.
+pub const SECTIONS: [Section; 6] = [
+    Section::Basic,
+    Section::Tone,
+    Section::Color,
+    Section::Detail,
+    Section::Lens,
+    Section::Effects,
+];
+
+/// One section, as the interface shows it.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+pub struct SectionDescriptor {
+    pub id: Section,
+    /// An i18n key: `sections.<id>`.
+    pub label: String,
+}
+
+impl Section {
+    /// Its id on the wire.
+    pub const fn id(self) -> &'static str {
+        match self {
+            Section::Basic => "basic",
+            Section::Tone => "tone",
+            Section::Color => "color",
+            Section::Detail => "detail",
+            Section::Lens => "lens",
+            Section::Effects => "effects",
+        }
+    }
+}
+
+/// Every section, in order.
+pub fn sections() -> Vec<SectionDescriptor> {
+    SECTIONS
+        .iter()
+        .map(|&id| SectionDescriptor {
+            id,
+            label: format!("sections.{}", id.id()),
+        })
+        .collect()
+}
+
+/// How a float setting's control moves: evenly, or by ratio - so that, on a
+/// multiplier from 0.05 to 20, 1 sits in the middle.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "lowercase")]
+pub enum SettingScale {
+    Linear,
+    Log,
+}
+
+/// A setting that only means something while another setting has one value:
+/// a manual radius, say, only while the automatic one is off.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+pub struct EnabledWhen {
+    /// The other setting's key, in the same tool.
+    pub key: String,
+    #[ts(type = "SettingValue")]
+    pub equals: Value,
 }
 
 /// What kind of control a setting is.
@@ -77,6 +140,7 @@ pub struct Choice {
 
 /// One setting of a tool, as a panel shows it.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct SettingSpec {
     /// Its name in the tool's settings.
     pub key: String,
@@ -97,9 +161,16 @@ pub struct SettingSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub unit: Option<String>,
+    /// Float settings only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub scale: Option<SettingScale>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub choices: Option<Vec<Choice>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub enabled_when: Option<EnabledWhen>,
     /// Shown under "More" rather than in the panel's first view.
     pub advanced: bool,
 }
@@ -190,12 +261,18 @@ pub enum Event {
     /// the photo.
     Frame {
         ticket: RenderTicket,
+        /// The photo it is a view of: a late frame of the photo before can
+        /// be told apart and dropped.
+        #[serde(rename = "photoId")]
+        photo_id: PhotoId,
         width: u32,
         height: u32,
     },
     /// 256 bins of luminance, over the frame with the same ticket.
     Histogram {
         ticket: RenderTicket,
+        #[serde(rename = "photoId")]
+        photo_id: PhotoId,
         bins: Vec<u32>,
     },
     /// A render failed. Its ticket, when it was one.

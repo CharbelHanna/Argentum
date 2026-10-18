@@ -62,6 +62,18 @@ fn open_apply_view_and_what_comes_back() {
         "all defaults"
     );
     assert_eq!(engine.tools().len(), 3);
+    let order: Vec<_> = engine.sections().iter().map(|s| s.label.clone()).collect();
+    assert_eq!(
+        order,
+        [
+            "sections.basic",
+            "sections.tone",
+            "sections.color",
+            "sections.detail",
+            "sections.lens",
+            "sections.effects"
+        ]
+    );
 
     // The first view is the whole photo, fitted in 1600 px: here, all of it.
     let t1 = engine.apply(opened.photo_id, &no_sharpening()).unwrap();
@@ -69,15 +81,21 @@ fn open_apply_view_and_what_comes_back() {
     let [
         Event::Frame {
             ticket,
+            photo_id,
             width,
             height,
         },
-        Event::Histogram { ticket: t, bins },
+        Event::Histogram {
+            ticket: t,
+            photo_id: p,
+            bins,
+        },
     ] = &events[..]
     else {
         panic!("{events:?}")
     };
     assert_eq!((*ticket, *t), (t1, t1));
+    assert_eq!((*photo_id, *p), (opened.photo_id, opened.photo_id));
     assert_eq!((*width, *height), (512, 384));
     assert_eq!(bins.len(), 256);
     assert_eq!(bins.iter().sum::<u32>(), 512 * 384);
