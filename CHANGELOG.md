@@ -39,6 +39,13 @@ Newest first.
     `view` - return at once and render on a thread of their own,
     latest-wins. A slider tick at preview size is held to a measured budget
     of 25 ms by a test.
+  - Then tidied against the code hygiene rules: `apply` returns the edit as
+    the engine took it, errors are typed (`ErrorKind`), a patch is merged by
+    one pure `Registry::merge` against the registry the render thread uses,
+    `Source` and the cache have files of their own, capture sharpening is a
+    folder (`radius`, `contrast`, `gpu`) with one `MAX_RADIUS_PX` and no
+    second clamp, origins and the fit are each defined once, and the
+    TypeScript generator builds only for the tests.
 - **Dev and test builds wait less.** Measured on Windows x64 after a one-line
   change in `mods/sharpen.rs`: `cargo build` 26-28 s → 20 s, `cargo test --lib
   sharpen::` 29 s → 26 s; a cold build into a new target directory 739 s →

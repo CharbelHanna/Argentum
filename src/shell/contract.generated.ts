@@ -7,16 +7,19 @@ export type SettingValue = number | boolean | string;
 
 export const EDIT_VERSION = 1;
 
+export const HISTOGRAM_BINS = 256;
+
 /**
  * Whose code a tool is: the first two letters of its id.
  */
 export type Origin = "dt" | "rt" | "rr" | "rm" | "ag";
 
 /**
- * Where in the pipeline a tool runs: on the sensor data before demosaic,
- * on linear light, or on the picture shaped for a screen.
+ * Where in the pipeline a tool runs: on the sensor data before demosaic, or
+ * on linear light after it. A stage for the picture shaped for a screen
+ * comes with the first tool that needs one.
  */
-export type Stage = "raw" | "scene" | "display";
+export type Stage = "raw" | "scene";
 
 /**
  * The panel a tool is shown in. More can be added; `SECTIONS` says their
@@ -162,12 +165,22 @@ export type PhotoId = number;
 export type RenderTicket = number;
 
 /**
+ * What `apply` returns: the ticket of the render it started, and the edit
+ * as the engine took it - clamped, with the defaults filled in. What the
+ * interface shows should be this, not what it sent.
+ */
+export type Applied = {
+  ticket: RenderTicket,
+  edit: EditDocument,
+};
+
+/**
  * What `open` returns.
  */
 export type Opened = {
   photoId: PhotoId,
   /**
-   * The developed picture's size, in pixels.
+   * The developed picture's size, in photo pixels.
    */
   width: number,
   height: number,
@@ -189,10 +202,24 @@ export type View = {
   centerX: number,
   centerY: number,
   /**
-   * The view's size in screen pixels.
+   * The view's size in device pixels: CSS pixels times the device pixel
+   * ratio, so a frame fills it pixel for pixel.
    */
   width: number,
   height: number,
+};
+
+/**
+ * What went wrong, as a kind the interface can act on.
+ */
+export type ErrorKind = "unknownPhoto" | "badView" | "unknownTool" | "unknownSetting" | "badValue" | "badEdit" | "decode" | "noGpu" | "render" | "internal";
+
+/**
+ * A refused call: what went wrong, and in words.
+ */
+export type EngineError = {
+  kind: ErrorKind,
+  message: string,
 };
 
 /**
@@ -216,5 +243,6 @@ export type Event = {
 } | {
   "event": "error",
   ticket?: RenderTicket,
+  kind: ErrorKind,
   message: string,
 };

@@ -18,14 +18,15 @@ use std::thread::JoinHandle;
 use rayon::prelude::*;
 
 use crate::contract::{
-    EditDocument, EditPatch, Event, Opened, PhotoId, RenderTicket, SectionDescriptor,
-    ToolDescriptor, View,
+    Applied, EditDocument, EditPatch, Event, HISTOGRAM_BINS, Opened, PhotoId, RenderTicket,
+    SectionDescriptor, ToolDescriptor, View,
 };
-use crate::{Error, Pipeline, Registry, Result, Rgb, Size, Source};
+use crate::develop::fit_px;
+use crate::{Error, GpuSlot, Pipeline, Registry, Result, Rgb, Size, Source};
 
 /// The view a photo has until `view` is called: the whole photo, fitted in
 /// this many pixels.
-const FIRST_VIEW: u32 = 1600;
+const FIRST_VIEW_PX: u32 = 1600;
 
 /// One rendered view: sRGB, 8 bits per channel, RGBA, row-major.
 #[derive(Debug, Clone, PartialEq)]
@@ -37,6 +38,8 @@ pub struct Frame {
 }
 
 pub struct Engine {
+    /// Reads patches here; the render thread's pipeline runs the same tools.
+    registry: Arc<Registry>,
     shared: Arc<Shared>,
     worker: Option<JoinHandle<()>>,
 }
@@ -51,8 +54,6 @@ struct Shared {
 }
 
 struct State {
-    /// Reads edits and patches. It never renders; the worker has its own.
-    edits: Pipeline,
     photos: HashMap<PhotoId, Photo>,
     next_photo: u32,
     next_ticket: u32,
@@ -62,7 +63,7 @@ struct State {
 
 struct Photo {
     source: Arc<Source>,
-    size: (u32, u32),
+    size_px: (u32, u32),
     edit: EditDocument,
     view: View,
 }
@@ -71,7 +72,7 @@ struct Job {
     ticket: RenderTicket,
     photo: PhotoId,
     source: Arc<Source>,
-    size: (u32, u32),
+    size_px: (u32, u32),
     edit: EditDocument,
     view: View,
 }
@@ -79,20 +80,18 @@ struct Job {
 impl Engine {
     /// Argentum's tools. Events go to `sink`, from the render thread.
     pub fn new(sink: impl Fn(Event) + Send + Sync + 'static) -> Result<Engine> {
-        Self::with_registry(crate::registry::standard, sink)
+        Self::with_registry(crate::registry::standard(), sink)
     }
 
-    /// The tools `registry` makes, which it is asked for twice: once to read
-    /// edits, once to render.
+    /// `registry`'s tools.
     pub fn with_registry(
-        registry: impl Fn() -> Registry,
+        registry: Registry,
         sink: impl Fn(Event) + Send + Sync + 'static,
     ) -> Result<Engine> {
-        let edits = Pipeline::new(registry())?;
-        let render = Pipeline::new(registry())?;
+        let registry = Arc::new(registry);
+        let render = Pipeline::with_gpu(registry.clone(), GpuSlot::new())?;
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
-                edits,
                 photos: HashMap::new(),
                 next_photo: 1,
                 next_ticket: 1,
@@ -115,6 +114,7 @@ impl Engine {
                 })?
         };
         Ok(Engine {
+            registry,
             shared,
             worker: Some(worker),
         })
@@ -127,7 +127,7 @@ impl Engine {
 
     /// Every tool, as the interface builds its panels, in pipeline order.
     pub fn tools(&self) -> Vec<ToolDescriptor> {
-        self.state().edits.registry().descriptors()
+        self.registry.descriptors()
     }
 
     /// Decode a RAW file. Blocks while it decodes; renders nothing.
@@ -137,43 +137,38 @@ impl Engine {
 
     /// A photo decoded elsewhere, opened with every tool at its defaults.
     pub fn insert(&self, source: Source) -> Opened {
-        let (w, h) = source.size();
-        let size = (w as u32, h as u32);
+        let (w_px, h_px) = source.size_px();
+        let size_px = (w_px as u32, h_px as u32);
+        let edit = self.registry.default_edit();
         let mut state = self.state();
-        state
-            .edits
-            .set_edit(&EditDocument::new())
-            .expect("an empty edit is valid");
-        let edit = state.edits.edit();
         let id = PhotoId(state.next_photo);
         state.next_photo += 1;
         state.photos.insert(
             id,
             Photo {
                 source: Arc::new(source),
-                size,
+                size_px,
                 edit: edit.clone(),
-                view: fitted(size, FIRST_VIEW, FIRST_VIEW),
+                view: fitted(size_px, FIRST_VIEW_PX, FIRST_VIEW_PX),
             },
         );
         Opened {
             photo_id: id,
-            width: size.0,
-            height: size.1,
+            width: size_px.0,
+            height: size_px.1,
             edit,
         }
     }
 
-    /// Change a photo's edit and render it again. An unknown tool or
-    /// setting, or a value of the wrong type, is refused and nothing renders.
-    pub fn apply(&self, photo: PhotoId, patch: &EditPatch) -> Result<RenderTicket> {
+    /// Change a photo's edit and render it again. Returns the edit as the
+    /// engine took it. An unknown tool or setting, or a value of the wrong
+    /// type, refuses the whole patch and nothing renders.
+    pub fn apply(&self, photo: PhotoId, patch: &EditPatch) -> Result<Applied> {
         let mut state = self.state();
-        let current = state.photo(photo)?.edit.clone();
-        state.edits.set_edit(&current)?;
-        state.edits.apply(patch)?;
-        let edit = state.edits.edit();
-        state.photo_mut(photo)?.edit = edit;
-        self.queue(&mut state, photo)
+        let edit = self.registry.merge(&state.photo(photo)?.edit, patch)?;
+        state.photo_mut(photo)?.edit = edit.clone();
+        let ticket = self.queue(&mut state, photo)?;
+        Ok(Applied { ticket, edit })
     }
 
     /// Look at another part of a photo, or at another zoom.
@@ -185,10 +180,7 @@ impl Engine {
             && view.width > 0
             && view.height > 0;
         if !usable {
-            return Err(Error::Settings {
-                tool: "view".into(),
-                message: format!("{view:?} is not a view"),
-            });
+            return Err(Error::BadView(format!("{view:?}")));
         }
         let mut state = self.state();
         state.photo_mut(photo)?.view = view;
@@ -213,7 +205,7 @@ impl Engine {
             ticket,
             photo,
             source: p.source.clone(),
-            size: p.size,
+            size_px: p.size_px,
             edit: p.edit.clone(),
             view: p.view,
         };
@@ -226,18 +218,11 @@ impl Engine {
 
 impl State {
     fn photo(&self, id: PhotoId) -> Result<&Photo> {
-        self.photos.get(&id).ok_or_else(|| unknown(id))
+        self.photos.get(&id).ok_or(Error::UnknownPhoto(id))
     }
 
     fn photo_mut(&mut self, id: PhotoId) -> Result<&mut Photo> {
-        self.photos.get_mut(&id).ok_or_else(|| unknown(id))
-    }
-}
-
-fn unknown(id: PhotoId) -> Error {
-    Error::Settings {
-        tool: "photo".into(),
-        message: format!("no open photo {}", id.0),
+        self.photos.get_mut(&id).ok_or(Error::UnknownPhoto(id))
     }
 }
 
@@ -250,7 +235,6 @@ impl Drop for Engine {
         }
     }
 }
-
 /// The render thread: the newest job, rendered, reported - unless a newer
 /// one arrives first.
 fn work(shared: &Shared, mut pipeline: Pipeline) {
@@ -288,6 +272,7 @@ fn work(shared: &Shared, mut pipeline: Pipeline) {
             Err(Error::Cancelled) => {}
             Err(e) => (shared.sink)(Event::Error {
                 ticket: Some(job.ticket),
+                kind: e.kind(),
                 message: e.to_string(),
             }),
         }
@@ -300,7 +285,7 @@ fn render(
     overtaken: &dyn Fn() -> bool,
 ) -> Result<(Frame, Vec<u32>)> {
     pipeline.set_edit(&job.edit)?;
-    let (w, h) = job.size;
+    let (w_px, h_px) = job.size_px;
     let zoom = job.view.zoom as f64;
     // At or past 100% the pipeline renders at full size and the view is cut
     // out of that; below it, the pipeline renders the whole photo at the
@@ -309,8 +294,8 @@ fn render(
         Size::Full
     } else {
         Size::Fit(
-            ((w as f64 * zoom).ceil() as u32).max(1),
-            ((h as f64 * zoom).ceil() as u32).max(1),
+            ((w_px as f64 * zoom).ceil() as u32).max(1),
+            ((h_px as f64 * zoom).ceil() as u32).max(1),
         )
     };
     let image = pipeline.render_unless(&job.source, size, overtaken)?;
@@ -385,22 +370,22 @@ fn encode(v: f32) -> u8 {
     table[(v.clamp(0.0, 1.0) * u16::MAX as f32).round() as usize]
 }
 
-/// 256 bins of the frame's luminance (Rec. 709 weights on the encoded
-/// values).
+/// `HISTOGRAM_BINS` bins of the frame's luminance (Rec. 709 weights on the
+/// encoded 8-bit values, one bin per level).
 fn histogram(frame: &Frame) -> Vec<u32> {
     frame
         .rgba
         .par_chunks_exact(4)
         .fold(
-            || vec![0u32; 256],
+            || vec![0u32; HISTOGRAM_BINS],
             |mut bins, p| {
                 let y = 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32;
-                bins[(y.round() as usize).min(255)] += 1;
+                bins[(y.round() as usize).min(HISTOGRAM_BINS - 1)] += 1;
                 bins
             },
         )
         .reduce(
-            || vec![0u32; 256],
+            || vec![0u32; HISTOGRAM_BINS],
             |mut a, b| {
                 a.iter_mut().zip(b).for_each(|(x, y)| *x += y);
                 a
@@ -408,16 +393,15 @@ fn histogram(frame: &Frame) -> Vec<u32> {
         )
 }
 
-/// The whole photo, fitted in `max_w` x `max_h`, never enlarged.
-fn fitted(size: (u32, u32), max_w: u32, max_h: u32) -> View {
-    let (w, h) = (size.0.max(1) as f32, size.1.max(1) as f32);
-    let zoom = (max_w as f32 / w).min(max_h as f32 / h).min(1.0);
+/// The whole photo, fitted in `max_w_px` x `max_h_px`, never enlarged.
+fn fitted(size_px: (u32, u32), max_w_px: u32, max_h_px: u32) -> View {
+    let (scale, w_px, h_px) = fit_px(size_px.0 as usize, size_px.1 as usize, max_w_px, max_h_px);
     View {
-        zoom,
+        zoom: scale as f32,
         center_x: 0.5,
         center_y: 0.5,
-        width: ((w * zoom).round() as u32).max(1),
-        height: ((h * zoom).round() as u32).max(1),
+        width: w_px as u32,
+        height: h_px as u32,
     }
 }
 

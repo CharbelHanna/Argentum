@@ -7,8 +7,10 @@
 
 use std::any::TypeId;
 
-use crate::contract::{Origin, ToolDescriptor};
-use crate::tool::{AnyTool, Registered, Tool, ToolInfo};
+use serde_json::Value;
+
+use crate::contract::{EDIT_VERSION, EditDocument, EditPatch, Origin, ToolDescriptor, ToolEdit};
+use crate::tool::{self, AnySettings, AnyTool, Registered, Tool, ToolInfo};
 use crate::{Error, Result};
 
 /// An ordered set of tools.
@@ -42,7 +44,7 @@ impl Registry {
         const {
             assert!(
                 Origin::of(T::ID).is_some(),
-                "a tool id is dt_, rt_, rr_, rm_ or ag_ and a lowercase name"
+                "a tool id is an origin code (Origin::ALL), an underscore and a lowercase name"
             )
         };
         let tool = Registered(T::default());
@@ -72,6 +74,82 @@ impl Registry {
 
     pub(crate) fn position_of<T: Tool>(&self) -> Option<usize> {
         self.types.iter().position(|t| *t == TypeId::of::<T>())
+    }
+
+    /// `patch` merged into `doc`: `null` puts a setting back to its default,
+    /// and the result is every tool's settings as the engine reads them -
+    /// migrated, clamped, the defaults filled in. All or nothing: an unknown
+    /// tool or setting, or a value of the wrong type, refuses the whole patch.
+    pub fn merge(&self, doc: &EditDocument, patch: &EditPatch) -> Result<EditDocument> {
+        let mut settings = self.read_edit(doc)?;
+        for (id, changes) in &patch.0 {
+            let i = self
+                .position(id)
+                .ok_or_else(|| Error::UnknownTool(id.clone()))?;
+            let mut merged = tool::as_map(settings[i].to_json());
+            for (key, value) in changes {
+                if !merged.contains_key(key) {
+                    return Err(Error::UnknownSetting {
+                        tool: id.clone(),
+                        key: key.clone(),
+                    });
+                }
+                if value.is_null() {
+                    merged.remove(key);
+                } else {
+                    merged.insert(key.clone(), value.clone());
+                }
+            }
+            let value = Value::Object(merged.into_iter().collect());
+            settings[i] = self.tools[i].read(self.infos[i].version, value)?;
+        }
+        Ok(self.edit_of(&settings))
+    }
+
+    /// Every tool at its defaults, as an edit.
+    pub fn default_edit(&self) -> EditDocument {
+        let defaults: Vec<_> = self.tools.iter().map(|t| t.defaults()).collect();
+        self.edit_of(&defaults)
+    }
+
+    /// Every tool's settings from an edit, in registry order; a tool the
+    /// edit does not mention is at its defaults.
+    pub(crate) fn read_edit(&self, doc: &EditDocument) -> Result<Vec<Box<dyn AnySettings>>> {
+        if doc.version != EDIT_VERSION {
+            return Err(Error::BadEdit(format!(
+                "edit version {}, this engine reads {EDIT_VERSION}",
+                doc.version
+            )));
+        }
+        if let Some(id) = doc.tools.keys().find(|id| self.position(id).is_none()) {
+            return Err(Error::UnknownTool(id.clone()));
+        }
+        self.infos
+            .iter()
+            .enumerate()
+            .map(|(i, info)| match doc.tools.get(info.id) {
+                Some(edit) => {
+                    let value = Value::Object(edit.settings.clone().into_iter().collect());
+                    self.tools[i].read(edit.v, value)
+                }
+                None => Ok(self.tools[i].defaults()),
+            })
+            .collect()
+    }
+
+    /// Settings in registry order, as an edit saves them.
+    pub(crate) fn edit_of(&self, settings: &[Box<dyn AnySettings>]) -> EditDocument {
+        let mut doc = EditDocument::new();
+        for (info, settings) in self.infos.iter().zip(settings) {
+            doc.tools.insert(
+                info.id.to_string(),
+                ToolEdit {
+                    v: info.version,
+                    settings: tool::as_map(settings.to_json()),
+                },
+            );
+        }
+        doc
     }
 
     /// Ids are unique, stages come in order, and every tool's settings can
@@ -118,7 +196,7 @@ macro_rules! registry {
 
 registry! {
     "tools/dt_highlights.rs"      => dt_highlights::DtHighlights,
-    "tools/rt_capture_sharpen.rs" => rt_capture_sharpen::RtCaptureSharpen,
+    "tools/rt_capture_sharpen/mod.rs" => rt_capture_sharpen::RtCaptureSharpen,
     "tools/ag_exposure_wb.rs"     => ag_exposure_wb::AgExposureWb,
 }
 

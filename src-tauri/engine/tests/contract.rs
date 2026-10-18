@@ -12,11 +12,11 @@
 use std::path::PathBuf;
 
 use argentum_engine::contract::{
-    Choice, EDIT_VERSION, EditDocument, EditPatch, EnabledWhen, Event, Opened, Origin, PhotoId,
-    RenderTicket, Section, SectionDescriptor, SettingKind, SettingScale, SettingSpec, Stage,
-    ToolDescriptor, ToolEdit, View, sections,
+    Applied, Choice, EDIT_VERSION, EditDocument, EditPatch, EnabledWhen, EngineError, ErrorKind,
+    Event, HISTOGRAM_BINS, Opened, Origin, PhotoId, RenderTicket, Section, SectionDescriptor,
+    SettingKind, SettingScale, SettingSpec, Stage, ToolDescriptor, ToolEdit, View, sections,
 };
-use argentum_engine::{Pipeline, standard};
+use argentum_engine::standard;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -92,6 +92,7 @@ fn typescript() -> String {
          \n",
     );
     out += &format!("export const EDIT_VERSION = {EDIT_VERSION};\n\n");
+    out += &format!("export const HISTOGRAM_BINS = {HISTOGRAM_BINS};\n\n");
     for d in [
         decl::<Origin>(),
         decl::<Stage>(),
@@ -108,8 +109,11 @@ fn typescript() -> String {
         decl::<EditPatch>(),
         decl::<PhotoId>(),
         decl::<RenderTicket>(),
+        decl::<Applied>(),
         decl::<Opened>(),
         decl::<View>(),
+        decl::<ErrorKind>(),
+        decl::<EngineError>(),
         decl::<Event>(),
     ] {
         out += &d;
@@ -127,19 +131,93 @@ struct Fixtures {
     tools: Vec<ToolDescriptor>,
     edit: EditDocument,
     patch: EditPatch,
+    applied: Applied,
+    /// Patches the engine takes, each applied to `edit`, and what it made.
+    patched: Vec<Patched>,
+    /// Patches the engine refuses, each applied to `edit`, and why.
+    refused: Vec<Refused>,
     opened: Opened,
     view: View,
     events: Vec<Event>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct Patched {
+    patch: EditPatch,
+    edit: EditDocument,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct Refused {
+    patch: EditPatch,
+    error: EngineError,
+}
+
+fn patch(json: serde_json::Value) -> EditPatch {
+    serde_json::from_value(json).unwrap()
+}
+
+/// What the engine does with each of these, as it does it: clamping,
+/// defaults, refusals.
+fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
+    let registry = standard();
+    let taken = [
+        // As given.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 } }),
+        // An integer for a float.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": 1 } }),
+        // Out of range: clamped, not refused.
+        serde_json::json!({
+            "ag_exposure_wb": { "exposure": -20 },
+            "rt_capture_sharpen": { "radius": 9, "iterations": 500 },
+        }),
+        // null is the default.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": null, "blue": 2 } }),
+    ];
+    let refused = [
+        // A tool or a setting this engine does not have.
+        serde_json::json!({ "ag_nothing": { "x": 1 } }),
+        serde_json::json!({ "ag_exposure_wb": { "contrast": 1 } }),
+        // Wrong types: refused, never rounded or coerced.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": "bright" } }),
+        serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } }),
+        serde_json::json!({ "dt_highlights": { "recover": 1 } }),
+        // All or nothing: one bad tool refuses the whole patch.
+        serde_json::json!({
+            "ag_exposure_wb": { "exposure": 1 },
+            "dt_highlights": { "recover": "yes" },
+        }),
+    ];
+    let taken = taken
+        .into_iter()
+        .map(|json| {
+            let patch = patch(json);
+            let edit = registry.merge(edit, &patch).expect("taken");
+            Patched { patch, edit }
+        })
+        .collect();
+    let refused = refused
+        .into_iter()
+        .map(|json| {
+            let patch = patch(json);
+            let error = registry.merge(edit, &patch).expect_err("refused");
+            Refused {
+                patch,
+                error: error.to_contract(),
+            }
+        })
+        .collect();
+    (taken, refused)
+}
+
 fn fixtures() -> Fixtures {
-    let edit = Pipeline::standard().unwrap().edit();
-    let patch: EditPatch = serde_json::from_value(serde_json::json!({
+    let edit = standard().default_edit();
+    let patch = patch(serde_json::json!({
         "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 },
         "rt_capture_sharpen": { "radius": null },
-    }))
-    .unwrap();
-    let mut bins = vec![0u32; 256];
+    }));
+    let (patched, refused) = patched_and_refused(&edit);
+    let mut bins = vec![0u32; HISTOGRAM_BINS];
     bins[118] = 1_000_000;
     bins[255] = 500_000;
     Fixtures {
@@ -151,6 +229,12 @@ fn fixtures() -> Fixtures {
             height: 4760,
             edit: edit.clone(),
         },
+        applied: Applied {
+            ticket: RenderTicket(2),
+            edit: patched[0].edit.clone(),
+        },
+        patched,
+        refused,
         edit,
         patch,
         view: View {
@@ -174,6 +258,7 @@ fn fixtures() -> Fixtures {
             },
             Event::Error {
                 ticket: Some(RenderTicket(4)),
+                kind: ErrorKind::NoGpu,
                 message: "no GPU: no adapter".into(),
             },
         ],
@@ -217,6 +302,32 @@ fn the_generated_files_are_current() {
             path.display()
         );
     }
+}
+
+#[test]
+fn what_the_engine_takes_and_refuses() {
+    let (patched, refused) = patched_and_refused(&standard().default_edit());
+    let kinds: Vec<_> = refused.iter().map(|r| r.error.kind).collect();
+    assert_eq!(
+        kinds,
+        [
+            ErrorKind::UnknownTool,
+            ErrorKind::UnknownSetting,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+        ]
+    );
+    let clamped = &patched[2].edit.tools;
+    assert_eq!(clamped["ag_exposure_wb"].settings["exposure"], -10.0);
+    assert_eq!(clamped["rt_capture_sharpen"].settings["radius"], 2.0);
+    assert_eq!(clamped["rt_capture_sharpen"].settings["iterations"], 100);
+    let reset = &patched[3].edit.tools["ag_exposure_wb"].settings;
+    assert_eq!(
+        (&reset["exposure"], &reset["blue"]),
+        (&serde_json::json!(0.0), &serde_json::json!(2.0))
+    );
 }
 
 #[test]
