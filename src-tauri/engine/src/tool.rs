@@ -311,15 +311,11 @@ fn clamp_json(mut value: Value, fields: &[Field]) -> std::result::Result<(Value,
 /// when a setting is not a number, a boolean or a choice, or a field names a
 /// setting that does not exist.
 fn describe(
-    id: &'static str,
-    origin: Origin,
-    stage: Stage,
-    section: Section,
-    version: u32,
+    tool: ToolDescriptor,
     defaults: &Value,
     fields: &[Field],
-    order: u32,
 ) -> std::result::Result<ToolDescriptor, String> {
+    let id = &tool.id;
     let Value::Object(defaults) = defaults else {
         return Err(format!("{id}: settings are not a struct"));
     };
@@ -380,15 +376,26 @@ fn describe(
             label,
         });
     }
+    Ok(ToolDescriptor { settings, ..tool })
+}
+
+/// A tool's descriptor with no settings yet.
+fn skeleton(
+    id: &str,
+    stage: Stage,
+    section: Section,
+    version: u32,
+    order: u32,
+) -> std::result::Result<ToolDescriptor, String> {
     Ok(ToolDescriptor {
         id: id.to_string(),
-        origin,
+        origin: Origin::of(id).ok_or_else(|| format!("{id} has no origin prefix"))?,
         label: format!("tools.{id}.label"),
         section,
         order,
         stage,
         version,
-        settings,
+        settings: Vec::new(),
     })
 }
 
@@ -453,14 +460,15 @@ impl<T: Tool> AnyTool for Registered<T> {
 
     fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String> {
         describe(
-            T::ID,
-            Origin::of(T::ID).expect("checked when registered"),
-            T::STAGE,
-            T::SECTION,
-            <T::Settings as Settings>::VERSION,
+            skeleton(
+                T::ID,
+                T::STAGE,
+                T::SECTION,
+                <T::Settings as Settings>::VERSION,
+                order,
+            )?,
             &T::Settings::default().to_json(),
             <T::Settings as Settings>::FIELDS,
-            order,
         )
     }
 
@@ -609,18 +617,16 @@ mod tests {
 
     #[test]
     fn the_descriptor_is_read_off_the_settings() {
-        let d = describe(
+        let tool = skeleton(
             "ag_demo",
-            Origin::Argentum,
             Stage::SceneLinear,
             Section::Basic,
             Demo::VERSION,
-            &Demo::default().to_json(),
-            Demo::FIELDS,
             7,
-        )
-        .unwrap();
+        );
+        let d = describe(tool.unwrap(), &Demo::default().to_json(), Demo::FIELDS).unwrap();
         assert_eq!(d.label, "tools.ag_demo.label");
+        assert_eq!(d.origin, Origin::Argentum);
         assert_eq!(d.order, 7);
         let keys: Vec<_> = d.settings.iter().map(|s| s.key.as_str()).collect();
         assert_eq!(keys, ["amount", "count", "mode", "on"]);
@@ -654,33 +660,10 @@ mod tests {
 
     #[test]
     fn a_setting_the_contract_cannot_show_is_refused() {
-        let defaults = serde_json::json!({ "gains": [1.0, 1.0] });
-        assert!(
-            describe(
-                "ag_demo",
-                Origin::Argentum,
-                Stage::SceneLinear,
-                Section::Basic,
-                1,
-                &defaults,
-                &[],
-                0
-            )
-            .is_err()
-        );
+        let tool = || skeleton("ag_demo", Stage::SceneLinear, Section::Basic, 1, 0).unwrap();
+        let arrays = serde_json::json!({ "gains": [1.0, 1.0] });
+        assert!(describe(tool(), &arrays, &[]).is_err());
         let missing = [Field::new("nothing")];
-        assert!(
-            describe(
-                "ag_demo",
-                Origin::Argentum,
-                Stage::SceneLinear,
-                Section::Basic,
-                1,
-                &Demo::default().to_json(),
-                &missing,
-                0
-            )
-            .is_err()
-        );
+        assert!(describe(tool(), &Demo::default().to_json(), &missing).is_err());
     }
 }

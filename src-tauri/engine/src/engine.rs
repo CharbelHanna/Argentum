@@ -12,7 +12,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::{Arc, Condvar, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, OnceLock};
 use std::thread::JoinHandle;
 
 use rayon::prelude::*;
@@ -353,14 +353,26 @@ fn cut(rgb: &Rgb, view: &View, ticket: RenderTicket) -> Frame {
 
 /// Linear light to an 8-bit sRGB value, clipped at white. A plain display
 /// encode until display tools take over.
+///
+/// From a table of 65536 steps rather than a `powf` per channel, which was
+/// most of a slider tick: a step is at most a twentieth of an output level,
+/// in the shadows where the curve is steepest.
 fn encode(v: f32) -> u8 {
-    let v = v.clamp(0.0, 1.0);
-    let s = if v <= 0.003_130_8 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1.0 / 2.4) - 0.055
-    };
-    (s * 255.0).round() as u8
+    static TABLE: OnceLock<Vec<u8>> = OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        (0..=u16::MAX)
+            .map(|i| {
+                let v = i as f32 / u16::MAX as f32;
+                let s = if v <= 0.003_130_8 {
+                    v * 12.92
+                } else {
+                    1.055 * v.powf(1.0 / 2.4) - 0.055
+                };
+                (s * 255.0).round() as u8
+            })
+            .collect()
+    });
+    table[(v.clamp(0.0, 1.0) * u16::MAX as f32).round() as usize]
 }
 
 /// 256 bins of the frame's luminance (Rec. 709 weights on the encoded
@@ -472,5 +484,20 @@ mod tests {
         assert_eq!(encode(1.0), 255);
         assert_eq!(encode(4.0), 255);
         assert_eq!(encode(0.18), 118);
+        // The table against the formula, across the range.
+        for i in 0..=200_000 {
+            let v = i as f32 / 200_000.0;
+            let s = if v <= 0.003_130_8 {
+                v * 12.92
+            } else {
+                1.055 * v.powf(1.0 / 2.4) - 0.055
+            };
+            let exact = s * 255.0;
+            assert!(
+                (encode(v) as f32 - exact).abs() <= 0.55,
+                "{v}: {} vs {exact}",
+                encode(v)
+            );
+        }
     }
 }

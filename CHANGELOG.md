@@ -30,6 +30,15 @@ Newest first.
   - `ag_exposure_wb`: exposure and white balance multipliers. Ours.
   - The parity tests compile the app's own files unchanged, in a test-only
     crate (`engine/reference/`), and compare on the same input.
+  - The contract the new editor interface talks to it through:
+    `src/contract.rs` holds every type the interface sees (tool descriptors
+    read off each tool's own settings, the edit document, edit patches,
+    views, render tickets and events), and `src/shell/contract.generated.ts`
+    is generated from it with ts-rs, with fixtures beside it; a test fails
+    when they are stale. The engine's calls - `tools`, `open`, `apply`,
+    `view` - return at once and render on a thread of their own,
+    latest-wins. A slider tick at preview size is held to a measured budget
+    of 25 ms by a test.
 
 ## 26.41.12 — 2026-10-11
 

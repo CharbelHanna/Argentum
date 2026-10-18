@@ -129,6 +129,27 @@ fn a_preview_is_the_size_asked_for_and_says_its_scale() {
     assert_eq!(ran(&p), ["rt_capture_sharpen", "ag_exposure_wb"]);
 }
 
+/// North star 5: the cache is bounded. Least recently used results go, and
+/// what is kept stays within the budget.
+#[test]
+fn the_cache_stays_within_its_budget() {
+    let mut p = pipeline(None);
+    let source = common::source(512, 384);
+    // A developed 512 x 384 picture is 2.4 MB; keep room for one and a bit.
+    let budget = 3 << 20;
+    p.set_cache_budget(budget);
+    for ev in [0.5, 1.0, 1.5, 2.0] {
+        p.set::<ag_exposure_wb::AgExposureWb>(exposure(ev)).unwrap();
+        p.render(&source, Size::Full).unwrap();
+        assert!(p.cache_bytes() <= budget, "{} bytes", p.cache_bytes());
+    }
+    // And with the budget, what was evicted is made again when asked for.
+    p.set::<ag_exposure_wb::AgExposureWb>(exposure(0.5))
+        .unwrap();
+    p.render(&source, Size::Full).unwrap();
+    assert!(!ran(&p).is_empty());
+}
+
 /// The same, on a real photo, with the time each step takes.
 /// `cargo test --test rerun -- --nocapture` to see the table.
 #[test]
@@ -230,6 +251,12 @@ fn reruns_timed_on_a_real_raw() {
     for ((label, ran, _), expect) in table.iter().zip(expect) {
         assert_eq!(ran.as_slice(), expect, "{label}");
     }
+    eprintln!(
+        "  cache: {:.0} MB of a {:.0} MB budget",
+        p.cache_bytes() as f64 / 1e6,
+        (6u64 << 30) as f64 / 1e6
+    );
+    assert!(p.cache_bytes() <= 6 << 30);
     // Re-running only the last tool has to be much cheaper than the whole
     // pipeline - the point of keeping every result.
     let (cold, exposure_only) = (table[0].2, table[2].2);
