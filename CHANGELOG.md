@@ -23,10 +23,10 @@ Newest first.
     up, Enter opens a disk.
   - The centre shows the folder's grid or the open photo; opening a photo changes nothing
     else. The filmstrip runs under it in both, with the status line in its header.
-  - One right panel holds the histogram, an Info line and seven tabs over today's tools:
-    Edit, Looks, Crop, Masks, Retouch, Export and Info. The Info line shows the photo's ISO,
-    aperture, shutter and focal length; clicking it, or I, opens the Info tab, the photo's
-    whole metadata at the panel's full height. In the grid, Edit shows the selected photo's
+  - One right panel holds the histogram, an Info line and six tabs over today's tools:
+    Edit, Looks, Crop, Masks, Retouch and Export. The Info line shows the photo's ISO,
+    aperture, shutter and focal length; clicking it, or I, shows the photo's whole metadata
+    at the panel's full height, and any tab goes back. In the grid, Edit shows the selected photo's
     settings read-only; Enter opens it.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes

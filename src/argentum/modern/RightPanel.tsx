@@ -1,12 +1,13 @@
 /**
  * The Modern window's right panel: every tool, in one panel. Ours.
  *
- * Top to bottom: the histogram (one, for every tab), the Info line (the photo's
- * ISO, aperture, shutter and focal length; a click opens the Info tab), the
- * tab strip, and the open tab. The tabs are today's panels as they are: Edit
- * is the adjustments, Looks the presets, Crop, Masks, Retouch (today's AI
- * panel), Export, and Info, today's metadata panel at the panel's full height.
- * Their keys are today's (D, P, R, M, K, E, I), which set the same active
+ * Top to bottom: the histogram (one, for every tab), the Info line, the tab
+ * strip, and the open tab. The tabs are today's panels as they are: Edit is the
+ * adjustments, Looks the presets, Crop, Masks, Retouch (today's AI panel) and
+ * Export. The Info line, the photo's ISO, aperture, shutter and focal length,
+ * is a tab of its own without a seventh name in the strip: a click on it, or
+ * I, shows today's metadata panel at the panel's full height, and any tab goes
+ * back. The keys are today's (D, P, R, M, K, E, I), which set the same active
  * panel these tabs read.
  *
  * In the grid nothing is open, so the Edit tab shows the selected photo's
@@ -21,6 +22,7 @@ import clsx from 'clsx';
 import { Panel } from '../../components/ui/AppProperties';
 import Controls from '../../components/panel/right/ControlsPanel';
 import MasksPanel from '../../components/panel/right/MasksPanel';
+import MetadataPanel from '../../components/panel/right/MetadataPanel';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -35,8 +37,10 @@ const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] 
   { panel: Panel.Masks, label: 'mwTabMasks', key: 'M', needsPhoto: true },
   { panel: Panel.Ai, label: 'mwTabRetouch', key: 'K', needsPhoto: true },
   { panel: Panel.Export, label: 'mwTabExport', key: 'E' },
-  { panel: Panel.Metadata, label: 'mwTabInfo', key: 'I' },
 ];
+
+/** The Info line's tab: today's metadata panel. */
+const INFO = { panel: Panel.Metadata, label: 'mwInfo' as AgKey, key: 'I' };
 
 /**
  * The Info line: ISO, aperture, shutter and focal length, each written the way
@@ -75,12 +79,11 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
   // In the grid, the selected photo's, as the library read it.
   const libraryExif = useLibraryStore((s) => s.imageList.find((image) => image.path === s.libraryActivePath)?.exif);
   const editing = activeView === 'editor' && !!selected;
-  const tab = TABS.find((entry) => entry.panel === activePanel) ?? TABS[0];
-  const info = TABS[TABS.length - 1];
+  const tab = activePanel === INFO.panel ? INFO : (TABS.find((entry) => entry.panel === activePanel) ?? TABS[0]);
 
-  const choose = (entry: (typeof TABS)[number]) => {
+  const choose = (entry: (typeof TABS)[number] | typeof INFO) => {
     setUI({ activePanel: entry.panel, renderedPanel: entry.panel });
-    if (entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
+    if ('needsPhoto' in entry && entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
   };
 
   const summary = infoLine(editing ? (selected?.exif as Record<string, string> | undefined) : libraryExif);
@@ -93,8 +96,8 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
       </div>
       <div className="flex-none">
         <div
-          className={clsx('agm-sec-head', tab === info && 'agm-on')}
-          onClick={() => choose(info)}
+          className={clsx('agm-sec-head agm-info-head', tab === INFO && 'agm-on')}
+          onClick={() => choose(INFO)}
           data-tooltip={t('mwInfoTip')}
         >
           {t('mwInfo')}
@@ -137,6 +140,7 @@ function TabBody({
   const libraryActivePath = useLibraryStore((s) => s.libraryActivePath);
   const selectedCount = useLibraryStore((s) => s.multiSelectedPaths.length);
   const gridAdjustments = useGridAdjustments(editing ? null : libraryActivePath);
+  const libraryExif = useLibraryStore((s) => s.imageList.find((image) => image.path === s.libraryActivePath)?.exif);
   const name = libraryActivePath?.split(/[\\/]/).pop();
 
   if (tab === Panel.Adjustments) {
@@ -156,7 +160,14 @@ function TabBody({
     );
   }
   if (tab === Panel.Masks) return editing ? <MasksPanel showWaveform={false} /> : <Quiet text={t('mwOpenToUse')} />;
-  if (tab === Panel.Metadata && !editing) return <Quiet text={t('mwInfoOpen')} />;
+  if (tab === Panel.Metadata && !editing) {
+    // The grid's selection, from what the library read of it.
+    return libraryActivePath ? (
+      <MetadataPanel photo={{ path: libraryActivePath, exif: libraryExif ?? null }} />
+    ) : (
+      <Quiet text={t('mwNoPhoto')} />
+    );
+  }
   if ((tab === Panel.Crop || tab === Panel.Ai) && !editing) return <Quiet text={t('mwOpenToUse')} />;
   return <>{renderPanel(tab)}</>;
 }

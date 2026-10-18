@@ -4,7 +4,7 @@ import { Check, ChevronDown, ChevronRight, Plus, Star, Tag, X, User } from 'luci
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
-import { Invokes } from '../../ui/AppProperties';
+import { Invokes, type SelectedImage } from '../../ui/AppProperties';
 import FlagToggles from '../../ui/FlagToggles';
 import { getImageFlag } from '../../../utils/imageFlags';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
@@ -233,13 +233,20 @@ const KEY_CAMERA_SETTINGS_MAP: CameraSettings = {
   },
 };
 
-export default function MetadataPanel() {
+// Argentum: `photo` shows a photo that is not open in the editor, the grid's
+// selection in the Modern window (argentum/modern/RightPanel.tsx), from what
+// the library already read of it; without it, the open photo as before.
+type ShownPhoto = Pick<SelectedImage, 'path' | 'exif'> &
+  Partial<Pick<SelectedImage, 'width' | 'height' | 'thumbnailUrl'>>;
+
+export default function MetadataPanel({ photo }: { photo?: ShownPhoto | null } = {}) {
   const { t } = useTranslation();
   const [isOrganizationExpanded, setIsOrganizationExpanded] = useState(false);
   const [isAuthorExpanded, setIsAuthorExpanded] = useState(false);
   const [tagInputValue, setTagInputValue] = useState('');
   const [isTagInputFocused, setIsTagInputFocused] = useState(false);
-  const selectedImage = useEditorStore((s) => s.selectedImage);
+  const openImage = useEditorStore((s) => s.selectedImage);
+  const selectedImage: ShownPhoto | null = photo === undefined ? openImage : photo;
   const multiSelectedPaths = useLibraryStore((s) => s.multiSelectedPaths);
   const imageRatings = useLibraryStore((s) => s.imageRatings);
   const appSettings = useSettingsStore((s) => s.appSettings);

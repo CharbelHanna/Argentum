@@ -940,7 +940,7 @@ html[data-ag-look='modern'] .agm-left .agm-tree svg {
   border-bottom: 1px solid var(--agm-line);
 }
 
-/* Seven tabs: each as wide as its name, the room left shared out, so they fit at 300 px. */
+/* Each tab as wide as its name, the room left shared out, so the names fit at 300 px. */
 .agm-tab {
   flex: 1 1 auto;
   padding: 0 3px;
@@ -1031,7 +1031,18 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   text-overflow: ellipsis;
 }
 
-.agm-sec-head.agm-on {
+/* The Info line while its tab is open: lit, and marked like a tab. */
+.agm-info-head {
+  position: relative;
+}
+
+.agm-info-head.agm-on {
+  color: var(--agm-text);
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+.agm-info-head.agm-on .agm-info-line {
   color: var(--agm-text);
 }
 
