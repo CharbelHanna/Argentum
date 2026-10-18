@@ -14,6 +14,7 @@ pub mod contract;
 mod develop;
 pub mod engine;
 mod error;
+mod frame;
 mod gpu;
 mod image;
 pub mod pipeline;
@@ -22,8 +23,9 @@ mod source;
 pub mod tool;
 
 pub use contract::{Origin, Section, Stage, sections};
-pub use engine::{Engine, Frame};
+pub use engine::Engine;
 pub use error::{Error, Result};
+pub use frame::{Frame, placement};
 pub use gpu::{Gpu, GpuSlot};
 pub use image::{Image, Rgb};
 pub use pipeline::{Pipeline, Size, Step};
