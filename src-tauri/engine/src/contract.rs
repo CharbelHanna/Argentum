@@ -21,6 +21,26 @@ pub const EDIT_VERSION: u32 = 1;
 /// How many bins a histogram event has: one per 8-bit level.
 pub const HISTOGRAM_BINS: usize = 256;
 
+// How events and frames cross to the interface. The engine writes the frame
+// block (`Frame::block`); the bridge and the interface's client read these
+// rather than writing them again.
+
+/// The name every engine event is sent under, carrying the `Event` as this
+/// file writes it.
+pub const ENGINE_EVENT: &str = "ag-engine";
+
+/// A frame block's header: the ticket, the width and the height in pixels,
+/// little-endian u32s. The RGBA rows follow.
+pub const FRAME_HEADER_BYTES: usize = 12;
+
+/// What fetching a frame answers when the block went to the page as a shared
+/// buffer instead of as the answer.
+pub const FRAME_SHARED: &str = "shared";
+
+/// The key, in a shared buffer's additional data, whose value is the frame's
+/// ticket.
+pub const FRAME_SHARED_KEY: &str = "agFrame";
+
 /// Whose code a tool is: the first two letters of its id.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
@@ -375,21 +395,33 @@ pub struct EngineError {
     pub message: String,
 }
 
+/// Where a frame sits in its view, in device pixels: its top left corner,
+/// and its size. On an axis where the photo is smaller than the view, the
+/// frame is all of it, centred; where it is larger, the frame fills the view.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct Placement {
+    pub x_px: u32,
+    pub y_px: u32,
+    pub width_px: u32,
+    pub height_px: u32,
+}
+
 /// What the engine tells the interface, as it happens.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(tag = "event", rename_all = "camelCase")]
 pub enum Event {
-    /// A render is ready: `width` x `height` sRGB pixels, the view's part of
-    /// the photo.
+    /// A render is ready: the view's part of the photo, in sRGB pixels, and
+    /// where in the view it goes.
     Frame {
         ticket: RenderTicket,
         /// The photo it is a view of: a late frame of the photo before can
         /// be told apart and dropped.
         #[serde(rename = "photoId")]
         photo_id: PhotoId,
-        width: u32,
-        height: u32,
+        placement: Placement,
     },
     /// `HISTOGRAM_BINS` bins of luminance, over the frame with the same
     /// ticket.
