@@ -89,6 +89,7 @@ pub trait Tool: Default + Send + Sync + 'static {
     const SECTION: Section;      // the panel it is shown in
     const GPU: bool = false;     // true for a tool that runs on the GPU
     type Settings: Settings;
+    fn defaults_for(&self, source: &Source) -> Self::Settings { Default::default() }
     fn process(&self, settings: &Self::Settings, input: &Image, cx: &Context)
         -> Result<Option<Image>>;
 }
@@ -120,6 +121,12 @@ pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq +
   unit, choices, a log scale, `enabled_when`, `advanced` - in the order the
   panel shows them, and numbers outside a range are clamped whenever
   settings are read or set.
+- **defaults_for.** The settings a photo opens with, when they are the
+  photo's own rather than the struct's `Default`: white balance starts at the
+  camera's as-shot light, DNG Standard at the body's exposure offset. The
+  engine makes an edit of them when a photo opens, and `null` in a patch puts
+  a setting back to them (`Registry::defaults_for`, `Registry::merge`). The
+  descriptor's `default` stays the struct's. darktable's `reload_defaults`.
 - **process.** Takes the input by reference and returns a new image, or
   `Ok(None)` for "nothing to do": the pipeline then keeps the input as the
   output rather than a copy.
@@ -134,8 +141,9 @@ pub trait Settings: Serialize + DeserializeOwned + Default + Clone + PartialEq +
 let mut p = Pipeline::standard()?;
 let photo = Source::open("photo.cr3")?;
 let preview = p.render(&photo, Size::Fit(1600, 1600))?;
-p.apply(&serde_json::from_value(json!({ "ag_exposure_wb": { "exposure": 0.5 } }))?)?;
-let again = p.render(&photo, Size::Fit(1600, 1600))?;   // runs ag_exposure_wb only
+p.set_edit(&p.registry().defaults_for(&photo))?;         // the photo's own starting point
+p.apply(&serde_json::from_value(json!({ "rr_presence": { "vibrance": 30 } }))?)?;
+let again = p.render(&photo, Size::Fit(1600, 1600))?;   // runs rr_presence and what follows
 ```
 
 The steps are the tools in registry order, with the develop between the last
@@ -211,10 +219,20 @@ commit.
 |---|---|---|---|---|---|
 | `dt_highlights` | Raw | tone | no | Rebuild clipped channels from the ones that survived, and make what nothing survived white rather than magenta | `mods/highlights.rs` - Argentum's code, after darktable's opposed reconstruction |
 | `rt_capture_sharpen` | SceneLinear | detail | yes | Richardson-Lucy deconvolution of the luminance, through a contrast mask, with the radius read from the RAW | RawTherapee `capturesharpening.cc` and `rt_algo.cc`, via `mods/sharpen.rs`, `mods/sharpen_gpu.rs`, `shaders/sharpen.wgsl` |
-| `ag_exposure_wb` | SceneLinear | basic | no | Exposure in stops, times a red, green and blue multiplier, on top of the as-shot balance | Argentum |
+| `ag_exposure` | SceneLinear | basic | no | Exposure, in stops | Argentum; the app's `apply_linear_exposure` |
+| `rr_white_balance` | SceneLinear | basic | no | Temperature in kelvin and tint, starting at the camera's as-shot light: Bradford cone gains from that light to the one set | RapidRAW 1.6.5's Kelvin engine: `white_balance.rs`, `read_as_shot_white_balance` in `raw_processing.rs`, `apply_white_balance` in `shader.wgsl` |
+| `rr_basic_tone` | SceneLinear | basic | no | Contrast, highlights, shadows, whites, blacks; the last four move the light a pixel sits in and keep its detail, measured by a guided filter on log luminance | RapidRAW `apply_tonal_adjustments`, `apply_highlights_adjustment` in `shader.wgsl`; the filter from `guided.wgsl` and `build_guided_coeffs` |
+| `rr_presence` | SceneLinear | basic | no | Vibrance and saturation | RapidRAW `apply_creative_color` in `shader.wgsl` |
+| `ag_dng_standard` | SceneLinear | tone | no | Argentum's default RAW look: the body's exposure offset and Adobe's ACR3 curve, applied hue-preserving (RGBTone) in linear ProPhoto | `mods/dng_standard.rs`, `mods/dng_baseline.tsv` (read in place), `rt_rgb_tone` and `ag_dng_standard` in `modules.wgsl`; RawTherapee, RAWmakase, the DNG SDK |
 
-Capture sharpening runs before exposure, as in the app: it undoes the lens
-and the sensor, so it comes before anything that is an edit.
+The order is the app's: capture sharpening first, since it undoes the lens
+and the sensor, then exposure, white balance, the tone sliders, presence,
+and DNG Standard, which takes the place of the app's tone mapper. The app's
+sliders run from -100 to 100 and so do these; exposure is in stops, where
+the app's slider moves 1.25 stops a step.
+
+Colour maths several tools share - Rec. 709 luminance, the sRGB curve, a
+3x3 multiply - is in `src/colour.rs`, once.
 
 ## The tests
 
@@ -225,10 +243,15 @@ and the sensor, so it comes before anything that is an edit.
 | The same, counted and timed on a real photo | `tests/rerun.rs` | `AG_RAW` |
 | `dt_highlights` bit-identical to `mods/highlights.rs` | `tests/parity_highlights.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | `rt_capture_sharpen`: automatic radius and contrast bit-identical, passes within one half-float step of `mods/sharpen_gpu.rs` | `tests/parity_sharpen.rs` | a GPU for the passes; real photos with `AG_RAW`/`AG_RAWS` |
-| `ag_exposure_wb` exact against a reference computation | `tests/parity_exposure_wb.rs` | nothing |
+| `ag_exposure` exact against its formula, and the app's `apply_linear_exposure` | `tests/parity_exposure.rs` | a GPU for the shader |
+| `rr_white_balance`: as-shot light and cone gains identical to `white_balance.rs`; pixels within 2 x 10^-6 of `apply_white_balance` | `tests/parity_white_balance.rs` | a GPU for the shader; real photos with `AG_RAW`/`AG_RAWS` |
+| `rr_basic_tone`: the sliders within 2 x 10^-5 of the app's shader; the guided filter's coefficients within 5 x 10^-4 of `guided.wgsl`, the detail read from them within 10^-4 stops | `tests/parity_basic_tone.rs` | a GPU |
+| `rr_presence` within 2 x 10^-5 of `apply_creative_color` | `tests/parity_presence.rs` | a GPU |
+| `ag_dng_standard`: offsets and the curve at the app's 16 points identical; around the curve within 0.01 of an 8-bit level of the app's shader; the whole within the app's spline | `tests/parity_dng_standard.rs` | a GPU for the shader; real photos with `AG_RAW`/`AG_RAWS` |
+| Each tool moves the picture its way and renders as it did last time (golden renders, with a sheet to look at) | `tests/golden.rs` | `AG_RAW`/`AG_RAWS` |
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| A slider tick at preview size stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW` |
+| A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW` |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
 app's own tests take them. Unset, the real-photo tests say they skipped and
@@ -239,11 +262,20 @@ is timed end to end - patch in, frame event out - in a test binary of its own,
 since tests in one process share a thread pool.
 
 The app's side of each parity test is the app's own file, compiled unchanged
-by `reference/` - a test-only crate that points at `src-tauri/src/mods/` and
-stands in for the two or three things those files reach for in the rest of
-the app. When one of them changes what it imports, that crate stops
-compiling, which is the moment to check whether the engine's copy has fallen
-behind.
+by `reference/` - a test-only crate that points at `src-tauri/src/` and
+stands in for the few things those files reach for in the rest of the app.
+When one of them changes what it imports, that crate stops compiling, which
+is the moment to check whether the engine's copy has fallen behind.
+
+For the app's shader functions the same holds on the GPU:
+`tests/common/app_shader.rs` compiles `modules.wgsl` and `shader.wgsl` from
+disk as the app does, adds an entry point that calls one of their functions
+per element, and reads the answers back. Struct offsets in their uniform are
+read off the WGSL by naga, never restated.
+
+Golden renders are kept outside the repository, in `AG_GOLDEN` or the
+target directory's `tmp/golden`: they are of local photos. The first run
+records them; `sheet.html` beside them shows every case side by side.
 
 The sharpening tolerance: the app reads and writes half floats, the engine
 keeps f32 and gets back from the GPU only the factor each pixel's luminance
@@ -261,5 +293,8 @@ the engine's stored as a half float, rounded one way or the other.
 - **Orientation.** The develop leaves the picture as the sensor saw it.
 - **Closing a photo.** An open photo's decoded data stays until the engine
   goes.
-- **Golden renders per tool** (north star 6), masks, the editor's other
-  tools, and wiring into the app - later steps.
+- **A file's metadata.** `Source` carries the decoded image only, so DNG
+  Standard takes every file's offset from its body's row: a DNG's own
+  BaselineExposure and the app's stop off below a body's lowest native ISO
+  wait for it.
+- Masks, the editor's other tools, and wiring into the app - later steps.
