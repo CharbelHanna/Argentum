@@ -56,7 +56,12 @@ pub struct WgpuDisplay {
 }
 
 impl WgpuDisplay {
-    pub fn render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    /// Draws the photo to the window. Returns whether a frame was presented.
+    pub fn render(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> bool {
+        // Argentum: never while minimised, see mods/viewer_surface.rs
+        if crate::mods::viewer_surface::is_minimised() {
+            return false;
+        }
         if let Some(bind_group) = &self.current_bind_group {
             let output = match self.surface.get_current_texture() {
                 wgpu::CurrentSurfaceTexture::Success(tex)
@@ -66,14 +71,17 @@ impl WgpuDisplay {
                     match self.surface.get_current_texture() {
                         wgpu::CurrentSurfaceTexture::Success(tex)
                         | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-                        // Argentum: skip the frame rather than crash (e.g. a window still restoring)
+                        // Argentum: skip the frame rather than crash
                         other => {
-                            log::warn!("Skipped a frame: no surface texture after reconfigure ({:?})", other);
-                            return;
+                            log::warn!("[viewer] no frame, even after reconfigure: {:?}", other);
+                            return false;
                         }
                     }
                 }
-                _ => return,
+                other => {
+                    log::info!("[viewer] no frame: {:?}", other); // Argentum
+                    return false;
+                }
             };
             let view = output
                 .texture
@@ -137,6 +145,9 @@ impl WgpuDisplay {
             }
             queue.submit(Some(encoder.finish()));
             output.present();
+            true
+        } else {
+            false
         }
     }
 }
@@ -223,6 +234,17 @@ pub fn get_or_init_gpu_context(
         }
         format!("Failed to find a wgpu adapter: {}", e)
     })?;
+
+    // Argentum: from RapidRAW 1f1b1ae0, src-tauri/src/gpu_processing.rs - which backend draws
+    let adapter_info = adapter.get_info();
+    log::info!(
+        "Using GPU adapter: {} ({:?}, {:?}, driver: {} {})",
+        adapter_info.name,
+        adapter_info.backend,
+        adapter_info.device_type,
+        adapter_info.driver,
+        adapter_info.driver_info
+    );
 
     let mut required_features = wgpu::Features::empty();
     if adapter
