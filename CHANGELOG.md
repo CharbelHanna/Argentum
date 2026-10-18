@@ -39,6 +39,15 @@ Newest first.
     `view` - return at once and render on a thread of their own,
     latest-wins. A slider tick at preview size is held to a measured budget
     of 25 ms by a test.
+- **The new editor interface, first step.** `src/shell/`, opt-in with
+  `?shell=new`; without it the app opens as before. Every tool panel is built
+  from the engine's tool descriptors, a widget per setting kind, so a new
+  engine tool gets its panel with no interface change (a test proves it).
+  Edits are patches with their inverses for undo; renders are latest-wins.
+  It reaches the engine only through `src/shell/engine/client.ts`, and until
+  the engine is wired into the app that is a fake of the contract that
+  paints a made-up landscape. The layout is Lightroom Classic-style. Tests
+  with Vitest: `npm run test:shell`.
 
 ## 26.41.12 — 2026-10-11
 
