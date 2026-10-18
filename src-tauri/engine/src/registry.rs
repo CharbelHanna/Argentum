@@ -11,7 +11,7 @@ use serde_json::Value;
 
 use crate::contract::{EDIT_VERSION, EditDocument, EditPatch, Origin, ToolDescriptor, ToolEdit};
 use crate::tool::{self, AnySettings, AnyTool, Registered, Tool, ToolInfo};
-use crate::{Error, Result};
+use crate::{Error, Result, Source};
 
 /// An ordered set of tools.
 pub struct Registry {
@@ -76,17 +76,24 @@ impl Registry {
         self.types.iter().position(|t| *t == TypeId::of::<T>())
     }
 
-    /// `patch` merged into `doc`: `null` puts a setting back to its default,
-    /// and the result is every tool's settings as the engine reads them -
+    /// `patch` merged into `doc`. `null` puts a setting back to its value in
+    /// `defaults`: the photo's own, from `defaults_for`, or `default_edit`.
+    /// The result is every tool's settings as the engine reads them:
     /// migrated, clamped, the defaults filled in. All or nothing: an unknown
     /// tool or setting, or a value of the wrong type, refuses the whole patch.
-    pub fn merge(&self, doc: &EditDocument, patch: &EditPatch) -> Result<EditDocument> {
+    pub fn merge(
+        &self,
+        doc: &EditDocument,
+        patch: &EditPatch,
+        defaults: &EditDocument,
+    ) -> Result<EditDocument> {
         let mut settings = self.read_edit(doc)?;
         for (id, changes) in &patch.0 {
             let i = self
                 .position(id)
                 .ok_or_else(|| Error::UnknownTool(id.clone()))?;
             let mut merged = tool::as_map(settings[i].to_json());
+            let reset = defaults.tools.get(id).map(|t| &t.settings);
             for (key, value) in changes {
                 if !merged.contains_key(key) {
                     return Err(Error::UnknownSetting {
@@ -94,10 +101,13 @@ impl Registry {
                         key: key.clone(),
                     });
                 }
-                if value.is_null() {
-                    merged.remove(key);
-                } else {
+                if !value.is_null() {
                     merged.insert(key.clone(), value.clone());
+                } else if let Some(default) = reset.and_then(|r| r.get(key)) {
+                    merged.insert(key.clone(), default.clone());
+                } else {
+                    // Read back as the settings' own default.
+                    merged.remove(key);
                 }
             }
             let value = Value::Object(merged.into_iter().collect());
@@ -106,9 +116,16 @@ impl Registry {
         Ok(self.edit_of(&settings))
     }
 
-    /// Every tool at its defaults, as an edit.
+    /// Every tool at its defaults, as an edit: what the descriptors say.
     pub fn default_edit(&self) -> EditDocument {
         let defaults: Vec<_> = self.tools.iter().map(|t| t.defaults()).collect();
+        self.edit_of(&defaults)
+    }
+
+    /// Every tool at the defaults it gives this photo (`Tool::defaults_for`),
+    /// as an edit: what a photo opens with.
+    pub fn defaults_for(&self, source: &Source) -> EditDocument {
+        let defaults: Vec<_> = self.tools.iter().map(|t| t.defaults_for(source)).collect();
         self.edit_of(&defaults)
     }
 

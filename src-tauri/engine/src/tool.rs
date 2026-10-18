@@ -147,6 +147,16 @@ pub trait Tool: Default + Send + Sync + 'static {
     const GPU: bool = false;
     type Settings: Settings;
 
+    /// The settings `source` starts with: the settings' `Default`, unless
+    /// the starting point is the photo's own - the camera's white balance, a
+    /// body's exposure offset. An edit stores them like any other value, and
+    /// `null` in a patch puts them back. darktable's `reload_defaults`, which
+    /// its white balance and exposure modules use for the same reason.
+    fn defaults_for(&self, source: &Source) -> Self::Settings {
+        let _ = source;
+        Self::Settings::default()
+    }
+
     /// `Ok(None)` means there is nothing to do: the input is the output, and
     /// the pipeline keeps the same picture rather than a copy of it.
     fn process(
@@ -447,6 +457,7 @@ pub(crate) trait AnyTool: Send + Sync {
     fn info(&self) -> ToolInfo;
     fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String>;
     fn defaults(&self) -> Box<dyn AnySettings>;
+    fn defaults_for(&self, source: &Source) -> Box<dyn AnySettings>;
     fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>>;
     fn process(
         &self,
@@ -484,6 +495,10 @@ impl<T: Tool> AnyTool for Registered<T> {
 
     fn defaults(&self) -> Box<dyn AnySettings> {
         Box::new(T::Settings::default())
+    }
+
+    fn defaults_for(&self, source: &Source) -> Box<dyn AnySettings> {
+        Box::new(clamp(self.0.defaults_for(source)))
     }
 
     fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>> {

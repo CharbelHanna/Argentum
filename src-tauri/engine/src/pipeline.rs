@@ -149,11 +149,13 @@ impl Pipeline {
         Ok(())
     }
 
-    /// Merge `patch` into the settings, as `Registry::merge` does. Only the
-    /// tools it names change, so only they and the tools after them run
-    /// again.
+    /// Merge `patch` into the settings, as `Registry::merge` does, `null`
+    /// meaning the settings' own default. Only the tools it names change, so
+    /// only they and the tools after them run again.
     pub fn apply(&mut self, patch: &EditPatch) -> Result<()> {
-        let doc = self.registry.merge(&self.edit(), patch)?;
+        let doc = self
+            .registry
+            .merge(&self.edit(), patch, &self.registry.default_edit())?;
         self.set_edit(&doc)
     }
 

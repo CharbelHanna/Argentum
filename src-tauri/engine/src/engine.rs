@@ -54,6 +54,9 @@ struct Photo {
     source: Arc<Source>,
     size_px: (u32, u32),
     edit: EditDocument,
+    /// What `null` in a patch puts a setting back to: the defaults the tools
+    /// gave this photo when it opened.
+    defaults: EditDocument,
     view: View,
 }
 
@@ -124,11 +127,13 @@ impl Engine {
         Ok(self.insert(Source::open(path)?))
     }
 
-    /// A photo decoded elsewhere, opened with every tool at its defaults.
+    /// A photo decoded elsewhere, opened with every tool at the defaults it
+    /// gives this photo.
     pub fn insert(&self, source: Source) -> Opened {
         let (w_px, h_px) = source.size_px();
         let size_px = (w_px as u32, h_px as u32);
-        let edit = self.registry.default_edit();
+        let defaults = self.registry.defaults_for(&source);
+        let edit = defaults.clone();
         let mut state = self.state();
         let id = PhotoId(state.next_photo);
         state.next_photo += 1;
@@ -138,6 +143,7 @@ impl Engine {
                 source: Arc::new(source),
                 size_px,
                 edit: edit.clone(),
+                defaults,
                 view: fitted(size_px, FIRST_VIEW_PX, FIRST_VIEW_PX),
             },
         );
@@ -154,7 +160,8 @@ impl Engine {
     /// type, refuses the whole patch and nothing renders.
     pub fn apply(&self, photo: PhotoId, patch: &EditPatch) -> Result<Applied> {
         let mut state = self.state();
-        let edit = self.registry.merge(&state.photo(photo)?.edit, patch)?;
+        let p = state.photo(photo)?;
+        let edit = self.registry.merge(&p.edit, patch, &p.defaults)?;
         state.photo_mut(photo)?.edit = edit.clone();
         let ticket = self.queue(&mut state, photo)?;
         Ok(Applied { ticket, edit })

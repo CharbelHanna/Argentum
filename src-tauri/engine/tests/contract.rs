@@ -273,7 +273,7 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .into_iter()
         .map(|json| {
             let patch = patch(json);
-            let edit = registry.merge(edit, &patch).expect("taken");
+            let edit = registry.merge(edit, &patch, &registry.default_edit()).expect("taken");
             Patched { patch, edit }
         })
         .collect();
@@ -281,7 +281,7 @@ fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
         .into_iter()
         .map(|json| {
             let patch = patch(json);
-            let error = registry.merge(edit, &patch).expect_err("refused");
+            let error = registry.merge(edit, &patch, &registry.default_edit()).expect_err("refused");
             Refused {
                 patch,
                 error: error.to_contract(),
