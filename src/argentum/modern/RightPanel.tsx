@@ -1,20 +1,22 @@
 /**
  * The Modern window's right panel: every tool, in one panel. Ours.
  *
- * Top to bottom: the histogram (one, for every tab), Info (folded, its header
- * a one-line summary), the tab strip, and the open tab. The tabs are today's
- * panels as they are: Edit is the adjustments, Looks the presets, Crop, Masks,
- * Retouch (today's AI panel) and Export. Their keys are today's (D, P, R, M, K,
- * E), which set the same active panel these tabs read.
+ * Top to bottom: the histogram (one, for every tab), the Info line (the photo's
+ * ISO, aperture, shutter and focal length; a click opens the Info tab), the
+ * tab strip, and the open tab. The tabs are today's panels as they are: Edit
+ * is the adjustments, Looks the presets, Crop, Masks, Retouch (today's AI
+ * panel), Export, and Info, today's metadata panel at the panel's full height.
+ * Their keys are today's (D, P, R, M, K, E, I), which set the same active
+ * panel these tabs read.
  *
  * In the grid nothing is open, so the Edit tab shows the selected photo's
  * settings read-only (gridAdjustments.ts); Crop, Masks and Retouch need the
  * photo itself, so choosing one opens it.
  */
 
-import { type ReactNode, type PointerEvent as ReactPointerEvent, useState } from 'react';
+import { type ReactNode, type PointerEvent as ReactPointerEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { Info } from 'lucide-react';
 import clsx from 'clsx';
 import { Panel } from '../../components/ui/AppProperties';
 import Controls from '../../components/panel/right/ControlsPanel';
@@ -33,7 +35,24 @@ const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] 
   { panel: Panel.Masks, label: 'mwTabMasks', key: 'M', needsPhoto: true },
   { panel: Panel.Ai, label: 'mwTabRetouch', key: 'K', needsPhoto: true },
   { panel: Panel.Export, label: 'mwTabExport', key: 'E' },
+  { panel: Panel.Metadata, label: 'mwTabInfo', key: 'I' },
 ];
+
+/**
+ * The Info line: ISO, aperture, shutter and focal length, each written the way
+ * their editor toolbar and metadata panel write it (EditorToolbar.tsx and
+ * MetadataPanel.tsx, KEY_CAMERA_SETTINGS_MAP, RapidRAW 1.6.5 @ 79c2a46b).
+ */
+function infoLine(exif: Record<string, string> | null | undefined): string {
+  if (!exif) return '';
+  const iso = exif.PhotographicSensitivity || exif.ISO;
+  const aperture = exif.FNumber && (/^f/i.test(exif.FNumber) ? exif.FNumber : `f/${exif.FNumber}`);
+  const shutter = exif.ExposureTime && (exif.ExposureTime.endsWith('s') ? exif.ExposureTime : `${exif.ExposureTime}s`);
+  const focal = exif.FocalLengthIn35mmFilm || exif.FocalLength;
+  return [iso && `ISO ${iso}`, aperture, shutter, focal && (String(focal).endsWith('mm') ? focal : `${focal} mm`)]
+    .filter(Boolean)
+    .join(' · ');
+}
 
 /** The graph's height: room for the curve and its clipping marks, not a second photo. */
 const HISTOGRAM_PX = 104;
@@ -53,17 +72,18 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
   );
   const selected = useEditorStore((s) => s.selectedImage);
   const libraryActivePath = useLibraryStore((s) => s.libraryActivePath);
+  // In the grid, the selected photo's, as the library read it.
+  const libraryExif = useLibraryStore((s) => s.imageList.find((image) => image.path === s.libraryActivePath)?.exif);
   const editing = activeView === 'editor' && !!selected;
   const tab = TABS.find((entry) => entry.panel === activePanel) ?? TABS[0];
-  const [infoOpen, setInfoOpen] = useState(false);
+  const info = TABS[TABS.length - 1];
 
   const choose = (entry: (typeof TABS)[number]) => {
     setUI({ activePanel: entry.panel, renderedPanel: entry.panel });
     if (entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
   };
 
-  const exif = editing ? (selected?.exif as Record<string, string> | undefined) : undefined;
-  const summary = [exif?.Model, exif?.LensModel].filter(Boolean).join(' · ');
+  const summary = infoLine(editing ? (selected?.exif as Record<string, string> | undefined) : libraryExif);
 
   return (
     <div className="agm-col agm-right" style={{ width }}>
@@ -71,13 +91,15 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
       <div className="flex-none">
         <HistogramSection height={HISTOGRAM_PX} />
       </div>
-      <div className="flex-none border-b border-[var(--agm-line)]">
-        <div className="agm-sec-head" onClick={() => setInfoOpen((o) => !o)} data-tooltip={t('mwInfoTip')}>
-          {infoOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+      <div className="flex-none">
+        <div
+          className={clsx('agm-sec-head', tab === info && 'agm-on')}
+          onClick={() => choose(info)}
+          data-tooltip={t('mwInfoTip')}
+        >
           {t('mwInfo')}
-          {!infoOpen && summary && <span className="agm-info-line">{summary}</span>}
+          {summary && <span className="agm-info-line">{summary}</span>}
         </div>
-        {infoOpen && <div className="max-h-[320px] overflow-y-auto">{renderPanel(Panel.Metadata)}</div>}
       </div>
       <div className="agm-tabs" role="tablist">
         {TABS.map((entry) => (
@@ -134,6 +156,7 @@ function TabBody({
     );
   }
   if (tab === Panel.Masks) return editing ? <MasksPanel showWaveform={false} /> : <Quiet text={t('mwOpenToUse')} />;
+  if (tab === Panel.Metadata && !editing) return <Quiet text={t('mwInfoOpen')} />;
   if ((tab === Panel.Crop || tab === Panel.Ai) && !editing) return <Quiet text={t('mwOpenToUse')} />;
   return <>{renderPanel(tab)}</>;
 }
