@@ -214,7 +214,7 @@ macro_rules! registry {
 registry! {
     "tools/dt_highlights.rs"      => dt_highlights::DtHighlights,
     "tools/rt_capture_sharpen/mod.rs" => rt_capture_sharpen::RtCaptureSharpen,
-    "tools/ag_exposure_wb.rs"     => ag_exposure_wb::AgExposureWb,
+    "tools/ag_exposure.rs"        => ag_exposure::AgExposure,
     "tools/rr_white_balance.rs"   => rr_white_balance::RrWhiteBalance,
     "tools/rr_basic_tone/mod.rs"  => rr_basic_tone::RrBasicTone,
     "tools/rr_presence.rs"        => rr_presence::RrPresence,
@@ -236,7 +236,7 @@ mod tests {
             [
                 "dt_highlights",
                 "rt_capture_sharpen",
-                "ag_exposure_wb",
+                "ag_exposure",
                 "rr_white_balance",
                 "rr_basic_tone",
                 "rr_presence",
@@ -252,14 +252,14 @@ mod tests {
 
     #[test]
     fn a_tool_listed_twice_is_refused() {
-        let twice = standard().with::<ag_exposure_wb::AgExposureWb>();
+        let twice = standard().with::<ag_exposure::AgExposure>();
         assert!(matches!(twice.check(), Err(Error::Registry(_))));
     }
 
     #[test]
     fn a_raw_tool_after_a_scene_tool_is_refused() {
         let out_of_order = Registry::new()
-            .with::<ag_exposure_wb::AgExposureWb>()
+            .with::<ag_exposure::AgExposure>()
             .with::<dt_highlights::DtHighlights>();
         let err = out_of_order.check().unwrap_err().to_string();
         assert!(err.contains("dt_highlights"), "{err}");

@@ -63,7 +63,7 @@ fn open_apply_view_and_what_comes_back() {
         Pipeline::standard().unwrap().edit(),
         "all defaults"
     );
-    assert_eq!(engine.tools().len(), 3);
+    assert_eq!(engine.tools().len(), 7);
     let order: Vec<_> = engine.sections().iter().map(|s| s.label.clone()).collect();
     assert_eq!(
         order,
@@ -86,8 +86,8 @@ fn open_apply_view_and_what_comes_back() {
         serde_json::json!(false)
     );
     assert_eq!(
-        applied.edit.tools["ag_exposure_wb"],
-        opened.edit.tools["ag_exposure_wb"]
+        applied.edit.tools["ag_exposure"],
+        opened.edit.tools["ag_exposure"]
     );
     let events = until_done(&rx, t1);
     let [
@@ -157,7 +157,7 @@ fn open_apply_view_and_what_comes_back() {
     let refused =
         |patch_json: serde_json::Value| engine.apply(id, &patch(patch_json)).unwrap_err().kind();
     assert_eq!(
-        refused(serde_json::json!({ "ag_exposure_wb": { "nope": 1 } })),
+        refused(serde_json::json!({ "ag_exposure": { "nope": 1 } })),
         ErrorKind::UnknownSetting
     );
     assert_eq!(

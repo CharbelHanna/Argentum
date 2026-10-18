@@ -7,8 +7,22 @@ mod common;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use argentum_engine::tools::{ag_exposure_wb, dt_highlights, rt_capture_sharpen};
+use argentum_engine::tools::{ag_dng_standard, ag_exposure, dt_highlights, rt_capture_sharpen};
 use argentum_engine::{Gpu, GpuSlot, Pipeline, Size, standard};
+
+/// The tools from exposure on, in the order they run.
+const EDITS: [&str; 5] = [
+    "ag_exposure",
+    "rr_white_balance",
+    "rr_basic_tone",
+    "rr_presence",
+    "ag_dng_standard",
+];
+
+/// `first`, then every tool from exposure on.
+fn then(first: &[&'static str]) -> Vec<&'static str> {
+    first.iter().chain(&EDITS).copied().collect()
+}
 
 fn ran(p: &Pipeline) -> Vec<&'static str> {
     p.last_render()
@@ -35,11 +49,8 @@ fn pipeline(gpu: Option<Arc<Gpu>>) -> Pipeline {
     }
 }
 
-fn exposure(ev: f32) -> ag_exposure_wb::Settings {
-    ag_exposure_wb::Settings {
-        exposure: ev,
-        ..Default::default()
-    }
+fn exposure(ev: f32) -> ag_exposure::Settings {
+    ag_exposure::Settings { exposure_ev: ev }
 }
 
 fn amount(pct: f32) -> rt_capture_sharpen::Settings {
@@ -53,12 +64,7 @@ fn amount(pct: f32) -> rt_capture_sharpen::Settings {
 fn changing_one_tool_reruns_it_and_what_follows() {
     let mut p = pipeline(common::gpu("changing_one_tool_reruns_it_and_what_follows"));
     let source = common::source(512, 384);
-    let all = [
-        "dt_highlights",
-        "develop",
-        "rt_capture_sharpen",
-        "ag_exposure_wb",
-    ];
+    let all = then(&["dt_highlights", "develop", "rt_capture_sharpen"]);
 
     let first = p.render(&source, Size::Full).unwrap();
     assert_eq!(ran(&p), all);
@@ -67,12 +73,20 @@ fn changing_one_tool_reruns_it_and_what_follows() {
     assert!(Arc::ptr_eq(&first, &again), "the same picture, not a copy");
 
     // The last tool: only it.
-    p.set::<ag_exposure_wb::AgExposureWb>(exposure(1.0))
-        .unwrap();
+    p.set::<ag_dng_standard::AgDngStandard>(ag_dng_standard::Settings {
+        baseline_exposure_ev: 0.6,
+        ..Default::default()
+    })
+    .unwrap();
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), ["ag_exposure_wb"]);
+    assert_eq!(ran(&p), ["ag_dng_standard"]);
 
-    // The middle one: it and the one after it.
+    // Exposure: it and every tool after it.
+    p.set::<ag_exposure::AgExposure>(exposure(1.0)).unwrap();
+    p.render(&source, Size::Full).unwrap();
+    assert_eq!(ran(&p), EDITS);
+
+    // One further up: it and the ones after it.
     if p.get::<rt_capture_sharpen::RtCaptureSharpen>()
         .unwrap()
         .capture
@@ -88,7 +102,7 @@ fn changing_one_tool_reruns_it_and_what_follows() {
         .unwrap();
     }
     p.render(&source, Size::Full).unwrap();
-    assert_eq!(ran(&p), ["rt_capture_sharpen", "ag_exposure_wb"]);
+    assert_eq!(ran(&p), then(&["rt_capture_sharpen"]));
 
     // The first: everything, the develop included.
     p.set::<dt_highlights::DtHighlights>(dt_highlights::Settings { recover: false })
@@ -105,11 +119,10 @@ fn changing_one_tool_reruns_it_and_what_follows() {
 
     // A preview shares everything up to the develop.
     p.render(&source, Size::Fit(128, 128)).unwrap();
-    assert_eq!(ran(&p), ["resize", "rt_capture_sharpen", "ag_exposure_wb"]);
-    p.set::<ag_exposure_wb::AgExposureWb>(exposure(-1.0))
-        .unwrap();
+    assert_eq!(ran(&p), then(&["resize", "rt_capture_sharpen"]));
+    p.set::<ag_exposure::AgExposure>(exposure(-1.0)).unwrap();
     p.render(&source, Size::Fit(128, 128)).unwrap();
-    assert_eq!(ran(&p), ["ag_exposure_wb"]);
+    assert_eq!(ran(&p), EDITS);
 
     assert_eq!(p.runs("dt_highlights"), 2);
     assert_eq!(p.runs("develop"), 2);
@@ -126,7 +139,7 @@ fn a_preview_is_the_size_asked_for_and_says_its_scale() {
     assert_eq!(rgb.scale(), 0.25);
     let full = p.render(&source, Size::Full).unwrap();
     assert_eq!(full.as_rgb().unwrap().width, 512);
-    assert_eq!(ran(&p), ["rt_capture_sharpen", "ag_exposure_wb"]);
+    assert_eq!(ran(&p), then(&["rt_capture_sharpen"]));
 }
 
 /// North star 5: the cache is bounded. Least recently used results go, and
@@ -139,13 +152,12 @@ fn the_cache_stays_within_its_budget() {
     let budget = 3 << 20;
     p.set_cache_budget_bytes(budget);
     for ev in [0.5, 1.0, 1.5, 2.0] {
-        p.set::<ag_exposure_wb::AgExposureWb>(exposure(ev)).unwrap();
+        p.set::<ag_exposure::AgExposure>(exposure(ev)).unwrap();
         p.render(&source, Size::Full).unwrap();
         assert!(p.cache_bytes() <= budget, "{} bytes", p.cache_bytes());
     }
     // And with the budget, what was evicted is made again when asked for.
-    p.set::<ag_exposure_wb::AgExposureWb>(exposure(0.5))
-        .unwrap();
+    p.set::<ag_exposure::AgExposure>(exposure(0.5)).unwrap();
     p.render(&source, Size::Full).unwrap();
     assert!(!ran(&p).is_empty());
 }
@@ -203,8 +215,7 @@ fn reruns_timed_on_a_real_raw() {
 
     step(&mut p, "full size, cold", Size::Full);
     step(&mut p, "full size, again", Size::Full);
-    p.set::<ag_exposure_wb::AgExposureWb>(exposure(0.5))
-        .unwrap();
+    p.set::<ag_exposure::AgExposure>(exposure(0.5)).unwrap();
     step(&mut p, "full size, exposure changed", Size::Full);
     let sharpening = p
         .get::<rt_capture_sharpen::RtCaptureSharpen>()
@@ -221,35 +232,24 @@ fn reruns_timed_on_a_real_raw() {
         .unwrap();
     step(&mut p, "full size, highlights changed", Size::Full);
     step(&mut p, "preview 1600, after full", Size::Fit(1600, 1600));
-    p.set::<ag_exposure_wb::AgExposureWb>(exposure(-0.5))
-        .unwrap();
+    p.set::<ag_exposure::AgExposure>(exposure(-0.5)).unwrap();
     step(
         &mut p,
         "preview 1600, exposure changed",
         Size::Fit(1600, 1600),
     );
 
-    let expect: [&[&str]; 7] = [
-        &[
-            "dt_highlights",
-            "develop",
-            "rt_capture_sharpen",
-            "ag_exposure_wb",
-        ],
-        &[],
-        &["ag_exposure_wb"],
-        &["rt_capture_sharpen", "ag_exposure_wb"],
-        &[
-            "dt_highlights",
-            "develop",
-            "rt_capture_sharpen",
-            "ag_exposure_wb",
-        ],
-        &["resize", "rt_capture_sharpen", "ag_exposure_wb"],
-        &["ag_exposure_wb"],
+    let expect = [
+        then(&["dt_highlights", "develop", "rt_capture_sharpen"]),
+        vec![],
+        EDITS.to_vec(),
+        then(&["rt_capture_sharpen"]),
+        then(&["dt_highlights", "develop", "rt_capture_sharpen"]),
+        then(&["resize", "rt_capture_sharpen"]),
+        EDITS.to_vec(),
     ];
     for ((label, ran, _), expect) in table.iter().zip(expect) {
-        assert_eq!(ran.as_slice(), expect, "{label}");
+        assert_eq!(ran, &expect, "{label}");
     }
     eprintln!(
         "  cache: {:.0} MB of a {:.0} MB budget",
@@ -257,8 +257,8 @@ fn reruns_timed_on_a_real_raw() {
         (6u64 << 30) as f64 / 1e6
     );
     assert!(p.cache_bytes() <= 6 << 30);
-    // Re-running only the last tool has to be much cheaper than the whole
-    // pipeline - the point of keeping every result.
+    // Re-running only the tools after exposure has to be much cheaper than
+    // the whole pipeline - the point of keeping every result.
     let (cold, exposure_only) = (table[0].2, table[2].2);
     assert!(
         exposure_only * 4 < cold,

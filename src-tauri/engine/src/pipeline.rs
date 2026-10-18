@@ -342,22 +342,22 @@ mod tests {
     fn a_patch_merges_and_null_resets() {
         let mut p = Pipeline::standard().unwrap();
         p.apply(&patch(serde_json::json!({
-            "ag_exposure_wb": { "exposure": 1.5, "red": 1.2 },
+            "rr_basic_tone": { "contrast": 15.0, "shadows": 20.0 },
         })))
         .unwrap();
         let doc = p.edit();
-        let wb = &doc.tools["ag_exposure_wb"].settings;
+        let tone = &doc.tools["rr_basic_tone"].settings;
         assert_eq!(
-            (wb["exposure"].as_f64(), wb["red"].as_f64()),
-            (Some(1.5), Some(1.2))
+            (tone["contrast"].as_f64(), tone["shadows"].as_f64()),
+            (Some(15.0), Some(20.0))
         );
         p.apply(&patch(
-            serde_json::json!({ "ag_exposure_wb": { "exposure": null } }),
+            serde_json::json!({ "rr_basic_tone": { "contrast": null } }),
         ))
         .unwrap();
-        let wb = &p.edit().tools["ag_exposure_wb"].settings;
-        assert_eq!(wb["exposure"].as_f64(), Some(0.0), "back to its default");
-        assert_eq!(wb["red"].as_f64(), Some(1.2), "the rest kept");
+        let tone = &p.edit().tools["rr_basic_tone"].settings;
+        assert_eq!(tone["contrast"].as_f64(), Some(0.0), "back to its default");
+        assert_eq!(tone["shadows"].as_f64(), Some(20.0), "the rest kept");
     }
 
     #[test]
@@ -366,11 +366,11 @@ mod tests {
         let before = p.edit();
         for bad in [
             serde_json::json!({ "ag_nothing": { "x": 1 } }),
-            serde_json::json!({ "ag_exposure_wb": { "contrast": 1 } }),
-            serde_json::json!({ "ag_exposure_wb": { "exposure": "bright" } }),
+            serde_json::json!({ "ag_exposure": { "contrast": 1 } }),
+            serde_json::json!({ "ag_exposure": { "exposure_ev": "bright" } }),
             serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } }),
             // The first tool is fine, the second is not: neither changes.
-            serde_json::json!({ "ag_exposure_wb": { "exposure": 1 }, "dt_highlights": { "recover": 3 } }),
+            serde_json::json!({ "ag_exposure": { "exposure_ev": 1 }, "dt_highlights": { "recover": 3 } }),
         ] {
             assert!(p.apply(&patch(bad.clone())).is_err(), "{bad}");
             assert_eq!(p.edit(), before, "{bad}");
