@@ -164,6 +164,12 @@ struct LayoutPanelsArgs {
     panels: crate::mods::editor_layout::LayoutPanels,
 }
 
+/// A Modern palette's name, narrowed by `ModernTheme::from_name`.
+#[derive(Deserialize)]
+struct ThemeArgs {
+    theme: String,
+}
+
 /// The library's saved folder state, for `modern_start`.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -422,6 +428,14 @@ async fn json(
         "set_editor_layout_panels" => {
             let a: LayoutPanelsArgs = args_for(&name, args)?;
             commands::set_editor_layout_panels(&a.panels)?;
+            Ok(serde_json::Value::Null)
+        }
+        "modern_theme" => {
+            serde_json::to_value(commands::modern_theme()?).map_err(|e| e.to_string())
+        }
+        "set_modern_theme" => {
+            let a: ThemeArgs = args_for(&name, args)?;
+            commands::set_modern_theme(&a.theme)?;
             Ok(serde_json::Value::Null)
         }
         "modern_start" => {

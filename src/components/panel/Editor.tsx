@@ -83,7 +83,8 @@ interface EditorProps {
   onContextMenu(event: any): void;
   onImageSelect?(path: string, event?: any): void;
   transformWrapperRef: any;
-  toolbarBelow?: boolean;
+  /** Argentum: the Modern window, which has the toolbar's tools in its top bar and frames the photo itself. */
+  frameless?: boolean;
 }
 
 export default function Editor({
@@ -91,7 +92,7 @@ export default function Editor({
   onContextMenu,
   onImageSelect,
   transformWrapperRef,
-  toolbarBelow = false,
+  frameless = false,
 }: EditorProps) {
   const appSettings = useSettingsStore((s) => s.appSettings);
   const osPlatform = useSettingsStore((s) => s.osPlatform);
@@ -2279,14 +2280,19 @@ export default function Editor({
         !isInstantTransition && 'transition-all duration-300 ease-in-out',
         isFullScreen
           ? 'rounded-none p-0 gap-0'
-          : clsx('rounded-lg p-2 gap-2', appSettings?.useWgpuRenderer !== false ? 'bg-transparent' : 'bg-bg-secondary'),
+          : frameless
+            ? 'agm-photo-frame'
+            : clsx(
+                'rounded-lg p-2 gap-2',
+                appSettings?.useWgpuRenderer !== false ? 'bg-transparent' : 'bg-bg-secondary',
+              ),
       )}
     >
       {hasRenderedAnyPreview && <div className="hidden" data-bench-id="editor-first-frame" />}
       <div
         className={clsx(
           'shrink-0 relative z-10',
-          toolbarBelow && 'order-last',
+          frameless && 'hidden',
           !isInstantTransition && 'transition-all duration-300 ease-in-out',
           isFullScreen ? 'max-h-0 opacity-0 m-0' : 'max-h-25 opacity-100',
           toolbarOverflowVisible ? 'overflow-visible' : 'overflow-hidden',
@@ -2310,14 +2316,13 @@ export default function Editor({
           adjustmentsHistory={adjustmentsHistory}
           adjustmentsHistoryIndex={adjustmentsHistoryIndex}
           goToAdjustmentsHistoryIndex={goToHistoryIndex}
-          opensUpward={toolbarBelow}
         />
       </div>
 
       <div
         className={clsx(
           'flex-1 relative overflow-hidden touch-none',
-          isFullScreen ? 'rounded-none' : 'rounded-lg',
+          isFullScreen || frameless ? 'rounded-none' : 'rounded-lg',
           appSettings?.useWgpuRenderer !== false && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
           !isWgpuActive && (appSettings?.editorNeutralGreyBg ? 'bg-[#808080]' : 'bg-bg-secondary'),
         )}

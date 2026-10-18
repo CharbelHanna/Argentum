@@ -15,7 +15,8 @@ import { useHistoryNames } from '../../components/panel/editor/EditorToolbar';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAgTranslation } from '../locales';
 
-export default function HistoryPanel() {
+/** `bare`: without its own title, under a section header of the Modern window's. */
+export default function HistoryPanel({ bare = false }: { bare?: boolean }) {
   const agT = useAgTranslation();
   const history = useEditorStore((s) => s.history);
   const index = useEditorStore((s) => s.historyIndex);
@@ -30,7 +31,7 @@ export default function HistoryPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-3 flex items-center shrink-0 border-b border-surface">
+      <div className={clsx('p-3 flex items-center shrink-0 border-b border-surface', bare && 'hidden')}>
         <Text variant={TextVariants.title}>{agT('layoutHistory')}</Text>
       </div>
       <div ref={listRef} className="grow overflow-y-auto custom-scrollbar p-2 flex flex-col gap-0.5">
@@ -49,7 +50,9 @@ export default function HistoryPanel() {
                 className={clsx(
                   'flex justify-between items-center gap-2 text-left px-3 py-1.5 rounded-md transition-colors',
                   isCurrent
-                    ? 'bg-accent'
+                    ? bare
+                      ? 'agm-history-current'
+                      : 'bg-accent'
                     : i > index
                       ? 'opacity-50 hover:bg-surface hover:opacity-100'
                       : 'hover:bg-surface',
@@ -57,7 +60,7 @@ export default function HistoryPanel() {
               >
                 <Text
                   as="span"
-                  color={isCurrent ? TextColors.button : TextColors.primary}
+                  color={isCurrent && !bare ? TextColors.button : TextColors.primary}
                   weight={isCurrent ? TextWeights.medium : TextWeights.normal}
                   className="truncate"
                 >
@@ -66,7 +69,7 @@ export default function HistoryPanel() {
                 <Text
                   as="span"
                   variant={TextVariants.small}
-                  color={isCurrent ? TextColors.button : TextColors.secondary}
+                  color={isCurrent && !bare ? TextColors.button : TextColors.secondary}
                   className="shrink-0"
                 >
                   {i === 0 ? '' : i}

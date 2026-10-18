@@ -1895,16 +1895,33 @@ export const REGISTRY = [
     id: 'editor-layout-modern',
     kind: 'feature',
     what:
-      'A second arrangement of the editor, chosen in Settings > General > Layout (DEC-31): Modern, '
-      + 'a Lightroom Classic-style layout, built from today\'s own panels and stores. Folders on '
-      + 'the left, the toolbar under the photo, the Navigator and Histogram over the adjustments, a tab '
-      + 'panel (Presets, History, Info, Export, Tethering) beside them, a slim rail switching tools and '
-      + 'tabs, the filmstrip bar along the bottom. Classic, today\'s, stays the default. The Navigator '
-      + 'is the one new control: today\'s editor has none.',
+      'The Modern window, chosen in Settings > General > Layout (DEC-31, DEC-33): the whole app in one '
+      + 'window built from today\'s own panels and stores. One bar per edge: a top bar that is also the '
+      + 'title bar (folder history, an editable path, the grid\'s or the photo\'s view tools, panel '
+      + 'toggles, a Settings gear that never hides, window controls); a left column with the folders '
+      + '(Favourites, Recent, This computer with every disk) and the history; the centre showing the '
+      + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
+      + 'header; one right panel with the histogram, an Info fold and six tabs over today\'s panels '
+      + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
+      + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
+      + 'Light) by modern.css. Classic, today\'s, stays the default and is untouched.',
     ours: [
-      'src/argentum/layout/ModernEditor.tsx',
-      'src/argentum/layout/ToolRail.tsx',
-      'src/argentum/layout/rail.ts',
+      'src/argentum/modern/ModernWindow.tsx',
+      'src/argentum/modern/TopBar.tsx',
+      'src/argentum/modern/WindowControls.tsx',
+      'src/argentum/modern/Menu.tsx',
+      'src/argentum/modern/LeftColumn.tsx',
+      'src/argentum/modern/RecentFolders.tsx',
+      'src/argentum/modern/RightPanel.tsx',
+      'src/argentum/modern/gridAdjustments.ts',
+      'src/argentum/modern/FilmstripArea.tsx',
+      'src/argentum/modern/ModernEmpty.tsx',
+      'src/argentum/modern/ModernSettings.tsx',
+      'src/argentum/modern/ModernThemeChoice.tsx',
+      'src/argentum/modern/folders.ts',
+      'src/argentum/modern/look.ts',
+      'src/argentum/modern/modern.css',
+      'src/argentum/modern/index.ts',
       'src/argentum/layout/Navigator.tsx',
       'src/argentum/layout/HistogramSection.tsx',
       'src/argentum/layout/HistoryPanel.tsx',
@@ -1912,58 +1929,65 @@ export const REGISTRY = [
       'src/argentum/layout/EditorLayoutSetting.tsx',
       'src/argentum/layout/index.ts',
       'src-tauri/src/mods/editor_layout.rs',
+      'src-tauri/src/mods/drives.rs',
+      'src-tauri/src/mods/recent_folders.rs',
+      'src-tauri/src/mods/modern_start.rs',
     ],
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls',
-        note: 'One import from src/argentum/layout (its anchor, by DEC-31). EditorView is swapped for '
-          + 'ModernEditor, which takes the same props, when the layout is Modern on a full-width '
-          + 'window; the two SidePanelAreas are left out while it shows the editor. The editor stays '
-          + 'mounted, hidden, in the library as before: the swap does not depend on the view. '
-          + 'renderAppPanel is how every panel but Adjustments and Masks is drawn in it.' },
-      { file: 'src/components/views/EditorView.tsx', symbol: 'besideEditor', how: 'extends',
-        note: 'Two optional props: besideEditor, drawn in a row with the editor above the filmstrip bar, '
-          + 'and toolbarBelow, passed to Editor. Without them it renders as before.' },
-      { file: 'src/components/panel/Editor.tsx', symbol: 'toolbarBelow', how: 'extends',
-        note: 'Optional prop: the toolbar row takes order-last, under the photo, and its menus open '
-          + 'upward. The transform handle (useImperativeHandle on transformWrapperRef: setTransform, '
-          + 'instance.wrapperComponent/contentComponent/transformState) is what the Navigator reads and '
-          + 'moves; it watches the inline transform this file writes onto the content element.' },
-      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'extends',
-        note: 'The naming of history steps moved out of the component, unchanged, into an exported '
-          + 'hook, so the History tab names steps the same way. opensUpward puts the history menu and '
-          + 'the photo info pill above the toolbar when it sits under the photo.' },
-      { file: 'src/components/panel/right/ControlsPanel.tsx', symbol: 'showWaveform', how: 'extends',
-        note: 'Optional prop, true by default: false leaves out the chart button and the inline '
-          + 'analytics, which the arrangement shows at the top of its column instead.' },
+        note: 'One import line from src/argentum/modern. While the layout is Modern on a full-width '
+          + 'window, App renders ModernWindow in place of its title bar, side panels and views, passing '
+          + 'its own handlers on; LibraryView takes the same props object in both. Its tree refresh is '
+          + 'swapped for refreshModernTrees and unfolding a folder counts no photos, since the roots are '
+          + 'whole disks.' },
+      { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
+        note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
+      { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
+        note: 'Optional prop: no header and no start screen; ModernEmpty until a folder is picked.' },
+      { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',
+        note: 'Optional prop: no toolbar (its tools are in the top bar) and a square frame with 20 px '
+          + 'round the photo. The transform handle on transformWrapperRef is what the Navigator reads.' },
+      { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
+        note: 'Under Modern: a slim FOLDERS header with search and the options menu, Favourites (the '
+          + 'pinned folders, starred), Recent, This computer with each disk\'s name and free space; no '
+          + 'albums, no Add folder, no Sources header.' },
+      { file: 'src/components/panel/right/ControlsPanel.tsx', symbol: 'readOnly', how: 'extends',
+        note: 'Optional props: showWaveform, and readOnly, the selected photo\'s settings shown inert in the '
+          + 'grid. The section reset button is ours (.ag-section-reset), shown only in Modern.' },
       { file: 'src/components/panel/right/MasksPanel.tsx', symbol: 'showWaveform', how: 'extends',
-        note: 'Same as ControlsPanel.' },
-      { file: 'src/components/panel/PanelSwitcher.tsx', symbol: 'PANEL_TITLES', how: 'extends',
-        note: 'Exported beside PANEL_ICONS, so the rail uses today\'s icons and tooltips.' },
-      { file: 'src/store/useUIStore.ts', symbol: 'setPanel', how: 'calls',
-        note: 'The rail opens tools through setPanel and folds columns through uiVisibility; widths are '
-          + 'leftPanelWidth and rightPanelWidth. A change of activePanel to Presets, Metadata, Export or '
-          + 'FolderTree (their shortcuts) opens that tab or the folders.' },
+        note: 'Same as ControlsPanel\'s showWaveform.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', symbol: 'modernCategory', how: 'extends',
+        note: 'Optional prop: the Modern section to show, without the page\'s own header; AI and models '
+          + 'is the General page\'s AI card plus the data-argentum="ai" slot. The Theme row offers the '
+          + 'Modern palettes there. The Layout row still comes from the General slot.' },
+      { file: 'src/components/panel/Filmstrip.tsx', how: 'calls',
+        note: 'Drawn as it is under the centre, in both views.' },
+      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'extends',
+        note: 'The naming of history steps, exported as a hook, so History names steps the same way.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
-        note: 'The Navigator\'s Fit, 50%, 100% and 200%, in the units the zoom control under the '
-          + 'filmstrip uses (device pixels per photo pixel); 100% from Fit reads the zoom it sets.' },
+        note: 'The top bar\'s Zoom menu and the Navigator, in the units today\'s zoom control uses; '
+          + 'toggleShowOriginal for Before.' },
+      { file: 'src/store/useUIStore.ts', symbol: 'activePanel', how: 'calls',
+        note: 'The tabs read and set activePanel, as today\'s D, P, R, M, K and E keys do; the panel '
+          + 'toggles are uiVisibility, the widths leftPanelWidth, rightPanelWidth and bottomPanelHeight.' },
+      { file: 'src/store/useLibraryStore.ts', symbol: 'sortCriteria', how: 'calls',
+        note: 'The top bar\'s Sort and View menus set today\'s sortCriteria and filterCriteria.' },
       { file: 'src/components/panel/editor/Waveform.tsx', how: 'calls',
-        note: 'The Histogram section draws it with the props and store values ControlsPanel gives it; '
-          + 'open is isWaveformVisible, toggled through useWaveformControls as their chart button does.' },
-      { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'The Layout row goes straight under Compact panels on General, from the data-argentum '
-          + 'slot; without that row it goes in the slot at the end of the page, in a card of its own.' },
+        note: 'The Histogram section draws it with the props and store values ControlsPanel gives it.' },
     ],
     tests: [
-      'src-tauri/src/mods/editor_layout.rs #[cfg(test)]: Classic until chosen, the choice and the '
-        + 'panels read back, unknown names are Classic, other preferences untouched.',
-      'Manual: Settings > General > Layout: Modern, open a photo. Folders left (favourites, keys, '
-        + 'sort as before); toolbar under the photo with back, info, undo/redo and its history menu '
-        + 'opening upward, before/after, full screen; Navigator levels and click; Histogram folds and '
-        + 'stays folded after a restart, clipping warning cycles; rail Edit folds the adjustments, Crop, '
-        + 'Masks and AI open in their place and back; Presets, History, Info, Export tabs; filmstrip, '
-        + 'rating and copy/paste along the bottom. Layout: Classic is today\'s editor unchanged.',
+      'src-tauri/src/mods/editor_layout.rs #[cfg(test)]: Classic until chosen, Grey until another '
+        + 'palette is, choices read back, unknown names fall back, other preferences untouched.',
+      'src-tauri/src/mods/{drives,recent_folders,modern_start}.rs #[cfg(test)]: disks listed with '
+        + 'their size, recent folders newest first and capped, where the column opens.',
+      'Manual: Settings > General > Layout: Modern. The window opens on the last folder with no start '
+        + 'screen; the gear opens Settings in the centre (Esc closes, Ctrl+, opens) with AI and models, '
+        + 'My Gear and About; Ctrl+Shift+B, Ctrl+B and Ctrl+J hide the panels and the top bar brings '
+        + 'them back; double-click a photo and only the centre changes, Esc goes back; every tab opens '
+        + 'today\'s tool; the grid shows the selected photo\'s sliders read-only. Layout: Classic is '
+        + 'today\'s app unchanged.',
     ],
-    keywords: /layout|workspace|side.?panel|panel.?switcher|toolbar|navigator|histogram|waveform|filmstrip/i,
+    keywords: /layout|workspace|side.?panel|panel.?switcher|toolbar|navigator|histogram|waveform|filmstrip|title.?bar|settings/i,
   },
 ];
 

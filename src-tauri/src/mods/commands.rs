@@ -422,6 +422,19 @@ pub fn set_editor_layout_panels(
     crate::mods::editor_layout::save_panels(profile_library()?, panels)
 }
 
+/// The Modern window's palette. Grey until chosen.
+pub fn modern_theme() -> Result<crate::mods::editor_layout::ModernTheme, String> {
+    Ok(crate::mods::editor_layout::theme(profile_library()?))
+}
+
+/// Choose it by name. A name this build does not know is stored as Grey.
+pub fn set_modern_theme(theme: &str) -> Result<(), String> {
+    crate::mods::editor_layout::save_theme(
+        profile_library()?,
+        crate::mods::editor_layout::ModernTheme::from_name(theme),
+    )
+}
+
 /// Where the Modern layout opens: the disks, the recent folders, and the
 /// folder last open if it is still there. Reads the disks, so call it off the
 /// main thread.

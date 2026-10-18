@@ -1,0 +1,68 @@
+/**
+ * Settings in the Modern window: a page in the centre, opened by the gear or
+ * Ctrl+, and closed by Esc, the ✕ or the gear again. Ours.
+ *
+ * The section list is ours; each section is today's Settings page
+ * (SettingsPanel.tsx) showing that part. AI and models, My Gear and About have
+ * a section each, so they are always one click from the gear. The folder column
+ * and the tools stay where they are while it is open.
+ */
+
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { X } from 'lucide-react';
+import clsx from 'clsx';
+import SettingsPanel from '../../components/panel/SettingsPanel';
+import type { AppSettings } from '../../components/ui/AppProperties';
+import { useUIStore } from '../../store/useUIStore';
+import { useAgTranslation, type AgKey } from '../locales';
+
+export interface SettingsProps {
+  appSettings: AppSettings | null;
+  onLibraryRefresh(): void;
+  onSettingsChange(settings: AppSettings): Promise<void>;
+  rootPaths: string[];
+}
+
+const SECTIONS: { id: string; theirs?: string; ours?: AgKey }[] = [
+  { id: 'general', theirs: 'settings.categories.general' },
+  { id: 'ai', ours: 'mwSettingsAi' },
+  { id: 'gear', ours: 'mwSettingsGear' },
+  { id: 'processing', theirs: 'settings.categories.processing' },
+  { id: 'shortcuts', theirs: 'settings.categories.shortcuts' },
+  { id: 'about', ours: 'mwSettingsAbout' },
+];
+
+export default function ModernSettings(props: SettingsProps) {
+  const { t } = useTranslation();
+  const agT = useAgTranslation();
+  const setUI = useUIStore((s) => s.setUI);
+  const [section, setSection] = useState('general');
+  const close = () => setUI({ isSettingsOpen: false });
+
+  return (
+    <div className="agm-settings">
+      <nav className="agm-settings-nav">
+        <div className="agm-settings-title">
+          {agT('mwSettingsCrumb')}
+          <button className="agm-btn" onClick={close} data-tooltip={agT('mwSettingsClose')}>
+            <X size={15} />
+          </button>
+        </div>
+        {SECTIONS.map((entry) => (
+          <button
+            key={entry.id}
+            className={clsx('agm-settings-item', section === entry.id && 'agm-on')}
+            onClick={() => setSection(entry.id)}
+          >
+            {entry.ours ? agT(entry.ours) : t(entry.theirs as never)}
+          </button>
+        ))}
+        <div className="agm-settings-foot">{agT('mwSettingsKeys')}</div>
+      </nav>
+      <div className="agm-settings-body custom-scrollbar">
+        <SettingsPanel {...props} onBack={close} modernCategory={section} />
+      </div>
+    </div>
+  );
+}

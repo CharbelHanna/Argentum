@@ -49,7 +49,9 @@ import NoCloudTile from './NoCloudTile';
 import CompactSlidersSetting from './CompactSlidersSetting';
 import { useCompactSliders } from './compactSliders';
 import EditorLayoutSetting from './layout/EditorLayoutSetting';
-import { useEditorLayout } from './layout/editorLayout';
+import { useEditorLayout, useModernLayout } from './layout/editorLayout';
+import { useModernLook } from './modern/look';
+import AiModels from './AiModels';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
@@ -118,6 +120,11 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
     useEditorLayout.getState().load();
   }, []);
 
+  // The Modern window's look: a stylesheet keyed on <html>, and compact panels
+  // while it is chosen. Classic is untouched.
+  useModernLook();
+  const modern = useModernLayout();
+
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.
   // Their own slider labels identify which slider, so their files stay untouched.
@@ -159,6 +166,8 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // features download, what is on disk, and deleting them. It was a tab beside
   // Processing until RapidRAW 1.6.5 moved its AI settings to General.
   const general = useAnchor('[data-argentum="general"]');
+  // The Modern window's Settings > AI and models: its AI card, then AI Models.
+  const aiModels = useAnchor('[data-argentum="ai"]');
 
   // Under the format buttons in the export panel. Their file renders this marker
   // only while TIFF is selected, so the control appearing and disappearing costs
@@ -191,9 +200,10 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {sharpening && createPortal(<Sharpening />, sharpening)}
       {localSharpening && createPortal(<LocalSharpening />, localSharpening)}
       {gear && createPortal(<MyGear />, gear)}
+      {aiModels && createPortal(<AiModels />, aiModels)}
       {general && (
         <>
-          <AiModelsPlacement slot={general as HTMLElement} />
+          {!modern && <AiModelsPlacement slot={general as HTMLElement} />}
           <NoCloudTile slot={general as HTMLElement} />
           <CompactSlidersSetting slot={general as HTMLElement} />
           <EditorLayoutSetting slot={general as HTMLElement} />

@@ -26,6 +26,8 @@ import {
   FolderPlus,
   RefreshCw,
   Menu,
+  HardDrive,
+  Usb,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
@@ -38,6 +40,11 @@ import { TextColors, TextVariants, TextWeights } from '../../../types/typography
 import { useShallow } from 'zustand/react/shallow';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
+import { useModernLayout } from '../../../argentum/layout/editorLayout';
+import { driveName, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
+import RecentFolders, { RECENT_FOLDED } from '../../../argentum/modern/RecentFolders';
+import { formatSize } from '../../../argentum/formatSize';
+import { useAgTranslation } from '../../../argentum/locales';
 import { useUIStore } from '../../../store/useUIStore';
 import { AlbumItem, AlbumGroup, Album, Invokes, FolderTreeSort, SortDirection } from '../../ui/AppProperties';
 import { useLibraryActions } from '../../../hooks/useLibraryActions';
@@ -186,7 +193,8 @@ function FolderOptionsMenu({
 }: {
   sort: FolderTreeSort;
   onChange: (s: FolderTreeSort) => void;
-  onAddFolder: () => void;
+  /** Absent in Modern, which lists every disk instead. */
+  onAddFolder?: () => void;
   onRefresh: () => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -286,19 +294,21 @@ function FolderOptionsMenu({
                 );
               })}
               <div className="h-px bg-text-secondary/20 my-1 mx-2" />
-              <button
-                className="w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-3 justify-between transition-colors duration-150 text-text-primary hover:bg-bg-primary"
-                onClick={() => {
-                  onAddFolder();
-                  setIsOpen(false);
-                }}
-                role="menuitem"
-              >
-                <div className="flex items-center gap-3 capitalize">
-                  <FolderPlus size={16} />
-                  <span>{t('library.folders.addFolder')}</span>
-                </div>
-              </button>
+              {onAddFolder && (
+                <button
+                  className="w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-3 justify-between transition-colors duration-150 text-text-primary hover:bg-bg-primary"
+                  onClick={() => {
+                    onAddFolder();
+                    setIsOpen(false);
+                  }}
+                  role="menuitem"
+                >
+                  <div className="flex items-center gap-3 capitalize">
+                    <FolderPlus size={16} />
+                    <span>{t('library.folders.addFolder')}</span>
+                  </div>
+                </button>
+              )}
 
               <button
                 className="w-full text-left px-3 py-2 text-sm rounded-md flex items-center gap-3 justify-between transition-colors duration-150 text-text-primary hover:bg-bg-primary"
@@ -511,6 +521,10 @@ function TreeNode({
   const hasChildren = node.hasSubdirs || (node.children && node.children.length > 0);
   const isSelected = node.path === selectedPath;
   const isPinned = pinnedFolders.includes(node.path);
+  // Argentum: a disk at the top of the Modern window's This computer, and a star for a favourite there.
+  const drive = useModernFolders((s) => s.drives.find((d) => d.path === node.path));
+  const modernFavourite = useModernLayout() && sectionId === 'pinned' && isPinned;
+  const agT = useAgTranslation();
 
   const { setNodeRef, isOver, active } = useDroppable({
     id: `folder-${sectionId}-${node.path}`,
@@ -563,11 +577,21 @@ function TreeNode({
     ResolvedIcon = ALBUM_ICONS[currentFolderIconKey];
   }
 
+  if (drive) {
+    ResolvedIcon = drive.removable ? Usb : HardDrive;
+  } else if (modernFavourite) {
+    ResolvedIcon = Star;
+  }
+
   if (isDropTarget) {
     ResolvedIcon = MoveRight;
   }
 
-  const iconKey = isDropTarget ? 'drop-target' : currentFolderIconKey || (isExpanded ? 'folder-open' : 'folder-closed');
+  const iconKey = isDropTarget
+    ? 'drop-target'
+    : drive
+      ? 'drive'
+      : currentFolderIconKey || (isExpanded ? 'folder-open' : 'folder-closed');
 
   return (
     <Text as="div" color={TextColors.primary} weight={TextWeights.medium}>
@@ -605,10 +629,21 @@ function TreeNode({
         </div>
 
         <span onDoubleClick={handleNameDoubleClick} className="min-w-0 flex-1 select-none">
-          <span className="block truncate">{node.name}</span>
+          <span className="block truncate">{drive ? driveName(drive) : node.name}</span>
         </span>
 
-        {typeof node.imageCount === 'number' && node.imageCount > 0 && (
+        {drive && drive.totalBytes > 0 && (
+          <Text
+            as="span"
+            variant={TextVariants.small}
+            color={TextColors.secondary}
+            className="ml-auto shrink-0 tabular-nums"
+          >
+            {agT('modernFree').replace('{size}', formatSize(drive.freeBytes))}
+          </Text>
+        )}
+
+        {!drive && typeof node.imageCount === 'number' && node.imageCount > 0 && (
           <Text
             as="span"
             variant={TextVariants.small}
@@ -697,6 +732,12 @@ export default function FolderTree({
   isInstantTransition,
 }: FolderTreeProps) {
   const { t } = useTranslation();
+  // Argentum: the Modern window names the groups its own way, lists Recent and
+  // every disk, and has no albums, Add folder or header of its own.
+  const modern = useModernLayout();
+  const agT = useAgTranslation();
+  const hasRecent = useModernFolders((s) => s.recent.length > 0);
+  const [modernSearch, setModernSearch] = useState(false);
   const { appSettings, handleSettingsChange } = useSettingsStore(
     useShallow((state) => ({
       appSettings: state.appSettings,
@@ -867,14 +908,38 @@ export default function FolderTree({
   return (
     <div
       className={clsx(
-        'relative bg-bg-secondary rounded-lg shrink-0 flex flex-col h-full',
-        !isResizing && 'transition-[width] duration-300 ease-in-out',
+        'relative bg-bg-secondary shrink-0 flex flex-col h-full',
+        modern ? 'agm-tree' : 'rounded-lg',
+        !isResizing && !modern && 'transition-[width] duration-300 ease-in-out',
       )}
       style={style}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
     >
-      <div className="p-3 flex justify-between items-center shrink-0 border-b border-surface">
+      {modern && (
+        <div className="agm-sec-head">
+          <span>{agT('modernFolders')}</span>
+          <span className="agm-sec-tools">
+            <button
+              className="agm-btn"
+              onClick={() => setModernSearch((v) => !v)}
+              data-tooltip={t('library.folders.searchPlaceholder')}
+            >
+              <Search size={13} />
+            </button>
+            <FolderOptionsMenu
+              sort={folderTreeSort}
+              onChange={(newSort) => {
+                if (appSettings) handleSettingsChange({ ...appSettings, folderTreeSort: newSort });
+              }}
+              onRefresh={refreshModernTrees}
+            />
+          </span>
+        </div>
+      )}
+      <div
+        className={clsx('p-3 flex justify-between items-center shrink-0 border-b border-surface', modern && 'hidden')}
+      >
         <Text variant={TextVariants.title}>{t('library.folders.sourcesTitle')}</Text>
         <div className="flex items-center gap-1">
           <button
@@ -895,8 +960,8 @@ export default function FolderTree({
           </button>
         </div>
       </div>
-      <div className="p-2 flex flex-col flex-1 min-h-0">
-        <div className="pt-1 pb-2 flex items-center gap-1">
+      <div className={clsx('flex flex-col flex-1 min-h-0', modern ? 'px-1' : 'p-2')}>
+        <div className={clsx('pt-1 pb-2 flex items-center gap-1', modern && !modernSearch && 'hidden')}>
           <div className="relative flex-1 min-w-0">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
             <input
@@ -917,23 +982,31 @@ export default function FolderTree({
             )}
           </div>
 
-          <FolderOptionsMenu
-            sort={folderTreeSort}
-            onChange={(newSort) => {
-              if (appSettings) handleSettingsChange({ ...appSettings, folderTreeSort: newSort });
-            }}
-            onAddFolder={onOpenFolder}
-            onRefresh={refreshAllFolderTrees}
-          />
+          {!modern && (
+            <FolderOptionsMenu
+              sort={folderTreeSort}
+              onChange={(newSort) => {
+                if (appSettings) handleSettingsChange({ ...appSettings, folderTreeSort: newSort });
+              }}
+              onAddFolder={onOpenFolder}
+              onRefresh={refreshAllFolderTrees}
+            />
+          )}
         </div>
 
         <LayoutGroup id="folder-tree">
           <div className="flex-1 overflow-y-auto" onContextMenu={handleEmptyAreaContextMenu}>
+            {modern && !hasVisiblePinnedTrees && !isSearching && (
+              <>
+                <SectionHeader title={agT('modernFavourites')} isOpen onToggle={() => {}} />
+                <div className="agm-hint">{agT('mwFavouritesHint')}</div>
+              </>
+            )}
             {hasVisiblePinnedTrees && (
               <>
                 <div>
                   <SectionHeader
-                    title={t('library.folders.sections.pinned')}
+                    title={modern ? agT('modernFavourites') : t('library.folders.sections.pinned')}
                     isOpen={isPinnedOpen}
                     onToggle={() => toggleSection('pinned')}
                   />
@@ -992,7 +1065,22 @@ export default function FolderTree({
               </>
             )}
 
-            {showAlbumsSection && (
+            {modern && hasRecent && !isSearching && (
+              <>
+                <div>
+                  <SectionHeader
+                    title={agT('modernRecent')}
+                    isOpen={!openSections.includes(RECENT_FOLDED)}
+                    onToggle={() => toggleSection(RECENT_FOLDED)}
+                  />
+                </div>
+                {!openSections.includes(RECENT_FOLDED) && (
+                  <RecentFolders onFolderSelect={onFolderSelect} selectedPath={selectedPath} />
+                )}
+              </>
+            )}
+
+            {!modern && showAlbumsSection && (
               <>
                 <div>
                   <SectionHeader
@@ -1057,7 +1145,7 @@ export default function FolderTree({
               <>
                 <div>
                   <SectionHeader
-                    title={t('library.folders.sections.folders')}
+                    title={modern ? agT('modernThisComputer') : t('library.folders.sections.folders')}
                     isOpen={isCurrentOpen}
                     onToggle={() => toggleSection('current')}
                   />
@@ -1111,7 +1199,7 @@ export default function FolderTree({
                         </AnimatePresence>
 
                         <AnimatePresence initial={false}>
-                          {isHovering && !isSearching && (
+                          {!modern && isHovering && !isSearching && (
                             <motion.div
                               layout="position"
                               initial={{ opacity: 0, height: 0, overflow: 'hidden' }}

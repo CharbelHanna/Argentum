@@ -43,6 +43,8 @@ import { useUIStore } from '../../store/useUIStore';
 import SettingsPanel from './SettingsPanel';
 
 import LibraryGrid from './library/LibraryGrid';
+import clsx from 'clsx';
+import ModernEmpty from '../../argentum/modern/ModernEmpty';
 import { SearchInput, ViewOptionsDropdown } from './library/LibraryHeader';
 
 export interface ColumnWidths {
@@ -161,7 +163,12 @@ function DisplayModeSwitch({ displayMode, setDisplayMode, t }: DisplayModeSwitch
   );
 }
 
-export default function MainLibrary(props: MainLibraryProps) {
+/**
+ * Argentum: `modern` is the Modern window's grid: no header (its top bar has
+ * the path and the view tools), no start screen (it opens on the folder
+ * column), and its own empty view until a folder is picked.
+ */
+export default function MainLibrary(props: MainLibraryProps & { modern?: boolean }) {
   const { t } = useTranslation();
   const setUI = useUIStore((state) => state.setUI);
   const [appVersion, setAppVersion] = useState('');
@@ -323,6 +330,10 @@ export default function MainLibrary(props: MainLibraryProps) {
 
     checkVersion();
   }, []);
+
+  if (props.modern && (!props.currentFolderPath || !props.rootPaths?.length)) {
+    return <ModernEmpty />;
+  }
 
   if (!props.rootPaths || props.rootPaths.length === 0) {
     if (!props.appSettings) {
@@ -503,8 +514,14 @@ export default function MainLibrary(props: MainLibraryProps) {
   }
 
   return (
-    <div className="relative z-20 flex-1 flex flex-col min-w-0 min-h-0 bg-bg-secondary rounded-lg overflow-visible">
+    <div
+      className={clsx(
+        'relative z-20 flex-1 flex flex-col min-w-0 min-h-0 overflow-visible',
+        props.modern ? 'agm-grid-root' : 'bg-bg-secondary rounded-lg',
+      )}
+    >
       <header
+        hidden={props.modern}
         className="p-3 shrink-0 flex justify-between items-center border-b border-surface gap-4"
         onMouseEnter={() => setIsProgressHovered(true)}
         onMouseLeave={() => setIsProgressHovered(false)}

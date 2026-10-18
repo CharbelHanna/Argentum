@@ -22,7 +22,8 @@ import { useWaveformControls } from '../../hooks/useWaveformControls';
 import type { Adjustments } from '../../utils/adjustments';
 import { useAgTranslation } from '../locales';
 
-export default function HistogramSection() {
+/** `height`: a fixed graph height, without the resize handle (the Modern window's right panel). */
+export default function HistogramSection({ height }: { height?: number } = {}) {
   const agT = useAgTranslation();
   const theme = useSettingsStore((s) => s.theme);
   const { setAdjustments } = useEditorActions();
@@ -47,7 +48,7 @@ export default function HistogramSection() {
       onToggle={onToggleWaveform}
       title={agT('layoutHistogram')}
     >
-      <div style={{ height: waveformHeight || 200 }}>
+      <div style={{ height: height ?? (waveformHeight || 200) }}>
         <Waveform
           waveformData={waveform || null}
           histogram={histogram}
@@ -64,7 +65,7 @@ export default function HistogramSection() {
           theme={theme}
         />
       </div>
-      <Resizer direction={Orientation.Horizontal} onMouseDown={handleWaveformResize} />
+      {height === undefined && <Resizer direction={Orientation.Horizontal} onMouseDown={handleWaveformResize} />}
     </CollapsibleSection>
   );
 }
