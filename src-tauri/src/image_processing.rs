@@ -2138,6 +2138,9 @@ pub fn is_image_edited(
     bytemuck::bytes_of(&current_adj) != bytemuck::bytes_of(&default_adj)
 }
 
+// Argentum: which section's eye turns an adjustment off follows the Edit panel
+// (src/argentum/editSections.ts): white balance, saturation, vibrance, clarity,
+// dehaze, structure and centré are in Basic there, so Basic's eye gates them.
 fn is_section_visible(adjustments: &serde_json::Value, section: &str) -> bool {
     adjustments
         .get("sectionVisibility")
@@ -2293,8 +2296,8 @@ fn get_global_adjustments_from_json(
         whites: get_val("basic", "whites", SCALES.whites, None),
         blacks: get_val("basic", "blacks", SCALES.blacks, None),
 
-        saturation: get_val("color", "saturation", SCALES.saturation, None),
-        vibrance: get_val("color", "vibrance", SCALES.vibrance, None),
+        saturation: get_val("basic", "saturation", SCALES.saturation, None),
+        vibrance: get_val("basic", "vibrance", SCALES.vibrance, None),
         hue: get_val("color", "hue", 1.0, None),
         wb_log_gain_l: white_balance_gains[0],
         wb_log_gain_m: white_balance_gains[1],
@@ -2316,10 +2319,10 @@ fn get_global_adjustments_from_json(
             None,
         ),
 
-        clarity: get_val("details", "clarity", SCALES.clarity, None),
-        dehaze: get_val("details", "dehaze", SCALES.dehaze, None),
-        structure: get_val("details", "structure", SCALES.structure, None),
-        centré: get_val("details", "centré", SCALES.centré, None),
+        clarity: get_val("basic", "clarity", SCALES.clarity, None),
+        dehaze: get_val("basic", "dehaze", SCALES.dehaze, None),
+        structure: get_val("basic", "structure", SCALES.structure, None),
+        centré: get_val("basic", "centré", SCALES.centré, None),
         vignette_amount: get_val("effects", "vignetteAmount", SCALES.vignette_amount, None),
         vignette_midpoint: get_val(
             "effects",
@@ -2508,7 +2511,7 @@ fn get_mask_adjustments_from_json(
         Vec::new()
     };
     let cg_obj = adj.get("colorGrading").cloned().unwrap_or_default();
-    let [wb_log_gain_l, wb_log_gain_m, wb_log_gain_s] = if is_visible("color") {
+    let [wb_log_gain_l, wb_log_gain_m, wb_log_gain_s] = if is_visible("basic") {
         white_balance::adaptation_log_gains(
             global_white_balance,
             global_white_balance.shifted(
@@ -2529,8 +2532,8 @@ fn get_mask_adjustments_from_json(
         whites: get_val("basic", "whites", SCALES.whites),
         blacks: get_val("basic", "blacks", SCALES.blacks),
 
-        saturation: get_val("color", "saturation", SCALES.saturation),
-        vibrance: get_val("color", "vibrance", SCALES.vibrance),
+        saturation: get_val("basic", "saturation", SCALES.saturation),
+        vibrance: get_val("basic", "vibrance", SCALES.vibrance),
 
         sharpness: get_val("details", "sharpness", SCALES.sharpness),
         luma_noise_reduction: get_val("details", "lumaNoiseReduction", SCALES.luma_noise_reduction),
@@ -2540,9 +2543,9 @@ fn get_mask_adjustments_from_json(
             SCALES.color_noise_reduction,
         ),
 
-        clarity: get_val("details", "clarity", SCALES.clarity),
-        dehaze: get_val("details", "dehaze", SCALES.dehaze),
-        structure: get_val("details", "structure", SCALES.structure),
+        clarity: get_val("basic", "clarity", SCALES.clarity),
+        dehaze: get_val("basic", "dehaze", SCALES.dehaze),
+        structure: get_val("basic", "structure", SCALES.structure),
 
         glow_amount: get_val("effects", "glowAmount", SCALES.glow),
         halation_amount: get_val("effects", "halationAmount", SCALES.halation),
@@ -2618,7 +2621,7 @@ pub fn get_all_adjustments_from_json(
     tonemapper_override: Option<u32>,
     photo: Option<&str>,
 ) -> AllAdjustments {
-    let target_white_balance = if is_section_visible(js_adjustments, "color") {
+    let target_white_balance = if is_section_visible(js_adjustments, "basic") {
         white_balance::from_adjustments(js_adjustments, as_shot_white_balance)
     } else {
         as_shot_white_balance
@@ -3678,6 +3681,35 @@ mod tests {
         assert!(darker[0] < input[0], "negative detail was suppressed");
         assert!(brighter[0] > input[2], "positive detail was suppressed");
         assert!(brighter[0] > 1.0, "above-white headroom was lost");
+    }
+
+    /// Argentum: Basic's eye turns off what the Edit panel shows in Basic,
+    /// Color's and Details' only what they still show.
+    #[test]
+    fn section_eyes_follow_the_edit_panel() {
+        let edit = |visibility: serde_json::Value| {
+            let js = json!({
+                "saturation": 40, "vibrance": 30, "clarity": 20, "dehaze": 10, "structure": 15,
+                "hue": 25, "sharpness": 35, "sectionVisibility": visibility,
+            });
+            get_global_adjustments_from_json(&js, false, [0.0; 3], None, None)
+        };
+        let basic_off = edit(json!({ "basic": false }));
+        for (name, value) in [
+            ("saturation", basic_off.saturation),
+            ("vibrance", basic_off.vibrance),
+            ("clarity", basic_off.clarity),
+            ("dehaze", basic_off.dehaze),
+            ("structure", basic_off.structure),
+        ] {
+            assert_eq!(value, 0.0, "Basic's eye left {name} on");
+        }
+        assert!(basic_off.hue != 0.0 && basic_off.sharpness != 0.0);
+
+        let others_off = edit(json!({ "color": false, "details": false }));
+        assert!(others_off.saturation != 0.0 && others_off.clarity != 0.0);
+        assert_eq!(others_off.hue, 0.0);
+        assert_eq!(others_off.sharpness, 0.0);
     }
 }
 

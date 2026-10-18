@@ -14,7 +14,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { ag } from '../ag';
 import { forgetFolderCounts } from './folderCounts';
-import { useEditorLayout } from '../layout/editorLayout';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -52,7 +51,8 @@ export const useModernFolders = create<FoldersState>(() => ({ drives: [], recent
 /** How the library writes an album in `currentFolderPath`. */
 const ALBUM_PREFIX = 'Album: ';
 
-export const isModern = () => useEditorLayout.getState().layout === 'modern';
+/** The Modern window is the only arrangement; see useModernLayout. */
+export const isModern = () => true;
 
 /**
  * Whether unfolding a folder counts its photos the library's way. In Modern
@@ -166,16 +166,6 @@ export async function refreshModernTrees(): Promise<void> {
   } catch (err) {
     console.error('Failed to refresh the folder column:', err);
   }
-}
-
-/**
- * Start the library again for the layout just chosen: its folders go, and its
- * own start brings them back that layout's way (Modern fills the column at
- * once, Classic shows its start screen).
- */
-export function restartLibrary() {
-  useModernFolders.setState({ unavailable: false });
-  useLibraryStore.getState().setLibrary({ rootPaths: [], folderTrees: [] });
 }
 
 let watching = false;

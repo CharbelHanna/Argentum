@@ -1,18 +1,15 @@
 /**
- * Compact panels, on or off, and how much space between rows. Ours.
+ * The compact panels and their row spacing. Ours.
  * (Compact sliders until the tone curve joined.)
  *
  * The layout is all in compactSliders.css, keyed on one attribute on <html>,
- * and the row spacing is one CSS variable beside it. This reads both
- * preferences at startup, puts them on the page, and changes them when the
- * controls in Settings move. The controls and the startup read are in
- * different places, so the state sits here rather than in either.
+ * and the row spacing is one CSS variable beside it. The panels are always
+ * compact, as the Modern look draws them; the switch that turned it off went
+ * with Classic. This reads the row spacing at startup, puts both on the page,
+ * and changes the spacing when Settings > General > Panels moves it.
  *
  * Stored in argentum-processing.json beside our other preferences, through the
  * same `ag` commands, rather than in their settings.json.
- *
- * The Modern look is always compact (modernLook.ts forces it), whatever the
- * preference says; the preference is kept for Classic.
  */
 
 import { create } from 'zustand';
@@ -27,14 +24,6 @@ export const DEFAULT_GAP = 4;
 /** The slider's end. Rust clamps to the same. */
 export const MAX_GAP = 12;
 
-function show(on: boolean) {
-  if (on) {
-    document.documentElement.setAttribute(ATTRIBUTE, 'compact');
-  } else {
-    document.documentElement.removeAttribute(ATTRIBUTE);
-  }
-}
-
 function showGap(gap: number) {
   document.documentElement.style.setProperty(GAP_VARIABLE, `${gap}px`);
 }
@@ -46,49 +35,20 @@ function showGap(gap: number) {
 let gapSave: ReturnType<typeof setTimeout> | undefined;
 
 interface CompactSlidersState {
-  /** The preference. Null until it has been read. */
-  on: boolean | null;
-  /** Compact whatever the preference says: the Modern look is on. */
-  forced: boolean;
   gap: number;
   load: () => Promise<void>;
-  choose: (on: boolean) => Promise<void>;
   chooseGap: (gap: number) => void;
-  setForced: (forced: boolean) => void;
 }
 
-/** Whether the panels are drawn compact now: chosen, or forced by the Modern look. */
-export const isCompact = (s: Pick<CompactSlidersState, 'on' | 'forced'>) => (s.on ?? false) || s.forced;
-
-export const useCompactSliders = create<CompactSlidersState>((set, get) => ({
-  on: null,
-  forced: false,
+export const useCompactSliders = create<CompactSlidersState>((set) => ({
   gap: DEFAULT_GAP,
 
   load: async () => {
-    // Unreadable is off, which is how the sliders were drawn before this, and
-    // the default spacing.
-    const [on, gap] = await Promise.all([
-      ag<boolean>('compact_sliders').catch(() => false),
-      ag<number>('compact_slider_gap').catch(() => DEFAULT_GAP),
-    ]);
-    set({ on, gap });
+    document.documentElement.setAttribute(ATTRIBUTE, 'compact');
+    // Unreadable is the default spacing.
+    const gap = await ag<number>('compact_slider_gap').catch(() => DEFAULT_GAP);
+    set({ gap });
     showGap(gap);
-    show(isCompact(get()));
-  },
-
-  choose: async (on) => {
-    const previous = get().on ?? false;
-    // Shown at once: a switch that lags a click reads as broken.
-    set({ on });
-    show(isCompact(get()));
-    try {
-      await ag('set_compact_sliders', { on });
-    } catch {
-      // Not saved, so not chosen: put back what will be there next start.
-      set({ on: previous });
-      show(isCompact(get()));
-    }
   },
 
   chooseGap: (gap) => {
@@ -102,11 +62,5 @@ export const useCompactSliders = create<CompactSlidersState>((set, get) => ({
       // it back mid-drag would be worse than the next start forgetting it.
       ag('set_compact_slider_gap', { gap: clamped }).catch(() => {});
     }, 400);
-  },
-
-  setForced: (forced) => {
-    // Not saved: it follows the layout, which is.
-    set({ forced });
-    show(isCompact(get()));
   },
 }));

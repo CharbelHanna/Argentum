@@ -1,12 +1,11 @@
 /**
- * Which arrangement of today's panels the editor shows, and how the parts only
- * the Modern arrangement has were left. Ours.
+ * How the Modern window was left and how it is drawn: its own parts' folds,
+ * sizes and places, its palette and its text size. Ours.
  *
- * Classic is today's arrangement and the default. Modern arranges the same
- * window like Lightroom Classic; see argentum/modern/ModernWindow.tsx. Chosen in Settings >
- * General > Layout, read once at startup, and stored in
- * argentum-processing.json beside Compact panels through the same `ag`
- * commands (mods/editor_layout.rs), not in their settings.json.
+ * The Modern window (argentum/modern/ModernWindow.tsx) is the only
+ * arrangement; the Layout choice and Classic's arrangement of the window are
+ * gone. Read once at startup and stored in argentum-processing.json through
+ * the `ag` commands (mods/editor_layout.rs), not in their settings.json.
  *
  * Everything else the arrangement remembers is today's own state, saved where
  * it always was: panel widths and folds (useUIStore's workspace and
@@ -18,11 +17,11 @@ import { create } from 'zustand';
 import { Panel } from '../../components/ui/AppProperties';
 import { ag } from '../ag';
 
-/** Mirrors mods::editor_layout::EditorLayout. Hand-written: the app does not generate its types yet. */
-export type EditorLayoutName = 'classic' | 'modern';
-
-/** Mirrors mods::editor_layout::ModernTheme. Hand-written, as above. */
+/** Mirrors mods::editor_layout::ModernTheme. Hand-written: the app does not generate its types yet. */
 export type ModernThemeName = 'grey' | 'deep' | 'light';
+
+/** Mirrors mods::editor_layout::TextSize. Hand-written, as above. */
+export type TextSizeName = 'small' | 'normal' | 'large';
 
 /** Mirrors mods::editor_layout::LayoutPanels. Hand-written, as above. */
 export interface LayoutPanels {
@@ -59,41 +58,41 @@ export const DEFAULT_PANELS: LayoutPanels = {
 let panelsSave: ReturnType<typeof setTimeout> | undefined;
 
 interface EditorLayoutState {
-  /** Null until the preference has been read. */
-  layout: EditorLayoutName | null;
   panels: LayoutPanels;
-  /** The Modern window's palette (Settings > General > Theme while Modern is chosen). */
+  /** The palette (Settings > General > Theme). */
   theme: ModernThemeName;
+  /** How large the panels' text is (Settings > General > Panels). */
+  textSize: TextSizeName;
   load: () => Promise<void>;
-  choose: (layout: EditorLayoutName) => Promise<void>;
   chooseTheme: (theme: ModernThemeName) => Promise<void>;
+  chooseTextSize: (textSize: TextSizeName) => Promise<void>;
   changePanels: (change: Partial<LayoutPanels>) => void;
 }
 
 export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
-  layout: null,
   panels: DEFAULT_PANELS,
   theme: 'grey',
+  textSize: 'normal',
 
   load: async () => {
-    // Unreadable is Classic, today's arrangement, and the panels as they first open.
-    const [layout, panels, theme] = await Promise.all([
-      ag<EditorLayoutName>('editor_layout').catch((): EditorLayoutName => 'classic'),
+    // Unreadable is the panels as they first open, Grey and Normal.
+    const [panels, theme, textSize] = await Promise.all([
       ag<LayoutPanels | null>('editor_layout_panels').catch(() => null),
       ag<ModernThemeName>('modern_theme').catch((): ModernThemeName => 'grey'),
+      ag<TextSizeName>('text_size').catch((): TextSizeName => 'normal'),
     ]);
-    set({ layout, panels: panels ?? DEFAULT_PANELS, theme });
+    set({ panels: panels ?? DEFAULT_PANELS, theme, textSize });
   },
 
-  choose: async (layout) => {
-    const previous = get().layout ?? 'classic';
+  chooseTextSize: async (textSize) => {
+    const previous = get().textSize;
     // Shown at once: a choice that lags a click reads as broken.
-    set({ layout });
+    set({ textSize });
     try {
-      await ag('set_editor_layout', { layout });
+      await ag('set_text_size', { size: textSize });
     } catch {
       // Not saved, so not chosen: put back what will be there next start.
-      set({ layout: previous });
+      set({ textSize: previous });
     }
   },
 
@@ -119,5 +118,10 @@ export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
   },
 }));
 
-/** Whether the Modern arrangement is chosen. */
-export const useModernLayout = () => useEditorLayout((s) => s.layout === 'modern');
+/**
+ * Whether the Modern window is in charge: always, now that it is the only
+ * arrangement. Kept while Classic's code is still in the app (App.tsx still
+ * draws it for a narrow portrait window), so the places that ask stay
+ * findable for its removal.
+ */
+export const useModernLayout = () => true;

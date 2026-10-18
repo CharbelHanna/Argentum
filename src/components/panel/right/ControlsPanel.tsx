@@ -16,9 +16,10 @@ import {
   Adjustments,
   SectionVisibility,
   INITIAL_ADJUSTMENTS,
-  ADJUSTMENT_SECTIONS,
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
+import { EDIT_SECTION_KEYS, initialValues, PROFILE_KEYS } from '../../../argentum/editSections';
+import ProfileSection, { PROFILE_SECTION } from '../../../argentum/ProfileSection';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
@@ -138,15 +139,11 @@ export default function Controls({
     });
   };
 
+  // Argentum: every section as the panel arranges them, Profile included (argentum/editSections.ts).
   const handleResetAdjustments = () => {
     setAdjustments((prev: Adjustments) => ({
       ...prev,
-      ...Object.keys(ADJUSTMENT_SECTIONS)
-        .flatMap((s) => ADJUSTMENT_SECTIONS[s])
-        .reduce((acc: any, key: string) => {
-          acc[key] = INITIAL_ADJUSTMENTS[key as keyof Adjustments];
-          return acc;
-        }, {}),
+      ...initialValues([...Object.values(EDIT_SECTION_KEYS).flat(), ...PROFILE_KEYS]),
       sectionVisibility: { ...INITIAL_ADJUSTMENTS.sectionVisibility },
     }));
   };
@@ -169,17 +166,13 @@ export default function Controls({
   // Argentum: the section menu's Reset, also the reset button in a section's
   // header in the Modern look.
   const resetSection = (sectionName: string) => {
-    const sectionKeys = ADJUSTMENT_SECTIONS[sectionName];
+    const sectionKeys = EDIT_SECTION_KEYS[sectionName];
     if (!sectionKeys) {
       return;
     }
-    const resetValues: any = {};
-    for (const key of sectionKeys) {
-      resetValues[key] = JSON.parse(JSON.stringify(INITIAL_ADJUSTMENTS[key as keyof Adjustments]));
-    }
     setAdjustments((prev: Adjustments) => ({
       ...prev,
-      ...resetValues,
+      ...initialValues(sectionKeys),
       sectionVisibility: {
         ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
         [sectionName]: true,
@@ -191,7 +184,7 @@ export default function Controls({
     event.preventDefault();
     event.stopPropagation();
 
-    const sectionKeys = ADJUSTMENT_SECTIONS[sectionName];
+    const sectionKeys = EDIT_SECTION_KEYS[sectionName];
     if (!sectionKeys) {
       return;
     }
@@ -321,6 +314,15 @@ export default function Controls({
         className={clsx('grow overflow-y-scroll p-3 flex flex-col gap-2', readOnly && 'agm-readonly')}
         inert={!!readOnly}
       >
+        {/* Argentum: Profile first, ahead of the sections the Customise menu orders. */}
+        {selectedImage && !readOnly && (
+          <ProfileSection
+            adjustments={adjustments}
+            setAdjustments={setAdjustments}
+            tonemapperOverride={!!appSettings?.tonemapperOverrideEnabled}
+            onToggle={() => handleToggleSection(PROFILE_SECTION)}
+          />
+        )}
         {selectedImage || readOnly ? (
           visibleSections.map((sectionName: string) => {
             const SectionComponent: any = {

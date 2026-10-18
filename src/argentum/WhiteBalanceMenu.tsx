@@ -7,19 +7,11 @@
  *
  * WHERE IT GOES
  *
- * A row of its own at the top of the White Balance section, above
- * Temperature: "Preset" on the left, the menu on the right, where Lightroom
- * has its WB row. It started in their header beside K and the picker, and on
- * a narrow panel that pushed "White Balance" onto two lines even for Flash,
- * the shortest name.
- *
- * Their `Color.tsx` gives Argentum one slot in that section, the
- * `data-argentum="color-tools"` marker in the header. The row is placed from
- * it, the way AiModelsPlacement places its card: from the marker up to their
- * header row, across to the folding body after it (AdjustmentSubSection's
- * markup), and a container of our own is put first in that body. If the body
- * is ever not where that expects, the menu sits in the slot itself, in the
- * header, rather than nowhere.
+ * The white balance row, first in Basic: "White balance", this menu and an
+ * Auto button beside it, then their K mode and picker, where Lightroom has
+ * its WB row. Their row (components/adjustments/WhiteBalance.tsx) leaves the
+ * `data-argentum="white-balance"` slot for it; Argentum.tsx mounts this there.
+ * Auto is in the menu too, and the button says so while it is the choice.
  *
  * WHAT IT OFFERS
  *
@@ -67,7 +59,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { useAgTranslation } from './locales';
-import { useCompactSliders } from './compactSliders';
 import { useEditorStore } from '../store/useEditorStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useEditorActions } from '../hooks/useEditorActions';
@@ -155,50 +146,7 @@ interface MenuPosition {
   above: boolean;
 }
 
-/**
- * A container of ours, first in the folding body of the section `slot` is in,
- * or null when the body is not where AdjustmentSubSection puts it: the element
- * after their header row, whose first child holds the sliders.
- */
-function useSectionRow(slot: HTMLElement): HTMLElement | null {
-  const [row, setRow] = useState<HTMLElement | null>(null);
-
-  useEffect(() => {
-    const own = document.createElement('div');
-    const header = slot.closest('.cursor-pointer');
-
-    const place = () => {
-      const body = header?.nextElementSibling?.firstElementChild;
-      if (body?.querySelector('input[type="range"]')) {
-        // React only ever positions its own nodes, so ours stays first.
-        if (body.firstElementChild !== own) {
-          body.prepend(own);
-        }
-        setRow(own);
-      } else {
-        own.remove();
-        setRow(null);
-      }
-    };
-
-    place();
-    // Their section re-renders its sliders when the K mode switches.
-    const observer = new MutationObserver(place);
-    if (header?.parentElement) {
-      observer.observe(header.parentElement, { childList: true, subtree: true });
-    }
-    return () => {
-      observer.disconnect();
-      own.remove();
-    };
-  }, [slot]);
-
-  return row;
-}
-
-export default function WhiteBalanceMenu({ slot }: { slot: HTMLElement }) {
-  const row = useSectionRow(slot);
-  const isCompact = useCompactSliders((s) => s.on);
+export default function WhiteBalanceMenu() {
   // From the stores rather than props: this is mounted through a portal, so
   // there is no parent to pass anything down. See Argentum.tsx.
   const adjustments = useEditorStore((s) => s.adjustments) as WithAuto;
@@ -372,9 +320,7 @@ export default function WhiteBalanceMenu({ slot }: { slot: HTMLElement }) {
 
   const separator = (key: string) => <div key={key} className="h-px bg-text-secondary/20 my-1 mx-2" />;
 
-  // In the row it reads like a slider's value, the same size and colour; in
-  // the header, where it only lands if the row cannot be placed, like K.
-  const small = !row || isCompact;
+  // It reads like a slider's value, the same size and colour.
   const trigger = (
     <button
       ref={triggerRef}
@@ -386,37 +332,35 @@ export default function WhiteBalanceMenu({ slot }: { slot: HTMLElement }) {
       className={clsx(
         'pl-1.5 pr-1 flex items-center gap-0.5 rounded-md whitespace-nowrap transition-colors',
         'disabled:opacity-50 disabled:cursor-not-allowed',
-        small ? 'text-xs' : 'text-sm',
-        row ? '-mr-1' : '',
-        row && isCompact ? 'h-5' : 'h-6',
-        isOpen
-          ? 'bg-bg-secondary text-text-primary'
-          : clsx('hover:bg-bg-secondary', row ? 'text-text-primary' : 'text-text-secondary'),
+        'text-xs h-5',
+        isOpen ? 'bg-bg-secondary text-text-primary' : 'hover:bg-bg-secondary text-text-primary',
       )}
-      data-tooltip={isOpen || row ? undefined : t('wbMenuTooltip')}
+      data-tooltip={isOpen ? undefined : t('wbMenuTooltip')}
     >
       <span className={isDetecting ? 'animate-pulse' : undefined}>{t(LABELS[isDetecting ? 'auto' : choice])}</span>
       <ChevronDown size={12} className={clsx('transition-transform duration-200', isOpen && 'rotate-180')} />
     </button>
   );
 
+  const autoButton = (
+    <button
+      type="button"
+      onClick={chooseAuto}
+      disabled={!asShot || isDetecting}
+      className={clsx(
+        'px-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs h-5',
+        choice === 'auto' ? 'bg-accent text-button-text' : 'bg-bg-secondary hover:bg-card-active text-text-primary',
+      )}
+      data-tooltip={t('wbAutoTooltip')}
+    >
+      {t(LABELS.auto)}
+    </button>
+  );
+
   return (
     <>
-      {row
-        ? createPortal(
-            // Spaced like the sliders under it: their gap, or Row spacing in compact panels.
-            <div
-              className={clsx('flex items-center justify-between gap-2', !isCompact && 'mb-2')}
-              style={isCompact ? { marginBottom: 'var(--ag-slider-gap, 4px)' } : undefined}
-            >
-              <span className={clsx('font-medium text-text-secondary select-none', small ? 'text-xs' : 'text-sm')}>
-                {t('wbPresetLabel')}
-              </span>
-              {trigger}
-            </div>,
-            row,
-          )
-        : createPortal(trigger, slot)}
+      {trigger}
+      {autoButton}
       {createPortal(
         <AnimatePresence>
           {isOpen && (

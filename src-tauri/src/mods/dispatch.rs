@@ -152,11 +152,10 @@ struct GapArgs {
     gap: u8,
 }
 
-/// An editor layout's name. A string rather than the enum, because it comes
-/// from a browser: `EditorLayout::from_name` narrows it, Classic if unknown.
+/// A text size's name, narrowed by `TextSize::from_name`, Normal if unknown.
 #[derive(Deserialize)]
-struct LayoutArgs {
-    layout: String,
+struct TextSizeArgs {
+    size: String,
 }
 
 #[derive(Deserialize)]
@@ -398,28 +397,12 @@ async fn json(
             commands::set_tiff_bit_depth(a.depth)?;
             Ok(serde_json::Value::Null)
         }
-        "compact_sliders" => {
-            serde_json::to_value(commands::compact_sliders()?).map_err(|e| e.to_string())
-        }
-        "set_compact_sliders" => {
-            let a: OnArgs = args_for(&name, args)?;
-            commands::set_compact_sliders(a.on)?;
-            Ok(serde_json::Value::Null)
-        }
         "compact_slider_gap" => {
             serde_json::to_value(commands::compact_slider_gap()?).map_err(|e| e.to_string())
         }
         "set_compact_slider_gap" => {
             let a: GapArgs = args_for(&name, args)?;
             commands::set_compact_slider_gap(a.gap)?;
-            Ok(serde_json::Value::Null)
-        }
-        "editor_layout" => {
-            serde_json::to_value(commands::editor_layout()?).map_err(|e| e.to_string())
-        }
-        "set_editor_layout" => {
-            let a: LayoutArgs = args_for(&name, args)?;
-            commands::set_editor_layout(&a.layout)?;
             Ok(serde_json::Value::Null)
         }
         "editor_layout_panels" => {
@@ -436,6 +419,12 @@ async fn json(
         "set_modern_theme" => {
             let a: ThemeArgs = args_for(&name, args)?;
             commands::set_modern_theme(&a.theme)?;
+            Ok(serde_json::Value::Null)
+        }
+        "text_size" => serde_json::to_value(commands::text_size()?).map_err(|e| e.to_string()),
+        "set_text_size" => {
+            let a: TextSizeArgs = args_for(&name, args)?;
+            commands::set_text_size(&a.size)?;
             Ok(serde_json::Value::Null)
         }
         "modern_start" => {

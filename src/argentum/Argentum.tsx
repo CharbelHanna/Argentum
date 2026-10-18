@@ -40,15 +40,13 @@ import WhiteBalanceMenu from './WhiteBalanceMenu';
 import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
 import AboutPanel from './AboutPanel';
 import ExportPrecision from './ExportPrecision';
-import RawSection from './RawSection';
 import Sharpening from './Sharpening';
 import LocalSharpening from './LocalSharpening';
 import MyGear from './MyGear';
 import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
-import CompactSlidersSetting from './CompactSlidersSetting';
+import PanelsSetting from './PanelsSetting';
 import { useCompactSliders } from './compactSliders';
-import EditorLayoutSetting from './layout/EditorLayoutSetting';
 import { useEditorLayout, useModernLayout } from './layout/editorLayout';
 import { useModernLook } from './modern/look';
 import AiModels from './AiModels';
@@ -108,20 +106,19 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // their existing tooltip rather than rendering anything of its own.
   useTruncatedTooltips();
 
-  // Sliders on one line, Lightroom-style, if chosen in Settings > General.
-  // Read once at startup; the layout itself is a stylesheet keyed on <html>.
+  // Sliders on one line, Lightroom-style, with the row spacing chosen in
+  // Settings > General > Panels. Read once at startup; the layout itself is a
+  // stylesheet keyed on <html>.
   useEffect(() => {
     useCompactSliders.getState().load();
   }, []);
 
-  // The editor's layout, Classic or Modern, chosen in Settings > General.
-  // Read once at startup; App.tsx arranges the editor by it.
+  // How the Modern window was left, its palette and its text size. Read once at startup.
   useEffect(() => {
     useEditorLayout.getState().load();
   }, []);
 
-  // The Modern window's look: a stylesheet keyed on <html>, and compact panels
-  // while it is chosen. Classic is untouched.
+  // The Modern look: a stylesheet keyed on <html>.
   useModernLook();
   const modern = useModernLayout();
 
@@ -144,19 +141,13 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // would break in 12 of the 13 locales.
   const cameraDetails = useAnchor('[data-argentum="camera-details"] > *:first-child');
 
-  // The white balance row in the Color panel. Same reasoning as above, and the
-  // slot every future Argentum colour control mounts into — which is the point
-  // of a marker rather than a direct tag: the first one costs a line of theirs,
-  // the next ten cost nothing.
-  const colorTools = useAnchor('[data-argentum="color-tools"]');
+  // The white balance row, first in Basic (components/adjustments/WhiteBalance.tsx):
+  // the preset menu and Auto go in its slot.
+  const whiteBalance = useAnchor('[data-argentum="white-balance"]');
 
   // The About tab in Settings, which is ours entirely — About, Roadmap and
   // Releases are sections inside it, so more of them cost their file nothing.
   const about = useAnchor('[data-argentum="about"]');
-
-  // First in the Color panel, above White Balance: the RAW card, holding the
-  // camera profile, RAW tone rendering and highlight recovery.
-  const cameraProfile = useAnchor('[data-argentum="camera-profile"]');
 
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
   const gear = useAnchor('[data-argentum="gear"]');
@@ -193,10 +184,9 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
           toolbar,
         )}
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
-      {colorTools && <WhiteBalanceMenu slot={colorTools as HTMLElement} />}
+      {whiteBalance && createPortal(<WhiteBalanceMenu />, whiteBalance)}
       {about && createPortal(<AboutPanel />, about)}
       {exportPrecision && createPortal(<ExportPrecision />, exportPrecision)}
-      {cameraProfile && createPortal(<RawSection />, cameraProfile)}
       {sharpening && createPortal(<Sharpening />, sharpening)}
       {localSharpening && createPortal(<LocalSharpening />, localSharpening)}
       {gear && createPortal(<MyGear />, gear)}
@@ -205,8 +195,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
         <>
           {!modern && <AiModelsPlacement slot={general as HTMLElement} />}
           <NoCloudTile slot={general as HTMLElement} />
-          <CompactSlidersSetting slot={general as HTMLElement} />
-          <EditorLayoutSetting slot={general as HTMLElement} />
+          <PanelsSetting slot={general as HTMLElement} />
         </>
       )}
       <RgbReadout />

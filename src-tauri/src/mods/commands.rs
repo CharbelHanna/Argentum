@@ -357,24 +357,6 @@ pub fn set_tiff_bit_depth(depth: u8) -> Result<(), String> {
     )
 }
 
-/// Are sliders drawn on one line, the way Lightroom draws them? Off until chosen.
-pub fn compact_sliders() -> Result<bool, String> {
-    Ok(
-        crate::mods::ag_settings::get(profile_library()?, "compactSliders")
-            .and_then(|v| v.as_bool())
-            .unwrap_or(false),
-    )
-}
-
-/// Choose. Only the interface reads it; no photo renders differently.
-pub fn set_compact_sliders(on: bool) -> Result<(), String> {
-    crate::mods::ag_settings::set(
-        profile_library()?,
-        "compactSliders",
-        serde_json::Value::Bool(on),
-    )
-}
-
 /// The most space Row spacing offers under a compact slider, in pixels.
 const MAX_SLIDER_GAP: u8 = 12;
 
@@ -394,19 +376,6 @@ pub fn set_compact_slider_gap(gap: u8) -> Result<(), String> {
         profile_library()?,
         "compactSliderGap",
         serde_json::Value::from(gap.min(MAX_SLIDER_GAP)),
-    )
-}
-
-/// Which arrangement of today's panels the editor shows. Classic until chosen.
-pub fn editor_layout() -> Result<crate::mods::editor_layout::EditorLayout, String> {
-    Ok(crate::mods::editor_layout::layout(profile_library()?))
-}
-
-/// Choose it by name. A name this build does not know is stored as Classic.
-pub fn set_editor_layout(layout: &str) -> Result<(), String> {
-    crate::mods::editor_layout::save_layout(
-        profile_library()?,
-        crate::mods::editor_layout::EditorLayout::from_name(layout),
     )
 }
 
@@ -432,6 +401,19 @@ pub fn set_modern_theme(theme: &str) -> Result<(), String> {
     crate::mods::editor_layout::save_theme(
         profile_library()?,
         crate::mods::editor_layout::ModernTheme::from_name(theme),
+    )
+}
+
+/// How large the panels' text is drawn. Normal until chosen.
+pub fn text_size() -> Result<crate::mods::editor_layout::TextSize, String> {
+    Ok(crate::mods::editor_layout::text_size(profile_library()?))
+}
+
+/// Choose it by name. A name this build does not know is stored as Normal.
+pub fn set_text_size(size: &str) -> Result<(), String> {
+    crate::mods::editor_layout::save_text_size(
+        profile_library()?,
+        crate::mods::editor_layout::TextSize::from_name(size),
     )
 }
 
