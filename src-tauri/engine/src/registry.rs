@@ -3,17 +3,19 @@
 //! The list at the bottom is the whole registry: one line per tool, naming
 //! its file and its type. That line declares the module and registers the
 //! tool, so adding a tool touches this list and nothing else. The pipeline's
-//! order comes from here, and so will the editor's panels.
+//! order comes from here, and so do the interface's panels.
 
 use std::any::TypeId;
 
-use crate::tool::{AnyTool, Origin, Registered, Tool, ToolInfo};
+use crate::contract::{Origin, ToolDescriptor};
+use crate::tool::{AnyTool, Registered, Tool, ToolInfo};
 use crate::{Error, Result};
 
 /// An ordered set of tools.
 pub struct Registry {
     pub(crate) tools: Vec<Box<dyn AnyTool>>,
     infos: Vec<ToolInfo>,
+    descriptors: Vec<std::result::Result<ToolDescriptor, String>>,
     types: Vec<TypeId>,
 }
 
@@ -29,6 +31,7 @@ impl Registry {
         Self {
             tools: Vec::new(),
             infos: Vec::new(),
+            descriptors: Vec::new(),
             types: Vec::new(),
         }
     }
@@ -44,14 +47,22 @@ impl Registry {
         };
         let tool = Registered(T::default());
         self.infos.push(tool.info());
+        self.descriptors
+            .push(tool.descriptor(self.tools.len() as u32));
         self.types.push(TypeId::of::<T>());
         self.tools.push(Box::new(tool));
         self
     }
 
-    /// Every tool, in order: id, origin, stage, kind, settings version,
-    /// ranges and defaults.
-    pub fn tools(&self) -> &[ToolInfo] {
+    /// Every tool as the interface builds its panel, in pipeline order.
+    pub fn descriptors(&self) -> Vec<ToolDescriptor> {
+        self.descriptors
+            .iter()
+            .filter_map(|d| d.as_ref().ok().cloned())
+            .collect()
+    }
+
+    pub(crate) fn infos(&self) -> &[ToolInfo] {
         &self.infos
     }
 
@@ -63,7 +74,8 @@ impl Registry {
         self.types.iter().position(|t| *t == TypeId::of::<T>())
     }
 
-    /// Ids are unique and stages come in order.
+    /// Ids are unique, stages come in order, and every tool's settings can
+    /// be described to the interface.
     pub fn check(&self) -> Result<()> {
         for (i, tool) in self.infos.iter().enumerate() {
             if self.infos[..i].iter().any(|t| t.id == tool.id) {
@@ -75,6 +87,9 @@ impl Registry {
                      list every Raw tool first, then SceneLinear, then Display",
                     tool.id, tool.stage, before.id, before.stage
                 )));
+            }
+            if let Err(e) = &self.descriptors[i] {
+                return Err(Error::Registry(e.clone()));
             }
         }
         Ok(())
@@ -110,19 +125,21 @@ registry! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tool::Stage;
+    use crate::contract::Stage;
 
     #[test]
     fn the_standard_registry_is_consistent() {
         let registry = standard();
         registry.check().expect("valid");
-        let ids: Vec<_> = registry.tools().iter().map(|t| t.id).collect();
+        let ids: Vec<_> = registry.infos().iter().map(|t| t.id).collect();
         assert_eq!(
             ids,
             ["dt_highlights", "rt_capture_sharpen", "ag_exposure_wb"]
         );
-        let stages: Vec<_> = registry.tools().iter().map(|t| t.stage).collect();
+        let stages: Vec<_> = registry.infos().iter().map(|t| t.stage).collect();
         assert_eq!(stages, [Stage::Raw, Stage::SceneLinear, Stage::SceneLinear]);
+        let orders: Vec<_> = registry.descriptors().iter().map(|d| d.order).collect();
+        assert_eq!(orders, [0, 1, 2]);
     }
 
     #[test]

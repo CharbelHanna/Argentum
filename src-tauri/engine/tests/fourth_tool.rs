@@ -3,17 +3,18 @@
 //! The tool is `support/ag_dummy.rs`. The registry line is the `.with` in
 //! `registry()` below - the same call each line of `registry!` in
 //! src/registry.rs expands to. Everything else here uses the engine as it
-//! is: the tool is listed with what a panel needs, its saved settings are
-//! read, migrated and clamped, it runs in order, and its result is cached
-//! and invalidated like every other tool's.
+//! is: the tool is described to the interface, its saved settings are read,
+//! migrated and clamped, patches reach it, it runs in order, and its result
+//! is cached and invalidated like every other tool's.
 
 #[path = "support/ag_dummy.rs"]
 mod ag_dummy;
 mod common;
 
 use ag_dummy::AgDummy;
-use argentum_engine::tools::{ag_exposure_wb, rt_capture_sharpen};
-use argentum_engine::{Kind, Origin, Pipeline, Registry, Size, Stage, standard};
+use argentum_engine::contract::{EditPatch, SettingKind, ToolEdit};
+use argentum_engine::tools::rt_capture_sharpen;
+use argentum_engine::{Engine, Origin, Pipeline, Registry, Section, Size, Stage, standard};
 
 fn registry() -> Registry {
     standard().with::<AgDummy>()
@@ -25,6 +26,10 @@ fn ran(p: &Pipeline) -> Vec<&'static str> {
         .filter(|s| s.ran)
         .map(|s| s.name)
         .collect()
+}
+
+fn patch(json: serde_json::Value) -> EditPatch {
+    serde_json::from_value(json).unwrap()
 }
 
 fn pipeline() -> Pipeline {
@@ -42,32 +47,45 @@ fn pipeline() -> Pipeline {
 fn a_fourth_tool_is_one_file_and_one_registry_line() {
     let mut p = pipeline();
 
-    // Listed last, with everything a panel needs, read off the tool itself.
-    let info = p.registry().tools().last().expect("four tools").clone();
-    assert_eq!(p.registry().tools().len(), 4);
-    assert_eq!(info.id, "ag_dummy");
-    assert_eq!(info.origin, Origin::Argentum);
-    assert_eq!(info.stage, Stage::Display);
-    assert_eq!(info.kind, Kind::PerPixel);
-    assert_eq!(info.version, 2);
-    assert_eq!(info.defaults, serde_json::json!({ "amount": 0.0 }));
+    // Described last, with everything a panel needs, read off the tool.
+    let tools = p.registry().descriptors();
+    assert_eq!(tools.len(), 4);
+    let d = tools.last().unwrap();
+    assert_eq!(d.id, "ag_dummy");
+    assert_eq!(d.origin, Origin::Argentum);
+    assert_eq!(d.label, "tools.ag_dummy.label");
+    assert_eq!(
+        (d.section, d.order, d.stage),
+        (Section::Effects, 3, Stage::Display)
+    );
+    assert_eq!(d.version, 2);
+    let [amount] = &d.settings[..] else {
+        panic!("one setting: {:?}", d.settings)
+    };
+    assert_eq!(amount.kind, SettingKind::Float);
+    assert_eq!((amount.min, amount.max), (Some(0.0), Some(1.0)));
+    assert_eq!(amount.default, serde_json::json!(0.0));
 
     // An edit saved by its version 1 is migrated, and clamped to its range.
     p.set_json("ag_dummy", 1, serde_json::json!({ "strength": 50 }))
         .unwrap();
     assert_eq!(p.get::<AgDummy>().unwrap().amount, 0.5);
-    p.set_json("ag_dummy", 2, serde_json::json!({ "amount": 7 }))
+    p.apply(&patch(serde_json::json!({ "ag_dummy": { "amount": 7 } })))
         .unwrap();
     assert_eq!(p.get::<AgDummy>().unwrap().amount, 1.0);
     assert!(p.set_json("ag_dummy", 3, serde_json::json!({})).is_err());
-    p.set_json("ag_dummy", 2, serde_json::json!({ "amount": 0.25 }))
-        .unwrap();
+    p.apply(&patch(
+        serde_json::json!({ "ag_dummy": { "amount": 0.25 } }),
+    ))
+    .unwrap();
 
-    // And saved back at its own version.
-    let saved = p.settings_json();
+    // And saved in the edit at its own version.
     assert_eq!(
-        saved["ag_dummy"],
-        serde_json::json!({ "version": 2, "settings": { "amount": 0.25 } })
+        p.edit().tools["ag_dummy"],
+        ToolEdit {
+            v: 2,
+            settings: [("amount".to_string(), serde_json::json!(0.25))].into(),
+        }
     );
 
     // It runs after every other tool, once.
@@ -94,24 +112,40 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
         }
     }
 
-    // Cached like the others: nothing runs again, changing it runs it
-    // alone, and changing a tool before it runs that tool and it.
+    // Cached like the others: nothing runs again, a patch to it runs it
+    // alone, and a patch to a tool before it runs that tool and it.
     p.render(&source, Size::Full).unwrap();
     assert!(ran(&p).is_empty(), "{:?}", ran(&p));
 
-    p.set_json("ag_dummy", 2, serde_json::json!({ "amount": 0.75 }))
-        .unwrap();
+    p.apply(&patch(
+        serde_json::json!({ "ag_dummy": { "amount": 0.75 } }),
+    ))
+    .unwrap();
     p.render(&source, Size::Full).unwrap();
     assert_eq!(ran(&p), ["ag_dummy"]);
 
-    p.set::<ag_exposure_wb::AgExposureWb>(ag_exposure_wb::Settings {
-        exposure: 1.0,
-        ..Default::default()
-    })
+    p.apply(&patch(
+        serde_json::json!({ "ag_exposure_wb": { "exposure": 1 } }),
+    ))
     .unwrap();
     p.render(&source, Size::Full).unwrap();
     assert_eq!(ran(&p), ["ag_exposure_wb", "ag_dummy"]);
     assert_eq!(p.runs("ag_dummy"), 3);
+}
+
+#[test]
+fn the_interface_is_told_about_it_too() {
+    let engine = Engine::with_registry(registry, |_| {}).unwrap();
+    let ids: Vec<_> = engine.tools().into_iter().map(|d| d.id).collect();
+    assert_eq!(
+        ids,
+        [
+            "dt_highlights",
+            "rt_capture_sharpen",
+            "ag_exposure_wb",
+            "ag_dummy"
+        ]
+    );
 }
 
 #[test]

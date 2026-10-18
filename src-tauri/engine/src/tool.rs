@@ -1,12 +1,15 @@
 //! The contract every tool implements.
 //!
-//! A tool is a type with a stable id, the stage it runs in, the kind of work
-//! it does, a settings struct, and one function from an image to an image.
-//! That is all of it. The registry puts tools in order and the pipeline runs
-//! and caches them; neither knows anything about a particular tool, which is
-//! what lets a new one arrive as one file and one registry line.
+//! A tool is a type with a stable id, the stage it runs in, the section its
+//! panel goes in, the kind of work it does, a settings struct, and one
+//! function from an image to an image. That is all of it. The registry puts
+//! tools in order, the pipeline runs and caches them, and the interface
+//! builds each panel from a descriptor read off the tool itself; none of them
+//! knows anything about a particular tool, which is what lets a new one
+//! arrive as one file and one registry line.
 
 use std::any::Any;
+use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::sync::Arc;
 
@@ -14,23 +17,8 @@ use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 
+use crate::contract::{Choice, Origin, Section, SettingKind, SettingSpec, Stage, ToolDescriptor};
 use crate::{Error, Gpu, GpuSlot, Image, Result, Source};
-
-/// Where a tool's code comes from, read off the first three characters of
-/// its id.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub enum Origin {
-    /// `dt_`
-    Darktable,
-    /// `rt_`
-    RawTherapee,
-    /// `rr_`
-    RapidRaw,
-    /// `rm_`
-    Rawmakase,
-    /// `ag_` - Argentum's own.
-    Argentum,
-}
 
 impl Origin {
     pub const ALL: [Origin; 5] = [
@@ -80,23 +68,6 @@ impl Origin {
     }
 }
 
-/// Where in the pipeline a tool runs.
-///
-/// Tools run in registry order, and the registry has to list them in stage
-/// order: every `Raw` tool, then every `SceneLinear` one, then `Display`.
-/// Between the last `Raw` tool and the first `SceneLinear` one the pipeline
-/// demosaics.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Stage {
-    /// Sensor data before demosaic: `Image::Raw`.
-    Raw,
-    /// Demosaiced linear light, before anything is shaped for a screen:
-    /// `Image::Rgb`.
-    SceneLinear,
-    /// Shaped for a screen or a file: `Image::Rgb`.
-    Display,
-}
-
 /// The kind of work a tool does.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
@@ -109,27 +80,75 @@ pub enum Kind {
     Cpu,
 }
 
-/// The allowed span of one numeric setting, by its name in the settings'
-/// JSON. Values outside it are clamped whenever settings are read or set, so
-/// a stale or hand-edited edit can never hand a tool something out of range.
-/// An array of numbers is clamped element by element.
+/// What a panel needs to know about one setting beyond its type and default,
+/// which are read off the settings struct itself. Numbers outside
+/// `min..max` are clamped whenever settings are read or set, so a stale or
+/// hand-edited edit can never hand a tool something out of range.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Range {
-    pub field: &'static str,
-    pub min: f64,
-    pub max: f64,
+pub struct Field {
+    /// The setting's name in the settings' JSON.
+    pub key: &'static str,
+    pub min: Option<f64>,
+    pub max: Option<f64>,
+    pub step: Option<f64>,
+    pub unit: Option<&'static str>,
+    /// For a string setting: the values it may take.
+    pub choices: &'static [&'static str],
+    pub advanced: bool,
 }
 
-impl Range {
-    pub const fn new(field: &'static str, min: f64, max: f64) -> Self {
-        Self { field, min, max }
+impl Field {
+    pub const fn new(key: &'static str) -> Self {
+        Self {
+            key,
+            min: None,
+            max: None,
+            step: None,
+            unit: None,
+            choices: &[],
+            advanced: false,
+        }
+    }
+
+    pub const fn range(self, min: f64, max: f64) -> Self {
+        Self {
+            min: Some(min),
+            max: Some(max),
+            ..self
+        }
+    }
+
+    pub const fn step(self, step: f64) -> Self {
+        Self {
+            step: Some(step),
+            ..self
+        }
+    }
+
+    pub const fn unit(self, unit: &'static str) -> Self {
+        Self {
+            unit: Some(unit),
+            ..self
+        }
+    }
+
+    pub const fn choices(self, choices: &'static [&'static str]) -> Self {
+        Self { choices, ..self }
+    }
+
+    pub const fn advanced(self) -> Self {
+        Self {
+            advanced: true,
+            ..self
+        }
     }
 }
 
 /// A tool's settings: what is saved in an edit and hashed into the cache key.
 ///
 /// Give the struct `#[serde(default)]`, so a saved edit missing a field reads
-/// that field's default rather than failing.
+/// that field's default rather than failing. Each field is a number (a float
+/// or an integer), a boolean, or a string that is one of its `choices`.
 pub trait Settings:
     Serialize + DeserializeOwned + Default + Clone + PartialEq + Debug + Send + Sync + 'static
 {
@@ -137,8 +156,8 @@ pub trait Settings:
     /// store it beside the settings, and older ones go through `migrate`.
     const VERSION: u32;
 
-    /// The span of each numeric setting.
-    const RANGES: &'static [Range] = &[];
+    /// What a panel needs beyond each setting's type and default.
+    const FIELDS: &'static [Field] = &[];
 
     /// Turn settings saved at version `from`, older than `VERSION`, into this
     /// version's JSON. The default knows no older version.
@@ -154,6 +173,7 @@ pub trait Tool: Default + Send + Sync + 'static {
     /// lowercase, as `Origin::of` describes.
     const ID: &'static str;
     const STAGE: Stage;
+    const SECTION: Section;
     const KIND: Kind;
     type Settings: Settings;
 
@@ -217,7 +237,7 @@ impl<'a> Context<'a> {
 }
 
 /// Read settings saved at `version`: migrated if older, refused if newer,
-/// then clamped to `RANGES`.
+/// then clamped to their fields' ranges.
 pub fn read_settings<S: Settings>(version: u32, value: Value) -> std::result::Result<S, String> {
     let value = match version.cmp(&S::VERSION) {
         std::cmp::Ordering::Equal => value,
@@ -229,7 +249,7 @@ pub fn read_settings<S: Settings>(version: u32, value: Value) -> std::result::Re
             ));
         }
     };
-    let (value, _) = clamp_json(value, S::RANGES);
+    let (value, _) = clamp_json(value, S::FIELDS)?;
     serde_json::from_value(value).map_err(|e| e.to_string())
 }
 
@@ -238,65 +258,147 @@ pub fn clamp<S: Settings>(settings: S) -> S {
     let Ok(value) = serde_json::to_value(&settings) else {
         return settings;
     };
-    match clamp_json(value, S::RANGES) {
-        (value, true) => serde_json::from_value(value).unwrap_or(settings),
-        (_, false) => settings,
+    match clamp_json(value, S::FIELDS) {
+        Ok((value, true)) => serde_json::from_value(value).unwrap_or(settings),
+        _ => settings,
     }
 }
 
-/// Clamp the fields `ranges` names. Says whether anything moved, so settings
-/// already in range are kept exactly as they were.
-fn clamp_json(mut value: Value, ranges: &[Range]) -> (Value, bool) {
+/// Clamp the fields that have a range, and refuse a choice that is not one.
+/// Says whether anything moved, so settings already in range are kept
+/// exactly as they were.
+fn clamp_json(mut value: Value, fields: &[Field]) -> std::result::Result<(Value, bool), String> {
     let mut moved = false;
     if let Value::Object(map) = &mut value {
-        for range in ranges {
-            if let Some(v) = map.get_mut(range.field) {
-                moved |= clamp_value(v, range);
+        for field in fields {
+            let Some(v) = map.get_mut(field.key) else {
+                continue;
+            };
+            if !field.choices.is_empty() {
+                if !v.as_str().is_some_and(|s| field.choices.contains(&s)) {
+                    return Err(format!(
+                        "{} is {v}, not one of {:?}",
+                        field.key, field.choices
+                    ));
+                }
+                continue;
             }
-        }
-    }
-    (value, moved)
-}
-
-fn clamp_value(v: &mut Value, r: &Range) -> bool {
-    match v {
-        Value::Array(items) => items
-            .iter_mut()
-            .fold(false, |moved, item| clamp_value(item, r) | moved),
-        Value::Number(n) => {
+            let (Some(min), Some(max)) = (field.min, field.max) else {
+                continue;
+            };
+            let Value::Number(n) = &*v else { continue };
             // Integers stay integers, or a u32 field would not read back.
             let next = if let Some(i) = n.as_i64() {
-                let c = i.clamp(r.min.ceil() as i64, r.max.floor() as i64);
+                let c = i.clamp(min.ceil() as i64, max.floor() as i64);
                 (c != i).then(|| Value::from(c))
             } else if n.as_u64().is_some() {
-                Some(Value::from(r.max.floor() as i64))
+                Some(Value::from(max.floor() as i64))
             } else {
                 let f = n.as_f64().unwrap_or(0.0);
-                let c = f.clamp(r.min, r.max);
+                let c = f.clamp(min, max);
                 (c != f).then(|| Value::from(c))
             };
-            match next {
-                Some(clamped) => {
-                    *v = clamped;
-                    true
-                }
-                None => false,
+            if let Some(clamped) = next {
+                *v = clamped;
+                moved = true;
             }
         }
-        _ => false,
     }
+    Ok((value, moved))
 }
 
-/// What a UI panel needs to know about a tool, without knowing its type.
+/// A tool's descriptor, read off its settings' defaults and fields. Refused
+/// when a setting is not a number, a boolean or a choice, or a field names a
+/// setting that does not exist.
+fn describe(
+    id: &'static str,
+    origin: Origin,
+    stage: Stage,
+    section: Section,
+    version: u32,
+    defaults: &Value,
+    fields: &[Field],
+    order: u32,
+) -> std::result::Result<ToolDescriptor, String> {
+    let Value::Object(defaults) = defaults else {
+        return Err(format!("{id}: settings are not a struct"));
+    };
+    if let Some(field) = fields.iter().find(|f| !defaults.contains_key(f.key)) {
+        return Err(format!(
+            "{id}: a field names {}, which is not a setting",
+            field.key
+        ));
+    }
+    let mut settings = Vec::with_capacity(defaults.len());
+    // The order the struct declares them in: serde_json keeps keys in
+    // insertion order only with its `preserve_order` feature, so the fields'
+    // own order leads and the rest follow alphabetically.
+    let mut keys: Vec<&String> = fields
+        .iter()
+        .filter_map(|f| defaults.get_key_value(f.key).map(|(k, _)| k))
+        .collect();
+    keys.extend(
+        defaults
+            .keys()
+            .filter(|k| !fields.iter().any(|f| f.key == *k)),
+    );
+    for key in keys {
+        let default = &defaults[key];
+        let field = fields.iter().find(|f| f.key == key);
+        let kind = match default {
+            Value::Bool(_) => SettingKind::Bool,
+            Value::Number(n) if n.is_f64() => SettingKind::Float,
+            Value::Number(_) => SettingKind::Int,
+            Value::String(_) if field.is_some_and(|f| !f.choices.is_empty()) => SettingKind::Choice,
+            _ => {
+                return Err(format!(
+                    "{id}: {key} is not a number, a boolean or a choice with its choices declared"
+                ));
+            }
+        };
+        let label = format!("tools.{id}.{key}");
+        settings.push(SettingSpec {
+            key: key.clone(),
+            kind,
+            default: default.clone(),
+            min: field.and_then(|f| f.min),
+            max: field.and_then(|f| f.max),
+            step: field
+                .and_then(|f| f.step)
+                .or((kind == SettingKind::Int).then_some(1.0)),
+            unit: field.and_then(|f| f.unit).map(str::to_string),
+            choices: field.filter(|f| !f.choices.is_empty()).map(|f| {
+                f.choices
+                    .iter()
+                    .map(|c| Choice {
+                        value: c.to_string(),
+                        label: format!("{label}.{c}"),
+                    })
+                    .collect()
+            }),
+            advanced: field.is_some_and(|f| f.advanced),
+            label,
+        });
+    }
+    Ok(ToolDescriptor {
+        id: id.to_string(),
+        origin,
+        label: format!("tools.{id}.label"),
+        section,
+        order,
+        stage,
+        version,
+        settings,
+    })
+}
+
+/// What the engine needs to know about a registered tool, without its type.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ToolInfo {
+pub(crate) struct ToolInfo {
     pub id: &'static str,
-    pub origin: Origin,
     pub stage: Stage,
     pub kind: Kind,
     pub version: u32,
-    pub ranges: &'static [Range],
-    pub defaults: Value,
 }
 
 // ---------------------------------------------------------------------------
@@ -313,13 +415,19 @@ impl<S: Settings> AnySettings for S {
         self
     }
 
+    /// Through text rather than `to_value`, which widens an f32 to the f64
+    /// nearest it: 1.2 would read back as 1.2000000476837158.
     fn to_json(&self) -> Value {
-        serde_json::to_value(self).unwrap_or(Value::Null)
+        serde_json::to_string(self)
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or(Value::Null)
     }
 }
 
 pub(crate) trait AnyTool: Send + Sync {
     fn info(&self) -> ToolInfo;
+    fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String>;
     fn defaults(&self) -> Box<dyn AnySettings>;
     fn read(&self, version: u32, value: Value)
     -> std::result::Result<Box<dyn AnySettings>, String>;
@@ -337,13 +445,23 @@ impl<T: Tool> AnyTool for Registered<T> {
     fn info(&self) -> ToolInfo {
         ToolInfo {
             id: T::ID,
-            origin: Origin::of(T::ID).expect("checked when registered"),
             stage: T::STAGE,
             kind: T::KIND,
             version: <T::Settings as Settings>::VERSION,
-            ranges: <T::Settings as Settings>::RANGES,
-            defaults: T::Settings::default().to_json(),
         }
+    }
+
+    fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String> {
+        describe(
+            T::ID,
+            Origin::of(T::ID).expect("checked when registered"),
+            T::STAGE,
+            T::SECTION,
+            <T::Settings as Settings>::VERSION,
+            &T::Settings::default().to_json(),
+            <T::Settings as Settings>::FIELDS,
+            order,
+        )
     }
 
     fn defaults(&self) -> Box<dyn AnySettings> {
@@ -372,6 +490,14 @@ impl<T: Tool> AnyTool for Registered<T> {
     }
 }
 
+/// Settings as JSON, field by field.
+pub(crate) fn as_map(value: Value) -> BTreeMap<String, Value> {
+    match value {
+        Value::Object(map) => map.into_iter().collect(),
+        _ => BTreeMap::new(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -397,7 +523,8 @@ mod tests {
     struct Demo {
         amount: f32,
         count: u32,
-        gains: [f32; 2],
+        on: bool,
+        mode: String,
     }
 
     impl Default for Demo {
@@ -405,17 +532,18 @@ mod tests {
             Self {
                 amount: 0.5,
                 count: 3,
-                gains: [1.0, 1.0],
+                on: true,
+                mode: "soft".into(),
             }
         }
     }
 
     impl Settings for Demo {
         const VERSION: u32 = 2;
-        const RANGES: &'static [Range] = &[
-            Range::new("amount", 0.0, 1.0),
-            Range::new("count", 1.0, 10.0),
-            Range::new("gains", 0.25, 4.0),
+        const FIELDS: &'static [Field] = &[
+            Field::new("amount").range(0.0, 1.0).step(0.01).unit("%"),
+            Field::new("count").range(1.0, 10.0).advanced(),
+            Field::new("mode").choices(&["soft", "hard"]),
         ];
 
         fn migrate(from: u32, mut value: Value) -> std::result::Result<Value, String> {
@@ -432,19 +560,14 @@ mod tests {
 
     #[test]
     fn values_out_of_range_are_clamped_and_types_kept() {
-        let s: Demo = read_settings(
-            2,
-            serde_json::json!({ "amount": 7.0, "count": 0, "gains": [9.0, 0.1] }),
-        )
-        .unwrap();
-        assert_eq!(
-            s,
-            Demo {
-                amount: 1.0,
-                count: 1,
-                gains: [4.0, 0.25]
-            }
-        );
+        let s: Demo = read_settings(2, serde_json::json!({ "amount": 7.0, "count": 0 })).unwrap();
+        assert_eq!((s.amount, s.count), (1.0, 1));
+    }
+
+    #[test]
+    fn a_choice_that_is_not_one_is_refused() {
+        assert!(read_settings::<Demo>(2, serde_json::json!({ "mode": "medium" })).is_err());
+        assert!(read_settings::<Demo>(2, serde_json::json!({ "mode": "hard" })).is_ok());
     }
 
     #[test]
@@ -471,8 +594,7 @@ mod tests {
     fn settings_in_range_are_kept_bit_for_bit() {
         let s = Demo {
             amount: 0.1 + 0.2,
-            count: 4,
-            gains: [1.0 / 3.0, 2.0],
+            ..Demo::default()
         };
         assert_eq!(clamp(s.clone()), s);
         assert_eq!(
@@ -482,6 +604,83 @@ mod tests {
             })
             .amount,
             0.0
+        );
+    }
+
+    #[test]
+    fn the_descriptor_is_read_off_the_settings() {
+        let d = describe(
+            "ag_demo",
+            Origin::Argentum,
+            Stage::SceneLinear,
+            Section::Basic,
+            Demo::VERSION,
+            &Demo::default().to_json(),
+            Demo::FIELDS,
+            7,
+        )
+        .unwrap();
+        assert_eq!(d.label, "tools.ag_demo.label");
+        assert_eq!(d.order, 7);
+        let keys: Vec<_> = d.settings.iter().map(|s| s.key.as_str()).collect();
+        assert_eq!(keys, ["amount", "count", "mode", "on"]);
+        let [amount, count, mode, on] = &d.settings[..] else {
+            panic!()
+        };
+        assert_eq!(amount.kind, SettingKind::Float);
+        assert_eq!(
+            (amount.min, amount.max, amount.step),
+            (Some(0.0), Some(1.0), Some(0.01))
+        );
+        assert_eq!(amount.unit.as_deref(), Some("%"));
+        assert_eq!(amount.label, "tools.ag_demo.amount");
+        assert_eq!(
+            (count.kind, count.step, count.advanced),
+            (SettingKind::Int, Some(1.0), true)
+        );
+        assert_eq!(mode.kind, SettingKind::Choice);
+        assert_eq!(
+            mode.choices.as_ref().unwrap()[1],
+            Choice {
+                value: "hard".into(),
+                label: "tools.ag_demo.mode.hard".into()
+            }
+        );
+        assert_eq!(
+            (on.kind, &on.default),
+            (SettingKind::Bool, &Value::Bool(true))
+        );
+    }
+
+    #[test]
+    fn a_setting_the_contract_cannot_show_is_refused() {
+        let defaults = serde_json::json!({ "gains": [1.0, 1.0] });
+        assert!(
+            describe(
+                "ag_demo",
+                Origin::Argentum,
+                Stage::SceneLinear,
+                Section::Basic,
+                1,
+                &defaults,
+                &[],
+                0
+            )
+            .is_err()
+        );
+        let missing = [Field::new("nothing")];
+        assert!(
+            describe(
+                "ag_demo",
+                Origin::Argentum,
+                Stage::SceneLinear,
+                Section::Basic,
+                1,
+                &Demo::default().to_json(),
+                &missing,
+                0
+            )
+            .is_err()
         );
     }
 }

@@ -20,11 +20,12 @@ use std::time::{Duration, Instant};
 use rawler::decoders::RawDecodeParams;
 use rawler::rawimage::RawImage;
 use rawler::rawsource::RawSource;
-use serde_json::{Map, Value};
+use serde_json::Value;
 
+use crate::contract::{EDIT_VERSION, EditDocument, EditPatch, Stage, ToolEdit};
 use crate::develop::{self, DEVELOP_VERSION};
 use crate::registry::Registry;
-use crate::tool::{self, AnySettings, Context, Stage, Tool};
+use crate::tool::{self, AnySettings, Context, Tool};
 use crate::{Error, GpuSlot, Image, Result};
 
 /// A decoded photo, and the key that names it.
@@ -55,6 +56,11 @@ impl Source {
     /// A photo decoded elsewhere. `key` has to change whenever `raw` does.
     pub fn new(key: u64, raw: RawImage) -> Source {
         Source { key, raw }
+    }
+
+    /// The developed picture's width and height, without developing it.
+    pub fn size(&self) -> (usize, usize) {
+        develop::developed_size(&self.raw)
     }
 }
 
@@ -112,7 +118,7 @@ impl Pipeline {
         registry.check()?;
         let settings: Vec<_> = registry.tools.iter().map(|t| t.defaults()).collect();
         let hashes = registry
-            .tools()
+            .infos()
             .iter()
             .zip(&settings)
             .map(|(info, s)| settings_hash(info.id, info.version, s.as_ref()))
@@ -155,35 +161,117 @@ impl Pipeline {
     /// Set a tool's settings from saved JSON, by id: migrated if `version` is
     /// older than the tool's, refused if it is newer, clamped either way.
     pub fn set_json(&mut self, id: &str, version: u32, value: Value) -> Result<()> {
-        let i = self
-            .registry
-            .position(id)
-            .ok_or_else(|| Error::Registry(format!("no tool {id} in this pipeline")))?;
-        let settings = self.registry.tools[i]
-            .read(version, value)
-            .map_err(|message| Error::Settings {
-                tool: id.to_string(),
-                message,
-            })?;
+        let i = self.position(id)?;
+        let settings = self.read(i, version, value)?;
         self.store(i, settings);
         Ok(())
     }
 
-    /// Every tool's settings, as an edit would save them:
-    /// `{ id: { "version": n, "settings": {...} } }`.
-    pub fn settings_json(&self) -> Value {
-        let mut out = Map::new();
-        for (info, settings) in self.registry.tools().iter().zip(&self.settings) {
-            out.insert(
+    /// Every tool's settings, as an edit saves them.
+    pub fn edit(&self) -> EditDocument {
+        let mut doc = EditDocument::new();
+        for (info, settings) in self.registry.infos().iter().zip(&self.settings) {
+            doc.tools.insert(
                 info.id.to_string(),
-                serde_json::json!({ "version": info.version, "settings": settings.to_json() }),
+                ToolEdit {
+                    v: info.version,
+                    settings: tool::as_map(settings.to_json()),
+                },
             );
         }
-        Value::Object(out)
+        doc
+    }
+
+    /// Every tool's settings from an edit; a tool it does not mention is at
+    /// its defaults. All or nothing: when any tool's settings cannot be read,
+    /// nothing changes.
+    pub fn set_edit(&mut self, doc: &EditDocument) -> Result<()> {
+        if doc.version != EDIT_VERSION {
+            return Err(Error::Settings {
+                tool: "edit".into(),
+                message: format!(
+                    "edit version {}, this engine reads {EDIT_VERSION}",
+                    doc.version
+                ),
+            });
+        }
+        if let Some(id) = doc
+            .tools
+            .keys()
+            .find(|id| self.registry.position(id).is_none())
+        {
+            return Err(Error::Registry(format!(
+                "the edit names {id}, which is not a tool here"
+            )));
+        }
+        let mut next = Vec::with_capacity(self.settings.len());
+        for (i, info) in self.registry.infos().iter().enumerate() {
+            next.push(match doc.tools.get(info.id) {
+                Some(edit) => {
+                    let value = Value::Object(edit.settings.clone().into_iter().collect());
+                    self.read(i, edit.v, value)?
+                }
+                None => self.registry.tools[i].defaults(),
+            });
+        }
+        for (i, settings) in next.into_iter().enumerate() {
+            self.store(i, settings);
+        }
+        Ok(())
+    }
+
+    /// Merge `patch` into the settings: `{ toolId: { key: value } }`, with
+    /// `null` putting a setting back to its default. Only the tools it names
+    /// change, so only they and the tools after them run again. All or
+    /// nothing: an unknown tool or setting, or a value of the wrong type,
+    /// changes nothing.
+    pub fn apply(&mut self, patch: &EditPatch) -> Result<()> {
+        let mut next = Vec::with_capacity(patch.0.len());
+        for (id, changes) in &patch.0 {
+            let i = self.position(id)?;
+            let mut merged = tool::as_map(self.settings[i].to_json());
+            for (key, value) in changes {
+                if !merged.contains_key(key) {
+                    return Err(Error::Settings {
+                        tool: id.clone(),
+                        message: format!("no setting {key}"),
+                    });
+                }
+                if value.is_null() {
+                    merged.remove(key);
+                } else {
+                    merged.insert(key.clone(), value.clone());
+                }
+            }
+            let version = self.registry.infos()[i].version;
+            next.push((
+                i,
+                self.read(i, version, Value::Object(merged.into_iter().collect()))?,
+            ));
+        }
+        for (i, settings) in next {
+            self.store(i, settings);
+        }
+        Ok(())
+    }
+
+    fn position(&self, id: &str) -> Result<usize> {
+        self.registry
+            .position(id)
+            .ok_or_else(|| Error::Registry(format!("no tool {id} in this pipeline")))
+    }
+
+    fn read(&self, i: usize, version: u32, value: Value) -> Result<Box<dyn AnySettings>> {
+        self.registry.tools[i]
+            .read(version, value)
+            .map_err(|message| Error::Settings {
+                tool: self.registry.infos()[i].id.to_string(),
+                message,
+            })
     }
 
     fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) {
-        let info = &self.registry.tools()[i];
+        let info = &self.registry.infos()[i];
         self.hashes[i] = settings_hash(info.id, info.version, settings.as_ref());
         self.settings[i] = settings;
     }
@@ -193,6 +281,11 @@ impl Pipeline {
     pub fn set_cache_budget(&mut self, bytes: usize) {
         self.cache.budget = bytes;
         self.cache.evict();
+    }
+
+    /// The memory the cache holds now, in bytes.
+    pub fn cache_bytes(&self) -> usize {
+        self.cache.used
     }
 
     pub fn clear_cache(&mut self) {
@@ -211,6 +304,17 @@ impl Pipeline {
 
     /// The photo with every tool applied, at `size`.
     pub fn render(&mut self, source: &Source, size: Size) -> Result<Arc<Image>> {
+        self.render_unless(source, size, &|| false)
+    }
+
+    /// The same, giving up with `Error::Cancelled` between two steps once
+    /// `cancelled` says so. What was finished stays cached.
+    pub fn render_unless(
+        &mut self,
+        source: &Source,
+        size: Size,
+        cancelled: &dyn Fn() -> bool,
+    ) -> Result<Arc<Image>> {
         let ops = self.ops(size);
         let start = mix(&("source", source.key));
         let mut keys = Vec::with_capacity(ops.len());
@@ -245,6 +349,9 @@ impl Pipeline {
             });
         }
         for (i, &(op, name)) in ops.iter().enumerate().skip(first) {
+            if cancelled() {
+                return Err(Error::Cancelled);
+            }
             let started = Instant::now();
             let made = self.run(op, &image, source, input_key)?;
             let time = started.elapsed();
@@ -266,7 +373,7 @@ impl Pipeline {
 
     /// The steps for a render at `size`.
     fn ops(&self, size: Size) -> Vec<(Op, &'static str)> {
-        let tools = self.registry.tools();
+        let tools = self.registry.infos();
         let raw = tools.iter().take_while(|t| t.stage == Stage::Raw).count();
         let mut ops: Vec<_> = (0..raw).map(|i| (Op::Tool(i), tools[i].id)).collect();
         ops.push((Op::Develop, "develop"));
@@ -303,7 +410,7 @@ impl Pipeline {
                 Ok(develop::resize(rgb, w, h).map(Image::Rgb))
             }
             Op::Tool(i) => {
-                let info = &self.registry.tools()[i];
+                let info = &self.registry.infos()[i];
                 let fits = match info.stage {
                     Stage::Raw => input.as_raw().is_some(),
                     Stage::SceneLinear | Stage::Display => input.as_rgb().is_some(),
@@ -404,5 +511,75 @@ impl Cache {
                 self.used -= gone.bytes;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn patch(json: serde_json::Value) -> EditPatch {
+        serde_json::from_value(json).unwrap()
+    }
+
+    #[test]
+    fn a_patch_merges_and_null_resets() {
+        let mut p = Pipeline::standard().unwrap();
+        p.apply(&patch(serde_json::json!({
+            "ag_exposure_wb": { "exposure": 1.5, "red": 1.2 },
+        })))
+        .unwrap();
+        let doc = p.edit();
+        let wb = &doc.tools["ag_exposure_wb"].settings;
+        assert_eq!(
+            (wb["exposure"].as_f64(), wb["red"].as_f64()),
+            (Some(1.5), Some(1.2))
+        );
+        p.apply(&patch(
+            serde_json::json!({ "ag_exposure_wb": { "exposure": null } }),
+        ))
+        .unwrap();
+        let wb = &p.edit().tools["ag_exposure_wb"].settings;
+        assert_eq!(wb["exposure"].as_f64(), Some(0.0), "back to its default");
+        assert_eq!(wb["red"].as_f64(), Some(1.2), "the rest kept");
+    }
+
+    #[test]
+    fn a_bad_patch_changes_nothing() {
+        let mut p = Pipeline::standard().unwrap();
+        let before = p.edit();
+        for bad in [
+            serde_json::json!({ "ag_nothing": { "x": 1 } }),
+            serde_json::json!({ "ag_exposure_wb": { "contrast": 1 } }),
+            serde_json::json!({ "ag_exposure_wb": { "exposure": "bright" } }),
+            serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } }),
+            // The first tool is fine, the second is not: neither changes.
+            serde_json::json!({ "ag_exposure_wb": { "exposure": 1 }, "dt_highlights": { "recover": 3 } }),
+        ] {
+            assert!(p.apply(&patch(bad.clone())).is_err(), "{bad}");
+            assert_eq!(p.edit(), before, "{bad}");
+        }
+    }
+
+    #[test]
+    fn an_edit_round_trips() {
+        let mut p = Pipeline::standard().unwrap();
+        p.apply(&patch(serde_json::json!({
+            "rt_capture_sharpen": { "radius": 1.1, "autoRadius": false, "iterations": 30 },
+        })))
+        .unwrap();
+        let doc = p.edit();
+        let mut q = Pipeline::standard().unwrap();
+        q.set_edit(&doc).unwrap();
+        assert_eq!(q.edit(), doc);
+        let mut empty = EditDocument::new();
+        q.set_edit(&empty).unwrap();
+        assert_eq!(
+            q.edit(),
+            Pipeline::standard().unwrap().edit(),
+            "all defaults"
+        );
+        empty.version = 2;
+        assert!(q.set_edit(&empty).is_err());
     }
 }

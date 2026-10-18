@@ -12,38 +12,48 @@
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Image, Kind, Range, Result, Stage, Tool};
+use crate::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Settings {
     /// Stops: +1 doubles the light.
     pub exposure: f32,
-    /// Red, green and blue multipliers. All ones leaves the balance as shot.
-    pub multipliers: [f32; 3],
+    /// White balance multipliers. All ones leaves the balance as shot.
+    pub red: f32,
+    pub green: f32,
+    pub blue: f32,
 }
 
 impl Default for Settings {
     fn default() -> Self {
         Self {
             exposure: 0.0,
-            multipliers: [1.0; 3],
+            red: 1.0,
+            green: 1.0,
+            blue: 1.0,
         }
     }
 }
 
 impl crate::Settings for Settings {
     const VERSION: u32 = 1;
-    const RANGES: &'static [Range] = &[
-        Range::new("exposure", -10.0, 10.0),
-        Range::new("multipliers", 0.05, 20.0),
+    const FIELDS: &'static [Field] = &[
+        Field::new("exposure").range(-10.0, 10.0).step(0.01).unit("EV"),
+        Field::new("red").range(0.05, 20.0).step(0.001),
+        Field::new("green").range(0.05, 20.0).step(0.001),
+        Field::new("blue").range(0.05, 20.0).step(0.001),
     ];
 }
 
 /// What each channel is multiplied by.
 pub fn factors(settings: &Settings) -> [f32; 3] {
     let gain = 2.0f32.powf(settings.exposure);
-    settings.multipliers.map(|m| gain * m)
+    [
+        gain * settings.red,
+        gain * settings.green,
+        gain * settings.blue,
+    ]
 }
 
 #[derive(Default)]
@@ -52,6 +62,7 @@ pub struct AgExposureWb;
 impl Tool for AgExposureWb {
     const ID: &'static str = "ag_exposure_wb";
     const STAGE: Stage = Stage::SceneLinear;
+    const SECTION: Section = Section::Basic;
     const KIND: Kind = Kind::PerPixel;
     type Settings = Settings;
 

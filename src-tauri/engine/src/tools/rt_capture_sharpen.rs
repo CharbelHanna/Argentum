@@ -41,7 +41,7 @@ use rawler::rawimage::{RawImage, RawImageData};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Gpu, Image, Kind, Range, Result, Rgb, Stage, Tool};
+use crate::{Context, Error, Field, Gpu, Image, Kind, Result, Rgb, Section, Stage, Tool};
 
 /// RawTherapee's defaults, from `rtgui/tools/pdsharpening.cc`
 /// @ c777f374b4db9ec5ecec3dcfea2e857382208ea9: contrast 10 (auto on),
@@ -93,13 +93,25 @@ impl Default for Settings {
 
 impl crate::Settings for Settings {
     const VERSION: u32 = 1;
-    // The app's clamps, `sharpen::from_json`.
-    const RANGES: &'static [Range] = &[
-        Range::new("captureAmount", 0.0, 100.0),
-        Range::new("radius", 0.4, 2.0),
-        Range::new("cornerBoost", -0.5, 0.5),
-        Range::new("iterations", 1.0, 100.0),
-        Range::new("contrast", 0.0, 200.0),
+    // In the order of the app's Sharpening card, with the app's clamps from
+    // `sharpen::from_json`.
+    const FIELDS: &'static [Field] = &[
+        Field::new("capture"),
+        Field::new("captureAmount")
+            .range(0.0, 100.0)
+            .step(1.0)
+            .unit("%"),
+        Field::new("autoRadius"),
+        Field::new("radius").range(0.4, 2.0).step(0.01).unit("px"),
+        Field::new("autoContrast"),
+        Field::new("contrast").range(0.0, 200.0).step(1.0),
+        Field::new("cornerBoost")
+            .range(-0.5, 0.5)
+            .step(0.01)
+            .unit("px")
+            .advanced(),
+        Field::new("iterations").range(1.0, 100.0).advanced(),
+        Field::new("iterCheck").advanced(),
     ];
 }
 
@@ -116,6 +128,7 @@ pub struct RtCaptureSharpen {
 impl Tool for RtCaptureSharpen {
     const ID: &'static str = "rt_capture_sharpen";
     const STAGE: Stage = Stage::SceneLinear;
+    const SECTION: Section = Section::Detail;
     const KIND: Kind = Kind::GpuMultiPass;
     type Settings = Settings;
 

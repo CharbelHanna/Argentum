@@ -22,7 +22,7 @@
 use rawler::rawimage::{RawImage, RawImageData};
 use serde::{Deserialize, Serialize};
 
-use crate::{Context, Error, Image, Kind, Result, Stage, Tool};
+use crate::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -40,6 +40,7 @@ impl Default for Settings {
 
 impl crate::Settings for Settings {
     const VERSION: u32 = 1;
+    const FIELDS: &'static [Field] = &[Field::new("recover")];
 }
 
 #[derive(Default)]
@@ -48,6 +49,7 @@ pub struct DtHighlights;
 impl Tool for DtHighlights {
     const ID: &'static str = "dt_highlights";
     const STAGE: Stage = Stage::Raw;
+    const SECTION: Section = Section::Basic;
     const KIND: Kind = Kind::Cpu;
     type Settings = Settings;
 

@@ -66,9 +66,12 @@ fn exact_against_the_reference_computation() {
         (1.0 / 3.0, [1.0 / 3.0, 1.0, 3.0]),
     ];
     for (exposure, multipliers) in cases {
+        let [red, green, blue] = multipliers;
         let settings = ag_exposure_wb::Settings {
             exposure,
-            multipliers,
+            red,
+            green,
+            blue,
         };
         let ours = run(&rgb, &settings).expect("something to do");
         let theirs = reference(&rgb, exposure, multipliers);
@@ -116,7 +119,9 @@ fn exact_through_the_pipeline() {
     let before = p.render(&source, Size::Full).unwrap();
     let settings = ag_exposure_wb::Settings {
         exposure: 0.7,
-        multipliers: [1.3, 1.0, 0.8],
+        red: 1.3,
+        green: 1.0,
+        blue: 0.8,
     };
     p.set::<AgExposureWb>(settings.clone()).unwrap();
     let after = p.render(&source, Size::Full).unwrap();

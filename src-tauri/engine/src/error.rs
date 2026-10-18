@@ -15,6 +15,8 @@ pub enum Error {
     Registry(String),
     /// A tool failed while it ran, or was handed the wrong kind of image.
     Tool { tool: &'static str, message: String },
+    /// A render gave up because a newer one was asked for.
+    Cancelled,
 }
 
 impl fmt::Display for Error {
@@ -25,6 +27,7 @@ impl fmt::Display for Error {
             Error::Settings { tool, message } => write!(f, "{tool} settings: {message}"),
             Error::Registry(m) => write!(f, "registry: {m}"),
             Error::Tool { tool, message } => write!(f, "{tool}: {message}"),
+            Error::Cancelled => write!(f, "cancelled by a newer render"),
         }
     }
 }

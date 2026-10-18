@@ -6,7 +6,7 @@
 //! through a version change, so the test also shows an old saved edit being
 //! migrated.
 
-use argentum_engine::{Context, Error, Image, Kind, Range, Result, Stage, Tool};
+use argentum_engine::{Context, Error, Field, Image, Kind, Result, Section, Stage, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -25,7 +25,7 @@ impl Default for Settings {
 
 impl argentum_engine::Settings for Settings {
     const VERSION: u32 = 2;
-    const RANGES: &'static [Range] = &[Range::new("amount", 0.0, 1.0)];
+    const FIELDS: &'static [Field] = &[Field::new("amount").range(0.0, 1.0).step(0.01)];
 
     /// Version 1 called it `strength` and stored a percentage.
     fn migrate(from: u32, value: Value) -> std::result::Result<Value, String> {
@@ -47,6 +47,7 @@ pub struct AgDummy;
 impl Tool for AgDummy {
     const ID: &'static str = "ag_dummy";
     const STAGE: Stage = Stage::Display;
+    const SECTION: Section = Section::Effects;
     const KIND: Kind = Kind::PerPixel;
     type Settings = Settings;
 

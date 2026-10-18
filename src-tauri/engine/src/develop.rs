@@ -99,6 +99,40 @@ pub(crate) fn develop(raw: &RawImage) -> Result<Rgb> {
     Ok(Rgb::new(width, height, pixels))
 }
 
+/// The size `develop` gives `raw`, from its geometry alone: the steps of
+/// rawler's `develop_intermediate` (rawler `src/imgop/develop.rs` @ 16b9b010)
+/// that decide the size, without touching a pixel. A mosaic comes out of
+/// demosaic at its active area, and the default crop is then taken.
+pub(crate) fn developed_size(raw: &RawImage) -> (usize, usize) {
+    use rawler::imgop::{Dim2, Point, Rect};
+
+    let demosaics = !matches!(raw.photometric, RawPhotometricInterpretation::LinearRaw);
+    let full = Rect::new(Point::new(0, 0), Dim2::new(raw.width, raw.height));
+    let mosaic = raw.cpp == 1
+        && matches!(&raw.photometric, RawPhotometricInterpretation::Cfa(c) if c.cfa.is_rgb());
+    let mut dim = if demosaics && mosaic {
+        raw.active_area.unwrap_or(full).d
+    } else {
+        full.d
+    };
+    if let Some(mut crop) = raw.crop_area {
+        if demosaics && let Some(active) = raw.active_area {
+            crop = crop.intersection(&active).adapt(&active);
+        }
+        let original_width = raw.active_area.map(|a| a.d.w).unwrap_or(raw.width);
+        if original_width > 0 {
+            let scale = dim.w as f32 / original_width as f32;
+            if (scale - 1.0).abs() > 1e-6 {
+                crop.scale(scale);
+            }
+        }
+        if !crop.is_empty() && crop.d != dim {
+            dim = crop.d;
+        }
+    }
+    (dim.w, dim.h)
+}
+
 /// The size `rgb` comes down to so that it fits in `max_w` x `max_h`, keeping
 /// its shape. Never larger than it is.
 pub(crate) fn fit(width: usize, height: usize, max_w: u32, max_h: u32) -> (usize, usize) {
