@@ -1827,13 +1827,21 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(PinchZoomDisablePlugin)
         .on_window_event(|window, event| if let tauri::WindowEvent::Resized(size) = event {
+            // Argentum: minimising reports 0x0. Shrinking the surface to 1x1 then threw
+            // the photo away, and on restore the viewer showed the window behind it.
+            // Leave the surface alone while minimised, and only resize it when the size changed.
+            if size.width == 0 || size.height == 0 {
+                return;
+            }
             let state = window.state::<AppState>();
             if let Some(ctx) = state.gpu_context.lock().unwrap().as_ref()
                 && let Ok(mut display_lock) = ctx.display.try_lock()
                     && let Some(display) = display_lock.as_mut() {
-                        display.config.width = size.width.max(1);
-                        display.config.height = size.height.max(1);
-                        display.surface.configure(&ctx.device, &display.config);
+                        if display.config.width != size.width || display.config.height != size.height {
+                            display.config.width = size.width;
+                            display.config.height = size.height;
+                            display.surface.configure(&ctx.device, &display.config);
+                        }
                         display.render(&ctx.device, &ctx.queue);
                     }
         })

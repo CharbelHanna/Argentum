@@ -66,7 +66,11 @@ impl WgpuDisplay {
                     match self.surface.get_current_texture() {
                         wgpu::CurrentSurfaceTexture::Success(tex)
                         | wgpu::CurrentSurfaceTexture::Suboptimal(tex) => tex,
-                        _ => panic!("Failed to acquire surface texture"),
+                        // Argentum: skip the frame rather than crash (e.g. a window still restoring)
+                        other => {
+                            log::warn!("Skipped a frame: no surface texture after reconfigure ({:?})", other);
+                            return;
+                        }
                     }
                 }
                 _ => return,
