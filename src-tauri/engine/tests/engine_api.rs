@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
-use argentum_engine::contract::{EditPatch, Event, PhotoId, RenderTicket, View};
+use argentum_engine::contract::{EditPatch, ErrorKind, Event, PhotoId, RenderTicket, View};
 use argentum_engine::rawler::imgop::{Dim2, Point, Rect};
 use argentum_engine::{
     Context, Engine, Error, Image, Kind, Pipeline, Registry, Result, Section, Size, Source, Stage,
@@ -24,7 +24,7 @@ fn engine() -> (Engine, Receiver<Event>) {
 
 fn engine_with(registry: fn() -> Registry) -> (Engine, Receiver<Event>) {
     let (tx, rx) = channel();
-    let engine = Engine::with_registry(registry, move |e| {
+    let engine = Engine::with_registry(registry(), move |e| {
         let _ = tx.send(e);
     })
     .unwrap();
@@ -76,7 +76,17 @@ fn open_apply_view_and_what_comes_back() {
     );
 
     // The first view is the whole photo, fitted in 1600 px: here, all of it.
-    let t1 = engine.apply(opened.photo_id, &no_sharpening()).unwrap();
+    let applied = engine.apply(opened.photo_id, &no_sharpening()).unwrap();
+    let t1 = applied.ticket;
+    // The edit as the engine took it: the patch in, everything else default.
+    assert_eq!(
+        applied.edit.tools["rt_capture_sharpen"].settings["capture"],
+        serde_json::json!(false)
+    );
+    assert_eq!(
+        applied.edit.tools["ag_exposure_wb"],
+        opened.edit.tools["ag_exposure_wb"]
+    );
     let events = until_done(&rx, t1);
     let [
         Event::Frame {
@@ -128,29 +138,35 @@ fn open_apply_view_and_what_comes_back() {
     // Each photo pixel is two screen pixels across.
     assert_eq!(zoomed.rgba[0..4], zoomed.rgba[4..8]);
 
-    // Refused, and nothing renders: no ticket is used up.
+    // Refused, with what was wrong, and nothing renders: no ticket is used up.
     let id = opened.photo_id;
-    assert!(
-        engine
-            .apply(
-                id,
-                &patch(serde_json::json!({ "ag_exposure_wb": { "nope": 1 } }))
-            )
-            .is_err()
+    let refused =
+        |patch_json: serde_json::Value| engine.apply(id, &patch(patch_json)).unwrap_err().kind();
+    assert_eq!(
+        refused(serde_json::json!({ "ag_exposure_wb": { "nope": 1 } })),
+        ErrorKind::UnknownSetting
     );
-    assert!(engine.apply(PhotoId(99), &EditPatch::default()).is_err());
-    assert!(
-        engine
-            .view(
-                id,
-                View {
-                    zoom: 0.0,
-                    ..corner
-                }
-            )
-            .is_err()
+    assert_eq!(
+        refused(serde_json::json!({ "ag_nothing": { "x": 1 } })),
+        ErrorKind::UnknownTool
     );
-    let t3 = engine.apply(id, &EditPatch::default()).unwrap();
+    assert_eq!(
+        refused(serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } })),
+        ErrorKind::BadValue
+    );
+    let unknown = engine
+        .apply(PhotoId(99), &EditPatch::default())
+        .unwrap_err();
+    assert_eq!(unknown.kind(), ErrorKind::UnknownPhoto);
+    let flat = View {
+        zoom: 0.0,
+        ..corner
+    };
+    assert_eq!(
+        engine.view(id, flat).unwrap_err().kind(),
+        ErrorKind::BadView
+    );
+    let t3 = engine.apply(id, &EditPatch::default()).unwrap().ticket;
     assert_eq!(t3, RenderTicket(t2.0 + 1));
     until_done(&rx, t3);
 }
@@ -176,7 +192,7 @@ macro_rules! slow_tool {
 
         impl Tool for $name {
             const ID: &'static str = $id;
-            const STAGE: Stage = Stage::Display;
+            const STAGE: Stage = Stage::SceneLinear;
             const SECTION: Section = Section::Effects;
             const KIND: Kind = Kind::PerPixel;
             type Settings = Step;
@@ -208,7 +224,8 @@ fn renders_are_latest_wins() {
                 "ag_slow_a": { "n": 1 },
             })),
         )
-        .unwrap();
+        .unwrap()
+        .ticket;
     let waited = Instant::now();
     while RUNS_A.load(Ordering::SeqCst) == 0 {
         assert!(
@@ -219,10 +236,12 @@ fn renders_are_latest_wins() {
     }
     let t2 = engine
         .apply(id, &patch(serde_json::json!({ "ag_slow_a": { "n": 2 } })))
-        .unwrap();
+        .unwrap()
+        .ticket;
     let t3 = engine
         .apply(id, &patch(serde_json::json!({ "ag_slow_a": { "n": 3 } })))
-        .unwrap();
+        .unwrap()
+        .ticket;
 
     let events = until_done(&rx, t3);
     let tickets: Vec<_> = events
@@ -247,7 +266,7 @@ struct AgFails;
 
 impl Tool for AgFails {
     const ID: &'static str = "ag_fails";
-    const STAGE: Stage = Stage::Display;
+    const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Effects;
     const KIND: Kind = Kind::PerPixel;
     type Settings = Step;
@@ -275,12 +294,20 @@ fn a_failed_render_says_so() {
                 "ag_fails": { "n": 1 },
             })),
         )
-        .unwrap();
+        .unwrap()
+        .ticket;
     let events = until_done(&rx, t);
-    let [Event::Error { ticket, message }] = &events[..] else {
+    let [
+        Event::Error {
+            ticket,
+            kind,
+            message,
+        },
+    ] = &events[..]
+    else {
         panic!("{events:?}")
     };
-    assert_eq!(*ticket, Some(t));
+    assert_eq!((*ticket, *kind), (Some(t), ErrorKind::Render));
     assert!(message.contains("asked to fail"), "{message}");
 }
 

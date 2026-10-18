@@ -264,21 +264,30 @@ impl<'a> Context<'a> {
     }
 }
 
+/// Why settings could not be read.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Refused {
+    /// Saved by a newer engine, or by a version with no migration.
+    Version(String),
+    /// A value of the wrong type, or not one of its choices.
+    Value(String),
+}
+
 /// Read settings saved at `version`: migrated if older, refused if newer,
 /// then clamped to their fields' ranges.
-pub fn read_settings<S: Settings>(version: u32, value: Value) -> std::result::Result<S, String> {
+pub fn read_settings<S: Settings>(version: u32, value: Value) -> std::result::Result<S, Refused> {
     let value = match version.cmp(&S::VERSION) {
         std::cmp::Ordering::Equal => value,
-        std::cmp::Ordering::Less => S::migrate(version, value)?,
+        std::cmp::Ordering::Less => S::migrate(version, value).map_err(Refused::Version)?,
         std::cmp::Ordering::Greater => {
-            return Err(format!(
+            return Err(Refused::Version(format!(
                 "saved at version {version}, newer than this engine's {}",
                 S::VERSION
-            ));
+            )));
         }
     };
-    let (value, _) = clamp_json(value, S::FIELDS)?;
-    serde_json::from_value(value).map_err(|e| e.to_string())
+    let (value, _) = clamp_json(value, S::FIELDS).map_err(Refused::Value)?;
+    serde_json::from_value(value).map_err(|e| Refused::Value(e.to_string()))
 }
 
 /// The same settings with every value inside its range.
@@ -496,8 +505,7 @@ pub(crate) trait AnyTool: Send + Sync {
     fn info(&self) -> ToolInfo;
     fn descriptor(&self, order: u32) -> std::result::Result<ToolDescriptor, String>;
     fn defaults(&self) -> Box<dyn AnySettings>;
-    fn read(&self, version: u32, value: Value)
-    -> std::result::Result<Box<dyn AnySettings>, String>;
+    fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>>;
     fn process(
         &self,
         settings: &dyn AnySettings,
@@ -536,12 +544,15 @@ impl<T: Tool> AnyTool for Registered<T> {
         Box::new(T::Settings::default())
     }
 
-    fn read(
-        &self,
-        version: u32,
-        value: Value,
-    ) -> std::result::Result<Box<dyn AnySettings>, String> {
-        read_settings::<T::Settings>(version, value).map(|s| Box::new(s) as Box<dyn AnySettings>)
+    fn read(&self, version: u32, value: Value) -> Result<Box<dyn AnySettings>> {
+        match read_settings::<T::Settings>(version, value) {
+            Ok(settings) => Ok(Box::new(settings)),
+            Err(Refused::Version(m)) => Err(Error::BadEdit(format!("{}: {m}", T::ID))),
+            Err(Refused::Value(message)) => Err(Error::BadValue {
+                tool: T::ID.to_string(),
+                message,
+            }),
+        }
     }
 
     fn process(
@@ -553,7 +564,9 @@ impl<T: Tool> AnyTool for Registered<T> {
         let settings = settings
             .as_any()
             .downcast_ref::<T::Settings>()
-            .expect("a tool's settings slot only ever holds its own settings");
+            .ok_or_else(|| {
+                Error::Registry(format!("{} was handed another tool's settings", T::ID))
+            })?;
         self.0.process(settings, input, cx)
     }
 }

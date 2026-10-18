@@ -46,7 +46,7 @@ pub struct AgDummy;
 
 impl Tool for AgDummy {
     const ID: &'static str = "ag_dummy";
-    const STAGE: Stage = Stage::Display;
+    const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Effects;
     const KIND: Kind = Kind::PerPixel;
     type Settings = Settings;

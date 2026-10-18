@@ -12,8 +12,7 @@ pub enum Image {
     /// mosaic (`cpp` 1), or three colours per pixel (sRAW, linear DNG). What
     /// `Stage::Raw` tools receive.
     Raw(RawImage),
-    /// Demosaiced RGB, linear light. What `Stage::SceneLinear` and
-    /// `Stage::Display` tools receive.
+    /// Demosaiced RGB, linear light. What `Stage::SceneLinear` tools receive.
     Rgb(Rgb),
 }
 

@@ -22,7 +22,7 @@ use rawler::rawimage::RawImage;
 use rawler::rawsource::RawSource;
 use serde_json::Value;
 
-use crate::contract::{EDIT_VERSION, EditDocument, EditPatch, Stage, ToolEdit};
+use crate::contract::{EditDocument, EditPatch, Stage};
 use crate::develop::{self, DEVELOP_VERSION};
 use crate::registry::Registry;
 use crate::tool::{self, AnySettings, Context, Tool};
@@ -98,7 +98,7 @@ enum Op {
 pub const DEFAULT_CACHE_BYTES: usize = 2 << 30;
 
 pub struct Pipeline {
-    registry: Registry,
+    registry: Arc<Registry>,
     settings: Vec<Box<dyn AnySettings>>,
     hashes: Vec<u64>,
     cache: Cache,
@@ -110,11 +110,12 @@ pub struct Pipeline {
 impl Pipeline {
     /// A pipeline running `registry`'s tools, every one at its defaults.
     pub fn new(registry: Registry) -> Result<Pipeline> {
-        Self::with_gpu(registry, GpuSlot::new())
+        Self::with_gpu(Arc::new(registry), GpuSlot::new())
     }
 
-    /// The same, with GPU tools using this device rather than opening one.
-    pub fn with_gpu(registry: Registry, gpu: GpuSlot) -> Result<Pipeline> {
+    /// The same, sharing `registry`, with GPU tools using this device rather
+    /// than opening one.
+    pub fn with_gpu(registry: Arc<Registry>, gpu: GpuSlot) -> Result<Pipeline> {
         registry.check()?;
         let settings: Vec<_> = registry.tools.iter().map(|t| t.defaults()).collect();
         let hashes = registry
@@ -161,113 +162,38 @@ impl Pipeline {
     /// Set a tool's settings from saved JSON, by id: migrated if `version` is
     /// older than the tool's, refused if it is newer, clamped either way.
     pub fn set_json(&mut self, id: &str, version: u32, value: Value) -> Result<()> {
-        let i = self.position(id)?;
-        let settings = self.read(i, version, value)?;
+        let i = self
+            .registry
+            .position(id)
+            .ok_or_else(|| Error::UnknownTool(id.to_string()))?;
+        let settings = self.registry.tools[i].read(version, value)?;
         self.store(i, settings);
         Ok(())
     }
 
     /// Every tool's settings, as an edit saves them.
     pub fn edit(&self) -> EditDocument {
-        let mut doc = EditDocument::new();
-        for (info, settings) in self.registry.infos().iter().zip(&self.settings) {
-            doc.tools.insert(
-                info.id.to_string(),
-                ToolEdit {
-                    v: info.version,
-                    settings: tool::as_map(settings.to_json()),
-                },
-            );
-        }
-        doc
+        self.registry.edit_of(&self.settings)
     }
 
     /// Every tool's settings from an edit; a tool it does not mention is at
     /// its defaults. All or nothing: when any tool's settings cannot be read,
-    /// nothing changes.
+    /// nothing changes. A tool whose settings are the same as before keeps
+    /// its cached results.
     pub fn set_edit(&mut self, doc: &EditDocument) -> Result<()> {
-        if doc.version != EDIT_VERSION {
-            return Err(Error::Settings {
-                tool: "edit".into(),
-                message: format!(
-                    "edit version {}, this engine reads {EDIT_VERSION}",
-                    doc.version
-                ),
-            });
-        }
-        if let Some(id) = doc
-            .tools
-            .keys()
-            .find(|id| self.registry.position(id).is_none())
-        {
-            return Err(Error::Registry(format!(
-                "the edit names {id}, which is not a tool here"
-            )));
-        }
-        let mut next = Vec::with_capacity(self.settings.len());
-        for (i, info) in self.registry.infos().iter().enumerate() {
-            next.push(match doc.tools.get(info.id) {
-                Some(edit) => {
-                    let value = Value::Object(edit.settings.clone().into_iter().collect());
-                    self.read(i, edit.v, value)?
-                }
-                None => self.registry.tools[i].defaults(),
-            });
-        }
+        let next = self.registry.read_edit(doc)?;
         for (i, settings) in next.into_iter().enumerate() {
             self.store(i, settings);
         }
         Ok(())
     }
 
-    /// Merge `patch` into the settings: `{ toolId: { key: value } }`, with
-    /// `null` putting a setting back to its default. Only the tools it names
-    /// change, so only they and the tools after them run again. All or
-    /// nothing: an unknown tool or setting, or a value of the wrong type,
-    /// changes nothing.
+    /// Merge `patch` into the settings, as `Registry::merge` does. Only the
+    /// tools it names change, so only they and the tools after them run
+    /// again.
     pub fn apply(&mut self, patch: &EditPatch) -> Result<()> {
-        let mut next = Vec::with_capacity(patch.0.len());
-        for (id, changes) in &patch.0 {
-            let i = self.position(id)?;
-            let mut merged = tool::as_map(self.settings[i].to_json());
-            for (key, value) in changes {
-                if !merged.contains_key(key) {
-                    return Err(Error::Settings {
-                        tool: id.clone(),
-                        message: format!("no setting {key}"),
-                    });
-                }
-                if value.is_null() {
-                    merged.remove(key);
-                } else {
-                    merged.insert(key.clone(), value.clone());
-                }
-            }
-            let version = self.registry.infos()[i].version;
-            next.push((
-                i,
-                self.read(i, version, Value::Object(merged.into_iter().collect()))?,
-            ));
-        }
-        for (i, settings) in next {
-            self.store(i, settings);
-        }
-        Ok(())
-    }
-
-    fn position(&self, id: &str) -> Result<usize> {
-        self.registry
-            .position(id)
-            .ok_or_else(|| Error::Registry(format!("no tool {id} in this pipeline")))
-    }
-
-    fn read(&self, i: usize, version: u32, value: Value) -> Result<Box<dyn AnySettings>> {
-        self.registry.tools[i]
-            .read(version, value)
-            .map_err(|message| Error::Settings {
-                tool: self.registry.infos()[i].id.to_string(),
-                message,
-            })
+        let doc = self.registry.merge(&self.edit(), patch)?;
+        self.set_edit(&doc)
     }
 
     fn store(&mut self, i: usize, settings: Box<dyn AnySettings>) {
@@ -413,7 +339,7 @@ impl Pipeline {
                 let info = &self.registry.infos()[i];
                 let fits = match info.stage {
                     Stage::Raw => input.as_raw().is_some(),
-                    Stage::SceneLinear | Stage::Display => input.as_rgb().is_some(),
+                    Stage::SceneLinear => input.as_rgb().is_some(),
                 };
                 if !fits {
                     return Err(Error::Tool {

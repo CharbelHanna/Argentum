@@ -22,7 +22,7 @@ fn ran(p: &Pipeline) -> Vec<&'static str> {
 /// off, and still counted as a step.
 fn pipeline(gpu: Option<Arc<Gpu>>) -> Pipeline {
     match gpu {
-        Some(gpu) => Pipeline::with_gpu(standard(), GpuSlot::with(gpu)).unwrap(),
+        Some(gpu) => Pipeline::with_gpu(Arc::new(standard()), GpuSlot::with(gpu)).unwrap(),
         None => {
             let mut p = Pipeline::standard().unwrap();
             p.set::<rt_capture_sharpen::RtCaptureSharpen>(rt_capture_sharpen::Settings {

@@ -56,7 +56,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
     assert_eq!(d.label, "tools.ag_dummy.label");
     assert_eq!(
         (d.section, d.order, d.stage),
-        (Section::Effects, 3, Stage::Display)
+        (Section::Effects, 3, Stage::SceneLinear)
     );
     assert_eq!(d.version, 2);
     let [amount] = &d.settings[..] else {
@@ -135,7 +135,7 @@ fn a_fourth_tool_is_one_file_and_one_registry_line() {
 
 #[test]
 fn the_interface_is_told_about_it_too() {
-    let engine = Engine::with_registry(registry, |_| {}).unwrap();
+    let engine = Engine::with_registry(registry(), |_| {}).unwrap();
     let ids: Vec<_> = engine.tools().into_iter().map(|d| d.id).collect();
     assert_eq!(
         ids,

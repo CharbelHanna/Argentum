@@ -19,6 +19,9 @@ use ts_rs::TS;
 /// their own version, in `ToolEdit::v`.
 pub const EDIT_VERSION: u32 = 1;
 
+/// How many bins a histogram event has: one per 8-bit level.
+pub const HISTOGRAM_BINS: usize = 256;
+
 /// Whose code a tool is: the first two letters of its id.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Origin {
@@ -34,16 +37,15 @@ pub enum Origin {
     Argentum,
 }
 
-/// Where in the pipeline a tool runs: on the sensor data before demosaic,
-/// on linear light, or on the picture shaped for a screen.
+/// Where in the pipeline a tool runs: on the sensor data before demosaic, or
+/// on linear light after it. A stage for the picture shaped for a screen
+/// comes with the first tool that needs one.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Stage {
     #[serde(rename = "raw")]
     Raw,
     #[serde(rename = "scene")]
     SceneLinear,
-    #[serde(rename = "display")]
-    Display,
 }
 
 /// The panel a tool is shown in. More can be added; `SECTIONS` says their
@@ -227,12 +229,21 @@ pub struct PhotoId(pub u32);
 #[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RenderTicket(pub u32);
 
+/// What `apply` returns: the ticket of the render it started, and the edit
+/// as the engine took it - clamped, with the defaults filled in. What the
+/// interface shows should be this, not what it sent.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+pub struct Applied {
+    pub ticket: RenderTicket,
+    pub edit: EditDocument,
+}
+
 /// What `open` returns.
 #[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Opened {
     pub photo_id: PhotoId,
-    /// The developed picture's size, in pixels.
+    /// The developed picture's size, in photo pixels.
     pub width: u32,
     pub height: u32,
     pub edit: EditDocument,
@@ -248,9 +259,45 @@ pub struct View {
     /// down.
     pub center_x: f32,
     pub center_y: f32,
-    /// The view's size in screen pixels.
+    /// The view's size in device pixels: CSS pixels times the device pixel
+    /// ratio, so a frame fills it pixel for pixel.
     pub width: u32,
     pub height: u32,
+}
+
+/// What went wrong, as a kind the interface can act on.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum ErrorKind {
+    /// No open photo has that id.
+    UnknownPhoto,
+    /// A view with no size, a zoom that is not positive, or a centre that is
+    /// not a number.
+    BadView,
+    /// A patch or an edit names a tool this engine does not have.
+    UnknownTool,
+    /// A patch names a setting the tool does not have.
+    UnknownSetting,
+    /// A value of the wrong type, or not one of its choices.
+    BadValue,
+    /// An edit this engine cannot read: another shape version, or a tool's
+    /// settings saved by a newer engine.
+    BadEdit,
+    /// The file could not be read, or is not a RAW the engine can decode.
+    Decode,
+    /// A tool needs the GPU and there is none.
+    NoGpu,
+    /// A tool failed while it rendered.
+    Render,
+    /// A fault of the engine's own, not of what it was asked.
+    Internal,
+}
+
+/// A refused call: what went wrong, and in words.
+#[derive(Serialize, Deserialize, TS, Debug, Clone, PartialEq)]
+pub struct EngineError {
+    pub kind: ErrorKind,
+    pub message: String,
 }
 
 /// What the engine tells the interface, as it happens.
@@ -268,7 +315,8 @@ pub enum Event {
         width: u32,
         height: u32,
     },
-    /// 256 bins of luminance, over the frame with the same ticket.
+    /// `HISTOGRAM_BINS` bins of luminance, over the frame with the same
+    /// ticket.
     Histogram {
         ticket: RenderTicket,
         #[serde(rename = "photoId")]
@@ -280,6 +328,7 @@ pub enum Event {
         #[ts(optional)]
         #[serde(default, skip_serializing_if = "Option::is_none")]
         ticket: Option<RenderTicket>,
+        kind: ErrorKind,
         message: String,
     },
 }
