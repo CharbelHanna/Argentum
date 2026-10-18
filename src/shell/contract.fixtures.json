@@ -1,0 +1,574 @@
+{
+  "sections": [
+    {
+      "id": "basic",
+      "label": "sections.basic"
+    },
+    {
+      "id": "tone",
+      "label": "sections.tone"
+    },
+    {
+      "id": "color",
+      "label": "sections.color"
+    },
+    {
+      "id": "detail",
+      "label": "sections.detail"
+    },
+    {
+      "id": "lens",
+      "label": "sections.lens"
+    },
+    {
+      "id": "effects",
+      "label": "sections.effects"
+    }
+  ],
+  "tools": [
+    {
+      "id": "dt_highlights",
+      "origin": "dt",
+      "label": "tools.dt_highlights.label",
+      "section": "tone",
+      "order": 0,
+      "stage": "raw",
+      "version": 1,
+      "settings": [
+        {
+          "key": "recover",
+          "label": "tools.dt_highlights.recover",
+          "kind": "bool",
+          "default": true,
+          "advanced": false
+        }
+      ]
+    },
+    {
+      "id": "rt_capture_sharpen",
+      "origin": "rt",
+      "label": "tools.rt_capture_sharpen.label",
+      "section": "detail",
+      "order": 1,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
+        {
+          "key": "capture",
+          "label": "tools.rt_capture_sharpen.capture",
+          "kind": "bool",
+          "default": true,
+          "advanced": false
+        },
+        {
+          "key": "captureAmount",
+          "label": "tools.rt_capture_sharpen.captureAmount",
+          "kind": "float",
+          "default": 100.0,
+          "min": 0.0,
+          "max": 100.0,
+          "step": 1.0,
+          "unit": "%",
+          "scale": "linear",
+          "advanced": false
+        },
+        {
+          "key": "autoRadius",
+          "label": "tools.rt_capture_sharpen.autoRadius",
+          "kind": "bool",
+          "default": true,
+          "advanced": false
+        },
+        {
+          "key": "radius",
+          "label": "tools.rt_capture_sharpen.radius",
+          "kind": "float",
+          "default": 0.75,
+          "min": 0.4,
+          "max": 2.0,
+          "step": 0.01,
+          "unit": "px",
+          "scale": "linear",
+          "enabledWhen": {
+            "key": "autoRadius",
+            "equals": false
+          },
+          "advanced": false
+        },
+        {
+          "key": "autoContrast",
+          "label": "tools.rt_capture_sharpen.autoContrast",
+          "kind": "bool",
+          "default": true,
+          "advanced": false
+        },
+        {
+          "key": "contrast",
+          "label": "tools.rt_capture_sharpen.contrast",
+          "kind": "float",
+          "default": 10.0,
+          "min": 0.0,
+          "max": 200.0,
+          "step": 1.0,
+          "scale": "linear",
+          "enabledWhen": {
+            "key": "autoContrast",
+            "equals": false
+          },
+          "advanced": false
+        },
+        {
+          "key": "cornerBoost",
+          "label": "tools.rt_capture_sharpen.cornerBoost",
+          "kind": "float",
+          "default": 0.0,
+          "min": -0.5,
+          "max": 0.5,
+          "step": 0.01,
+          "unit": "px",
+          "scale": "linear",
+          "advanced": true
+        },
+        {
+          "key": "iterations",
+          "label": "tools.rt_capture_sharpen.iterations",
+          "kind": "int",
+          "default": 20,
+          "min": 1.0,
+          "max": 100.0,
+          "step": 1.0,
+          "advanced": true
+        },
+        {
+          "key": "iterCheck",
+          "label": "tools.rt_capture_sharpen.iterCheck",
+          "kind": "bool",
+          "default": true,
+          "advanced": true
+        }
+      ]
+    },
+    {
+      "id": "ag_exposure_wb",
+      "origin": "ag",
+      "label": "tools.ag_exposure_wb.label",
+      "section": "basic",
+      "order": 2,
+      "stage": "scene",
+      "version": 1,
+      "settings": [
+        {
+          "key": "exposure",
+          "label": "tools.ag_exposure_wb.exposure",
+          "kind": "float",
+          "default": 0.0,
+          "min": -10.0,
+          "max": 10.0,
+          "step": 0.01,
+          "unit": "EV",
+          "scale": "linear",
+          "advanced": false
+        },
+        {
+          "key": "red",
+          "label": "tools.ag_exposure_wb.red",
+          "kind": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 20.0,
+          "step": 0.001,
+          "scale": "log",
+          "advanced": false
+        },
+        {
+          "key": "green",
+          "label": "tools.ag_exposure_wb.green",
+          "kind": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 20.0,
+          "step": 0.001,
+          "scale": "log",
+          "advanced": false
+        },
+        {
+          "key": "blue",
+          "label": "tools.ag_exposure_wb.blue",
+          "kind": "float",
+          "default": 1.0,
+          "min": 0.05,
+          "max": 20.0,
+          "step": 0.001,
+          "scale": "log",
+          "advanced": false
+        }
+      ]
+    }
+  ],
+  "edit": {
+    "version": 1,
+    "tools": {
+      "ag_exposure_wb": {
+        "v": 1,
+        "settings": {
+          "blue": 1.0,
+          "exposure": 0.0,
+          "green": 1.0,
+          "red": 1.0
+        }
+      },
+      "dt_highlights": {
+        "v": 1,
+        "settings": {
+          "recover": true
+        }
+      },
+      "rt_capture_sharpen": {
+        "v": 1,
+        "settings": {
+          "autoContrast": true,
+          "autoRadius": true,
+          "capture": true,
+          "captureAmount": 100.0,
+          "contrast": 10.0,
+          "cornerBoost": 0.0,
+          "iterCheck": true,
+          "iterations": 20,
+          "radius": 0.75
+        }
+      }
+    }
+  },
+  "patch": {
+    "ag_exposure_wb": {
+      "exposure": 0.5,
+      "red": 1.05
+    },
+    "rt_capture_sharpen": {
+      "radius": null
+    }
+  },
+  "opened": {
+    "photoId": 1,
+    "width": 7144,
+    "height": 4760,
+    "edit": {
+      "version": 1,
+      "tools": {
+        "ag_exposure_wb": {
+          "v": 1,
+          "settings": {
+            "blue": 1.0,
+            "exposure": 0.0,
+            "green": 1.0,
+            "red": 1.0
+          }
+        },
+        "dt_highlights": {
+          "v": 1,
+          "settings": {
+            "recover": true
+          }
+        },
+        "rt_capture_sharpen": {
+          "v": 1,
+          "settings": {
+            "autoContrast": true,
+            "autoRadius": true,
+            "capture": true,
+            "captureAmount": 100.0,
+            "contrast": 10.0,
+            "cornerBoost": 0.0,
+            "iterCheck": true,
+            "iterations": 20,
+            "radius": 0.75
+          }
+        }
+      }
+    }
+  },
+  "view": {
+    "zoom": 0.25,
+    "centerX": 0.5,
+    "centerY": 0.5,
+    "width": 1786,
+    "height": 1190
+  },
+  "events": [
+    {
+      "event": "frame",
+      "ticket": 3,
+      "photoId": 1,
+      "width": 1786,
+      "height": 1190
+    },
+    {
+      "event": "histogram",
+      "ticket": 3,
+      "photoId": 1,
+      "bins": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1000000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        500000
+      ]
+    },
+    {
+      "event": "error",
+      "ticket": 4,
+      "message": "no GPU: no adapter"
+    }
+  ]
+}

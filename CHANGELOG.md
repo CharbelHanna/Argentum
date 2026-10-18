@@ -4,6 +4,42 @@ Newest first.
 
 **Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
 
+## 26.41.13 — unreleased
+
+### Internal
+
+- **The engine library, first step.** `src-tauri/engine/`, crate
+  `argentum-engine`: a registry of tools, each one file in `src/tools/` and
+  one line in `registry.rs`, and a pipeline that keeps every tool's result
+  keyed by its input and its settings, so changing one tool re-runs it and
+  the tools after it only. Its own workspace: it builds and tests from its
+  folder without building the app, and the app does not use it yet. Three
+  tools, copied from the app, which keeps its originals:
+  - `dt_highlights`: highlight recovery and blown-highlight settling on the
+    sensor data, from `mods/highlights.rs` @ `2bcb953d` - Argentum's code,
+    after darktable's opposed reconstruction
+    (`src/iop/hlreconstruct/opposed.c`). Bit-identical to the original.
+  - `rt_capture_sharpen`: RawTherapee's capture sharpening,
+    `rtengine/capturesharpening.cc` @ `c6d04960e14fed89e531cbbdf680021d131b4685`
+    with the contrast mask of `rtengine/rt_algo.cc`
+    @ `1c2b3f33772eaf491b7bd4d66323ac36d13aa344`, from `mods/sharpen.rs`,
+    `mods/sharpen_gpu.rs` and `shaders/sharpen.wgsl` @ `2bcb953d`, on a GPU
+    device of the engine's own. Automatic radius and contrast bit-identical
+    to the app's; the passes within one half-float step of the app's output,
+    the engine keeping f32 where the app stores half floats.
+  - `ag_exposure_wb`: exposure and white balance multipliers. Ours.
+  - The parity tests compile the app's own files unchanged, in a test-only
+    crate (`engine/reference/`), and compare on the same input.
+  - The contract the new editor interface talks to it through:
+    `src/contract.rs` holds every type the interface sees (tool descriptors
+    read off each tool's own settings, the edit document, edit patches,
+    views, render tickets and events), and `src/shell/contract.generated.ts`
+    is generated from it with ts-rs, with fixtures beside it; a test fails
+    when they are stale. The engine's calls - `tools`, `open`, `apply`,
+    `view` - return at once and render on a thread of their own,
+    latest-wins. A slider tick at preview size is held to a measured budget
+    of 25 ms by a test.
+
 ## 26.41.12 — 2026-10-11
 
 ### Added
