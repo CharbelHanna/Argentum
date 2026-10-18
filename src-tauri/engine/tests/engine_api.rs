@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 use argentum_engine::contract::{EditPatch, ErrorKind, Event, PhotoId, RenderTicket, View};
 use argentum_engine::rawler::imgop::{Dim2, Point, Rect};
 use argentum_engine::{
-    Context, Engine, Error, Image, Kind, Pipeline, Registry, Result, Section, Size, Source, Stage,
-    Tool, standard,
+    Context, Engine, Error, Image, Pipeline, Registry, Result, Section, Size, Source, Stage, Tool,
+    standard,
 };
 use serde::{Deserialize, Serialize};
 
@@ -194,7 +194,6 @@ macro_rules! slow_tool {
             const ID: &'static str = $id;
             const STAGE: Stage = Stage::SceneLinear;
             const SECTION: Section = Section::Effects;
-            const KIND: Kind = Kind::PerPixel;
             type Settings = Step;
 
             fn process(&self, _: &Step, _: &Image, _: &Context) -> Result<Option<Image>> {
@@ -268,7 +267,6 @@ impl Tool for AgFails {
     const ID: &'static str = "ag_fails";
     const STAGE: Stage = Stage::SceneLinear;
     const SECTION: Section = Section::Effects;
-    const KIND: Kind = Kind::PerPixel;
     type Settings = Step;
 
     fn process(&self, s: &Step, _: &Image, _: &Context) -> Result<Option<Image>> {
@@ -336,7 +334,7 @@ fn the_size_open_reports_is_the_developed_size() {
     for (name, source) in sources {
         let image = p.render(&source, Size::Full).unwrap();
         let rgb = image.as_rgb().unwrap();
-        eprintln!("  {name:<52} {:?}", source.size());
-        assert_eq!(source.size(), (rgb.width, rgb.height), "{name}");
+        eprintln!("  {name:<52} {:?}", source.size_px());
+        assert_eq!(source.size_px(), (rgb.width, rgb.height), "{name}");
     }
 }

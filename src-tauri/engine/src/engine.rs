@@ -21,11 +21,12 @@ use crate::contract::{
     Applied, EditDocument, EditPatch, Event, HISTOGRAM_BINS, Opened, PhotoId, RenderTicket,
     SectionDescriptor, ToolDescriptor, View,
 };
+use crate::develop::fit_px;
 use crate::{Error, GpuSlot, Pipeline, Registry, Result, Rgb, Size, Source};
 
 /// The view a photo has until `view` is called: the whole photo, fitted in
 /// this many pixels.
-const FIRST_VIEW: u32 = 1600;
+const FIRST_VIEW_PX: u32 = 1600;
 
 /// One rendered view: sRGB, 8 bits per channel, RGBA, row-major.
 #[derive(Debug, Clone, PartialEq)]
@@ -62,7 +63,7 @@ struct State {
 
 struct Photo {
     source: Arc<Source>,
-    size: (u32, u32),
+    size_px: (u32, u32),
     edit: EditDocument,
     view: View,
 }
@@ -71,7 +72,7 @@ struct Job {
     ticket: RenderTicket,
     photo: PhotoId,
     source: Arc<Source>,
-    size: (u32, u32),
+    size_px: (u32, u32),
     edit: EditDocument,
     view: View,
 }
@@ -136,8 +137,8 @@ impl Engine {
 
     /// A photo decoded elsewhere, opened with every tool at its defaults.
     pub fn insert(&self, source: Source) -> Opened {
-        let (w, h) = source.size();
-        let size = (w as u32, h as u32);
+        let (w_px, h_px) = source.size_px();
+        let size_px = (w_px as u32, h_px as u32);
         let edit = self.registry.default_edit();
         let mut state = self.state();
         let id = PhotoId(state.next_photo);
@@ -146,15 +147,15 @@ impl Engine {
             id,
             Photo {
                 source: Arc::new(source),
-                size,
+                size_px,
                 edit: edit.clone(),
-                view: fitted(size, FIRST_VIEW, FIRST_VIEW),
+                view: fitted(size_px, FIRST_VIEW_PX, FIRST_VIEW_PX),
             },
         );
         Opened {
             photo_id: id,
-            width: size.0,
-            height: size.1,
+            width: size_px.0,
+            height: size_px.1,
             edit,
         }
     }
@@ -204,7 +205,7 @@ impl Engine {
             ticket,
             photo,
             source: p.source.clone(),
-            size: p.size,
+            size_px: p.size_px,
             edit: p.edit.clone(),
             view: p.view,
         };
@@ -284,7 +285,7 @@ fn render(
     overtaken: &dyn Fn() -> bool,
 ) -> Result<(Frame, Vec<u32>)> {
     pipeline.set_edit(&job.edit)?;
-    let (w, h) = job.size;
+    let (w_px, h_px) = job.size_px;
     let zoom = job.view.zoom as f64;
     // At or past 100% the pipeline renders at full size and the view is cut
     // out of that; below it, the pipeline renders the whole photo at the
@@ -293,8 +294,8 @@ fn render(
         Size::Full
     } else {
         Size::Fit(
-            ((w as f64 * zoom).ceil() as u32).max(1),
-            ((h as f64 * zoom).ceil() as u32).max(1),
+            ((w_px as f64 * zoom).ceil() as u32).max(1),
+            ((h_px as f64 * zoom).ceil() as u32).max(1),
         )
     };
     let image = pipeline.render_unless(&job.source, size, overtaken)?;
@@ -392,16 +393,15 @@ fn histogram(frame: &Frame) -> Vec<u32> {
         )
 }
 
-/// The whole photo, fitted in `max_w` x `max_h`, never enlarged.
-fn fitted(size: (u32, u32), max_w: u32, max_h: u32) -> View {
-    let (w, h) = (size.0.max(1) as f32, size.1.max(1) as f32);
-    let zoom = (max_w as f32 / w).min(max_h as f32 / h).min(1.0);
+/// The whole photo, fitted in `max_w_px` x `max_h_px`, never enlarged.
+fn fitted(size_px: (u32, u32), max_w_px: u32, max_h_px: u32) -> View {
+    let (scale, w_px, h_px) = fit_px(size_px.0 as usize, size_px.1 as usize, max_w_px, max_h_px);
     View {
-        zoom,
+        zoom: scale as f32,
         center_x: 0.5,
         center_y: 0.5,
-        width: ((w * zoom).round() as u32).max(1),
-        height: ((h * zoom).round() as u32).max(1),
+        width: w_px as u32,
+        height: h_px as u32,
     }
 }
 

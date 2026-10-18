@@ -9,6 +9,7 @@
 //! A library of its own: it builds and tests from its folder without
 //! building the app, and the app does not use it yet.
 
+mod cache;
 pub mod contract;
 mod develop;
 pub mod engine;
@@ -17,6 +18,7 @@ mod gpu;
 mod image;
 pub mod pipeline;
 pub mod registry;
+mod source;
 pub mod tool;
 
 pub use contract::{Origin, Section, Stage, sections};
@@ -24,9 +26,10 @@ pub use engine::{Engine, Frame};
 pub use error::{Error, Result};
 pub use gpu::{Gpu, GpuSlot};
 pub use image::{Image, Rgb};
-pub use pipeline::{Pipeline, Size, Source, Step};
+pub use pipeline::{Pipeline, Size, Step};
 pub use registry::{Registry, standard, tools};
-pub use tool::{Context, Equals, Field, Kind, Settings, Tool};
+pub use source::Source;
+pub use tool::{Context, Equals, Field, Settings, Tool};
 
 /// RawImage and friends, as the tools receive them.
 pub use rawler;
