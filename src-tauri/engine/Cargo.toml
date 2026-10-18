@@ -1,0 +1,39 @@
+[package]
+name = "argentum-engine"
+description = "Argentum's processing engine: a registry of tools and a pipeline that caches each tool's result."
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+
+# A workspace of its own. It builds and tests from this folder alone, without
+# building the app, and the app's Cargo.toml does not know it exists yet.
+[workspace]
+# Today's app code compiled outside the app, for the parity tests. Not a member,
+# so `cargo clippy` here lints the engine and not the app's files.
+exclude = ["reference"]
+
+[dependencies]
+# The same pinned fork the app decodes with (src-tauri/Cargo.toml).
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "16b9b01068ac1f7a9b5319705a075ef6c7789d7a" }
+wgpu = "29.0"
+pollster = "1.0"
+bytemuck = { version = "1.25", features = ["derive"] }
+rayon = "1.12.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+argentum-engine-reference = { path = "reference" }
+half = { version = "2.7.1", features = ["bytemuck"] }
+image = { version = "0.25.10", default-features = false }
+
+# The app's own profile, so a test here runs at the speed the app's code does.
+[profile.dev]
+opt-level = 2
+debug = 1
+incremental = true
+
+[profile.dev.package."*"]
+opt-level = 3
+debug-assertions = false
