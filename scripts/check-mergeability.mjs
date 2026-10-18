@@ -51,6 +51,9 @@ const OURS = [
   // theirs, and the Android matrix entry we removed from each is recorded in
   // EXCEPTIONS below.
   '.github/workflows/upstream.yml',
+  // Ours by creation too: upstream has no cargo config. It holds the dev
+  // linker (registry entry fast-dev-builds).
+  '.cargo/config.toml',
 ];
 
 /**
