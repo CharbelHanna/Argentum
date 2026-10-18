@@ -1,34 +1,27 @@
 /**
- * Marks <html> while the Modern layout is chosen, so modern.css applies, and
- * draws the panels compact then. Ours.
+ * Marks <html> for the Modern look, so modern.css applies, with its palette
+ * and its text size. Ours.
  *
- *   data-ag-look="modern"           the Modern layout is chosen
- *   data-ag-theme="grey|deep|light" its palette (Settings > General > Theme)
+ *   data-ag-look="modern"                the Modern look, always
+ *   data-ag-theme="grey|deep|light"      its palette (Settings > General > Theme)
+ *   data-ag-text="small|normal|large"    its text size (Settings > General > Panels)
  *
- * Classic sets neither and looks as it always has. Compact panels are forced
- * on while Modern shows: the one-line slider is part of its look, whatever the
- * Classic preference says (compactSliders.ts keeps that preference).
+ * The panels are always compact (compactSliders.ts).
  */
 
 import { useEffect } from 'react';
-import { useCompactSliders } from '../compactSliders';
 import { useEditorLayout } from '../layout/editorLayout';
 import './modern.css';
 
 /** Called once, from Argentum.tsx. */
 export function useModernLook() {
-  const modern = useEditorLayout((s) => s.layout === 'modern');
   const theme = useEditorLayout((s) => s.theme);
+  const textSize = useEditorLayout((s) => s.textSize);
 
   useEffect(() => {
     const root = document.documentElement;
-    if (modern) {
-      root.setAttribute('data-ag-look', 'modern');
-      root.setAttribute('data-ag-theme', theme);
-    } else {
-      root.removeAttribute('data-ag-look');
-      root.removeAttribute('data-ag-theme');
-    }
-    useCompactSliders.getState().setForced(modern);
-  }, [modern, theme]);
+    root.setAttribute('data-ag-look', 'modern');
+    root.setAttribute('data-ag-theme', theme);
+    root.setAttribute('data-ag-text', textSize);
+  }, [theme, textSize]);
 }

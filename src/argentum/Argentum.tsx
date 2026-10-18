@@ -45,9 +45,8 @@ import LocalSharpening from './LocalSharpening';
 import MyGear from './MyGear';
 import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
-import CompactSlidersSetting from './CompactSlidersSetting';
+import PanelsSetting from './PanelsSetting';
 import { useCompactSliders } from './compactSliders';
-import EditorLayoutSetting from './layout/EditorLayoutSetting';
 import { useEditorLayout, useModernLayout } from './layout/editorLayout';
 import { useModernLook } from './modern/look';
 import AiModels from './AiModels';
@@ -107,20 +106,19 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // their existing tooltip rather than rendering anything of its own.
   useTruncatedTooltips();
 
-  // Sliders on one line, Lightroom-style, if chosen in Settings > General.
-  // Read once at startup; the layout itself is a stylesheet keyed on <html>.
+  // Sliders on one line, Lightroom-style, with the row spacing chosen in
+  // Settings > General > Panels. Read once at startup; the layout itself is a
+  // stylesheet keyed on <html>.
   useEffect(() => {
     useCompactSliders.getState().load();
   }, []);
 
-  // The editor's layout, Classic or Modern, chosen in Settings > General.
-  // Read once at startup; App.tsx arranges the editor by it.
+  // How the Modern window was left, its palette and its text size. Read once at startup.
   useEffect(() => {
     useEditorLayout.getState().load();
   }, []);
 
-  // The Modern window's look: a stylesheet keyed on <html>, and compact panels
-  // while it is chosen. Classic is untouched.
+  // The Modern look: a stylesheet keyed on <html>.
   useModernLook();
   const modern = useModernLayout();
 
@@ -197,8 +195,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
         <>
           {!modern && <AiModelsPlacement slot={general as HTMLElement} />}
           <NoCloudTile slot={general as HTMLElement} />
-          <CompactSlidersSetting slot={general as HTMLElement} />
-          <EditorLayoutSetting slot={general as HTMLElement} />
+          <PanelsSetting slot={general as HTMLElement} />
         </>
       )}
       <RgbReadout />

@@ -1,16 +1,16 @@
-//! Which arrangement of the editor's panels shows, and how the parts only the
-//! Modern arrangement has were left. Ours.
+//! How the Modern window was left and how it is drawn: its own parts' folds,
+//! sizes and places, its palette and its text size. Ours.
 //!
-//! Classic is today's arrangement and stays the default until another is
-//! chosen. Modern is the one-window arrangement (src/argentum/modern/
-//! ModernWindow.tsx): folders, the Navigator and History on the left, the grid
-//! or the photo in the centre, the tools in one tabbed panel on the right.
+//! The Modern window (src/argentum/modern/ModernWindow.tsx) is the only
+//! arrangement: folders, the Navigator and History on the left, the grid or
+//! the photo in the centre, the tools in one tabbed panel on the right. The
+//! choice between it and Classic, and the Compact panels switch, are gone; an
+//! older file's `editorLayout` and `compactSliders` keys are no longer read.
 //!
-//! Only the interface reads either value; no photo renders differently. Both
-//! live in argentum-processing.json through `ag_settings`, beside Compact
-//! panels. Everything else the arrangement remembers (panel widths, which
-//! panels are folded, which adjustment sections are open) is today's own
-//! workspace state, saved where it always was.
+//! Only the interface reads these; no photo renders differently. They live in
+//! argentum-processing.json through `ag_settings`. Everything else the window
+//! remembers (panel widths, which panels are folded, which adjustment sections
+//! are open) is today's own workspace state, saved where it always was.
 
 use std::path::Path;
 
@@ -19,30 +19,9 @@ use serde_json::Value;
 
 use super::ag_settings;
 
-const LAYOUT_KEY: &str = "editorLayout";
 const PANELS_KEY: &str = "editorLayoutPanels";
 const THEME_KEY: &str = "modernTheme";
-
-/// The arrangement of the editor. Crosses to the interface as its lowercase
-/// name.
-#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum EditorLayout {
-    /// Today's arrangement.
-    #[default]
-    Classic,
-    /// A Lightroom Classic-style arrangement of the same panels.
-    Modern,
-}
-
-impl EditorLayout {
-    /// The layout a name stands for. The name comes from a browser, so any
-    /// string is possible; one this build does not know is Classic, which is
-    /// what the editor showed before the choice existed.
-    pub fn from_name(name: &str) -> Self {
-        serde_json::from_value(Value::from(name)).unwrap_or_default()
-    }
-}
+const TEXT_SIZE_KEY: &str = "modernTextSize";
 
 /// What the Modern arrangement's own parts were left as. The interface
 /// owns the tab ids, the widths and what they start as; this only keeps them.
@@ -73,20 +52,6 @@ pub struct LayoutPanels {
 
 fn open() -> bool {
     true
-}
-
-/// The chosen arrangement, or Classic if none has been chosen or the file
-/// cannot be read.
-pub fn layout(library: &Path) -> EditorLayout {
-    ag_settings::get(library, LAYOUT_KEY)
-        .and_then(|value| value.as_str().map(EditorLayout::from_name))
-        .unwrap_or_default()
-}
-
-/// Choose an arrangement.
-pub fn save_layout(library: &Path, layout: EditorLayout) -> Result<(), String> {
-    let value = serde_json::to_value(layout).map_err(|e| e.to_string())?;
-    ag_settings::set(library, LAYOUT_KEY, value)
 }
 
 /// The arrangement's parts as last left, or `None` if never saved or not
@@ -134,6 +99,37 @@ pub fn save_theme(library: &Path, theme: ModernTheme) -> Result<(), String> {
     ag_settings::set(library, THEME_KEY, value)
 }
 
+/// How large the panels' text is drawn. Crosses to the interface as its
+/// lowercase name; the interface owns what each step scales by.
+#[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum TextSize {
+    Small,
+    #[default]
+    Normal,
+    Large,
+}
+
+impl TextSize {
+    /// The size a name stands for; an unknown name is Normal.
+    pub fn from_name(name: &str) -> Self {
+        serde_json::from_value(Value::from(name)).unwrap_or_default()
+    }
+}
+
+/// The chosen text size, or Normal.
+pub fn text_size(library: &Path) -> TextSize {
+    ag_settings::get(library, TEXT_SIZE_KEY)
+        .and_then(|value| value.as_str().map(TextSize::from_name))
+        .unwrap_or_default()
+}
+
+/// Choose a text size.
+pub fn save_text_size(library: &Path, size: TextSize) -> Result<(), String> {
+    let value = serde_json::to_value(size).map_err(|e| e.to_string())?;
+    ag_settings::set(library, TEXT_SIZE_KEY, value)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -144,33 +140,6 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).expect("scratch");
         dir
-    }
-
-    #[test]
-    fn classic_until_another_is_chosen() {
-        let dir = scratch("default");
-        assert_eq!(layout(&dir), EditorLayout::Classic);
-    }
-
-    #[test]
-    fn the_chosen_layout_is_what_is_read_back() {
-        let dir = scratch("roundtrip");
-        save_layout(&dir, EditorLayout::Modern).expect("write");
-        assert_eq!(layout(&dir), EditorLayout::Modern);
-        save_layout(&dir, EditorLayout::Classic).expect("write");
-        assert_eq!(layout(&dir), EditorLayout::Classic);
-    }
-
-    #[test]
-    fn names_cross_as_lowercase_and_unknown_ones_are_classic() {
-        assert_eq!(EditorLayout::from_name("modern"), EditorLayout::Modern);
-        assert_eq!(EditorLayout::from_name("classic"), EditorLayout::Classic);
-        assert_eq!(EditorLayout::from_name("Modern"), EditorLayout::Classic);
-        assert_eq!(EditorLayout::from_name(""), EditorLayout::Classic);
-        assert_eq!(
-            serde_json::to_value(EditorLayout::Modern).expect("serialise"),
-            Value::from("modern"),
-        );
     }
 
     #[test]
@@ -241,13 +210,24 @@ mod tests {
         );
     }
 
-    /// The layout and its panels share a file with every other preference of
+    #[test]
+    fn normal_until_another_text_size_is_chosen() {
+        let dir = scratch("text-size");
+        assert_eq!(text_size(&dir), TextSize::Normal);
+        save_text_size(&dir, TextSize::Small).expect("write");
+        assert_eq!(text_size(&dir), TextSize::Small);
+        assert_eq!(TextSize::from_name("large"), TextSize::Large);
+        assert_eq!(TextSize::from_name("huge"), TextSize::Normal);
+    }
+
+    /// The window's preferences share a file with every other preference of
     /// ours; saving them must not disturb a neighbour.
     #[test]
     fn saving_leaves_the_other_preferences_alone() {
         let dir = scratch("neighbours");
-        ag_settings::set(&dir, "compactSliders", Value::Bool(true)).expect("write");
-        save_layout(&dir, EditorLayout::Modern).expect("write");
+        ag_settings::set(&dir, "compactSliderGap", Value::from(6)).expect("write");
+        save_theme(&dir, ModernTheme::Deep).expect("write");
+        save_text_size(&dir, TextSize::Large).expect("write");
         let left = LayoutPanels {
             navigator_open: true,
             tab: Some("history".to_string()),
@@ -259,8 +239,8 @@ mod tests {
         };
         save_panels(&dir, &left).expect("write");
         assert_eq!(
-            ag_settings::get(&dir, "compactSliders"),
-            Some(Value::Bool(true))
+            ag_settings::get(&dir, "compactSliderGap"),
+            Some(Value::from(6))
         );
     }
 }

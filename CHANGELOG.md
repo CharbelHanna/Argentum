@@ -8,9 +8,9 @@ Newest first.
 
 ### Added
 
-- **The Modern window** (Settings > General > Layout > Modern): the whole app in one window
-  built from today's panels, in Lightroom Classic's neutral greys (Grey, Deep or Light, in
-  Settings > General > Theme). One bar per edge:
+- **The Modern window**, now the only arrangement: the whole app in one window built from
+  today's panels, in Lightroom Classic's neutral greys (Grey, Deep or Light, in Settings >
+  General > Theme). One bar per edge:
   - The top bar is also the title bar: folder back and forward, the path (click it or press
     Alt+D to type or paste one), the grid's sort, size and View options or the photo's undo,
     Before, Clipping, RGB and zoom, the panel toggles, a Settings gear that never hides, and
@@ -29,8 +29,11 @@ Newest first.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes
     it and Ctrl+, opens it.
+  - Settings > General > Panels sets the text size (Small, Normal or Large) and the row
+    spacing. The panels are always compact; the Layout choice and the Compact panels switch
+    are gone.
 
-  Classic is unchanged. `src/argentum/modern/`, `mods/drives.rs`, `mods/recent_folders.rs`,
+  `src/argentum/modern/`, `mods/drives.rs`, `mods/recent_folders.rs`,
   `mods/modern_start.rs`.
   - The disk list is adapted from Shoebox `src-tauri/src/volumes.rs` @ `c34c8bc` (`mounted`,
     `query`, `quiet_errors`). Network drives are left out; on macOS and Linux it lists
@@ -83,7 +86,9 @@ Newest first.
   the same arrangement. Each section's eye, reset, copy and paste follow what it
   shows: Basic's eye now turns off white balance and Presence too, so an edit saved
   with Color or Details turned off shows those sliders' effect again. Reset all also
-  puts the profile, the RAW rendering and Auto white balance back.
+  puts the profile, the RAW rendering and Auto white balance back. On a RAW the tone
+  mapper is greyed out unless Rendering is Default, since every other rendering sets
+  the tones itself.
   `argentum/editSections.ts`, `argentum/ProfileSection.tsx`,
   `components/adjustments/WhiteBalance.tsx` (their white balance code from
   `Color.tsx` @ `79c2a46b`, moved unchanged).

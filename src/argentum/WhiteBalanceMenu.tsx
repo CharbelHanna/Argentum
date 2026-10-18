@@ -59,7 +59,6 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { useAgTranslation } from './locales';
-import { useCompactSliders } from './compactSliders';
 import { useEditorStore } from '../store/useEditorStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useEditorActions } from '../hooks/useEditorActions';
@@ -148,7 +147,6 @@ interface MenuPosition {
 }
 
 export default function WhiteBalanceMenu() {
-  const isCompact = useCompactSliders((s) => s.on);
   // From the stores rather than props: this is mounted through a portal, so
   // there is no parent to pass anything down. See Argentum.tsx.
   const adjustments = useEditorStore((s) => s.adjustments) as WithAuto;
@@ -334,7 +332,7 @@ export default function WhiteBalanceMenu() {
       className={clsx(
         'pl-1.5 pr-1 flex items-center gap-0.5 rounded-md whitespace-nowrap transition-colors',
         'disabled:opacity-50 disabled:cursor-not-allowed',
-        isCompact ? 'text-xs h-5' : 'text-sm h-6',
+        'text-xs h-5',
         isOpen ? 'bg-bg-secondary text-text-primary' : 'hover:bg-bg-secondary text-text-primary',
       )}
       data-tooltip={isOpen ? undefined : t('wbMenuTooltip')}
@@ -350,8 +348,7 @@ export default function WhiteBalanceMenu() {
       onClick={chooseAuto}
       disabled={!asShot || isDetecting}
       className={clsx(
-        'px-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
-        isCompact ? 'text-xs h-5' : 'text-sm h-6',
+        'px-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-xs h-5',
         choice === 'auto' ? 'bg-accent text-button-text' : 'bg-bg-secondary hover:bg-card-active text-text-primary',
       )}
       data-tooltip={t('wbAutoTooltip')}

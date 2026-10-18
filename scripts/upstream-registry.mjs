@@ -240,7 +240,6 @@ export const REGISTRY = [
     ours: [
       'src/argentum/editSections.ts',
       'src/argentum/ProfileSection.tsx',
-      'src/components/adjustments/WhiteBalance.tsx',
     ],
     dependsOn: [
       { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_SECTIONS', how: 'calls',
@@ -255,6 +254,9 @@ export const REGISTRY = [
         note: 'Basic renders the white balance row and sliders (WhiteBalance.tsx, their Color code '
           + 'moved unchanged), Tone and Presence. ToneMapperSwitch is exported for Profile, without '
           + 'the Exposure slider it held.' },
+      { file: 'src/components/adjustments/WhiteBalance.tsx', how: 'extends',
+        note: 'New beside their sections: their white balance row and Temperature and Tint sliders, '
+          + 'moved unchanged out of Color.tsx, with the label and the white-balance slot added.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'extends',
         note: 'Without its White Balance and Presence tools and the camera-profile slot.' },
       { file: 'src/components/adjustments/Details.tsx', how: 'extends',
@@ -1430,12 +1432,13 @@ export const REGISTRY = [
     kind: 'feature',
     what:
       'Compact panels: sliders on one line with a short upright marker on a thin bar, and a smaller tone '
-      + 'curve, as Lightroom draws them, chosen in Settings > General. Their slider and curve are '
-      + 'restyled from a stylesheet of ours; no line of either changes.',
+      + 'curve, as Lightroom draws them, always, with the row spacing and the text size chosen in '
+      + 'Settings > General > Panels. Their slider and curve are restyled from a stylesheet of ours; no '
+      + 'line of either changes.',
     ours: [
       'src/argentum/compactSliders.css',
       'src/argentum/compactSliders.ts',
-      'src/argentum/CompactSlidersSetting.tsx',
+      'src/argentum/PanelsSetting.tsx',
     ],
     // None of their files is edited. The stylesheet finds their slider by its
     // shape, so these are what a change of theirs could quietly undo.
@@ -1925,7 +1928,7 @@ export const REGISTRY = [
     id: 'editor-layout-modern',
     kind: 'feature',
     what:
-      'The Modern window, chosen in Settings > General > Layout (DEC-31, DEC-33): the whole app in one '
+      'The Modern window, the only arrangement (DEC-31, DEC-33): the whole app in one '
       + 'window built from today\'s own panels and stores. One bar per edge: a top bar that is also the '
       + 'title bar (folder history, an editable path, the grid\'s or the photo\'s view tools, panel '
       + 'toggles, a Settings gear that never hides, window controls); a left column with the folders '
@@ -1936,7 +1939,8 @@ export const REGISTRY = [
       + 'header; one right panel with the histogram, an Info fold and six tabs over today\'s panels '
       + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
-      + 'Light) by modern.css. Classic, today\'s, stays the default and is untouched.',
+      + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
+      + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',
     ours: [
       'src/argentum/modern/ModernWindow.tsx',
       'src/argentum/modern/TopBar.tsx',
@@ -1961,7 +1965,6 @@ export const REGISTRY = [
       'src/argentum/layout/HistogramSection.tsx',
       'src/argentum/layout/HistoryPanel.tsx',
       'src/argentum/layout/editorLayout.ts',
-      'src/argentum/layout/EditorLayoutSetting.tsx',
       'src/argentum/layout/index.ts',
       'src-tauri/src/mods/editor_layout.rs',
       'src-tauri/src/mods/drives.rs',
@@ -2022,12 +2025,12 @@ export const REGISTRY = [
       'src-tauri/src/mods/folder_counts.rs #[cfg(test)]: only photos directly inside count; a '
         + 'missing folder holds none. editor_layout.rs: panels saved before History and the floating '
         + 'Navigator still read.',
-      'Manual: Settings > General > Layout: Modern. The window opens on the last folder with no start '
+      'Manual: the window opens on the last folder with no start '
         + 'screen; the gear opens Settings in the centre (Esc closes, Ctrl+, opens) with AI and models, '
         + 'My Gear and About; Ctrl+Shift+B, Ctrl+B and Ctrl+J hide the panels and the top bar brings '
         + 'them back; double-click a photo and only the centre changes, Esc goes back; every tab opens '
-        + 'today\'s tool; the grid shows the selected photo\'s sliders read-only. Layout: Classic is '
-        + 'today\'s app unchanged.',
+        + 'today\'s tool; the grid shows the selected photo\'s sliders read-only. Settings > General > '
+        + 'Panels > Text size makes the panels\' text smaller or larger at once.',
     ],
     keywords: /layout|workspace|side.?panel|panel.?switcher|toolbar|navigator|histogram|waveform|filmstrip|title.?bar|settings/i,
   },

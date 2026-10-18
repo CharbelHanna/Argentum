@@ -16,6 +16,7 @@
  */
 
 import { useEffect } from 'react';
+import clsx from 'clsx';
 import { RotateCcw } from 'lucide-react';
 import CollapsibleSection from '../components/ui/CollapsibleSection';
 import { ToneMapperSwitch } from '../components/adjustments/Basic';
@@ -51,6 +52,9 @@ export default function ProfileSection({
     (s) => (s.collapsibleSectionsState as unknown as Record<string, boolean | undefined>)[PROFILE_SECTION],
   );
   const isRaw = useEditorStore((s) => s.selectedImage?.isRaw === true);
+  // On a RAW, every rendering but Default replaces the tone mapper's result
+  // (ag_stage_tone in shaders/modules.wgsl), so it is shown greyed then.
+  const toneMapperApplies = !isRaw || adjustments.rawToneRendering === 'default';
 
   // Open until folded: their open sections start without this one, and their
   // toggle opens a section it finds missing.
@@ -75,12 +79,16 @@ export default function ProfileSection({
           <CameraProfile />
           <RawToneRendering />
           {!tonemapperOverride && (
-            <ToneMapperSwitch
-              selectedMapper={adjustments.toneMapper || 'agx'}
-              onMapperChange={(mapper) =>
-                setAdjustments((prev) => ({ ...prev, toneMapper: mapper as Adjustments['toneMapper'] }))
-              }
-            />
+            <div data-tooltip={toneMapperApplies ? undefined : t('toneMapperOnlyDefault')}>
+              <div className={clsx(!toneMapperApplies && 'opacity-40')} inert={!toneMapperApplies}>
+                <ToneMapperSwitch
+                  selectedMapper={adjustments.toneMapper || 'agx'}
+                  onMapperChange={(mapper) =>
+                    setAdjustments((prev) => ({ ...prev, toneMapper: mapper as Adjustments['toneMapper'] }))
+                  }
+                />
+              </div>
+            </div>
           )}
           {isRaw && <HighlightRecovery />}
         </div>

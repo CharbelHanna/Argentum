@@ -131,8 +131,20 @@ html[data-ag-look='modern'] label:has(input:checked) .w-full.h-full.rounded-full
  * 12 px body text: their text-sm is 0.875rem, so the root is 12/0.875 px.
  * Their spacing is in rem too, so the panels tighten in proportion.
  */
+/*
+ * Settings > General > Panels > Text size scales every size of text below:
+ * the root size their rem-based panels follow, and each fixed size here.
+ */
+html[data-ag-look='modern'][data-ag-text='small'] {
+  --agm-text: 0.92;
+}
+
+html[data-ag-look='modern'][data-ag-text='large'] {
+  --agm-text: 1.1;
+}
+
 html[data-ag-look='modern'] {
-  font-size: 13.714px;
+  font-size: calc(13.714px * var(--agm-text, 1));
   --font-sans: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
   font-variant-numeric: tabular-nums;
   --radius-lg: 4px;
@@ -147,7 +159,7 @@ html[data-ag-look='modern'] .text-shadow-shiny {
 html[data-ag-look='modern'] .p-3.flex.items-center.shrink-0.border-b.border-surface > h2,
 html[data-ag-look='modern'] .bg-surface.rounded-lg.overflow-hidden.shrink-0 > .w-full.px-4.py-3 h2,
 html[data-ag-look='modern'] .p-1.rounded-md > .flex.cursor-pointer > h3 {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--agm-text, 1));
   line-height: 14px;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -177,7 +189,7 @@ html[data-ag-look='modern'] [data-ag-adjustments] > .grow {
 }
 
 html[data-ag-look='modern'] [data-ag-adjustments] :is(.text-sm, .text-base) {
-  font-size: 12px;
+  font-size: calc(12px * var(--agm-text, 1));
   line-height: 16px;
 }
 
@@ -334,7 +346,7 @@ html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar-thumb {
   flex-direction: column;
   height: 100vh;
   color: var(--agm-text);
-  font-size: 12px;
+  font-size: calc(12px * var(--agm-text, 1));
   line-height: 1.35;
   overflow: hidden;
 }
@@ -466,7 +478,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
   border-radius: 4px;
   color: var(--agm-sec);
   white-space: nowrap;
-  font-size: 12px;
+  font-size: calc(12px * var(--agm-text, 1));
 }
 
 .agm-btn:hover:not(:disabled) {
@@ -488,7 +500,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
 
 .agm-btn kbd {
   font: inherit;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--agm-text, 1));
   color: var(--agm-dim);
 }
 
@@ -649,7 +661,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
 }
 
 .agm-menu-head {
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--agm-text, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--agm-dim);
@@ -682,7 +694,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
 .agm-menu-item .agm-key {
   margin-left: auto;
   color: var(--agm-dim);
-  font-size: 11px;
+  font-size: calc(11px * var(--agm-text, 1));
 }
 
 .agm-menu-sep {
@@ -700,7 +712,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
   align-items: center;
   gap: 6px;
   padding: 0 8px 0 10px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--agm-text, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--agm-dim);
@@ -725,7 +737,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
 }
 
 .agm-group {
-  font-size: 10px;
+  font-size: calc(10px * var(--agm-text, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--agm-dim);
@@ -810,7 +822,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
   flex: 1;
   height: 22px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: calc(11px * var(--agm-text, 1));
   color: var(--agm-sec);
   background: var(--agm-surface);
 }
@@ -847,7 +859,7 @@ html[data-ag-look='modern'] .agm-view .flex-1.relative.overflow-hidden.touch-non
   display: flex;
   align-items: center;
   padding: 0 4px 0 10px;
-  font-size: 10.5px;
+  font-size: calc(10.5px * var(--agm-text, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--agm-dim);
@@ -913,7 +925,7 @@ html[data-ag-look='modern'] .agm-left .agm-tree svg {
 .agm-hint {
   color: var(--agm-dim);
   padding: 4px 12px 8px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--agm-text, 1));
 }
 
 /* ------------------------------------------------------------ right panel */
@@ -934,7 +946,7 @@ html[data-ag-look='modern'] .agm-left .agm-tree svg {
   align-items: center;
   justify-content: center;
   color: var(--agm-sec);
-  font-size: 12px;
+  font-size: calc(12px * var(--agm-text, 1));
   position: relative;
 }
 
@@ -983,7 +995,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   border-radius: 4px;
   background: var(--agm-surface);
   color: var(--agm-sec);
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--agm-text, 1));
   display: flex;
   gap: 6px;
   align-items: flex-start;
@@ -1009,7 +1021,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   color: var(--agm-dim);
   text-transform: none;
   letter-spacing: 0;
-  font-size: 11px;
+  font-size: calc(11px * var(--agm-text, 1));
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1034,7 +1046,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   align-items: center;
   gap: 12px;
   padding: 0 12px;
-  font-size: 11.5px;
+  font-size: calc(11.5px * var(--agm-text, 1));
   color: var(--agm-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -1073,12 +1085,12 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
 }
 
 .agm-empty .agm-empty-arrow {
-  font-size: 28px;
+  font-size: calc(28px * var(--agm-text, 1));
   color: var(--agm-dim);
 }
 
 .agm-empty .agm-empty-title {
-  font-size: 15px;
+  font-size: calc(15px * var(--agm-text, 1));
   color: var(--agm-text);
 }
 
@@ -1125,7 +1137,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   display: flex;
   align-items: center;
   padding: 0 0 14px 8px;
-  font-size: 17px;
+  font-size: calc(17px * var(--agm-text, 1));
   font-weight: 600;
   color: var(--agm-text);
 }
@@ -1142,7 +1154,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   padding: 0 10px;
   border-radius: 5px;
   color: var(--agm-sec);
-  font-size: 13px;
+  font-size: calc(13px * var(--agm-text, 1));
   text-align: left;
 }
 
@@ -1160,7 +1172,7 @@ html[data-ag-look='modern'] .agm-tab-body .bg-bg-secondary.rounded-lg {
   margin-top: auto;
   padding: 10px 8px 4px;
   color: var(--agm-dim);
-  font-size: 11px;
+  font-size: calc(11px * var(--agm-text, 1));
 }
 
 .agm-settings-body {
