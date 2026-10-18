@@ -1631,6 +1631,26 @@ export const REGISTRY = [
     ],
     keywords: /sharpen|sharpness|deconvol|unsharp|capture.?sharp|richardson|lucy|detail|halo/i,
   },
+  {
+    id: 'engine-contract',
+    kind: 'feature',
+    what:
+      'The engine library and the contract the new interface talks to it through. The TypeScript '
+      + 'types and fixtures in src/shell/ are generated from src-tauri/engine/src/contract.rs, so '
+      + 'Prettier is told to leave them alone: a formatted copy would be stale at once.',
+    ours: [
+      'src-tauri/engine/',
+      'src/shell/contract.generated.ts',
+      'src/shell/contract.fixtures.json',
+    ],
+    dependsOn: [
+      { file: '.prettierignore', how: 'extends',
+        note: 'Two lines naming the generated files. If upstream moves or replaces the ignore file, '
+          + 'npm run format:check starts flagging them again.' },
+    ],
+    tests: ['src-tauri/engine/tests/contract.rs the_generated_files_are_current'],
+    keywords: /prettier|format|lint/i,
+  },
 ];
 
 /**
