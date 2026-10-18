@@ -6,7 +6,9 @@
 //
 // So there is a budget on how much of upstream's code we're allowed to touch,
 // and this script enforces it instead of trusting anyone to remember. It runs
-// on `npm start`, and it fails the build when the budget is blown.
+// in CI as a required check (.github/workflows/upstream.yml) and with
+// `npm run check:merge`, and it fails the build when the budget is blown.
+// Not on `npm start`: at ~45 s it was the longest wait before every dev window.
 //
 // If you need more than the budget in one of their files, that is the signal to
 // move the code into a file of ours and leave a single call behind.
@@ -631,7 +633,7 @@ const short = (sha) => sha.slice(0, 8);
 // --- Warning: upstream commits nobody has merged yet ------------------------
 //
 // Overlaps in commits we have NOT merged are a reading list, not a failure.
-// Failing on them would break `npm start` every time upstream pushes something
+// Failing on them would break every build every time upstream pushes something
 // unrelated, and a check that fires on other people's schedule is a check that
 // gets switched off - which is the exact end this whole file exists to avoid.
 try {

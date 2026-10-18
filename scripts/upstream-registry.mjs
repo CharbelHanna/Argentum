@@ -1565,7 +1565,8 @@ export const REGISTRY = [
       'Dev and test builds do less: the app library is built as an rlib only, Windows x64 dev and '
       + 'test builds link with rust-lld, dependencies carry no debug info in dev builds, and '
       + 'build.rs neither hashes again nor downloads an ONNX Runtime library already on this disk. '
-      + 'Shipped builds are unchanged: release profile, MSVC linker.',
+      + 'Shipped builds are unchanged: release profile, MSVC linker. npm start leaves the '
+      + 'mergeability check to CI and npm run check:merge.',
     ours: ['.cargo/config.toml', 'src-tauri/src/mods/build_ort.rs'],
     dependsOn: [
       { file: 'src-tauri/Cargo.toml', how: 'replaces',
@@ -1587,6 +1588,11 @@ export const REGISTRY = [
           'CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER=link.exe on their tauri-action step, so a '
           + 'shipped Windows x64 build links with MSVC as before; the variable wins over '
           + '.cargo/config.toml.' },
+      { file: 'package.json', how: 'replaces',
+        note:
+          'Their start is `tauri dev`; ours runs check-identity first. It ran check-mergeability '
+          + 'too, about 45 s before every dev window; that check is the required one in '
+          + 'upstream.yml and runs by hand with npm run check:merge.' },
     ],
     tests: [
       'Measured on Windows x64 before and after (pull request "Faster dev and test builds"): a '

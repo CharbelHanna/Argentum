@@ -26,6 +26,9 @@ Newest first.
   - `build.rs` does not hash the ONNX Runtime library again once it has been
     checked, and a new git worktree copies it from the main checkout instead
     of downloading it.
+  - `npm start` no longer runs the mergeability check, about 45 s before
+    every dev window. It is still the required check in CI, and
+    `npm run check:merge` runs it by hand.
   - The first build after this change rebuilds every crate once: cargo and
     sccache both key on the linker and the debug settings.
 

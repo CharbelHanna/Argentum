@@ -921,6 +921,7 @@ const FILE_165 = {
   'ai-super-resolution|src/components/panel/Editor.tsx': ['not-applicable', 'The minimum zoom bound for enlarged images is intact.', ['3c864270', '65472097']],
   'fast-dev-builds|src-tauri/Cargo.toml': ['not-applicable', 'A dependency line; their crate-type and [profile.dev.package."*"], where ours differ, are not touched. Registered after this review (26.41.13).', ['2641891c', '1e6777ed', 'b66691ba', '1732175a', '9b7e3368']],
   'fast-dev-builds|.github/workflows/build.yml': ['not-applicable', 'Android setup only; their tauri-action step, which carries our linker variable, is not touched. Registered after this review (26.41.13).', ['2641891c', 'd4429f1f', '63472b86', '1e6777ed']],
+  'fast-dev-builds|package.json': ['not-applicable', 'Dependency versions only; the start script is not touched. Registered after this review (26.41.13).', ['b66691ba', '1732175a']],
 };
 
 // One commit in a group that did more than the rest.
@@ -1372,10 +1373,10 @@ export const REVIEW_165_DECISIONS = [
 // ai-super-resolution carrying a raw's look and masks to its enlargement (26.41.10),
 // 6 for my-gear writing a recovered lens through update_exif_fields, and 113 for
 // sharpening, 11 of them for a mask's own Sharpen (26.41.11), and 19 for
-// Restore, 6 of them for capture before an enlargement, and 9 for
+// Restore, 6 of them for capture before an enlargement, and 11 for
 // fast-dev-builds (26.41.13).
-if (REVIEW_165_DECISIONS.length !== 1173) {
-  throw new Error(`RapidRAW 1.6.5 review should account for 1173 decisions, found ${REVIEW_165_DECISIONS.length}`);
+if (REVIEW_165_DECISIONS.length !== 1175) {
+  throw new Error(`RapidRAW 1.6.5 review should account for 1175 decisions, found ${REVIEW_165_DECISIONS.length}`);
 }
 
 const REVIEW_165_FEATURES = {
