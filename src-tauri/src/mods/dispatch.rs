@@ -447,6 +447,15 @@ async fn json(
             .map_err(|e| e.to_string())??;
             serde_json::to_value(start).map_err(|e| e.to_string())
         }
+        "folder_photo_count" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let count = tokio::task::spawn_blocking(move || {
+                crate::mods::folder_counts::photo_count(std::path::Path::new(&a.path))
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+            serde_json::to_value(count).map_err(|e| e.to_string())
+        }
         "add_recent_folder" => {
             let a: PathArgs = args_for(&name, args)?;
             let list = tokio::task::spawn_blocking(move || commands::add_recent_folder(&a.path))

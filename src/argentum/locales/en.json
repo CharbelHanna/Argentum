@@ -228,5 +228,6 @@
   "mwThemeGrey": "Grey",
   "mwThemeDeep": "Deep",
   "mwThemeLight": "Light",
-  "mwNavLabel": "{zoom} % – drag to move"
+  "mwNavFloat": "Float over the photo",
+  "mwNavDock": "Put back in the left column"
 }

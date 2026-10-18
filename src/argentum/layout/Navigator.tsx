@@ -2,9 +2,11 @@
  * The Navigator: the whole photo, the part on screen outlined while zoomed in,
  * and the zoom levels. Ours.
  *
- * Today's editor has no navigator, so this is the one new control in the
- * Modern arrangement: Fit and fixed levels over the photo, and a click moves
- * the view there, drawn with today's parts. It keeps no zoom of its own. The
+ * Today's editor has no navigator, so this is a new control: Fit and fixed
+ * levels over the photo, and a click or a drag moves the view there. Where it
+ * sits, docked in the left column or floating over the photo, is the Modern
+ * window's (modern/NavigatorDock.tsx); this is only what is inside. It keeps
+ * no zoom of its own. The
  * picture is the photo's thumbnail, which today's library keeps current with
  * its edits; the levels call today's handleZoomChange, the same as the zoom
  * control under the filmstrip; the outline and the clicks go through the
@@ -16,11 +18,9 @@
 
 import { type PointerEvent, type RefObject, useEffect, useState } from 'react';
 import clsx from 'clsx';
-import CollapsibleSection from '../../components/ui/CollapsibleSection';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useAgTranslation } from '../locales';
-import { useEditorLayout } from './editorLayout';
 
 /** Device pixels per pixel of the photo at each level; 0 stands for Fit. */
 const LEVELS: readonly number[] = [0, 0.5, 1, 2];
@@ -59,20 +59,13 @@ export interface TransformHandle {
   };
 }
 
-interface NavigatorProps {
+export interface NavigatorProps {
   transformWrapperRef: RefObject<TransformHandle | null>;
   onZoomChange: (zoom: number, fitToWindow?: boolean) => void;
-  /**
-   * The Modern window's map: only the photo and the viewport, over the photo's
-   * bottom-right corner, shown only while zoomed past Fit. No section around it.
-   */
-  overlay?: boolean;
 }
 
-export default function Navigator({ transformWrapperRef, onZoomChange, overlay = false }: NavigatorProps) {
+export default function Navigator({ transformWrapperRef, onZoomChange }: NavigatorProps) {
   const agT = useAgTranslation();
-  const open = useEditorLayout((s) => s.panels.navigatorOpen);
-  const changePanels = useEditorLayout((s) => s.changePanels);
   const path = useEditorStore((s) => s.selectedImage?.path);
   const preview = useEditorStore((s) => s.finalPreviewUrl);
   const base = useEditorStore((s) => s.baseRenderSize);
@@ -84,11 +77,12 @@ export default function Navigator({ transformWrapperRef, onZoomChange, overlay =
 
   // The editor moves its photo by writing a CSS transform straight onto it, on
   // every step of a pan or zoom, so that write is what is watched: no polling,
-  // and nothing in the editor changes for the outline to follow it.
+  // and nothing in the editor changes for the outline to follow it. Watched
+  // again once the photo has a size, in case the editor's frame came after.
   useEffect(() => {
     const instance = transformWrapperRef.current?.instance;
     const content = instance?.contentComponent;
-    if (!instance || !content || !open) return;
+    if (!instance || !content) return;
     const read = () => {
       const now: Transform = instance.transformState;
       setTransform((was) =>
@@ -101,7 +95,7 @@ export default function Navigator({ transformWrapperRef, onZoomChange, overlay =
     const observer = new MutationObserver(read);
     observer.observe(content, { attributes: true, attributeFilter: ['style'] });
     return () => observer.disconnect();
-  }, [transformWrapperRef, path, open]);
+  }, [transformWrapperRef, path, base.width]);
 
   const frame = (): { width: number; height: number } | null => {
     const wrapper = transformWrapperRef.current?.instance.wrapperComponent;
@@ -153,90 +147,47 @@ export default function Navigator({ transformWrapperRef, onZoomChange, overlay =
   };
 
   const src = thumbnail || preview;
-
-  if (overlay) {
-    if (scale <= 1.01 || !src) return null;
-    return (
-      <div className="agm-navmap">
-        <div
-          className="relative cursor-crosshair touch-none"
-          onPointerDown={(e) => {
-            e.currentTarget.setPointerCapture(e.pointerId);
-            pointAt(e);
-          }}
-          onPointerMove={(e) => {
-            if (e.currentTarget.hasPointerCapture(e.pointerId)) pointAt(e);
-          }}
-        >
-          <img src={src} className="block max-w-[176px] max-h-[118px] select-none" draggable={false} alt="" />
-          {inView && (
-            <div
-              className="absolute border border-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)] pointer-events-none"
-              style={{
-                left: `${inView.left * 100}%`,
-                top: `${inView.top * 100}%`,
-                width: `${inView.width * 100}%`,
-                height: `${inView.height * 100}%`,
-              }}
-            />
-          )}
-        </div>
-        <div className="agm-navmap-label">{agT('mwNavLabel').replace('{zoom}', String(Math.round(percent * 100)))}</div>
-      </div>
-    );
-  }
+  const drag = {
+    onPointerDown: (e: PointerEvent<HTMLDivElement>) => {
+      e.currentTarget.setPointerCapture(e.pointerId);
+      pointAt(e);
+    },
+    onPointerMove: (e: PointerEvent<HTMLDivElement>) => {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) pointAt(e);
+    },
+  };
 
   return (
-    <CollapsibleSection
-      canToggleVisibility={false}
-      isContentVisible
-      isOpen={open}
-      onToggle={() => changePanels({ navigatorOpen: !open })}
-      title={agT('layoutNavigator')}
-    >
-      <div className="flex flex-col gap-2">
-        <div className="flex gap-1">
-          {LEVELS.map((zoom) => (
-            <button
-              key={zoom}
-              className={clsx(
-                'flex-1 px-1 py-1 rounded-md text-xs transition-colors',
-                isOn(zoom) ? 'bg-accent text-button-text' : 'bg-bg-primary text-text-secondary hover:text-text-primary',
-              )}
-              onClick={() => (zoom === 0 ? onZoomChange(0, true) : onZoomChange(zoom))}
-            >
-              {zoom === 0 ? agT('layoutFit') : `${zoom * 100}%`}
-            </button>
-          ))}
-        </div>
-        <div className="flex items-center justify-center h-24">
-          {src && (
-            <div
-              className="relative max-w-full max-h-full cursor-crosshair touch-none"
-              onPointerDown={(e) => {
-                e.currentTarget.setPointerCapture(e.pointerId);
-                pointAt(e);
-              }}
-              onPointerMove={(e) => {
-                if (e.currentTarget.hasPointerCapture(e.pointerId)) pointAt(e);
-              }}
-            >
-              <img src={src} className="block max-w-full max-h-24 rounded-sm select-none" draggable={false} alt="" />
-              {inView && (
-                <div
-                  className="absolute border border-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)] pointer-events-none"
-                  style={{
-                    left: `${inView.left * 100}%`,
-                    top: `${inView.top * 100}%`,
-                    width: `${inView.width * 100}%`,
-                    height: `${inView.height * 100}%`,
-                  }}
-                />
-              )}
-            </div>
-          )}
-        </div>
+    <div className="agm-nav">
+      <div className="agm-nav-map">
+        {src && (
+          <div className="relative cursor-crosshair touch-none" {...drag}>
+            <img src={src} className="block select-none" draggable={false} alt="" />
+            {inView && (
+              <div
+                className="absolute border border-white shadow-[0_0_0_1px_rgba(0,0,0,0.6)] pointer-events-none"
+                style={{
+                  left: `${inView.left * 100}%`,
+                  top: `${inView.top * 100}%`,
+                  width: `${inView.width * 100}%`,
+                  height: `${inView.height * 100}%`,
+                }}
+              />
+            )}
+          </div>
+        )}
       </div>
-    </CollapsibleSection>
+      <div className="agm-nav-levels">
+        {LEVELS.map((zoom) => (
+          <button
+            key={zoom}
+            className={clsx(isOn(zoom) && 'agm-on')}
+            onClick={() => (zoom === 0 ? onZoomChange(0, true) : onZoomChange(zoom))}
+          >
+            {zoom === 0 ? agT('layoutFit') : `${zoom * 100}%`}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

@@ -32,11 +32,13 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { DEFAULT_BOTTOM_PANEL_HEIGHT, DEFAULT_PANEL_WIDTH, useUIStore } from '../../store/useUIStore';
-import Navigator, { type TransformHandle } from '../layout/Navigator';
+import { useEditorLayout } from '../layout/editorLayout';
+import type { TransformHandle } from '../layout/Navigator';
 import FilmstripArea from './FilmstripArea';
 import { useModernFolders } from './folders';
 import LeftColumn from './LeftColumn';
 import ModernSettings, { type SettingsProps } from './ModernSettings';
+import { DockedNavigator, FloatingNavigator } from './NavigatorDock';
 import RightPanel from './RightPanel';
 import TopBar from './TopBar';
 
@@ -106,6 +108,8 @@ export default function ModernWindow(props: ModernWindowProps) {
   // The folder last open is in the settings, so the start waits for them.
   const settingsRead = useSettingsStore((s) => s.appSettings !== null);
   const editing = activeView === 'editor' && !!selectedImage;
+  const navigatorFloats = useEditorLayout((s) => s.panels.navigatorFloating);
+  const navigator = { transformWrapperRef: props.transformWrapperRef, onZoomChange: props.onZoom };
   const sides = !isFullScreen;
   const left = widthOf(leftPanelWidth, LEFT);
   const right = widthOf(rightPanelWidth, RIGHT);
@@ -139,6 +143,7 @@ export default function ModernWindow(props: ModernWindowProps) {
         {sides && uiVisibility.leftPanel && roomForLeft && (
           <LeftColumn
             width={left}
+            navigator={editing && !navigatorFloats && <DockedNavigator {...navigator} />}
             renderPanel={props.renderAppPanel}
             onResize={props.createResizeHandler('left', left)}
             onResetWidth={props.createResizeResetHandler('left')}
@@ -157,7 +162,7 @@ export default function ModernWindow(props: ModernWindowProps) {
                     onImageSelect={props.onOpenInEditor}
                     transformWrapperRef={props.transformWrapperRef}
                   />
-                  <Navigator overlay transformWrapperRef={props.transformWrapperRef} onZoomChange={props.onZoom} />
+                  {navigatorFloats && <FloatingNavigator {...navigator} />}
                 </>
               )}
             </div>

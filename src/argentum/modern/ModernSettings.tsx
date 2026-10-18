@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X } from 'lucide-react';
+import { Camera, Cpu, Info, Keyboard, SlidersHorizontal, Sparkles, X, type LucideIcon } from 'lucide-react';
 import clsx from 'clsx';
 import SettingsPanel from '../../components/panel/SettingsPanel';
 import type { AppSettings } from '../../components/ui/AppProperties';
@@ -24,13 +24,13 @@ export interface SettingsProps {
   rootPaths: string[];
 }
 
-const SECTIONS: { id: string; theirs?: string; ours?: AgKey }[] = [
-  { id: 'general', theirs: 'settings.categories.general' },
-  { id: 'ai', ours: 'mwSettingsAi' },
-  { id: 'gear', ours: 'mwSettingsGear' },
-  { id: 'processing', theirs: 'settings.categories.processing' },
-  { id: 'shortcuts', theirs: 'settings.categories.shortcuts' },
-  { id: 'about', ours: 'mwSettingsAbout' },
+const SECTIONS: { id: string; icon: LucideIcon; theirs?: string; ours?: AgKey }[] = [
+  { id: 'general', icon: SlidersHorizontal, theirs: 'settings.categories.general' },
+  { id: 'ai', icon: Sparkles, ours: 'mwSettingsAi' },
+  { id: 'gear', icon: Camera, ours: 'mwSettingsGear' },
+  { id: 'processing', icon: Cpu, theirs: 'settings.categories.processing' },
+  { id: 'shortcuts', icon: Keyboard, theirs: 'settings.categories.shortcuts' },
+  { id: 'about', icon: Info, ours: 'mwSettingsAbout' },
 ];
 
 export default function ModernSettings(props: SettingsProps) {
@@ -46,7 +46,7 @@ export default function ModernSettings(props: SettingsProps) {
         <div className="agm-settings-title">
           {agT('mwSettingsCrumb')}
           <button className="agm-btn" onClick={close} data-tooltip={agT('mwSettingsClose')}>
-            <X size={15} />
+            <X size={16} />
           </button>
         </div>
         {SECTIONS.map((entry) => (
@@ -55,6 +55,7 @@ export default function ModernSettings(props: SettingsProps) {
             className={clsx('agm-settings-item', section === entry.id && 'agm-on')}
             onClick={() => setSection(entry.id)}
           >
+            <entry.icon size={15} />
             {entry.ours ? agT(entry.ours) : t(entry.theirs as never)}
           </button>
         ))}

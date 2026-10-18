@@ -13,6 +13,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import { ag } from '../ag';
+import { forgetFolderCounts } from './folderCounts';
 import { useEditorLayout } from '../layout/editorLayout';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
@@ -54,8 +55,9 @@ const ALBUM_PREFIX = 'Album: ';
 export const isModern = () => useEditorLayout.getState().layout === 'modern';
 
 /**
- * Whether unfolding a folder counts its photos. In Modern the tree's roots are
- * whole disks, and counting reads every folder under them, so no.
+ * Whether unfolding a folder counts its photos the library's way. In Modern
+ * the tree's roots are whole disks, and that count reads every folder under
+ * them before the tree shows, so no: each row counts its own (folderCounts.ts).
  */
 export const rootImageCounts = (wanted: boolean) => wanted && !isModern();
 
@@ -131,11 +133,13 @@ export function startModernLibrary(preloaded: { current: Preloaded | null }, sel
 }
 
 /**
- * Read the column again: the disks (one plugged in since shows up), without
- * photo counts, and the favourites as their setting says. Modern's stand-in
- * for the library's own refresh, which would count every folder on a disk.
+ * Read the column again: the disks (one plugged in since shows up) and the
+ * favourites, without the library's photo counts; the rows count again
+ * themselves (folderCounts.ts). Modern's stand-in for the library's own
+ * refresh, which would count every folder on a disk.
  */
 export async function refreshModernTrees(): Promise<void> {
+  forgetFolderCounts();
   const { appSettings } = useSettingsStore.getState();
   const { expandedFolders, setLibrary } = useLibraryStore.getState();
   const expanded = Array.from(expandedFolders);
@@ -154,7 +158,7 @@ export async function refreshModernTrees(): Promise<void> {
         ? invoke<unknown[]>(Invokes.GetPinnedFolderTrees, {
             paths: pinned,
             expandedFolders: expanded,
-            showImageCounts: appSettings?.enableFolderImageCounts ?? false,
+            showImageCounts: false,
           })
         : Promise.resolve([]),
     ]);
