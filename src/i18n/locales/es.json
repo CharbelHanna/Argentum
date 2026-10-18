@@ -1956,6 +1956,7 @@
         "negpy": "Por la inspiración tras la lógica de conversión de negativos.",
         "nind": "Por proporcionar los modelos de IA que impulsan las capacidades de reducción de ruido por IA en RapidRAW.",
         "rawler": "Por la excelente caja (crate) de Rust que proporciona la base para el procesamiento de archivos RAW en este proyecto.",
+        "rawmakase": "Por DNG Standard, el aspecto con el que empieza cada RAW: el desplazamiento de exposición de cada cámara de su tabla de cámaras, y el revelado y el enfoque por defecto con los que se comparan los de Argentum.",
         "sam2": "Por proporcionar el modelo base usado para las capacidades de detección de sujetos de la IA.",
         "spektrafilm": "Por las LUTs de emulación de película basadas en espectros, de Andrea Volpato, que impulsan las emulaciones integradas de RapidRAW. Con licencia CC BY-SA 4.0.",
         "u2net": "Por proporcionar la arquitectura robusta utilizada para las capacidades de detección de cielos y primeros planos por IA.",
