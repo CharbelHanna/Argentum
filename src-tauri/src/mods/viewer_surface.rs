@@ -1,24 +1,26 @@
 //! The viewer surface across minimise and restore. Ours.
 //!
 //! The photo is drawn by wgpu onto the main window, under a transparent
-//! webview. Wherever the surface has no presented frame the window is
-//! see-through, and the viewer shows whatever is behind Argentum. After a
-//! minimise and restore it did exactly that.
+//! webview. Wherever the window holds no drawn frame it is see-through, and the
+//! viewer shows whatever is behind Argentum. After a minimise and restore it did
+//! exactly that, until the next edit drew the photo again.
 //!
 //! WHAT MINIMISING DOES
 //!
-//! Windows reports a size of 0x0 and moves the window to -32000,-32000. The
-//! resize handler used to reconfigure the surface to 1x1, which threw the photo
-//! away. The move also starts `display_monitor::refresh_after_window_change`,
-//! which can draw while the window is minimised, when a Vulkan surface has no
-//! size at all. Skipping the 1x1 alone fixed the first restore, not the second.
+//! The window's pixels are thrown away (seen with the OpenGL backend, which
+//! draws into the window itself through `SwapBuffers`). The resize handler did
+//! draw on restore, but a frame drawn while the window is still coming back is
+//! thrown away too.
 //!
-//! So nothing is drawn while minimised, and a restore reconfigures the surface
-//! and draws again, then a few more times over the next half second in case the
-//! first frame came too early to be shown.
+//! Windows reports 0x0 on minimise, but Tauri passes on its own reading of the
+//! window's size instead, which is not zero. So the window is asked whether it
+//! is minimised, rather than the size being trusted.
+//!
+//! So nothing is drawn while minimised, and a restore draws at once and again
+//! at each of `REDRAW_AFTER_RESTORE_MS`.
 //!
 //! The `[viewer]` log lines say which of those steps happened. They go once the
-//! cause is confirmed.
+//! fix is confirmed.
 
 use std::sync::TryLockError;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -36,8 +38,8 @@ const REDRAW_AFTER_RESTORE_MS: [u64; 3] = [50, 200, 500];
 
 static MINIMISED: AtomicBool = AtomicBool::new(false);
 
-/// The window's latest non-zero size, width in the high half, for the redraws
-/// that run after it may have changed again.
+/// The window's latest size, width in the high half, for the redraws that run
+/// after it may have changed again.
 static LATEST_SIZE: AtomicU64 = AtomicU64::new(0);
 
 /// Whether the main window is minimised. Nothing may be drawn to it then.
@@ -47,7 +49,7 @@ pub fn is_minimised() -> bool {
 
 /// The main window's `Resized` event: fit the surface to the window and redraw.
 pub fn apply_window_resize(window: &tauri::Window, size: PhysicalSize<u32>) {
-    if size.width == 0 || size.height == 0 {
+    if window.is_minimized().unwrap_or(false) || size.width == 0 || size.height == 0 {
         if !MINIMISED.swap(true, Ordering::Relaxed) {
             log::info!("[viewer] minimised");
         }
@@ -70,30 +72,21 @@ pub fn apply_window_resize(window: &tauri::Window, size: PhysicalSize<u32>) {
     };
 
     // Never wait here: this is the event thread, and a render may hold the lock.
-    let mut guard = match ctx.display.try_lock() {
-        Ok(guard) => guard,
-        Err(TryLockError::Poisoned(poisoned)) => poisoned.into_inner(),
-        Err(TryLockError::WouldBlock) => {
-            if restored {
-                log::info!("[viewer] restored, display busy");
-                redraw_after_restore(ctx.clone(), true);
-            }
-            return;
+    let presented = match ctx.display.try_lock() {
+        Ok(mut guard) => guard.as_mut().map(|d| fit_and_render(d, &ctx, size)),
+        Err(TryLockError::Poisoned(poisoned)) => {
+            poisoned.into_inner().as_mut().map(|d| fit_and_render(d, &ctx, size))
         }
+        Err(TryLockError::WouldBlock) => None,
     };
-    let Some(display) = guard.as_mut() else {
-        return;
-    };
-    let presented = fit_and_render(display, &ctx, size, restored);
-    drop(guard);
 
     if restored {
         log::info!(
-            "[viewer] restored {}x{}, frame presented: {presented}",
+            "[viewer] restored {}x{}, frame presented: {presented:?}",
             size.width,
             size.height
         );
-        redraw_after_restore(ctx, false);
+        redraw_after_restore(ctx);
     }
 }
 
@@ -103,16 +96,8 @@ fn latest_size() -> PhysicalSize<u32> {
 }
 
 /// Fits the surface to `size` and draws; returns whether a frame was presented.
-/// `reconfigure` forces it at the same size, for a swapchain that may have gone
-/// stale while the window was minimised.
-fn fit_and_render(
-    display: &mut WgpuDisplay,
-    ctx: &GpuContext,
-    size: PhysicalSize<u32>,
-    reconfigure: bool,
-) -> bool {
-    if reconfigure || display.config.width != size.width || display.config.height != size.height
-    {
+fn fit_and_render(display: &mut WgpuDisplay, ctx: &GpuContext, size: PhysicalSize<u32>) -> bool {
+    if display.config.width != size.width || display.config.height != size.height {
         display.config.width = size.width;
         display.config.height = size.height;
         display.surface.configure(&ctx.device, &display.config);
@@ -121,8 +106,8 @@ fn fit_and_render(
 }
 
 /// Draws the viewer again at each of `REDRAW_AFTER_RESTORE_MS`, off the event
-/// thread. `reconfigure` when the restore itself could not reach the surface.
-fn redraw_after_restore(ctx: GpuContext, mut reconfigure: bool) {
+/// thread, so one of the frames lands once the window is back on screen.
+fn redraw_after_restore(ctx: GpuContext) {
     std::thread::spawn(move || {
         let mut slept_ms = 0;
         for at_ms in REDRAW_AFTER_RESTORE_MS {
@@ -135,8 +120,7 @@ fn redraw_after_restore(ctx: GpuContext, mut reconfigure: bool) {
             let Some(display) = guard.as_mut() else {
                 return;
             };
-            let presented = fit_and_render(display, &ctx, latest_size(), reconfigure);
-            reconfigure = false;
+            let presented = fit_and_render(display, &ctx, latest_size());
             log::info!("[viewer] redraw {at_ms} ms after restore, frame presented: {presented}");
         }
     });
