@@ -216,6 +216,7 @@ registry! {
     "tools/rt_capture_sharpen/mod.rs" => rt_capture_sharpen::RtCaptureSharpen,
     "tools/ag_exposure_wb.rs"     => ag_exposure_wb::AgExposureWb,
     "tools/rr_white_balance.rs"   => rr_white_balance::RrWhiteBalance,
+    "tools/rr_basic_tone/mod.rs"  => rr_basic_tone::RrBasicTone,
 }
 
 #[cfg(test)]
@@ -235,13 +236,14 @@ mod tests {
                 "rt_capture_sharpen",
                 "ag_exposure_wb",
                 "rr_white_balance",
+                "rr_basic_tone",
             ]
         );
         let stages: Vec<_> = registry.infos().iter().map(|t| t.stage).collect();
         assert_eq!(stages[0], Stage::Raw);
         assert!(stages[1..].iter().all(|s| *s == Stage::SceneLinear));
         let orders: Vec<_> = registry.descriptors().iter().map(|d| d.order).collect();
-        assert_eq!(orders, [0, 1, 2, 3]);
+        assert_eq!(orders, [0, 1, 2, 3, 4]);
     }
 
     #[test]
