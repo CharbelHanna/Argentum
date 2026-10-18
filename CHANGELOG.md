@@ -15,8 +15,12 @@ Newest first.
     Alt+D to type or paste one), the grid's sort, size and View options or the photo's undo,
     Before, Clipping, RGB and zoom, the panel toggles, a Settings gear that never hides, and
     the window controls.
-  - The left column holds the folders (Favourites, Recent, and This computer with every disk
-    and its free space) and the history.
+  - The left column holds the Navigator while a photo is open, the folders (Favourites,
+    Recent, and This computer with every disk and its free space), each with the number of
+    photos directly in it, and the history, with a line above it that drags. The Navigator
+    can float over the photo instead, staying wherever it is dragged. The folder tree works
+    from the keyboard: Up and Down move and open, Right opens a folder, Left closes it or goes
+    up, Enter opens a disk.
   - The centre shows the folder's grid or the open photo; opening a photo changes nothing
     else. The filmstrip runs under it in both, with the status line in its header.
   - One right panel holds the histogram, an Info fold and six tabs over today's tools: Edit,
@@ -24,15 +28,20 @@ Newest first.
     settings read-only; Enter opens it.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes
-    it and Ctrl+, opens it. Zoomed past Fit, a small map shows where you are.
+    it and Ctrl+, opens it.
 
   Classic is unchanged. `src/argentum/modern/`, `mods/drives.rs`, `mods/recent_folders.rs`,
   `mods/modern_start.rs`.
   - The disk list is adapted from Shoebox `src-tauri/src/volumes.rs` @ `c34c8bc` (`mounted`,
     `query`, `quiet_errors`). Network drives are left out; on macOS and Linux it lists
     `/Volumes`, or `/` and the usual mount folders, without free space for now.
-  - Photos are not counted in the disks' folders, since counting reads every folder on a
-    disk; favourites follow the photo-count setting as before.
+  - A folder's number is the photos directly in it, read from its own listing
+    (`mods/folder_counts.rs`), never by walking the folders below as the library's count
+    does, so no disk is scanned and no file kept in the cloud is downloaded. Classic's
+    photo-count setting does not apply.
+  - The folder tree's keys are adapted from Shoebox `src/components/Sidebar.tsx` @
+    `bccfd70` (`nav`, `onFocus`, `onKey`); moving onto a folder with the arrows also opens
+    it, as Explorer's tree does.
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
   Rendering). The default picture of a DNG renderer: the camera's exposure offset
   and Adobe's default tone curve, applied in linear ProPhoto RGB to each pixel's

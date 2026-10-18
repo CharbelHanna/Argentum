@@ -1253,17 +1253,20 @@ export default function SettingsPanel({
                         </AnimatePresence>
                       </div>
 
-                      <SettingItem
-                        label={t('settings.general.folderImageCounts')}
-                        description={t('settings.general.folderImageCountsDesc')}
-                      >
-                        <Switch
-                          checked={appSettings?.enableFolderImageCounts ?? false}
-                          id="folder-image-counts-toggle"
-                          label={t('settings.general.showImageCounts')}
-                          onChange={(checked) => onSettingsChange({ ...appSettings, enableFolderImageCounts: checked })}
-                        />
-                      </SettingItem>
+                      {/* Argentum: Modern always shows its folders' counts (modern/folderCounts.ts). */}
+                      {!modern && (
+                        <SettingItem
+                          label={t('settings.general.folderImageCounts')}
+                          description={t('settings.general.folderImageCountsDesc')}
+                        >
+                          <Switch
+                            checked={appSettings?.enableFolderImageCounts ?? false}
+                            id="folder-image-counts-toggle"
+                            label={t('settings.general.showImageCounts')}
+                            onChange={(checked) => onSettingsChange({ ...appSettings, enableFolderImageCounts: checked })}
+                          />
+                        </SettingItem>
+                      )}
 
                       <SettingItem
                         label={t('settings.general.neutralGreyCanvas')}

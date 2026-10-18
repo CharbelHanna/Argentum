@@ -31,6 +31,7 @@ pub mod engine_bridge;
 pub mod engine_frame;
 pub mod export_metadata;
 pub mod export_precision;
+pub mod folder_counts;
 pub mod gpu_runtime;
 pub mod highlights;
 pub mod input_stage;

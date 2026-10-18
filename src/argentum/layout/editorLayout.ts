@@ -31,13 +31,26 @@ export interface LayoutPanels {
   /** Saved by an earlier form of the Modern layout, which had a tab panel; kept so the file still reads. */
   tab: string | null;
   tabWidthPx: number;
+  /** The History section is open. */
+  historyOpen: boolean;
+  /** History's height in the left column; null until dragged. */
+  historyHeightPx: number | null;
+  /** The Navigator floats over the photo instead of sitting in the left column. */
+  navigatorFloating: boolean;
+  /** The floating Navigator's top-left corner, as fractions of the centre; null until moved. */
+  navigatorAt: [number, number] | null;
 }
 
-/** As the arrangement first opens: the Navigator showing, Presets beside the adjustments at 245 px. */
-export const DEFAULT_PANELS: LayoutPanels = { navigatorOpen: true, tab: Panel.Presets, tabWidthPx: 245 };
-/** How far the tab panel drags. */
-export const MIN_TAB_WIDTH_PX = 224;
-export const MAX_TAB_WIDTH_PX = 400;
+/** As the arrangement first opens: the Navigator and History open in the left column. */
+export const DEFAULT_PANELS: LayoutPanels = {
+  navigatorOpen: true,
+  tab: Panel.Presets,
+  tabWidthPx: 245,
+  historyOpen: true,
+  historyHeightPx: null,
+  navigatorFloating: false,
+  navigatorAt: null,
+};
 
 /**
  * Panels are saved once a change settles, not on every step of a drag: each

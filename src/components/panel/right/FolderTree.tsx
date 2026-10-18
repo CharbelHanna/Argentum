@@ -43,6 +43,8 @@ import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useModernLayout } from '../../../argentum/layout/editorLayout';
 import { driveName, refreshModernTrees, useModernFolders } from '../../../argentum/modern/folders';
 import RecentFolders, { RECENT_FOLDED } from '../../../argentum/modern/RecentFolders';
+import { useFolderCount } from '../../../argentum/modern/folderCounts';
+import { FOLD_CONTROL, treeRow, useTreeKeys } from '../../../argentum/modern/treeKeys';
 import { formatSize } from '../../../argentum/formatSize';
 import { useAgTranslation } from '../../../argentum/locales';
 import { useUIStore } from '../../../store/useUIStore';
@@ -88,6 +90,8 @@ interface TreeNodeProps {
   isInstantTransition: boolean;
   folderIcons: Record<string, string>;
   isLayoutDragging: boolean;
+  /** Argentum: how deep the row sits, for the Modern tree's keys. */
+  depth?: number;
 }
 
 interface VisibleProps {
@@ -211,12 +215,14 @@ function FolderOptionsMenu({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
+  // Argentum: Modern's counts arrive after the rows, so it does not sort by them.
+  const modern = useModernLayout();
   const options = [
     { key: 'name', label: t('library.folders.sort.name') },
     { key: 'created', label: t('library.folders.sort.created') },
     { key: 'modified', label: t('library.folders.sort.modified') },
     { key: 'imageCount', label: t('library.folders.sort.imageCount') },
-  ];
+  ].filter((option) => !modern || option.key !== 'imageCount');
 
   return (
     <div className="relative" ref={menuRef}>
@@ -517,13 +523,17 @@ function TreeNode({
   isInstantTransition,
   folderIcons,
   isLayoutDragging,
+  depth = 0,
 }: TreeNodeProps) {
   const hasChildren = node.hasSubdirs || (node.children && node.children.length > 0);
   const isSelected = node.path === selectedPath;
   const isPinned = pinnedFolders.includes(node.path);
   // Argentum: a disk at the top of the Modern window's This computer, and a star for a favourite there.
+  // Its photo count, and the keys, come from argentum/modern too.
   const drive = useModernFolders((s) => s.drives.find((d) => d.path === node.path));
-  const modernFavourite = useModernLayout() && sectionId === 'pinned' && isPinned;
+  const modern = useModernLayout();
+  const modernFavourite = modern && sectionId === 'pinned' && isPinned;
+  const modernCount = useFolderCount(node.path, modern && !drive);
   const agT = useAgTranslation();
 
   const { setNodeRef, isOver, active } = useDroppable({
@@ -604,6 +614,7 @@ function TreeNode({
         })}
         onClick={handleNameClick}
         onContextMenu={(e: any) => onContextMenu(e, node.path, isPinned)}
+        {...(modern ? treeRow({ depth, opens: !!hasChildren, open: isExpanded, disk: !!drive, selected: isSelected }) : {})}
       >
         <div
           className={clsx(
@@ -613,6 +624,7 @@ function TreeNode({
             },
           )}
           onClick={handleFolderIconClick}
+          {...FOLD_CONTROL}
         >
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
@@ -643,7 +655,18 @@ function TreeNode({
           </Text>
         )}
 
-        {!drive && typeof node.imageCount === 'number' && node.imageCount > 0 && (
+        {modern && !drive && !!modernCount && (
+          <Text
+            as="span"
+            variant={TextVariants.small}
+            color={TextColors.secondary}
+            className="ml-auto min-w-8 shrink-0 text-right tabular-nums"
+          >
+            {modernCount.toLocaleString()}
+          </Text>
+        )}
+
+        {!modern && !drive && typeof node.imageCount === 'number' && node.imageCount > 0 && (
           <Text
             as="span"
             variant={TextVariants.small}
@@ -706,6 +729,7 @@ function TreeNode({
                       isInstantTransition={isInstantTransition}
                       folderIcons={folderIcons}
                       isLayoutDragging={isLayoutDragging}
+                      depth={depth + 1}
                     />
                   </motion.div>
                 ))}
@@ -738,6 +762,7 @@ export default function FolderTree({
   const agT = useAgTranslation();
   const hasRecent = useModernFolders((s) => s.recent.length > 0);
   const [modernSearch, setModernSearch] = useState(false);
+  const treeKeys = useTreeKeys(modern);
   const { appSettings, handleSettingsChange } = useSettingsStore(
     useShallow((state) => ({
       appSettings: state.appSettings,
@@ -995,7 +1020,7 @@ export default function FolderTree({
         </div>
 
         <LayoutGroup id="folder-tree">
-          <div className="flex-1 overflow-y-auto" onContextMenu={handleEmptyAreaContextMenu}>
+          <div className="flex-1 overflow-y-auto" onContextMenu={handleEmptyAreaContextMenu} {...treeKeys}>
             {modern && !hasVisiblePinnedTrees && !isSearching && (
               <>
                 <SectionHeader title={agT('modernFavourites')} isOpen onToggle={() => {}} />

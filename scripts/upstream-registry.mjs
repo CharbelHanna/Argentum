@@ -1899,7 +1899,9 @@ export const REGISTRY = [
       + 'window built from today\'s own panels and stores. One bar per edge: a top bar that is also the '
       + 'title bar (folder history, an editable path, the grid\'s or the photo\'s view tools, panel '
       + 'toggles, a Settings gear that never hides, window controls); a left column with the folders '
-      + '(Favourites, Recent, This computer with every disk) and the history; the centre showing the '
+      + '(Favourites, Recent, This computer with every disk, each with its photo count, and the '
+      + 'tree keys), the Navigator (docked there or floating over the photo) and the history; '
+      + 'the centre showing the '
       + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
       + 'header; one right panel with the histogram, an Info fold and six tabs over today\'s panels '
       + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
@@ -1919,6 +1921,9 @@ export const REGISTRY = [
       'src/argentum/modern/ModernSettings.tsx',
       'src/argentum/modern/ModernThemeChoice.tsx',
       'src/argentum/modern/folders.ts',
+      'src/argentum/modern/folderCounts.ts',
+      'src/argentum/modern/treeKeys.ts',
+      'src/argentum/modern/NavigatorDock.tsx',
       'src/argentum/modern/look.ts',
       'src/argentum/modern/modern.css',
       'src/argentum/modern/index.ts',
@@ -1932,6 +1937,7 @@ export const REGISTRY = [
       'src-tauri/src/mods/drives.rs',
       'src-tauri/src/mods/recent_folders.rs',
       'src-tauri/src/mods/modern_start.rs',
+      'src-tauri/src/mods/folder_counts.rs',
     ],
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls',
@@ -1950,7 +1956,9 @@ export const REGISTRY = [
       { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
         note: 'Under Modern: a slim FOLDERS header with search and the options menu, Favourites (the '
           + 'pinned folders, starred), Recent, This computer with each disk\'s name and free space; no '
-          + 'albums, no Add folder, no Sources header.' },
+          + 'albums, no Add folder, no Sources header. Each row shows its photos from folderCounts.ts '
+          + 'and is reachable from the keyboard (treeKeys.ts: a depth prop and data attributes on '
+          + 'the row, the handler on the scroller); no sorting by count, since counts arrive late.' },
       { file: 'src/components/panel/right/ControlsPanel.tsx', symbol: 'readOnly', how: 'extends',
         note: 'Optional props: showWaveform, and readOnly, the selected photo\'s settings shown inert in the '
           + 'grid. The section reset button is ours (.ag-section-reset), shown only in Modern.' },
@@ -1959,7 +1967,8 @@ export const REGISTRY = [
       { file: 'src/components/panel/SettingsPanel.tsx', symbol: 'modernCategory', how: 'extends',
         note: 'Optional prop: the Modern section to show, without the page\'s own header; AI and models '
           + 'is the General page\'s AI card plus the data-argentum="ai" slot. The Theme row offers the '
-          + 'Modern palettes there. The Layout row still comes from the General slot.' },
+          + 'Modern palettes there. The Layout row still comes from the General slot. Their folder '
+          + 'image count switch is hidden in Modern, which counts its own way.' },
       { file: 'src/components/panel/Filmstrip.tsx', how: 'calls',
         note: 'Drawn as it is under the centre, in both views.' },
       { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'extends',
@@ -1980,6 +1989,9 @@ export const REGISTRY = [
         + 'palette is, choices read back, unknown names fall back, other preferences untouched.',
       'src-tauri/src/mods/{drives,recent_folders,modern_start}.rs #[cfg(test)]: disks listed with '
         + 'their size, recent folders newest first and capped, where the column opens.',
+      'src-tauri/src/mods/folder_counts.rs #[cfg(test)]: only photos directly inside count; a '
+        + 'missing folder holds none. editor_layout.rs: panels saved before History and the floating '
+        + 'Navigator still read.',
       'Manual: Settings > General > Layout: Modern. The window opens on the last folder with no start '
         + 'screen; the gear opens Settings in the centre (Esc closes, Ctrl+, opens) with AI and models, '
         + 'My Gear and About; Ctrl+Shift+B, Ctrl+B and Ctrl+J hide the panels and the top bar brings '
