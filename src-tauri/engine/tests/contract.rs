@@ -12,11 +12,12 @@
 use std::path::PathBuf;
 
 use argentum_engine::contract::{
-    Choice, EDIT_VERSION, EditDocument, EditPatch, EnabledWhen, Event, Opened, Origin, PhotoId,
-    RenderTicket, Section, SectionDescriptor, SettingKind, SettingScale, SettingSpec, Stage,
-    ToolDescriptor, ToolEdit, View, sections,
+    Applied, Choice, EDIT_VERSION, ENGINE_EVENT, EditDocument, EditPatch, EnabledWhen, EngineError,
+    ErrorKind, Event, FRAME_HEADER_BYTES, FRAME_SHARED, FRAME_SHARED_KEY, HISTOGRAM_BINS, Opened,
+    Origin, PhotoId, Placement, RenderTicket, Section, SectionDescriptor, SettingKind,
+    SettingScale, SettingSpec, Stage, ToolDescriptor, ToolEdit, View, sections,
 };
-use argentum_engine::{Pipeline, standard};
+use argentum_engine::{Frame, placement, standard};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -92,6 +93,11 @@ fn typescript() -> String {
          \n",
     );
     out += &format!("export const EDIT_VERSION = {EDIT_VERSION};\n\n");
+    out += &format!("export const HISTOGRAM_BINS = {HISTOGRAM_BINS};\n\n");
+    out += &format!("export const ENGINE_EVENT = \"{ENGINE_EVENT}\";\n\n");
+    out += &format!("export const FRAME_HEADER_BYTES = {FRAME_HEADER_BYTES};\n\n");
+    out += &format!("export const FRAME_SHARED = \"{FRAME_SHARED}\";\n\n");
+    out += &format!("export const FRAME_SHARED_KEY = \"{FRAME_SHARED_KEY}\";\n\n");
     for d in [
         decl::<Origin>(),
         decl::<Stage>(),
@@ -108,8 +114,12 @@ fn typescript() -> String {
         decl::<EditPatch>(),
         decl::<PhotoId>(),
         decl::<RenderTicket>(),
+        decl::<Applied>(),
         decl::<Opened>(),
         decl::<View>(),
+        decl::<Placement>(),
+        decl::<ErrorKind>(),
+        decl::<EngineError>(),
         decl::<Event>(),
     ] {
         out += &d;
@@ -122,24 +132,173 @@ fn typescript() -> String {
 
 /// One of each, made by the engine itself.
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
 struct Fixtures {
     sections: Vec<SectionDescriptor>,
     tools: Vec<ToolDescriptor>,
     edit: EditDocument,
     patch: EditPatch,
+    applied: Applied,
+    /// Patches the engine takes, each applied to `edit`, and what it made.
+    patched: Vec<Patched>,
+    /// Patches the engine refuses, each applied to `edit`, and why.
+    refused: Vec<Refused>,
     opened: Opened,
     view: View,
+    /// Where the frame of each view goes, as the engine places it.
+    placements: Vec<Placed>,
+    /// A frame as it crosses to the interface, made by the engine.
+    frame_block: FrameBlock,
     events: Vec<Event>,
 }
 
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct Placed {
+    view: View,
+    photo_width_px: u32,
+    photo_height_px: u32,
+    placement: Placement,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+struct FrameBlock {
+    ticket: RenderTicket,
+    width_px: u32,
+    height_px: u32,
+    rgba: Vec<u8>,
+    bytes: Vec<u8>,
+}
+
+/// Views worth pinning: fitted with bands, at 100% filling the view, past
+/// 100% at a corner, and a photo smaller than its view.
+fn placements() -> Vec<Placed> {
+    let views = [
+        (1600.0 / 7144.0, 0.5, 0.5, 1600, 1200, 7144, 4760),
+        (1.0, 0.5, 0.5, 1786, 1190, 7144, 4760),
+        (2.0, 0.0, 0.0, 800, 600, 7144, 4760),
+        (1.0, 0.5, 0.5, 800, 600, 640, 480),
+    ];
+    views
+        .into_iter()
+        .map(
+            |(zoom, center_x, center_y, width, height, photo_w, photo_h)| {
+                let view = View {
+                    zoom,
+                    center_x,
+                    center_y,
+                    width,
+                    height,
+                };
+                Placed {
+                    placement: placement(&view, photo_w, photo_h),
+                    view,
+                    photo_width_px: photo_w,
+                    photo_height_px: photo_h,
+                }
+            },
+        )
+        .collect()
+}
+
+fn frame_block() -> FrameBlock {
+    let frame = Frame {
+        ticket: RenderTicket(7),
+        placement: Placement {
+            x_px: 0,
+            y_px: 0,
+            width_px: 2,
+            height_px: 1,
+        },
+        rgba: vec![255, 0, 0, 255, 0, 128, 255, 255],
+    };
+    FrameBlock {
+        ticket: frame.ticket,
+        width_px: frame.placement.width_px,
+        height_px: frame.placement.height_px,
+        bytes: frame.block(),
+        rgba: frame.rgba,
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct Patched {
+    patch: EditPatch,
+    edit: EditDocument,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq)]
+struct Refused {
+    patch: EditPatch,
+    error: EngineError,
+}
+
+fn patch(json: serde_json::Value) -> EditPatch {
+    serde_json::from_value(json).unwrap()
+}
+
+/// What the engine does with each of these, as it does it: clamping,
+/// defaults, refusals.
+fn patched_and_refused(edit: &EditDocument) -> (Vec<Patched>, Vec<Refused>) {
+    let registry = standard();
+    let taken = [
+        // As given.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 } }),
+        // An integer for a float.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": 1 } }),
+        // Out of range: clamped, not refused.
+        serde_json::json!({
+            "ag_exposure_wb": { "exposure": -20 },
+            "rt_capture_sharpen": { "radius": 9, "iterations": 500 },
+        }),
+        // null is the default.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": null, "blue": 2 } }),
+    ];
+    let refused = [
+        // A tool or a setting this engine does not have.
+        serde_json::json!({ "ag_nothing": { "x": 1 } }),
+        serde_json::json!({ "ag_exposure_wb": { "contrast": 1 } }),
+        // Wrong types: refused, never rounded or coerced.
+        serde_json::json!({ "ag_exposure_wb": { "exposure": "bright" } }),
+        serde_json::json!({ "rt_capture_sharpen": { "iterations": 2.5 } }),
+        serde_json::json!({ "dt_highlights": { "recover": 1 } }),
+        // All or nothing: one bad tool refuses the whole patch.
+        serde_json::json!({
+            "ag_exposure_wb": { "exposure": 1 },
+            "dt_highlights": { "recover": "yes" },
+        }),
+    ];
+    let taken = taken
+        .into_iter()
+        .map(|json| {
+            let patch = patch(json);
+            let edit = registry.merge(edit, &patch).expect("taken");
+            Patched { patch, edit }
+        })
+        .collect();
+    let refused = refused
+        .into_iter()
+        .map(|json| {
+            let patch = patch(json);
+            let error = registry.merge(edit, &patch).expect_err("refused");
+            Refused {
+                patch,
+                error: error.to_contract(),
+            }
+        })
+        .collect();
+    (taken, refused)
+}
+
 fn fixtures() -> Fixtures {
-    let edit = Pipeline::standard().unwrap().edit();
-    let patch: EditPatch = serde_json::from_value(serde_json::json!({
+    let edit = standard().default_edit();
+    let patch = patch(serde_json::json!({
         "ag_exposure_wb": { "exposure": 0.5, "red": 1.05 },
         "rt_capture_sharpen": { "radius": null },
-    }))
-    .unwrap();
-    let mut bins = vec![0u32; 256];
+    }));
+    let (patched, refused) = patched_and_refused(&edit);
+    let mut bins = vec![0u32; HISTOGRAM_BINS];
     bins[118] = 1_000_000;
     bins[255] = 500_000;
     Fixtures {
@@ -151,6 +310,14 @@ fn fixtures() -> Fixtures {
             height: 4760,
             edit: edit.clone(),
         },
+        applied: Applied {
+            ticket: RenderTicket(2),
+            edit: patched[0].edit.clone(),
+        },
+        patched,
+        refused,
+        placements: placements(),
+        frame_block: frame_block(),
         edit,
         patch,
         view: View {
@@ -164,8 +331,7 @@ fn fixtures() -> Fixtures {
             Event::Frame {
                 ticket: RenderTicket(3),
                 photo_id: PhotoId(1),
-                width: 1786,
-                height: 1190,
+                placement: placements()[0].placement,
             },
             Event::Histogram {
                 ticket: RenderTicket(3),
@@ -174,6 +340,7 @@ fn fixtures() -> Fixtures {
             },
             Event::Error {
                 ticket: Some(RenderTicket(4)),
+                kind: ErrorKind::NoGpu,
                 message: "no GPU: no adapter".into(),
             },
         ],
@@ -220,6 +387,32 @@ fn the_generated_files_are_current() {
 }
 
 #[test]
+fn what_the_engine_takes_and_refuses() {
+    let (patched, refused) = patched_and_refused(&standard().default_edit());
+    let kinds: Vec<_> = refused.iter().map(|r| r.error.kind).collect();
+    assert_eq!(
+        kinds,
+        [
+            ErrorKind::UnknownTool,
+            ErrorKind::UnknownSetting,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+            ErrorKind::BadValue,
+        ]
+    );
+    let clamped = &patched[2].edit.tools;
+    assert_eq!(clamped["ag_exposure_wb"].settings["exposure"], -10.0);
+    assert_eq!(clamped["rt_capture_sharpen"].settings["radius"], 2.0);
+    assert_eq!(clamped["rt_capture_sharpen"].settings["iterations"], 100);
+    let reset = &patched[3].edit.tools["ag_exposure_wb"].settings;
+    assert_eq!(
+        (&reset["exposure"], &reset["blue"]),
+        (&serde_json::json!(0.0), &serde_json::json!(2.0))
+    );
+}
+
+#[test]
 fn the_fixtures_read_back_as_the_contract() {
     let text = fixtures_json();
     let back: Fixtures = serde_json::from_str(&text).unwrap();
@@ -231,13 +424,22 @@ fn the_wire_names_are_the_contracts() {
     let event = serde_json::to_value(Event::Frame {
         ticket: RenderTicket(7),
         photo_id: PhotoId(2),
-        width: 10,
-        height: 20,
+        placement: Placement {
+            x_px: 1,
+            y_px: 2,
+            width_px: 10,
+            height_px: 20,
+        },
     })
     .unwrap();
     assert_eq!(
         event,
-        serde_json::json!({ "event": "frame", "ticket": 7, "photoId": 2, "width": 10, "height": 20 })
+        serde_json::json!({
+            "event": "frame",
+            "ticket": 7,
+            "photoId": 2,
+            "placement": { "xPx": 1, "yPx": 2, "widthPx": 10, "heightPx": 20 },
+        })
     );
     let radius = &fixtures().tools[1].settings[3];
     assert_eq!(radius.key, "radius");

@@ -248,6 +248,286 @@
       "radius": null
     }
   },
+  "applied": {
+    "ticket": 2,
+    "edit": {
+      "version": 1,
+      "tools": {
+        "ag_exposure_wb": {
+          "v": 1,
+          "settings": {
+            "blue": 1.0,
+            "exposure": 0.5,
+            "green": 1.0,
+            "red": 1.05
+          }
+        },
+        "dt_highlights": {
+          "v": 1,
+          "settings": {
+            "recover": true
+          }
+        },
+        "rt_capture_sharpen": {
+          "v": 1,
+          "settings": {
+            "autoContrast": true,
+            "autoRadius": true,
+            "capture": true,
+            "captureAmount": 100.0,
+            "contrast": 10.0,
+            "cornerBoost": 0.0,
+            "iterCheck": true,
+            "iterations": 20,
+            "radius": 0.75
+          }
+        }
+      }
+    }
+  },
+  "patched": [
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": 0.5,
+          "red": 1.05
+        }
+      },
+      "edit": {
+        "version": 1,
+        "tools": {
+          "ag_exposure_wb": {
+            "v": 1,
+            "settings": {
+              "blue": 1.0,
+              "exposure": 0.5,
+              "green": 1.0,
+              "red": 1.05
+            }
+          },
+          "dt_highlights": {
+            "v": 1,
+            "settings": {
+              "recover": true
+            }
+          },
+          "rt_capture_sharpen": {
+            "v": 1,
+            "settings": {
+              "autoContrast": true,
+              "autoRadius": true,
+              "capture": true,
+              "captureAmount": 100.0,
+              "contrast": 10.0,
+              "cornerBoost": 0.0,
+              "iterCheck": true,
+              "iterations": 20,
+              "radius": 0.75
+            }
+          }
+        }
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": 1
+        }
+      },
+      "edit": {
+        "version": 1,
+        "tools": {
+          "ag_exposure_wb": {
+            "v": 1,
+            "settings": {
+              "blue": 1.0,
+              "exposure": 1.0,
+              "green": 1.0,
+              "red": 1.0
+            }
+          },
+          "dt_highlights": {
+            "v": 1,
+            "settings": {
+              "recover": true
+            }
+          },
+          "rt_capture_sharpen": {
+            "v": 1,
+            "settings": {
+              "autoContrast": true,
+              "autoRadius": true,
+              "capture": true,
+              "captureAmount": 100.0,
+              "contrast": 10.0,
+              "cornerBoost": 0.0,
+              "iterCheck": true,
+              "iterations": 20,
+              "radius": 0.75
+            }
+          }
+        }
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": -20
+        },
+        "rt_capture_sharpen": {
+          "iterations": 500,
+          "radius": 9
+        }
+      },
+      "edit": {
+        "version": 1,
+        "tools": {
+          "ag_exposure_wb": {
+            "v": 1,
+            "settings": {
+              "blue": 1.0,
+              "exposure": -10.0,
+              "green": 1.0,
+              "red": 1.0
+            }
+          },
+          "dt_highlights": {
+            "v": 1,
+            "settings": {
+              "recover": true
+            }
+          },
+          "rt_capture_sharpen": {
+            "v": 1,
+            "settings": {
+              "autoContrast": true,
+              "autoRadius": true,
+              "capture": true,
+              "captureAmount": 100.0,
+              "contrast": 10.0,
+              "cornerBoost": 0.0,
+              "iterCheck": true,
+              "iterations": 100,
+              "radius": 2.0
+            }
+          }
+        }
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "blue": 2,
+          "exposure": null
+        }
+      },
+      "edit": {
+        "version": 1,
+        "tools": {
+          "ag_exposure_wb": {
+            "v": 1,
+            "settings": {
+              "blue": 2.0,
+              "exposure": 0.0,
+              "green": 1.0,
+              "red": 1.0
+            }
+          },
+          "dt_highlights": {
+            "v": 1,
+            "settings": {
+              "recover": true
+            }
+          },
+          "rt_capture_sharpen": {
+            "v": 1,
+            "settings": {
+              "autoContrast": true,
+              "autoRadius": true,
+              "capture": true,
+              "captureAmount": 100.0,
+              "contrast": 10.0,
+              "cornerBoost": 0.0,
+              "iterCheck": true,
+              "iterations": 20,
+              "radius": 0.75
+            }
+          }
+        }
+      }
+    }
+  ],
+  "refused": [
+    {
+      "patch": {
+        "ag_nothing": {
+          "x": 1
+        }
+      },
+      "error": {
+        "kind": "unknownTool",
+        "message": "no tool ag_nothing"
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "contrast": 1
+        }
+      },
+      "error": {
+        "kind": "unknownSetting",
+        "message": "ag_exposure_wb has no setting contrast"
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": "bright"
+        }
+      },
+      "error": {
+        "kind": "badValue",
+        "message": "ag_exposure_wb: invalid type: string \"bright\", expected f32"
+      }
+    },
+    {
+      "patch": {
+        "rt_capture_sharpen": {
+          "iterations": 2.5
+        }
+      },
+      "error": {
+        "kind": "badValue",
+        "message": "rt_capture_sharpen: invalid type: floating point `2.5`, expected u32"
+      }
+    },
+    {
+      "patch": {
+        "dt_highlights": {
+          "recover": 1
+        }
+      },
+      "error": {
+        "kind": "badValue",
+        "message": "dt_highlights: invalid type: integer `1`, expected a boolean"
+      }
+    },
+    {
+      "patch": {
+        "ag_exposure_wb": {
+          "exposure": 1
+        },
+        "dt_highlights": {
+          "recover": "yes"
+        }
+      },
+      "error": {
+        "kind": "badValue",
+        "message": "dt_highlights: invalid type: string \"yes\", expected a boolean"
+      }
+    }
+  ],
   "opened": {
     "photoId": 1,
     "width": 7144,
@@ -294,13 +574,124 @@
     "width": 1786,
     "height": 1190
   },
+  "placements": [
+    {
+      "view": {
+        "zoom": 0.22396417,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 1600,
+        "height": 1200
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 66,
+        "widthPx": 1600,
+        "heightPx": 1067
+      }
+    },
+    {
+      "view": {
+        "zoom": 1.0,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 1786,
+        "height": 1190
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 0,
+        "widthPx": 1786,
+        "heightPx": 1190
+      }
+    },
+    {
+      "view": {
+        "zoom": 2.0,
+        "centerX": 0.0,
+        "centerY": 0.0,
+        "width": 800,
+        "height": 600
+      },
+      "photoWidthPx": 7144,
+      "photoHeightPx": 4760,
+      "placement": {
+        "xPx": 0,
+        "yPx": 0,
+        "widthPx": 800,
+        "heightPx": 600
+      }
+    },
+    {
+      "view": {
+        "zoom": 1.0,
+        "centerX": 0.5,
+        "centerY": 0.5,
+        "width": 800,
+        "height": 600
+      },
+      "photoWidthPx": 640,
+      "photoHeightPx": 480,
+      "placement": {
+        "xPx": 80,
+        "yPx": 60,
+        "widthPx": 640,
+        "heightPx": 480
+      }
+    }
+  ],
+  "frameBlock": {
+    "ticket": 7,
+    "widthPx": 2,
+    "heightPx": 1,
+    "rgba": [
+      255,
+      0,
+      0,
+      255,
+      0,
+      128,
+      255,
+      255
+    ],
+    "bytes": [
+      7,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      255,
+      0,
+      0,
+      255,
+      0,
+      128,
+      255,
+      255
+    ]
+  },
   "events": [
     {
       "event": "frame",
       "ticket": 3,
       "photoId": 1,
-      "width": 1786,
-      "height": 1190
+      "placement": {
+        "xPx": 0,
+        "yPx": 66,
+        "widthPx": 1600,
+        "heightPx": 1067
+      }
     },
     {
       "event": "histogram",
@@ -568,6 +959,7 @@
     {
       "event": "error",
       "ticket": 4,
+      "kind": "noGpu",
       "message": "no GPU: no adapter"
     }
   ]

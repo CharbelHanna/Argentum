@@ -7,16 +7,27 @@ export type SettingValue = number | boolean | string;
 
 export const EDIT_VERSION = 1;
 
+export const HISTOGRAM_BINS = 256;
+
+export const ENGINE_EVENT = "ag-engine";
+
+export const FRAME_HEADER_BYTES = 12;
+
+export const FRAME_SHARED = "shared";
+
+export const FRAME_SHARED_KEY = "agFrame";
+
 /**
  * Whose code a tool is: the first two letters of its id.
  */
 export type Origin = "dt" | "rt" | "rr" | "rm" | "ag";
 
 /**
- * Where in the pipeline a tool runs: on the sensor data before demosaic,
- * on linear light, or on the picture shaped for a screen.
+ * Where in the pipeline a tool runs: on the sensor data before demosaic, or
+ * on linear light after it. A stage for the picture shaped for a screen
+ * comes with the first tool that needs one.
  */
-export type Stage = "raw" | "scene" | "display";
+export type Stage = "raw" | "scene";
 
 /**
  * The panel a tool is shown in. More can be added; `SECTIONS` says their
@@ -162,12 +173,22 @@ export type PhotoId = number;
 export type RenderTicket = number;
 
 /**
+ * What `apply` returns: the ticket of the render it started, and the edit
+ * as the engine took it - clamped, with the defaults filled in. What the
+ * interface shows should be this, not what it sent.
+ */
+export type Applied = {
+  ticket: RenderTicket,
+  edit: EditDocument,
+};
+
+/**
  * What `open` returns.
  */
 export type Opened = {
   photoId: PhotoId,
   /**
-   * The developed picture's size, in pixels.
+   * The developed picture's size, in photo pixels.
    */
   width: number,
   height: number,
@@ -189,10 +210,36 @@ export type View = {
   centerX: number,
   centerY: number,
   /**
-   * The view's size in screen pixels.
+   * The view's size in device pixels: CSS pixels times the device pixel
+   * ratio, so a frame fills it pixel for pixel.
    */
   width: number,
   height: number,
+};
+
+/**
+ * Where a frame sits in its view, in device pixels: its top left corner,
+ * and its size. On an axis where the photo is smaller than the view, the
+ * frame is all of it, centred; where it is larger, the frame fills the view.
+ */
+export type Placement = {
+  xPx: number,
+  yPx: number,
+  widthPx: number,
+  heightPx: number,
+};
+
+/**
+ * What went wrong, as a kind the interface can act on.
+ */
+export type ErrorKind = "unknownPhoto" | "badView" | "unknownTool" | "unknownSetting" | "badValue" | "badEdit" | "decode" | "noGpu" | "render" | "internal";
+
+/**
+ * A refused call: what went wrong, and in words.
+ */
+export type EngineError = {
+  kind: ErrorKind,
+  message: string,
 };
 
 /**
@@ -206,8 +253,7 @@ export type Event = {
    * be told apart and dropped.
    */
   photoId: PhotoId,
-  width: number,
-  height: number,
+  placement: Placement,
 } | {
   "event": "histogram",
   ticket: RenderTicket,
@@ -216,5 +262,6 @@ export type Event = {
 } | {
   "event": "error",
   ticket?: RenderTicket,
+  kind: ErrorKind,
   message: string,
 };

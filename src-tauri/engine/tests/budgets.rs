@@ -63,7 +63,7 @@ fn a_slider_tick_at_preview_size() {
         }))
         .unwrap();
         let started = Instant::now();
-        wait(engine.apply(opened.photo_id, &patch).unwrap());
+        wait(engine.apply(opened.photo_id, &patch).unwrap().ticket);
         ticks.push(started.elapsed());
     }
     let ms = |d: &Duration| d.as_secs_f64() * 1000.0;
