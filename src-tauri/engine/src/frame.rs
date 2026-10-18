@@ -159,12 +159,7 @@ fn encode(v: f32) -> u8 {
         (0..=u16::MAX)
             .map(|i| {
                 let v = i as f32 / u16::MAX as f32;
-                let s = if v <= 0.003_130_8 {
-                    v * 12.92
-                } else {
-                    1.055 * v.powf(1.0 / 2.4) - 0.055
-                };
-                (s * 255.0).round() as u8
+                (crate::colour::srgb_encode(v) * 255.0).round() as u8
             })
             .collect()
     });
@@ -180,7 +175,7 @@ pub(crate) fn histogram(frame: &Frame) -> Vec<u32> {
         .fold(
             || vec![0u32; HISTOGRAM_BINS],
             |mut bins, p| {
-                let y = 0.2126 * p[0] as f32 + 0.7152 * p[1] as f32 + 0.0722 * p[2] as f32;
+                let y = crate::colour::luma([p[0], p[1], p[2]].map(f32::from));
                 bins[(y.round() as usize).min(HISTOGRAM_BINS - 1)] += 1;
                 bins
             },

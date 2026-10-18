@@ -10,6 +10,7 @@
 //! building the app, and the app does not use it yet.
 
 mod cache;
+pub mod colour;
 pub mod contract;
 mod develop;
 pub mod engine;

@@ -35,6 +35,9 @@ argentum-engine = { path = ".", features = ["ts"] }
 argentum-engine-reference = { path = "reference" }
 half = { version = "2.7.1", features = ["bytemuck"] }
 image = { version = "0.25.10", default-features = false }
+# The parity tests read the app's shader struct layouts off its WGSL, through
+# the WGSL front end wgpu already builds (the same naga, the same feature).
+naga = { version = "29.0.4", features = ["wgsl-in"] }
 
 # The app's own profile, so a test here runs at the speed the app's code does.
 [profile.dev]
