@@ -1,0 +1,6 @@
+[package]
+name = "argentum-engine-tauri-stub"
+description = "The one Tauri type the app's sharpen.rs names, so that file compiles without Tauri."
+version = "0.0.0"
+edition = "2024"
+publish = false

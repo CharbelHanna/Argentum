@@ -36,7 +36,11 @@ const OURS = [
   'src-tauri/src/shaders/modules.wgsl',
   'src-tauri/src/shaders/ag_display.wgsl',
   'src-tauri/src/shaders/sharpen.wgsl',
+  // The engine library: a crate of our own beside the app, not part of it.
+  'src-tauri/engine/',
   'src/argentum/',
+  // The new editor interface, and the contract types generated for it.
+  'src/shell/',
   'scripts/',
   'docs/',
   'CLAUDE.md',
