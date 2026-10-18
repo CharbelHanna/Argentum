@@ -66,6 +66,7 @@ dependencies = [
  "argentum-engine",
  "argentum-engine-reference",
  "bytemuck",
+ "glam",
  "half",
  "image",
  "naga",
