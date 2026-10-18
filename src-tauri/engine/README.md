@@ -155,21 +155,32 @@ The steps are the tools in registry order, with the develop between the last
 after the develop. Each step's result is kept under a key made of its input's
 key and its own settings. Changing a tool's settings changes its key and every
 key after it, so a render finds the last step it still has and runs only what
-follows. Setting something back finds the earlier results again. A preview and
-a full-size render share everything up to the develop; after it, a preview's
+follows. Setting something back finds the earlier results again. A preview's
 tools run on the small picture, and a radius in sensor pixels is scaled by the
 picture's `scale()`.
+
+A preview that half the photo still covers - a fitted view, below 50% -
+develops at half size (`develop_half`): each 2 x 2 block of a Bayer mosaic is
+one pixel, as in LibRaw's `half_size` (RAWmakase's draft decode) and
+darktable's preview pipe, here with rawler's own `Superpixel3Channel`; white
+balance, the camera matrix and the default crop are rawler's, as at full
+size. So a screen-sized result takes no sensor-sized picture. The `Raw` tools
+still run on the whole mosaic first, so highlight recovery is the same at
+every size. Other sensors (X-Trans, sRAW, linear DNG) and larger previews
+resize the full develop. `tests/preview.rs` holds a half-size preview to the
+full develop made small: same size, colour, crop, tone and highlights.
 
 Results are kept up to a memory budget (`set_cache_budget_bytes`, 1.5 GB by
 default, for a 16 GB laptop), least recently used first out. The budget is
 counted by what is held: a picture two steps share (one passed its input
 through) is counted once, for as long as either holds it, and the photo's own
-decoded mosaic is shared with the photo, not copied. Room is made for a result
-before it is made, never by letting go of the step's input, which would free
-nothing while it is read. The input of the tool changed last - where the next
-tick of the same slider starts - and the result just made go last. What a tool
-needs while it runs comes on top; `tests/memory.rs` holds the whole process's
-peak to the budget plus a measured margin.
+decoded mosaic is shared with the photo, not copied. Room is made for a result,
+and for what the develop holds while it runs, before it is made - never by
+letting go of the step's input, which would free nothing while it is read. The
+input of the tool changed last - where the next tick of the same slider
+starts - and the result just made go last. What a tool needs while it runs
+comes on top; `tests/memory.rs` holds the whole process's peak to the budget
+plus a measured margin.
 
 `last_render()` says which steps ran and how long each took; `runs(name)`
 counts them; `render_unless` gives up between steps when asked; `forget`
@@ -251,7 +262,8 @@ and the sensor, so it comes before anything that is an edit.
 | The generated TypeScript and fixtures are current | `tests/contract.rs` | nothing |
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | A slider tick at preview size stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW` |
-| The process's peak memory, fitted and at 100% with a slider dragged, stays within the cache's budget plus 1.5 full-size pictures; a closed photo's memory is given back | `tests/memory.rs` | nothing (a synthetic 61 MP photo); a real one with `AG_RAW` |
+| A half-size preview is the full develop made small: size, colour, crop, tone, highlights | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
+| The process's peak memory, fitted and at 100% with a slider dragged, stays within the cache's budget plus 1.5 full-size pictures, and under 2 pictures while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | nothing (a synthetic 61 MP photo); a real one with `AG_RAW` |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
 app's own tests take them. Unset, the real-photo tests say they skipped and

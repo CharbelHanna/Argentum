@@ -15,15 +15,23 @@ use argentum_engine::pipeline::DEFAULT_CACHE_BYTES;
 use argentum_engine::{Engine, Gpu};
 
 /// What the process may hold at its peak past the cache's budget, in
-/// full-size pictures (12 bytes a pixel): the result being made is within
-/// the budget, but a tool's own working memory, the picture a step is
-/// reading and the photo's decoded data are not.
+/// full-size pictures (12 bytes a pixel): the result being made and the
+/// develop's working memory are within the budget, but a tool's own working
+/// memory, the picture a step is reading and the photo's decoded data are
+/// not.
 ///
-/// Set from its first measurement, with the default budget of 1.5 GB, on an
-/// integrated GPU, whose memory is the process's, 2026-10-18: 1.17 for a
-/// 32 MP Canon CR3 (a peak of 1.9 GB) and 1.12 for the synthetic 61 MP photo
-/// (2.3 GB). Never to be raised.
+/// Both limits here are set from their first measurement, with the default
+/// budget of 1.5 GB, on an integrated GPU, whose memory is the process's,
+/// 2026-10-18, and never to be raised. This one: 0.69 to 0.89 for a 32 MP
+/// Canon CR3 (a peak of 1.75 to 1.82 GB over three runs) and 1.03 for the
+/// synthetic 61 MP photo (2.19 GB).
 const PAST_THE_BUDGET_PICTURES: f64 = 1.5;
+
+/// What the process may hold at its peak while the photo is only fitted, in
+/// full-size pictures: a fitted view develops at half size, so nothing
+/// full-size is made. Measured: 1.58 for the CR3 (0.57 GB) and 1.22 for the
+/// synthetic photo (0.82 GB); developing at full size, it was 3.3 and 2.6.
+const FITTED_PICTURES: f64 = 2.0;
 
 #[test]
 fn memory_stays_within_the_budget_and_is_given_back() {
@@ -109,6 +117,15 @@ fn memory_stays_within_the_budget_and_is_given_back() {
             engine.cache_bytes() <= budget,
             "the cache is past its budget"
         );
+        if zoom == "fit" {
+            let fitted = now.peak.saturating_sub(base);
+            assert!(
+                fitted as f64 <= FITTED_PICTURES * picture as f64,
+                "fitted, the peak is {:.2} GB, {:.2} pictures; allowed {FITTED_PICTURES}",
+                gb(fitted),
+                fitted as f64 / picture as f64
+            );
+        }
     }
 
     let peak = memory().unwrap().peak.saturating_sub(base);
