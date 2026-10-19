@@ -152,6 +152,12 @@ struct GapArgs {
     gap: u8,
 }
 
+/// Looks' ids: a built-in preset's, a preset's own, a LUT's path.
+#[derive(Deserialize)]
+struct IdsArgs {
+    ids: Vec<String>,
+}
+
 /// A text size's name, narrowed by `TextSize::from_name`, Normal if unknown.
 #[derive(Deserialize)]
 struct TextSizeArgs {
@@ -422,6 +428,21 @@ async fn json(
             Ok(serde_json::Value::Null)
         }
         "text_size" => serde_json::to_value(commands::text_size()?).map_err(|e| e.to_string()),
+        "builtin_presets" => {
+            let handle = app_handle.clone();
+            let groups = tokio::task::spawn_blocking(move || commands::builtin_presets(&handle))
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_value(groups).map_err(|e| e.to_string())
+        }
+        "looks_favourites" => {
+            serde_json::to_value(commands::looks_favourites()?).map_err(|e| e.to_string())
+        }
+        "set_looks_favourites" => {
+            let a: IdsArgs = args_for(&name, args)?;
+            commands::set_looks_favourites(&a.ids)?;
+            Ok(serde_json::Value::Null)
+        }
         "set_text_size" => {
             let a: TextSizeArgs = args_for(&name, args)?;
             commands::set_text_size(&a.size)?;

@@ -3,8 +3,8 @@
  *
  * Top to bottom: the histogram (one, for every tab), the Info line, the tab
  * strip, and the open tab. The tabs are today's panels as they are: Edit is the
- * adjustments, Looks the presets, Crop, Masks, Retouch (today's AI panel) and
- * Export. The Info line, the photo's ISO, aperture, shutter and focal length,
+ * adjustments, Looks ours (argentum/looks: presets, LUTs and film looks), Crop,
+ * Masks, Retouch (today's AI panel) and Export. The Info line, the photo's ISO, aperture, shutter and focal length,
  * is a tab of its own without a seventh name in the strip: a click on it, or
  * I, shows today's metadata panel at the panel's full height, and any tab goes
  * back. The keys are today's (D, P, R, M, K, E, I), which set the same active
@@ -28,6 +28,7 @@ import { useLibraryStore } from '../../store/useLibraryStore';
 import { useUIStore } from '../../store/useUIStore';
 import HistogramSection from '../layout/HistogramSection';
 import { useAgTranslation, type AgKey } from '../locales';
+import LooksPanel from '../looks/LooksPanel';
 import { useGridAdjustments } from './gridAdjustments';
 
 const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] = [
@@ -159,6 +160,7 @@ function TabBody({
       </>
     );
   }
+  if (tab === Panel.Presets) return <LooksPanel editing={editing} />;
   if (tab === Panel.Masks) return editing ? <MasksPanel showWaveform={false} /> : <Quiet text={t('mwOpenToUse')} />;
   if (tab === Panel.Metadata && !editing) {
     // The grid's selection, from what the library read of it.

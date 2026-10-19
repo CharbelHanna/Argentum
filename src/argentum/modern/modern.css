@@ -1254,3 +1254,207 @@ html[data-ag-look='modern'] .agm-left .font-medium {
 html[data-ag-look='modern'] .agm-left .lucide-star {
   color: var(--agm-star);
 }
+
+/* ------------------------------------------------------------------- looks */
+
+/* The Looks tab (argentum/looks/LooksPanel.tsx): a header that stays, then the list. */
+.agm-looks {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.agm-looks-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--agm-side);
+  padding: 8px 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-bottom: 1px solid var(--agm-line);
+}
+
+.agm-looks-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.agm-search {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px 0 8px;
+  border-radius: 4px;
+  background: var(--agm-surface);
+  color: var(--agm-dim);
+}
+
+.agm-search input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  outline: none;
+  color: var(--agm-text);
+  font-size: calc(12px * var(--agm-text-scale, 1));
+}
+
+.agm-btn-box {
+  height: 26px;
+  background: var(--agm-surface);
+  color: var(--agm-text);
+}
+
+.agm-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.agm-chip {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: var(--agm-surface);
+  color: var(--agm-sec);
+  font-size: calc(11px * var(--agm-text-scale, 1));
+}
+
+.agm-chip:hover {
+  color: var(--agm-text);
+}
+
+.agm-chip.agm-on {
+  background: var(--agm-active);
+  color: var(--agm-text);
+}
+
+.agm-looks .agm-hint {
+  padding: 0 2px;
+}
+
+.agm-onphoto {
+  border-bottom: 1px solid var(--agm-line);
+  padding-bottom: 6px;
+}
+
+.agm-onphoto-item {
+  padding-bottom: 4px;
+}
+
+.agm-onphoto-item > :not(.agm-look) {
+  padding: 0 10px;
+}
+
+.agm-onphoto-item .agm-look {
+  cursor: default;
+}
+
+.agm-looks-list {
+  padding: 2px 0 12px;
+}
+
+.agm-look-folder {
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px 0 18px;
+  color: var(--agm-sec);
+  font-size: calc(12px * var(--agm-text-scale, 1));
+  cursor: pointer;
+  user-select: none;
+}
+
+.agm-look-folder:hover {
+  color: var(--agm-text);
+}
+
+.agm-count {
+  margin-left: auto;
+  color: var(--agm-dim);
+  font-size: calc(10.5px * var(--agm-text-scale, 1));
+  letter-spacing: 0;
+}
+
+.agm-look-inner .agm-look {
+  padding-left: 30px;
+}
+
+/* A look: swatch, name, kind, star; the one on the photo is a slate row with its marker. */
+.agm-look {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px 0 10px;
+  cursor: pointer;
+  color: var(--agm-text);
+  font-size: calc(12px * var(--agm-text-scale, 1));
+}
+
+.agm-look:hover {
+  background: var(--agm-hover);
+}
+
+.agm-look.agm-on {
+  background: var(--agm-selrow);
+  box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+.agm-swatch {
+  width: 36px;
+  height: 24px;
+  flex: none;
+  border-radius: 2px;
+  background: var(--agm-surface) center / cover no-repeat;
+}
+
+.agm-look-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agm-kind {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--agm-surface);
+  color: var(--agm-sec);
+  font-size: calc(10px * var(--agm-text-scale, 1));
+}
+
+.agm-star {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--agm-dim);
+  visibility: hidden;
+}
+
+.agm-look:hover .agm-star,
+.agm-star.agm-on {
+  visibility: visible;
+}
+
+.agm-star.agm-on {
+  color: var(--agm-star);
+}
+
+.agm-star.agm-on svg {
+  fill: currentColor;
+}

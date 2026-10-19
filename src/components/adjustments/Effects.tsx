@@ -8,7 +8,6 @@ import clsx from 'clsx';
 import Slider from '../ui/Slider';
 import Switch from '../ui/Switch';
 import { Adjustments, Effect, CreativeAdjustment, getAdjustmentToolOrder, getHiddenAdjustmentTools } from '../../utils/adjustments';
-import LUTControl from '../ui/LUTControl';
 import { AppSettings } from '../ui/AppProperties';
 import Text from '../ui/Text';
 import AdjustmentSubSection from './AdjustmentSubSection';
@@ -17,12 +16,11 @@ import { DepthRangePicker } from '../ui/DepthRangePicker';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 
+// Argentum: the LUT block moved to the Looks tab (argentum/looks/LooksPanel.tsx).
 interface EffectsPanelProps {
   adjustments: Adjustments;
   isForMask?: boolean;
   setAdjustments(adjustments: Partial<Adjustments> | ((prev: Adjustments) => Adjustments)): any;
-  handleLutSelect(path: string, isSceneReferred: boolean): void;
-  onLutHover?: (path: string | null) => void;
   appSettings: AppSettings | null;
   onDragStateChange?: (isDragging: boolean) => void;
 }
@@ -142,8 +140,6 @@ export default function EffectsPanel({
   adjustments,
   setAdjustments,
   isForMask = false,
-  handleLutSelect,
-  onLutHover,
   appSettings,
   onDragStateChange,
 }: EffectsPanelProps) {
@@ -170,22 +166,6 @@ export default function EffectsPanel({
   const handleAdjustmentChange = (key: string, value: any) => {
     const numericValue = typeof value === 'boolean' ? value : parseInt(value, 10);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, [key]: numericValue }));
-  };
-
-  const handleLutIntensityChange = (intensity: number) => {
-    setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, lutIntensity: intensity }));
-  };
-
-  const handleLutClear = () => {
-    setAdjustments((prev: Partial<Adjustments>) => ({
-      ...prev,
-      lutPath: null,
-      lutName: null,
-      lutData: null,
-      lutSize: 0,
-      lutIntensity: 100,
-      lutIsSceneReferred: false,
-    }));
   };
 
   const handleLensBlurToggle = (enabled: boolean) => {
@@ -343,21 +323,6 @@ export default function EffectsPanel({
                   </div>
                 </div>
               </div>
-            </AdjustmentSubSection>
-          )}
-
-          {!hiddenTools.includes('lut') && (
-            <AdjustmentSubSection id="lut" order={toolOrder.indexOf('lut')} title={t('adjustments.effects.lut')}>
-              <LUTControl
-                lutPath={adjustments.lutPath || null}
-                lutName={adjustments.lutName || null}
-                lutIntensity={adjustments.lutIntensity || 100}
-                onLutSelect={handleLutSelect}
-                onLutHover={onLutHover}
-                onIntensityChange={handleLutIntensityChange}
-                onClear={handleLutClear}
-                onDragStateChange={onDragStateChange}
-              />
             </AdjustmentSubSection>
           )}
 

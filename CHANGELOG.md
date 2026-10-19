@@ -47,6 +47,18 @@ Newest first.
   - The folder tree's keys are adapted from Shoebox `src/components/Sidebar.tsx` @
     `bccfd70` (`nav`, `onFocus`, `onKey`); moving onto a folder with the arrows also opens
     it, as Explorer's tree does.
+- **The Looks tab: presets, LUTs and film looks in one place.** Search, Import for every
+  format (.rrpreset, .xmp, .lrtemplate, .cube, .3dl, .png, .jpg, .tiff), and chips for
+  All, Favourites, Film, Presets and LUTs. The groups are Film (the six film LUTs),
+  Presets (20 that come with Argentum, from RAWmakase, in Color, Creative, Curve, Grain
+  and Vignetting), My presets and My LUTs. Pointing at a look shows it on the photo; a
+  click puts it on and a click on the one on takes it off; the star keeps it in
+  Favourites. On this photo lists what is on, with a LUT's Strength and a preset's
+  Amount (0 to 200%). Amount now starts from the photo as it was and moves only what
+  the preset changes: dragging it to 0 used to put every default back, crop and masks
+  included. The LUT block left Effects, whose eye, reset, copy and paste no longer touch
+  the LUT. Community presets are in the tab's ⋯ menu. `argentum/looks/`,
+  `mods/looks.rs`, `resources/presets/rawmakase` (MIT, `assets/presets` @ `7c3c81a`).
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
   Rendering). The default picture of a DNG renderer: the camera's exposure offset
   and Adobe's default tone curve, applied in linear ProPhoto RGB to each pixel's

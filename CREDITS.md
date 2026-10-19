@@ -81,6 +81,13 @@ rendering, its *Standard* profile with Lightroom's default sharpening:
 - **The default sharpening** (Sharpen 25 at radius 1) was matched against
   RAWmakase 0.3.3's render of Camera Raw's defaults on 200% crops.
 
+**The presets that come with Argentum** are RAWmakase's (`assets/presets` @
+`7c3c81a`, MIT): Color, Creative, Curve, Grain and Vignetting, 20 Lightroom XMP
+files shipped unchanged in `src-tauri/resources/presets/rawmakase` with their
+licence, and read through Argentum's own XMP import. Its six B&W presets are not
+included yet. The Amount slider for a preset follows its rule: it starts from the
+photo as it was and moves only what the preset changes.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

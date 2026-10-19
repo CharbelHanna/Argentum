@@ -2253,7 +2253,9 @@ fn get_global_adjustments_from_json(
     let (pipe_to_rendering, rendering_to_pipe) = calculate_agx_matrices();
     let rgb_to_lms = white_balance::rgb_to_lms();
 
-    let (has_lut, lut_intensity, lut_is_scene_referred) = if is_visible("effects") {
+    // Argentum: a LUT is a look (the Looks tab), no longer in Effects, so
+    // Effects' eye no longer turns it off.
+    let (has_lut, lut_intensity, lut_is_scene_referred) = {
         (
             if js_adjustments["lutPath"].is_string() {
                 1
@@ -2270,8 +2272,6 @@ fn get_global_adjustments_from_json(
                 0
             },
         )
-    } else {
-        (0, 1.0, 0)
     };
 
     let ag_profile = crate::mods::profile_correction::rows_for(js_adjustments, photo); // Argentum
