@@ -168,6 +168,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "cameraProfile", // Argentum: our keys that Copy settings carries, mods/copy_keys.rs
         "rawToneRendering",
         "agSharpen",
+        "whiteBalanceAuto",
     ]
     .iter()
     .map(|s| s.to_string())
@@ -600,7 +601,6 @@ pub struct AppSettings {
     pub group_preferred_type: Option<String>,
     #[serde(default)]
     pub always_decode_raw_thumbnails: Option<bool>,
-    #[serde(default)]
     pub last_import_settings: Option<Value>,
     #[serde(default)]
     pub custom_aspect_ratios: Vec<CustomAspectRatio>,

@@ -67,6 +67,14 @@ struct AutoWbArgs {
     mode: DetectMode,
 }
 
+/// A photo to measure Auto white balance on, and the photo a pasted Auto came from.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MeasureWbArgs {
+    path: String,
+    from: Option<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathArgs {
@@ -332,6 +340,22 @@ async fn json(
             let a: AutoWbArgs = args_for(&name, args)?;
             let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "measure_auto_white_balance" => {
+            let a: MeasureWbArgs = args_for(&name, args)?;
+            let handle = app_handle.clone();
+            let measured = tokio::task::spawn_blocking(move || {
+                let settings = crate::app_settings::load_settings(handle).unwrap_or_default();
+                crate::mods::auto_wb_photo::measure(
+                    &a.path,
+                    a.from.as_deref(),
+                    &settings,
+                    crate::mods::auto_wb_photo::PASTE_WAIT,
+                )
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            serde_json::to_value(measured).map_err(|e| e.to_string())
         }
         "sample_processed_pixel" => {
             let a: PointArgs = args_for(&name, args)?;

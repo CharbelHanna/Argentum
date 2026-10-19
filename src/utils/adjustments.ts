@@ -239,7 +239,7 @@ export interface Adjustments {
   lensModel: string | null;
   lumaNoiseReduction: number;
   rawToneRendering: 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
-  rawToneCurve: Coord[] | null;
+  rawToneCurve?: Coord[] | null;
   lutData?: string | null;
   lutIntensity?: number;
   lutName?: string | null;
@@ -581,7 +581,6 @@ export const INITIAL_ADJUSTMENTS: Adjustments = {
   lensModel: null,
   lumaNoiseReduction: 0,
   rawToneRendering: 'dngStandard',
-  rawToneCurve: null,
   lutData: null,
   lutIntensity: 100,
   lutName: null,
@@ -806,7 +805,7 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
   color: [
     {
       label: 'modals.copyPaste.groups.whiteBalance',
-      keys: [ColorAdjustment.Temperature, ColorAdjustment.Tint, ColorAdjustment.WhiteBalance],
+      keys: [ColorAdjustment.Temperature, ColorAdjustment.Tint, ColorAdjustment.WhiteBalance, 'whiteBalanceAuto'],
     },
     { label: 'modals.copyPaste.groups.presence', keys: [ColorAdjustment.Saturation, ColorAdjustment.Vibrance] },
     {

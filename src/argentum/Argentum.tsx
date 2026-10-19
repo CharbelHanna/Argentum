@@ -53,6 +53,7 @@ import AiModels from './AiModels';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
+import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
 import SuperResolutionModal from './SuperResolutionModal';
 import SuperResolutionButton from './SuperResolutionButton';
 
@@ -120,6 +121,9 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
 
   // The Modern look: a stylesheet keyed on <html>.
   useModernLook();
+
+  // Auto white balance measured again on each photo it is pasted onto.
+  useAutoWhiteBalanceFollows();
   const modern = useModernLayout();
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only

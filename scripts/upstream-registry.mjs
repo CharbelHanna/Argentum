@@ -303,39 +303,59 @@ export const REGISTRY = [
     id: 'copy-our-keys',
     kind: 'feature',
     what:
-      'Copy settings, Paste and presets carry cameraProfile, rawToneRendering and agSharpen. They '
-      + 'are in their copy groups (a Camera Profile & RAW Rendering group; agSharpen with Sharpness) '
+      'Copy settings, Paste and presets carry cameraProfile, rawToneRendering, agSharpen and '
+      + 'whiteBalanceAuto. They are in their copy groups (a Camera Profile & RAW Rendering group; '
+      + 'agSharpen with Sharpness; whiteBalanceAuto with White Balance) '
       + 'and written into their paste list (mods/copy_keys.rs holds the test). A profile made for another camera is '
       + 'left out of a render (profile_correction fits_this_photo); a curve fitted for another '
-      + 'rendering is not used (raw_tone points_of, by rawToneCurveMode). Never rawToneCurve or '
-      + 'whiteBalanceAuto: each is worked out for one photo.',
+      + 'rendering is not used (raw_tone points_of, by rawToneCurveMode). Never rawToneCurve: it '
+      + 'is fitted to one photo. whiteBalanceAuto names the photo it was measured on, and each photo '
+      + 'it reaches is measured again (argentum/autoWhiteBalance.ts, mods/auto_wb_photo.rs).',
     ours: [
       'src-tauri/src/mods/copy_keys.rs',
+      'src-tauri/src/mods/auto_wb_photo.rs',
+      'src/argentum/autoWhiteBalance.ts',
     ],
     dependsOn: [
       { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_GROUPS', how: 'extends',
-        note: 'One group line of ours at the top of basic, and agSharpen in their Sharpness group\'s '
-          + 'line. COPYABLE_ADJUSTMENT_KEYS, presets and the Copy & Paste Settings dialog follow from '
+        note: 'One group line of ours at the top of basic, agSharpen in their Sharpness group\'s line '
+          + 'and whiteBalanceAuto in their White Balance group\'s; rawToneCurve has no default of ours '
+          + 'any more, to make room. COPYABLE_ADJUSTMENT_KEYS, presets and the Copy & Paste Settings dialog follow from '
           + 'it. If they rebuild the groups, the keys must go back in.' },
       { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
         note: 'Our keys come back from a saved edit only because their loader spreads it over the '
           + 'defaults; our own checks of them there were removed to stay under the line cap. If the '
           + 'loader starts picking keys, the camera profile and RAW rendering are lost on reload.' },
       { file: 'src-tauri/src/app_settings.rs', symbol: 'all_available_adjustments', how: 'extends',
-        note: 'Our three keys written into their list, three lines. Their load switches a key new to '
+        note: 'Our four keys written into their list, four lines; a redundant serde default on '
+          + 'last_import_settings (an Option) went to make room. Their load switches a key new to '
           + 'the list on in includedAdjustments, which is what makes Paste carry ours for existing users.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handlePasteAdjustments', how: 'calls',
-        note: 'Paste applies the keys in copyPasteSettings.includedAdjustments and nothing else.' },
+        note: 'Paste applies the keys in copyPasteSettings.includedAdjustments and nothing else. '
+          + 'It goes to the selection, else the open photo, and sets isPasted after it: the Auto '
+          + 'watcher reads the same targets. A paste elsewhere is caught when the photo opens.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'apply_adjustments_to_paths', how: 'calls',
+        note: 'Writes every sidecar before drawing any thumbnail. auto_wb_photo waits for the pasted '
+          + 'Auto to reach a sidecar before measuring, then writes the photo\'s own through it.' },
+      { file: 'src-tauri/src/image_loader.rs', symbol: 'load_base_image_from_bytes', how: 'calls',
+        note: 'auto_wb_photo decodes a photo that is not open as Restore & Enlarge does, then '
+          + 'composite_patches_on_image and mask_generation build_full_warped_image, the picture the '
+          + 'open photo\'s Auto reads.' },
     ],
     tests: [
       'src-tauri/src/mods/copy_keys.rs #[cfg(test)] our_keys_are_pasted_by_default.',
       'src-tauri/src/mods/profile_correction.rs #[cfg(test)] a_profile_for_another_camera_is_left_out.',
       'src-tauri/src/mods/raw_tone.rs #[cfg(test)] a_curve_fitted_for_another_rendering_is_not_used.',
+      'src-tauri/src/mods/auto_wb_photo.rs #[cfg(test)] a_pasted_photo_is_measured_for_its_own_light, '
+        + 'a_paste_that_does_not_arrive_is_given_up_on.',
+      'Manual: press Auto on a RAW, Copy settings, select photos shot under other light, Paste: a '
+        + 'note counts them, and each thumbnail changes to its own white balance; opening one shows '
+        + 'Auto in the white balance menu.',
       'Manual: on a RAW choose a camera profile, Base Curve and a Capture sharpening change; Copy settings; '
         + 'paste onto a RAW from the same camera: all three arrive. Onto a RAW from another camera: '
         + 'the rendering and sharpening arrive, the profile shows Built-in.',
     ],
-    keywords: /copy.?settings|paste|preset|camera.?profile|raw.?rendering|agSharpen/i,
+    keywords: /copy.?settings|paste|preset|camera.?profile|raw.?rendering|agSharpen|auto.?white|whiteBalanceAuto/i,
   },
   {
     id: 'snapshots',

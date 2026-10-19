@@ -294,5 +294,7 @@
   "cropManualFringe": "Manual fringe",
   "settingsKelvin": "White balance in Kelvin",
   "settingsKelvinDesc": "Temperature in kelvin (K) and Tint as absolute values, instead of a change from as shot. A photo with no as-shot white balance stays as a change.",
-  "editMoreTip": "Copy, paste, sync, panels"
+  "editMoreTip": "Copy, paste, sync, panels",
+  "autoWbMeasuring": "Measuring Auto white balance on {count} pasted photos…",
+  "autoWbMeasured": "Auto white balance measured on {count} photos"
 }

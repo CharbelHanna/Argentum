@@ -29,6 +29,7 @@ import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialo
 import { ChevronDown, ChevronRight, Download, MoreHorizontal, Plus, Search, Star, X } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'react-toastify';
+import { type AutoMarker, settleAutoWhiteBalance } from '../autoWhiteBalance';
 import Slider from '../../components/ui/Slider';
 import ConfigurePresetModal from '../../components/modals/ConfigurePresetModal';
 import CreateFolderModal from '../../components/modals/CreateFolderModal';
@@ -297,6 +298,13 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       );
       paths.forEach((p) => globalImageCache.delete(p));
       await invoke(Invokes.ApplyAdjustmentsToPaths, { paths, adjustments: changes });
+      // A preset kept with Auto white balance: each photo measured for its own light.
+      const auto = (changes as { whiteBalanceAuto?: AutoMarker }).whiteBalanceAuto;
+      if (auto?.photo)
+        settleAutoWhiteBalance(
+          paths.filter((p) => p !== auto.photo),
+          auto.photo,
+        );
       const undo = async () => {
         for (const { path, values } of before) {
           globalImageCache.delete(path);
