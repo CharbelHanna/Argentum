@@ -1914,6 +1914,7 @@
       "description": "Ein großes Dankeschön an die folgenden Projekte, die für die Entwicklung von RapidRAW sehr wichtig waren:",
       "list": {
         "darktable": "Für Referenzimplementierungen, die Teile dieser Arbeit leiteten.",
+        "detr": "Für das panoptische Modell, das Menschen, Tiere und Himmel im Foto für die Masken Motiv, Himmel und Hintergrund findet.",
         "depth": "Für das Modell zur monokularen Tiefenschätzung (Tiefenmasken).",
         "lama": "Für das leistungsstarke Bild-Inpainting-Modell.",
         "lensfun": "Für die unschätzbare Open-Source-Bibliothek für Objektivkorrektur.",
@@ -1921,7 +1922,7 @@
         "negpy": "Für die Inspiration hinter der Negativumwandlungslogik.",
         "nind": "Für die Bereitstellung von KI-Modellen für die Rauschreduzierung.",
         "rawler": "Für die hervorragende Rust-Crate zur RAW-Bildverarbeitung.",
-        "rawmakase": "Für DNG Standard, den Look, mit dem jedes RAW beginnt: den Belichtungsversatz jeder Kamera aus seiner Kameratabelle sowie die Standarddarstellung und -schärfung, an denen Argentum seine eigenen misst. Außerdem die Vorgaben, die Argentum mitbringt (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "Für DNG Standard, den Look, mit dem jedes RAW beginnt: den Belichtungsversatz jeder Kamera aus seiner Kameratabelle sowie die Standarddarstellung und -schärfung, an denen Argentum seine eigenen misst. Außerdem die Vorgaben, die Argentum mitbringt (Color, Creative, Curve, Grain, Vignetting). Außerdem die Masken Motiv, Himmel und Hintergrund: sein Auswahlcode mit SAM 2.1 und DETR.",
         "sam2": "Für das grundlegende Modell der KI-Motiverkennung.",
         "spektrafilm": "Für die spektralbasierten Filmemulations-LUTs von Andrea Volpato, die RapidRAWs integrierte Filmemulationen ermöglichen. Lizenziert unter CC BY-SA 4.0.",
         "u2net": "Für die Architektur zur Erkennung von Himmel und Vordergrund.",

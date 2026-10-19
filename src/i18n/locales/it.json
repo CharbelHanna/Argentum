@@ -1949,6 +1949,7 @@
       "description": "Un enorme grazie ai seguenti progetti che sono stati molto importanti nello sviluppo di RapidRAW:",
       "list": {
         "darktable": "Per alcune implementazioni di riferimento che hanno guidato parti di questo lavoro.",
+        "detr": "Per il modello panottico che trova persone, animali e cielo in una foto per le maschere Soggetto, Cielo e Sfondo.",
         "depth": "Per il potente modello di stima della profondità monoculare che abilita le funzionalità di mascheratura di profondità AI.",
         "lama": "Per il potente e semplice modello di inpainting delle immagini, che permette il riempimento in base al contenuto e la rimozione di oggetti.",
         "lensfun": "Per la sua inestimabile libreria open source e il database completo per la correzione automatica dell'obiettivo.",
@@ -1956,7 +1957,7 @@
         "negpy": "Per l'ispirazione dietro alla logica di conversione dei negativi.",
         "nind": "Per aver fornito i modelli AI che alimentano le capacità di riduzione del rumore AI in RapidRAW.",
         "rawler": "Per l'eccellente crate Rust che fornisce le basi per l'elaborazione dei file RAW in questo progetto.",
-        "rawmakase": "Per DNG Standard, l'aspetto con cui parte ogni RAW: lo scostamento di esposizione di ogni fotocamera dalla sua tabella delle fotocamere, e la resa e la nitidezza predefinite con cui vengono confrontate quelle di Argentum. Anche i preset inclusi in Argentum (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "Per DNG Standard, l'aspetto con cui parte ogni RAW: lo scostamento di esposizione di ogni fotocamera dalla sua tabella delle fotocamere, e la resa e la nitidezza predefinite con cui vengono confrontate quelle di Argentum. Anche i preset inclusi in Argentum (Color, Creative, Curve, Grain, Vignetting). Anche le maschere Soggetto, Cielo e Sfondo: il suo codice di selezione, con SAM 2.1 e DETR.",
         "sam2": "Per aver fornito il modello fondamentale usato per le funzionalità di rilevamento del soggetto tramite AI.",
         "spektrafilm": "Per le LUT di emulazione pellicola su base spettrale di Andrea Volpato, che alimentano le emulazioni integrate di RapidRAW. Concesse in licenza CC BY-SA 4.0.",
         "u2net": "Per aver fornito la robusta architettura usata per le funzionalità di rilevamento AI del cielo e del primo piano.",

@@ -67,6 +67,13 @@ fn run(app: AppHandle) {
         let state = app.state::<AppState>();
         let now = Instant::now();
 
+        // RAWmakase's selection models (selection.rs), after the same pause as
+        // the mask models of theirs they stand beside.
+        if super::selection::unload_if_idle(IDLE_MASKS) {
+            collect();
+            log::info!("[memory] unloaded the idle selection models");
+        }
+
         // The guard on ai_state is gone by the time take_idle returns, so the
         // models are dropped here with nothing of theirs waiting on it.
         let taken = models.take_idle(&state, now);

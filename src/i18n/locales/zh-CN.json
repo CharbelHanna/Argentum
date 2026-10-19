@@ -1912,6 +1912,7 @@
       "description": "衷心感谢以下项目，它们在 RapidRAW 的开发过程中非常重要：",
       "list": {
         "darktable": "为部分参考实现提供了指导。",
+        "detr": "感谢全景分割模型，它为主体、天空和背景蒙版找出照片中的人物、动物和天空。",
         "depth": "为强大的单目深度估计模型提供支持，实现了 AI 深度蒙版功能。",
         "lama": "为强大且简单的图像修复模型提供支持，实现了内容感知填充和对象移除。",
         "lensfun": "为无价的开源库和全面的数据库提供支持，实现了自动镜头校正。",
@@ -1919,7 +1920,7 @@
         "negpy": "为负片转换逻辑提供了灵感。",
         "nind": "为 AI 模型提供支持，驱动了 RapidRAW 中的 AI 降噪功能。",
         "rawler": "为优秀的 Rust 库提供支持，构成了本项目 RAW 文件处理的基础。",
-        "rawmakase": "感谢其为 DNG Standard（每张 RAW 的初始外观）提供的帮助：其相机表中每台相机的曝光偏移，以及 Argentum 用来比对自身结果的默认渲染与锐化。以及 Argentum 自带的预设（Color、Creative、Curve、Grain、Vignetting）。",
+        "rawmakase": "感谢其为 DNG Standard（每张 RAW 的初始外观）提供的帮助：其相机表中每台相机的曝光偏移，以及 Argentum 用来比对自身结果的默认渲染与锐化。以及 Argentum 自带的预设（Color、Creative、Curve、Grain、Vignetting）。 以及主体、天空和背景蒙版：其选择代码，配合 SAM 2.1 和 DETR。",
         "sam2": "为提供基础模型，用于 AI 主体检测功能。",
         "spektrafilm": "感谢 Andrea Volpato 提供基于光谱的胶片模拟 LUT，为 RapidRAW 的内置胶片模拟提供支持。采用 CC BY-SA 4.0 许可。",
         "u2net": "为提供稳健的架构，用于 AI 天空和前景检测功能。",

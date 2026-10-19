@@ -1916,6 +1916,7 @@
       "description": "Un enorme agraïment als projectes següents que van ser molt importants per al desenvolupament de RapidRAW:",
       "list": {
         "darktable": "Per algunes implementacions de referència que van guiar certes parts d'aquest treball.",
+        "detr": "Pel model panòptic que troba les persones, els animals i el cel d'una foto per a les màscares Subjecte, Cel i Fons.",
         "depth": "Per al potent model d'estimació de profunditat monocular que permet les capacitats d'emmascarament de profunditat d'IA.",
         "lama": "Per al potent i senzill model d'inpainting d'imatges, que permet el farciment i l'eliminació d'objectes segons el contingut.",
         "lensfun": "Per la seva inestimable biblioteca de codi obert i la completa base de dades per a la correcció automàtica d'objectius.",
@@ -1923,7 +1924,7 @@
         "negpy": "Per la inspiració que hi ha darrere de la lògica de conversió de negatius.",
         "nind": "Per proporcionar els models d'IA que impulsen les capacitats de reducció de soroll per IA a RapidRAW.",
         "rawler": "Per l'excel·lent component de Rust que proporciona la base per al processament de fitxers RAW en aquest projecte.",
-        "rawmakase": "Per DNG Standard, l'aspecte amb què comença cada RAW: el desplaçament d'exposició de cada càmera de la seva taula de càmeres, i la representació i l'enfocament per defecte amb què es comparen els d'Argentum. També els preajustos que porta Argentum (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "Per DNG Standard, l'aspecte amb què comença cada RAW: el desplaçament d'exposició de cada càmera de la seva taula de càmeres, i la representació i l'enfocament per defecte amb què es comparen els d'Argentum. També els preajustos que porta Argentum (Color, Creative, Curve, Grain, Vignetting). També les màscares Subjecte, Cel i Fons: el seu codi de selecció, amb SAM 2.1 i DETR.",
         "sam2": "Per proporcionar el model de base utilitzat per a les capacitats de detecció de subjectes per IA.",
         "spektrafilm": "Per les LUTs d'emulació de pel·lícula basades en espectres, d'Andrea Volpato, que impulsen les emulacions integrades de RapidRAW. Amb llicència CC BY-SA 4.0.",
         "u2net": "Per proporcionar la robusta arquitectura utilitzada per a les capacitats de detecció de cel i primer pla per IA.",

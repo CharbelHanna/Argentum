@@ -1,0 +1,21 @@
+[package]
+# RAWmakase's automatic Subject, Sky and Background and its click selection:
+# the crate rawmakase-inference from github.com/pch/rawmakase @ 7c3c81a (MIT,
+# LICENSE beside this file), taken whole and kept file for file so each
+# RAWmakase release can be compared against it. See README.md for what changed.
+name = "rm-selection"
+description = "RAWmakase's subject, sky and click selection (SAM 2.1 + DETR panoptic) on ONNX Runtime"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+license = "MIT"
+publish = false
+
+# A workspace of its own, like the engine: it builds and tests from this folder
+# alone, without building the app; the app takes it as a path dependency.
+[workspace]
+
+[dependencies]
+# The app's own version and loading (src-tauri/Cargo.toml): the runtime library
+# is opened at run time from a path the app chooses, never linked.
+ort = { version = "=2.0.0-rc.10", default-features = false, features = ["std", "load-dynamic"] }

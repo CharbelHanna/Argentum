@@ -1916,6 +1916,7 @@
       "description": "A huge thank you to the following projects that were very important in the development of RapidRAW:",
       "list": {
         "darktable": "For some reference implementations that guided parts of this work.",
+        "detr": "For the panoptic model that finds a photo's people, animals and sky for the Subject, Sky and Background masks.",
         "depth": "For the powerful monocular depth estimation model that enables the AI depth masking capabilities.",
         "lama": "For the powerful & simple image inpainting model, which enables content-aware fill and object removal.",
         "lensfun": "For its invaluable open-source library and comprehensive database for automatic lens correction.",
@@ -1923,7 +1924,7 @@
         "negpy": "For the inspiration behind the negative conversion logic.",
         "nind": "For providing AI models that power the AI noise reduction capabilities in RapidRAW.",
         "rawler": "For the excellent Rust crate that provides the foundation for RAW file processing in this project.",
-        "rawmakase": "For DNG Standard, the look every RAW starts in: each camera's exposure offset from its camera table, and the default rendering and sharpening Argentum's are matched against. Also the presets that come with Argentum (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "For DNG Standard, the look every RAW starts in: each camera's exposure offset from its camera table, and the default rendering and sharpening Argentum's are matched against. Also the presets that come with Argentum (Color, Creative, Curve, Grain, Vignetting). Also the Subject, Sky and Background masks: its selection code, run with SAM 2.1 and DETR.",
         "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
         "spektrafilm": "For the spectrally-based film emulation LUTs by Andrea Volpato, used to power RapidRAW's built-in film emulations. Licensed CC BY-SA 4.0.",
         "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",
