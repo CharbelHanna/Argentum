@@ -40,6 +40,9 @@
 //! - The offset is a setting, the photo's own by default (`defaults_for`),
 //!   so an edit keeps it when the table changes, as the app keeps its curve
 //!   in the edit.
+//! - The photo's levels, for a row that holds its sample's (Canon), are
+//!   taken from the decoded image (`decoded_levels`), as the app takes them
+//!   from rawler without decoding the pixels: the same numbers.
 //! - Not yet read: a DNG's own BaselineExposure and the ISO (below a body's
 //!   lowest native ISO the app takes a stop off). The engine's `Source`
 //!   carries the decoded image, not the file's metadata; until it does, every
@@ -66,7 +69,7 @@ impl Default for Settings {
     fn default() -> Self {
         Self {
             enabled: true,
-            baseline_exposure_ev: baseline("", ""),
+            baseline_exposure_ev: baseline("", "", None),
         }
     }
 }
@@ -99,7 +102,11 @@ impl Tool for AgDngStandard {
 
     fn defaults_for(&self, source: &Source) -> Settings {
         Settings {
-            baseline_exposure_ev: baseline(&source.raw.clean_make, &source.raw.clean_model),
+            baseline_exposure_ev: baseline(
+                &source.raw.clean_make,
+                &source.raw.clean_model,
+                decoded_levels(&source.raw),
+            ),
             ..Settings::default()
         }
     }
@@ -263,15 +270,16 @@ const ADOBE_CAMERA_RAW_DEFAULT_CURVE: [f32; 1025] = [
     1.00000,
 ];
 
-
 // ---------------------------------------------------------------------------
 // The offset: from src-tauri/src/mods/dng_standard.rs and
 // src-tauri/src/mods/profiles.rs @ c786c146.
 // ---------------------------------------------------------------------------
 
-/// A body's offset: its row, else the median of its make's rows, else the
-/// median of every row. `baseline_in` in the app, given the make and model.
-pub fn baseline(make: &str, model: &str) -> f32 {
+/// A body's offset: its row, moved by `white_shift` when the row holds its
+/// sample's levels; else the median of its make's rows, else the median of
+/// every row. `baseline_in` in the app, given the make, the model and the
+/// photo's black and white as decoded (`decoded_levels`).
+pub fn baseline(make: &str, model: &str, levels: Option<[f32; 2]>) -> f32 {
     let rows = rows();
     let of_make = |row: &&Row| same_make(&row.make, make);
     let listed = rows.iter().filter(of_make).find(|row| {
@@ -280,7 +288,7 @@ pub fn baseline(make: &str, model: &str) -> f32 {
         })
     });
     if let Some(row) = listed {
-        return row.ev;
+        return row.ev + white_shift(row.levels, levels);
     }
     // A body not listed is predicted better by its own make than by every row.
     if let Some(ev) = median(rows.iter().filter(of_make).map(|row| row.ev)) {
@@ -289,12 +297,52 @@ pub fn baseline(make: &str, model: &str) -> f32 {
     median(rows.iter().map(|row| row.ev)).unwrap_or(0.0)
 }
 
+/// How much more of the samples' range, in EV, a photo's levels take than
+/// those of the sample its row was read from. Adobe takes a Canon's white
+/// level by ISO speed and moves its BaselineExposure with it, so a picture
+/// stays referenced to the samples' full range; a photo scaled by other
+/// levels takes the difference. Since `photo` is what the photo is actually
+/// scaled by, this holds whichever white level the decoder picks (rawler's
+/// SpecularWhiteLevel, Adobe's NormalWhiteLevel).
+///
+/// From RAWmakase `white_shift`, `crates/rawmakase-model/src/
+/// camera_profiles/reference.rs` @ a8c5d6d7 (v0.4.0, MIT), with the photo's
+/// maximum taken as its sample's (same body, same bit depth). 0 without both.
+pub fn white_shift(sample: Option<[f32; 3]>, photo: Option<[f32; 2]>) -> f32 {
+    let (Some([sample_black, sample_white, maximum]), Some([black, white])) = (sample, photo)
+    else {
+        return 0.0;
+    };
+    let part = |black: f32, white: f32| {
+        let (range, full) = (white - black, maximum - black);
+        (range > 0.0 && full > 0.0).then(|| (range / full).log2())
+    };
+    match (part(black, white), part(sample_black, sample_white)) {
+        (Some(photo), Some(sample)) => photo - sample,
+        _ => 0.0,
+    }
+}
+
+/// The black and white level a mosaic is scaled by, as decoded: the first
+/// of each, as the app's develop takes them. None for sRAW and mRAW (three
+/// values a pixel), whose levels mean something else.
+pub fn decoded_levels(raw: &rawler::rawimage::RawImage) -> Option<[f32; 2]> {
+    if raw.cpp != 1 {
+        return None;
+    }
+    let black = raw.blacklevel.levels.first().map_or(0.0, |v| v.as_f32());
+    let white = *raw.whitelevel.0.first()? as f32;
+    Some([black, white])
+}
+
 /// One body of the table.
 struct Row {
     make: String,
     /// The model and its other names.
     names: Vec<String>,
     ev: f32,
+    /// The black, white and maximum of the sample `ev` was read from (Canon).
+    levels: Option<[f32; 3]>,
 }
 
 /// The app's table, read once: one definition for both. Its fourth column,
@@ -309,16 +357,26 @@ fn parse_rows(text: &str) -> Vec<Row> {
         .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
         .filter_map(|line| {
             let fields: Vec<&str> = line.split('\t').collect();
-            let [make, names, ev, _lowest_iso] = fields[..] else {
+            let [make, names, ev, _lowest_iso, levels] = fields[..] else {
                 return None;
             };
             Some(Row {
                 make: make.to_string(),
                 names: names.split('|').map(str::to_string).collect(),
                 ev: ev.parse().ok()?,
+                levels: parse_levels(levels),
             })
         })
         .collect()
+}
+
+/// "black,white,maximum", or nothing.
+fn parse_levels(text: &str) -> Option<[f32; 3]> {
+    let values: Vec<f32> = text
+        .split(',')
+        .map(|v| v.trim().parse().ok())
+        .collect::<Option<_>>()?;
+    values.try_into().ok()
 }
 
 /// Makers are written many ways: "NIKON CORPORATION", "Nikon"; "OM Digital",
@@ -475,12 +533,54 @@ mod tests {
     #[test]
     fn bodies_are_found_by_any_of_their_names() {
         assert_eq!(rows().len(), 230);
-        assert_eq!(baseline("Canon", "EOS R6 Mark III"), 0.25);
-        assert_eq!(baseline("CANON", "EOS REBEL T3"), -0.5);
-        assert_eq!(baseline("Canon", "Canon EOS R6 Mark III"), 0.25);
+        assert_eq!(baseline("Canon", "EOS R6 Mark III", None), 0.25);
+        assert_eq!(baseline("CANON", "EOS REBEL T3", None), -0.5);
+        assert_eq!(baseline("Canon", "Canon EOS R6 Mark III", None), 0.25);
         // EOS R6 is listed, and is not EOS R6 Mark III.
-        assert_eq!(baseline("Canon", "EOS R6"), 0.35);
+        assert_eq!(baseline("Canon", "EOS R6", None), 0.35);
         // Not listed: the table's median.
-        assert_eq!(baseline("Nobody", "X1"), 0.2);
+        assert_eq!(baseline("Nobody", "X1", None), 0.2);
+    }
+
+    #[test]
+    fn canon_rows_carry_their_samples_levels() {
+        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 58);
+        // The R6 Mark III's sample: black 512, white 13995. A photo decoded at
+        // black 2048, white 14351 takes 0.0146 EV more; a Nikon row has no
+        // levels and takes none.
+        let r6 = baseline("Canon", "EOS R6 Mark III", Some([2048.0, 14351.0]));
+        assert!((r6 - 0.2646).abs() < 0.001, "{r6}");
+        assert_eq!(baseline("Nikon", "Z 6", Some([600.0, 15000.0])), 0.2);
+    }
+
+    /// RAWmakase's own case: the EOS 1100D's offset is -0.5 at its ISO 160
+    /// sample's white of 11222 (black 2047), about 0 at ISO 400's 15000.
+    #[test]
+    fn a_photo_scaled_by_other_levels_takes_the_difference() {
+        let sample = Some([2047.0, 11222.0, 16383.0]);
+        assert_eq!(white_shift(sample, Some([2047.0, 11222.0])), 0.0);
+        let iso_400 = -0.5 + white_shift(sample, Some([2047.0, 15000.0]));
+        assert!(iso_400.abs() < 0.01, "{iso_400}");
+        // A white nearer the top of the range is a darker scale, so more offset.
+        assert!(white_shift(sample, Some([2047.0, 16000.0])) > 0.0);
+        // A photo of the R6 Mark III as rawler decodes it: black 2048, white
+        // 14351, against the sample's 512 and 13995.
+        let r6 = white_shift(Some([512.0, 13995.0, 16383.0]), Some([2048.0, 14351.0]));
+        assert!((r6 - 0.0146).abs() < 0.001, "{r6}");
+        // Without both, or with levels that make no range, nothing.
+        assert_eq!(white_shift(sample, None), 0.0);
+        assert_eq!(white_shift(None, Some([0.0, 1.0])), 0.0);
+        assert_eq!(white_shift(sample, Some([16000.0, 15000.0])), 0.0);
+    }
+
+    #[test]
+    fn levels_are_read_whole_or_not_at_all() {
+        assert_eq!(
+            parse_levels("512,13995,16383"),
+            Some([512.0, 13995.0, 16383.0])
+        );
+        assert_eq!(parse_levels(""), None);
+        assert_eq!(parse_levels("512,13995"), None);
+        assert_eq!(parse_levels("512,x,16383"), None);
     }
 }

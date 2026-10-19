@@ -341,6 +341,9 @@ pub struct Facts {
     pub iso: Option<f32>,
     /// A DNG's own BaselineExposure, which outranks any table.
     pub dng_baseline: Option<f32>,
+    /// The photo's black and white level as rawler decodes them, for a body
+    /// whose row holds its sample's levels (`white_shift`); None otherwise.
+    pub levels: Option<[f32; 2]>,
 }
 
 /// Where an offset came from, for the log.
@@ -377,11 +380,23 @@ pub fn facts(bytes: &[u8]) -> Result<Facts, String> {
         .or(exif.recommended_exposure_index.map(|v| v as f32))
         .or(exif.iso_speed.map(|v| v as f32))
         .filter(|iso| *iso > 0.0);
+    // Only a body whose row holds its sample's levels needs the photo's, and
+    // reading them parses the sensor's headers without decoding its pixels.
+    let levels = listed(rows(), &metadata.make, &metadata.model)
+        .is_some_and(|row| row.levels.is_some())
+        .then(|| {
+            decoder
+                .raw_image(&source, &rawler::decoders::RawDecodeParams::default(), true)
+                .ok()
+        })
+        .flatten()
+        .and_then(|raw| decoded_levels(&raw));
     Ok(Facts {
         make: metadata.make,
         model: metadata.model,
         iso,
         dng_baseline: dng_baseline_exposure(bytes),
+        levels,
     })
 }
 
@@ -427,6 +442,8 @@ struct Row {
     ev: f32,
     /// The lowest native ISO, where extended settings lie below it.
     lowest_iso: Option<f32>,
+    /// The black, white and maximum of the sample `ev` was read from (Canon).
+    levels: Option<[f32; 3]>,
 }
 
 /// The table, `dng_baseline.tsv`, read once.
@@ -440,7 +457,7 @@ fn parse_rows(text: &str) -> Vec<Row> {
         .filter(|line| !line.trim().is_empty() && !line.starts_with('#'))
         .filter_map(|line| {
             let fields: Vec<&str> = line.split('\t').collect();
-            let [make, names, ev, lowest_iso] = fields[..] else {
+            let [make, names, ev, lowest_iso, levels] = fields[..] else {
                 return None;
             };
             Some(Row {
@@ -448,21 +465,74 @@ fn parse_rows(text: &str) -> Vec<Row> {
                 names: names.split('|').map(str::to_string).collect(),
                 ev: ev.parse().ok()?,
                 lowest_iso: lowest_iso.parse().ok(),
+                levels: parse_levels(levels),
             })
         })
         .collect()
 }
 
+/// "black,white,maximum", or nothing.
+fn parse_levels(text: &str) -> Option<[f32; 3]> {
+    let values: Vec<f32> = text
+        .split(',')
+        .map(|v| v.trim().parse().ok())
+        .collect::<Option<_>>()?;
+    values.try_into().ok()
+}
+
+/// The body's row, if it has one.
+fn listed<'a>(rows: &'a [Row], make: &str, model: &str) -> Option<&'a Row> {
+    rows.iter()
+        .filter(|row| same_make(&row.make, make))
+        .find(|row| {
+            row.names.iter().any(|name| {
+                same_model(name, model) || same_model(&format!("{} {}", row.make, name), model)
+            })
+        })
+}
+
+/// How much more of the samples' range, in EV, a photo's levels take than
+/// those of the sample its row was read from. Adobe takes a Canon's white
+/// level by ISO speed and moves its BaselineExposure with it, so a picture
+/// stays referenced to the samples' full range; a photo scaled by other
+/// levels takes the difference. Since `photo` is what the photo is actually
+/// scaled by, this holds whichever white level the decoder picks (rawler's
+/// SpecularWhiteLevel, Adobe's NormalWhiteLevel).
+///
+/// From RAWmakase `white_shift`, `crates/rawmakase-model/src/
+/// camera_profiles/reference.rs` @ a8c5d6d7 (v0.4.0, MIT), with the photo's
+/// maximum taken as its sample's (same body, same bit depth). 0 without both.
+fn white_shift(sample: Option<[f32; 3]>, photo: Option<[f32; 2]>) -> f32 {
+    let (Some([sample_black, sample_white, maximum]), Some([black, white])) = (sample, photo)
+    else {
+        return 0.0;
+    };
+    let part = |black: f32, white: f32| {
+        let (range, full) = (white - black, maximum - black);
+        (range > 0.0 && full > 0.0).then(|| (range / full).log2())
+    };
+    match (part(black, white), part(sample_black, sample_white)) {
+        (Some(photo), Some(sample)) => photo - sample,
+        _ => 0.0,
+    }
+}
+
+/// The black and white level a mosaic is scaled by, as decoded: the first
+/// of each, as `raw_processing::develop_internal` takes them. None for sRAW
+/// and mRAW (three values a pixel), whose levels mean something else.
+fn decoded_levels(raw: &rawler::rawimage::RawImage) -> Option<[f32; 2]> {
+    if raw.cpp != 1 {
+        return None;
+    }
+    let black = raw.blacklevel.levels.first().map_or(0.0, |v| v.as_f32());
+    let white = *raw.whitelevel.0.first()? as f32;
+    Some([black, white])
+}
+
 fn baseline_in(rows: &[Row], facts: &Facts) -> Baseline {
     let of_make = |row: &&Row| same_make(&row.make, &facts.make);
-    let listed = rows.iter().filter(of_make).find(|row| {
-        row.names.iter().any(|name| {
-            same_model(name, &facts.model)
-                || same_model(&format!("{} {}", row.make, name), &facts.model)
-        })
-    });
-    if let Some(row) = listed {
-        let mut ev = row.ev;
+    if let Some(row) = listed(rows, &facts.make, &facts.model) {
+        let mut ev = row.ev + white_shift(row.levels, facts.levels);
         // Below the body's lowest native ISO the camera exposes a stop more and
         // pulls the raw back; Camera Raw takes that stop off again.
         if let (Some(lowest), Some(iso)) = (row.lowest_iso, facts.iso)
@@ -680,6 +750,55 @@ mod tests {
                 origin: Origin::TableMedian
             }
         );
+    }
+
+    /// RAWmakase's own case: the EOS 1100D's offset is -0.5 at its ISO 160
+    /// sample's white of 11222 (black 2047), about 0 at ISO 400's 15000.
+    #[test]
+    fn a_photo_scaled_by_other_levels_takes_the_difference() {
+        let sample = Some([2047.0, 11222.0, 16383.0]);
+        assert_eq!(white_shift(sample, Some([2047.0, 11222.0])), 0.0);
+        let iso_400 = -0.5 + white_shift(sample, Some([2047.0, 15000.0]));
+        assert!(iso_400.abs() < 0.01, "{iso_400}");
+        // A white nearer the top of the range is a darker scale, so more offset.
+        assert!(white_shift(sample, Some([2047.0, 16000.0])) > 0.0);
+        // Without both, or with levels that make no range, nothing.
+        assert_eq!(white_shift(sample, None), 0.0);
+        assert_eq!(white_shift(None, Some([0.0, 1.0])), 0.0);
+        assert_eq!(white_shift(sample, Some([16000.0, 15000.0])), 0.0);
+    }
+
+    #[test]
+    fn a_canon_rows_offset_follows_the_photos_levels() {
+        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 58);
+        // An R6 Mark III photo as rawler decodes it: black 2048, white 14351,
+        // against the sample's 512 and 13995: 0.0146 EV more than the row.
+        let r6 = Facts {
+            levels: Some([2048.0, 14351.0]),
+            ..camera("Canon", "EOS R6 Mark III")
+        };
+        assert!(
+            (baseline(&r6).ev - 0.2646).abs() < 0.001,
+            "{:?}",
+            baseline(&r6)
+        );
+        // A row without levels takes none.
+        let z6 = Facts {
+            levels: Some([600.0, 15000.0]),
+            ..camera("Nikon", "Z 6")
+        };
+        assert_eq!(baseline(&z6).ev, 0.2);
+    }
+
+    #[test]
+    fn levels_are_read_whole_or_not_at_all() {
+        assert_eq!(
+            parse_levels("512,13995,16383"),
+            Some([512.0, 13995.0, 16383.0])
+        );
+        assert_eq!(parse_levels(""), None);
+        assert_eq!(parse_levels("512,13995"), None);
+        assert_eq!(parse_levels("512,x,16383"), None);
     }
 
     #[test]
