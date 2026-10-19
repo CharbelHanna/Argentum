@@ -110,6 +110,16 @@ Newest first.
 
 ### Changed
 
+- **Copy settings, Paste and presets carry the camera profile, the RAW rendering and
+  Argentum's sharpening.** They were left behind before. The Copy & Paste Settings dialog
+  lists the first two as Camera Profile & RAW Rendering, and the sharpening with
+  Sharpness; both are on for everyone. A profile reaching a photo from another camera
+  is left out there, since a profile made for one body renders another wrong. The RAW
+  rendering travels without the curve fitted to the photo it came from: each photo
+  fits its own when opened, and a curve left from another rendering is no longer used.
+  Auto white balance is not carried: Auto measures the photo it is pressed on, so
+  pasting it would hand that photo's numbers to the rest. `mods/copy_keys.rs`,
+  `mods/raw_tone.rs`, `mods/profile_correction.rs`.
 - **The Edit panel follows the order a photo is corrected in.** A new Profile section
   comes first: the camera profile, the RAW rendering, the tone mapper (Basic or AgX)
   and highlight recovery, which were a RAW card inside Color and a switch inside

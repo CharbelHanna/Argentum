@@ -739,15 +739,6 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMinDepth: loadedAdjustments.lensBlurMinDepth ?? INITIAL_ADJUSTMENTS.lensBlurMinDepth,
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
-    cameraProfile: loadedAdjustments.cameraProfile ?? null, // Argentum
-    rawToneRendering: ['default', 'baseCurve', 'autoMatched', 'dngStandard'].includes(
-      loadedAdjustments.rawToneRendering,
-    )
-      ? loadedAdjustments.rawToneRendering
-      : INITIAL_ADJUSTMENTS.rawToneRendering,
-    rawToneCurve: Array.isArray(loadedAdjustments.rawToneCurve)
-      ? loadedAdjustments.rawToneCurve
-      : INITIAL_ADJUSTMENTS.rawToneCurve,
     lensMaker: loadedAdjustments.lensMaker ?? INITIAL_ADJUSTMENTS.lensMaker,
     lensModel: loadedAdjustments.lensModel ?? INITIAL_ADJUSTMENTS.lensModel,
     lensDistortionAmount: loadedAdjustments.lensDistortionAmount ?? INITIAL_ADJUSTMENTS.lensDistortionAmount,
@@ -791,6 +782,7 @@ export interface AdjustmentGroup {
 
 export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
   basic: [
+    { label: 'modals.copyPaste.groups.cameraProfile', keys: ['cameraProfile', 'rawToneRendering'] }, // Argentum
     {
       label: 'modals.copyPaste.groups.exposureToneMapper',
       keys: [BasicAdjustment.Exposure, 'toneMapper'],
@@ -837,7 +829,7 @@ export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
     },
     {
       label: 'modals.copyPaste.groups.sharpness',
-      keys: [DetailsAdjustment.Sharpness, DetailsAdjustment.SharpnessThreshold],
+      keys: [DetailsAdjustment.Sharpness, DetailsAdjustment.SharpnessThreshold, 'agSharpen'],
     },
     {
       label: 'modals.copyPaste.groups.noiseReduction',

@@ -67,10 +67,32 @@ pub fn mode_of(js: &Value) -> u32 {
         .map_or_else(|| mode_index(crate::mods::dng_standard::MODE), mode_index)
 }
 
+/// The curve points a render uses: the edit's own when they were fitted for the
+/// rendering it asks for, otherwise `fill_missing`'s.
+///
+/// Copy settings and presets carry a rendering without the curve fitted to the
+/// photo it came from (mods/copy_keys.rs), so a photo can receive a
+/// rendering while still holding a curve fitted for another. `rawToneCurveMode`
+/// names the rendering a curve was fitted for; an edit saved before it existed
+/// is taken at its word.
+pub fn points_of(js: &Value, mode: u32, photo: Option<&str>) -> Vec<Value> {
+    let fitted_for = js
+        .get("rawToneCurveMode")
+        .and_then(Value::as_str)
+        .map(mode_index);
+    let mut points = if fitted_for.is_none_or(|fitted| fitted == mode) {
+        js["rawToneCurve"].as_array().cloned().unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    fill_missing(mode, &mut points, photo);
+    points
+}
+
 /// The points a mode needs when the edit carries none: Base Curve's fixed
 /// curve, or DNG Standard's for this photo's camera. Auto-Matched has no stand-in
 /// and renders RapidRAW's until it has been fitted.
-pub fn fill_missing(mode: u32, points: &mut Vec<Value>, photo: Option<&str>) {
+fn fill_missing(mode: u32, points: &mut Vec<Value>, photo: Option<&str>) {
     if points.len() >= 2 {
         return;
     }
@@ -203,6 +225,55 @@ fn quantile(values: &[f32], q: f32) -> f32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A rendering pasted onto a photo that holds a curve fitted for another.
+    #[test]
+    fn a_curve_fitted_for_another_rendering_is_not_used() {
+        let fitted = json!([
+            { "x": 0.0, "y": 0.0 },
+            { "x": 128.0, "y": 140.0 },
+            { "x": 255.0, "y": 255.0 }
+        ]);
+        let base: Vec<Value> = base_curve()
+            .into_iter()
+            .map(|p| json!({ "x": p.x, "y": p.y }))
+            .collect();
+
+        // Fitted for Auto-Matched, then Base Curve pasted on: Base Curve's own.
+        let pasted = json!({
+            "rawToneRendering": "baseCurve",
+            "rawToneCurve": fitted,
+            "rawToneCurveMode": "autoMatched",
+        });
+        assert_eq!(points_of(&pasted, 1, None), base);
+
+        // Fitted for the rendering it asks for, or saved before the name: as it is.
+        let own = json!({
+            "rawToneRendering": "autoMatched",
+            "rawToneCurve": fitted,
+            "rawToneCurveMode": "autoMatched",
+        });
+        assert_eq!(&points_of(&own, 2, None), fitted.as_array().unwrap());
+        let older = json!({ "rawToneRendering": "autoMatched", "rawToneCurve": fitted });
+        assert_eq!(&points_of(&older, 2, None), fitted.as_array().unwrap());
+    }
+
+    /// The highlight compression of older versions, which this module still
+    /// reads (`raw_highlight_compression`), survives a load and a save.
+    #[test]
+    fn legacy_raw_highlight_compression_setting_survives_load_and_save() {
+        let legacy = AppSettings {
+            raw_highlight_compression: Some(2.5),
+            ..AppSettings::default()
+        };
+
+        let saved = serde_json::to_string(&legacy).expect("serialize old setting");
+        let loaded: AppSettings = serde_json::from_str(&saved).expect("load old setting");
+        assert_eq!(loaded.raw_highlight_compression, Some(2.5));
+
+        let saved_again = serde_json::to_value(loaded).expect("save loaded setting");
+        assert_eq!(saved_again["rawHighlightCompression"], 2.5);
+    }
 
     #[test]
     fn an_edit_that_does_not_name_a_rendering_starts_in_dng_standard() {

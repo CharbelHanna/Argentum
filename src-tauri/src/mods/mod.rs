@@ -19,6 +19,7 @@ pub mod capture_bake;
 pub mod clipping;
 pub mod colour_compare;
 pub mod commands;
+pub mod copy_keys;
 pub mod dcp;
 pub mod decode;
 pub mod dispatch;
