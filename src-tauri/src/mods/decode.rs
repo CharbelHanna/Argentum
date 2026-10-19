@@ -98,7 +98,14 @@ fn apply_camera_profile(raw: &mut RawImage, photo_path: Option<&str>) {
         });
 
     match built_in {
-        Some(matrix) => super::profile_correction::remember_built_in(photo_path, matrix),
+        Some(matrix) => {
+            super::profile_correction::remember_built_in(photo_path, matrix);
+            super::profile_correction::remember_camera(
+                photo_path,
+                &raw.clean_make,
+                &raw.clean_model,
+            );
+        }
         // Nothing to correct against; a profile will simply not apply.
         None => super::profile_correction::forget_built_in(),
     }

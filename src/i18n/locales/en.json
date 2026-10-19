@@ -1244,6 +1244,7 @@
       "descMerge": "Adds your copied changes, leaving other settings untouched.",
       "descReplace": "Overwrites all selected settings, resetting the rest to their defaults.",
       "groups": {
+        "cameraProfile": "Camera Profile & RAW Rendering",
         "chromaticAberration": "Chromatic Aberration",
         "clarityDehaze": "Clarity & Dehaze",
         "colorCalibration": "Color Calibration",

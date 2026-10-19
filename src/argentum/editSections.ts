@@ -30,7 +30,7 @@ const INTO_BASIC = [
 ];
 
 /** The Profile section, ahead of the others. It has no eye: none of it can be turned off. */
-export const PROFILE_KEYS = ['cameraProfile', 'rawToneRendering', 'rawToneCurve', 'toneMapper'];
+export const PROFILE_KEYS = ['cameraProfile', 'rawToneRendering', 'rawToneCurve', 'rawToneCurveMode', 'toneMapper'];
 
 /** The manual fringe sliders, in Crop > Lens now (CropPanel.tsx): reset there with the lens. */
 const FRINGE_KEYS = ['chromaticAberrationRedCyan', 'chromaticAberrationBlueYellow'];

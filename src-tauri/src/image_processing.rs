@@ -2290,11 +2290,7 @@ fn get_global_adjustments_from_json(
     } else {
         0
     };
-    let mut raw_tone_points = js_adjustments["rawToneCurve"]
-        .as_array()
-        .cloned()
-        .unwrap_or_default();
-    raw_tone::fill_missing(raw_tone_mode, &mut raw_tone_points, photo);
+    let raw_tone_points = raw_tone::points_of(js_adjustments, raw_tone_mode, photo);
 
     GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None),

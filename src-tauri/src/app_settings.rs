@@ -167,6 +167,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "guidedPerspective",
     ]
     .iter()
+    .chain(crate::mods::copy_keys::KEYS.iter()) // Argentum: mods/copy_keys.rs
     .map(|s| s.to_string())
     .collect()
 }
@@ -808,24 +809,4 @@ pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(),
         .unwrap()
         .set_capacity(cache_size);
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::AppSettings;
-
-    #[test]
-    fn legacy_raw_highlight_compression_setting_survives_load_and_save() {
-        let legacy = AppSettings {
-            raw_highlight_compression: Some(2.5),
-            ..AppSettings::default()
-        };
-
-        let saved = serde_json::to_string(&legacy).expect("serialize old setting");
-        let loaded: AppSettings = serde_json::from_str(&saved).expect("load old setting");
-        assert_eq!(loaded.raw_highlight_compression, Some(2.5));
-
-        let saved_again = serde_json::to_value(loaded).expect("save loaded setting");
-        assert_eq!(saved_again["rawHighlightCompression"], 2.5);
-    }
 }

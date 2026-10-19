@@ -81,8 +81,9 @@ pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0
 /// a decode of its own — the preview worker and the export worker. That is a
 /// deliberate exception to the anchor rule, taken because the alternative was a
 /// heuristic that is wrong in a case a person would hit.
-/// One camera's built-in matrix, remembered against the photo it came from.
-type BuiltInMatrix = (String, [f32; 9]);
+/// One photo's built-in matrix, and its camera (maker, model) once the decode
+/// has said, remembered against the photo they came from.
+type BuiltInMatrix = (String, [f32; 9], Option<(String, String)>);
 
 static BUILT_IN: Mutex<Option<Vec<BuiltInMatrix>>> = Mutex::new(None);
 
@@ -92,12 +93,27 @@ pub fn remember_built_in(path: Option<&str>, matrix: [f32; 9]) {
     };
     if let Ok(mut slot) = BUILT_IN.lock() {
         let known = slot.get_or_insert_with(Vec::new);
-        if let Some(entry) = known.iter_mut().find(|(p, _)| *p == path) {
+        if let Some(entry) = known.iter_mut().find(|(p, _, _)| *p == path) {
             entry.1 = matrix;
         } else {
-            known.push((path, matrix));
+            known.push((path, matrix, None));
         }
         evict_if_crowded(known);
+    }
+}
+
+/// The camera of a photo `remember_built_in` has just remembered, as rawler
+/// names it, for `fits_this_photo`.
+pub fn remember_camera(path: Option<&str>, make: &str, model: &str) {
+    let Some(path) = path else {
+        return;
+    };
+    if let Ok(mut slot) = BUILT_IN.lock()
+        && let Some(entry) = slot
+            .as_mut()
+            .and_then(|known| known.iter_mut().find(|(p, _, _)| p == path))
+    {
+        entry.2 = Some((make.to_string(), model.to_string()));
     }
 }
 
@@ -113,19 +129,19 @@ pub fn remember_built_in(path: Option<&str>, matrix: [f32; 9]) {
 /// written a test that read it every fifty inserts and so could never see it.
 /// A photo that is open is in use whether or not anyone is looking at it, so it
 /// is skipped outright.
-fn evict_if_crowded(known: &mut Vec<(String, [f32; 9])>) {
+fn evict_if_crowded(known: &mut Vec<BuiltInMatrix>) {
     evict_keeping(known, open_photo().as_deref());
 }
 
 /// The rule on its own, so it can be tested without an app to ask.
-fn evict_keeping(known: &mut Vec<(String, [f32; 9])>, open: Option<&str>) {
+fn evict_keeping(known: &mut Vec<BuiltInMatrix>, open: Option<&str>) {
     const KEEP: usize = 256;
     if known.len() <= KEEP {
         return;
     }
     if let Some(at) = known
         .iter()
-        .position(|(path, _)| open != Some(path.as_str()))
+        .position(|(path, _, _)| open != Some(path.as_str()))
     {
         known.remove(at);
     }
@@ -152,7 +168,7 @@ fn open_photo() -> Option<String> {
 }
 
 /// Move an entry to the end, marking it as just used.
-fn touch(known: &mut Vec<(String, [f32; 9])>, at: usize) {
+fn touch(known: &mut Vec<BuiltInMatrix>, at: usize) {
     let entry = known.remove(at);
     known.push(entry);
 }
@@ -180,7 +196,7 @@ fn built_in_for_this_render(photo: Option<&str>) -> Option<[f32; 9]> {
     let path = photo?.to_string();
     let mut known = BUILT_IN.lock().ok()?;
     let known = known.as_mut()?;
-    let at = known.iter().position(|(p, _)| *p == path)?;
+    let at = known.iter().position(|(p, _, _)| *p == path)?;
     touch(known, at);
     Some(known[known.len() - 1].1)
 }
@@ -249,15 +265,61 @@ fn chosen_correction(
 
     let library = super::profiles::library()?;
     let profile = super::profiles::load(library, file)?;
+    if !fits_this_photo(profile.camera.as_deref(), photo) {
+        return None;
+    }
     let (_, _, forward) = super::decode::daylight_matrix(&profile)?;
     let xyz2cam = super::profile_matrix::xyz2cam_from_forward(&forward?)?;
 
     correction_for(photo, &xyz2cam)
 }
 
+/// Was the profile made for the camera of the photo being rendered?
+///
+/// A profile is made for one body, and one for another renders worse than none
+/// and looks like nothing is wrong. Copy settings and presets carry a profile to
+/// other photos (mods/copy_keys.rs), so the render checks, by the rule the
+/// profile list uses (`profiles::matches`). Not knowing is no reason to refuse:
+/// a profile that names no body, or a photo whose camera the decode did not
+/// report, renders as chosen.
+fn fits_this_photo(made_for: Option<&str>, photo: Option<&str>) -> bool {
+    let Some(made_for) = made_for else {
+        return true;
+    };
+    let camera = photo.and_then(|path| {
+        let known = BUILT_IN.lock().ok()?;
+        known
+            .as_ref()?
+            .iter()
+            .find(|(p, _, _)| p == path)?
+            .2
+            .clone()
+    });
+    camera.is_none_or(|(make, model)| super::profiles::matches(made_for, &make, &model))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A pasted edit or a preset brings a profile to a photo it was not chosen
+    /// for; one made for another camera is left out.
+    #[test]
+    fn a_profile_for_another_camera_is_left_out() {
+        let _guard = serialised();
+        forget_built_in();
+        remember_built_in(Some("A.CR2"), BUILT_IN_5D2);
+        remember_camera(Some("A.CR2"), "Canon", "EOS 5D Mark II");
+        assert!(fits_this_photo(Some("Canon EOS 5D Mark II"), Some("A.CR2")));
+        assert!(!fits_this_photo(Some("Sony ILCE-7RM5"), Some("A.CR2")));
+        // Not knowing is no reason to refuse.
+        assert!(fits_this_photo(None, Some("A.CR2")));
+        assert!(fits_this_photo(
+            Some("Sony ILCE-7RM5"),
+            Some("never-decoded.CR2")
+        ));
+        forget_built_in();
+    }
 
     /// These tests all write the same global, and Rust runs tests in parallel,
     /// so one calling `forget_built_in` can empty the table another is halfway
@@ -517,15 +579,15 @@ mod tests {
     /// and so could never have caught this. This one never reads it at all.
     #[test]
     fn an_open_photo_survives_an_export_even_if_nobody_looks_at_it() {
-        let mut known: Vec<(String, [f32; 9])> = vec![("OPEN.CR2".to_string(), [1.0; 9])];
+        let mut known: Vec<BuiltInMatrix> = vec![("OPEN.CR2".to_string(), [1.0; 9], None)];
 
         for n in 0..1000 {
-            known.push((format!("export-{n}.CR2"), [0.5; 9]));
+            known.push((format!("export-{n}.CR2"), [0.5; 9], None));
             evict_keeping(&mut known, Some("OPEN.CR2"));
         }
 
         assert!(
-            known.iter().any(|(p, _)| p == "OPEN.CR2"),
+            known.iter().any(|(p, _, _)| p == "OPEN.CR2"),
             "the open photo was evicted while nobody was looking at it"
         );
         assert!(
@@ -539,12 +601,12 @@ mod tests {
     /// is loaded — it is plain least-recently-used with no special case.
     #[test]
     fn with_no_photo_open_the_oldest_goes() {
-        let mut known: Vec<(String, [f32; 9])> = (0..300)
-            .map(|n| (format!("photo-{n}.CR2"), [0.5; 9]))
+        let mut known: Vec<BuiltInMatrix> = (0..300)
+            .map(|n| (format!("photo-{n}.CR2"), [0.5; 9], None))
             .collect();
         evict_keeping(&mut known, None);
         assert_eq!(known.len(), 299);
-        assert!(!known.iter().any(|(p, _)| p == "photo-0.CR2"));
+        assert!(!known.iter().any(|(p, _, _)| p == "photo-0.CR2"));
     }
 
     /// A render whose photo was never decoded gets no correction at all.

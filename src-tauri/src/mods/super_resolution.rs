@@ -1249,11 +1249,7 @@ fn raw_view_curve(
     // nobody edited is enlarged in DNG Standard, as it opens.
     let mode = crate::mods::raw_tone::mode_of(adjustments);
     if mode != 0 {
-        let mut stored = adjustments["rawToneCurve"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        crate::mods::raw_tone::fill_missing(mode, &mut stored, photo);
+        let stored = crate::mods::raw_tone::points_of(adjustments, mode, photo);
         let mut points = curve_points(&Value::Array(stored));
         if points.len() >= 2 {
             points.truncate(16);

@@ -15,15 +15,12 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
-
-type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
+import { RAW_TONE_RENDERINGS as MODES, type RawToneRendering as RawToneRenderingMode } from './profileKeys';
 
 interface ToneCurvePoint {
   x: number;
   y: number;
 }
-
-const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard'];
 
 export default function RawToneRendering() {
   const t = useAgTranslation();
@@ -48,6 +45,7 @@ export default function RawToneRendering() {
           ...prev,
           rawToneRendering: mode,
           rawToneCurve: curve,
+          rawToneCurveMode: mode,
         }));
       } catch (error) {
         console.warn(`Could not calculate RAW tone curve (${mode})`, error);
@@ -60,20 +58,15 @@ export default function RawToneRendering() {
 
   // DNG Standard needs nothing fitted: the renderer reads the photo's curve
   // itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
-  // written to.
+  // written to. A curve fitted for another rendering - left behind when a
+  // rendering is pasted onto the photo - counts as none (profileKeys.ts).
+  const fitted = adjustments?.rawToneCurve?.length >= 2 && (adjustments?.rawToneCurveMode ?? current) === current;
   useEffect(() => {
-    if (
-      !isRaw ||
-      !path ||
-      current === 'default' ||
-      current === 'dngStandard' ||
-      adjustments?.rawToneCurve?.length >= 2 ||
-      busy
-    ) {
+    if (!isRaw || !path || current === 'default' || current === 'dngStandard' || fitted || busy) {
       return;
     }
     ensureCurve(current);
-  }, [adjustments?.rawToneCurve, busy, current, ensureCurve, isRaw, path]);
+  }, [fitted, busy, current, ensureCurve, isRaw, path]);
 
   if (!isRaw) return null;
 
@@ -84,6 +77,7 @@ export default function RawToneRendering() {
         ...prev,
         rawToneRendering: 'default',
         rawToneCurve: null,
+        rawToneCurveMode: null,
       }));
       return;
     }
