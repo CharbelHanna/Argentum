@@ -155,10 +155,25 @@ export function useSelectionMasks() {
     [setAdjustments],
   );
 
+  /** A selection that will not be made: its empty sub-mask goes, and its mask with it if it was alone. */
+  const drop = useCallback(
+    (subMaskId: string) =>
+      setAdjustments((prev: Adjustments) => ({
+        ...prev,
+        masks: prev.masks
+          .map((c) => ({ ...c, subMasks: c.subMasks.filter((sm: SubMask) => sm.id !== subMaskId) }))
+          .filter((c) => c.subMasks.length > 0),
+      })),
+    [setAdjustments],
+  );
+
   return useCallback(
     async (subMaskId: string, kind: SelectionKind) => {
       if (!useEditorStore.getState().selectedImage?.path) return;
-      if (!(await ensureModels())) return;
+      if (!(await ensureModels())) {
+        drop(subMaskId);
+        return;
+      }
       const { adjustments, patchesSentToBackend } = useEditorStore.getState();
       registerAiTask(subMaskId, 'foreground');
       try {
@@ -179,6 +194,6 @@ export function useSelectionMasks() {
         unregisterAiTask(subMaskId);
       }
     },
-    [fill, registerAiTask, unregisterAiTask],
+    [drop, fill, registerAiTask, unregisterAiTask],
   );
 }
