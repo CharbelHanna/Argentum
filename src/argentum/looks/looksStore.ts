@@ -59,6 +59,8 @@ interface LooksState {
   libraries: LutLibrary[];
   favourites: string[];
   applied: AppliedPreset | null;
+  /** Save > As LUT file asked for the Export tab in CUBE; ExportPanel.tsx clears it. */
+  wantLutExport: boolean;
   loaded: boolean;
   load: () => Promise<void>;
   refreshLuts: () => Promise<void>;
@@ -72,6 +74,7 @@ export const useLooks = create<LooksState>((set, get) => ({
   libraries: [],
   favourites: [],
   applied: null,
+  wantLutExport: false,
   loaded: false,
 
   load: async () => {
