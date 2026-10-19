@@ -288,7 +288,8 @@ export const REGISTRY = [
       'Snapshots, in the Modern left column above History: named states of a photo\'s edit. + or '
       + 'Ctrl+N keeps the photo as it is now and starts naming it; a click puts one back as a History '
       + 'step; double-click renames; right-click renames, updates or deletes. Kept in the sidecar as '
-      + 'agSnapshots beside the edit, so undo never removes one. RAWmakase\'s behaviour '
+      + 'agSnapshots beside the edit, so undo never removes one. The line above the list drags its '
+      + 'height (snapshotsHeightPx in the layout). RAWmakase\'s behaviour '
       + '(src/app/snapshots.rs @ 7c3c81a), kept in the sidecar because there is no catalog.',
     ours: [
       'src/argentum/snapshots/SnapshotsSection.tsx',
@@ -352,7 +353,11 @@ export const REGISTRY = [
       { file: 'src-tauri/src/lut_processing.rs', symbol: 'list_luts', how: 'calls',
         note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut, '
           + 'set_lut_library (Move to), create_lut_library, rename_lut_library, delete_lut_library, '
-          + 'and generate_lut_previews for the swatches.' },
+          + 'and generate_lut_previews for the swatches. Their uncategorized library cannot be '
+          + 'renamed, so renaming Imported creates a library and moves its LUTs there.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'save_presets', how: 'calls',
+        note: 'Copy to My presets writes the user\'s list with the copied preset or group added, '
+          + 'then reloads it through usePresets.' },
       { file: 'src-tauri/src/lib.rs', symbol: 'generate_preset_preview', how: 'calls',
         note: 'A preset\'s swatch, rendered on the app\'s defaults as today\'s presets panel does.' },
       { file: 'src-tauri/src/preset_converter.rs', symbol: 'convert_xmp_to_preset', how: 'calls',

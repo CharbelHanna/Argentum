@@ -1468,7 +1468,6 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 }
 
 .agm-snapshots-body {
-  max-height: 150px;
   overflow-y: auto;
   padding-bottom: 4px;
 }

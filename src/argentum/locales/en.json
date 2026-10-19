@@ -285,5 +285,7 @@
   "snapUpdate": "Update with the current settings",
   "snapDelete": "Delete",
   "snapYesterday": "yesterday",
-  "looksNewLutFolder": "New LUT folder…"
+  "looksNewLutFolder": "New LUT folder…",
+  "looksCopyToMine": "Copy to My presets",
+  "looksComesWithApp": "Comes with Argentum"
 }

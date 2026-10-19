@@ -4,9 +4,9 @@
  * plus the camera while tethered shooting is available. Ours.
  *
  * Folders is today's folder tree in its Modern form (FolderTree.tsx: Favourites,
- * Recent, This computer). History is today's undo steps (layout/HistoryPanel);
- * the line above it drags to share the column with Folders, and a double-click
- * on it puts it back. The column is resizable from its right edge; double-click
+ * Recent, This computer). Snapshots and History (today's undo steps,
+ * layout/HistoryPanel) each have a line above them that drags to give them
+ * more or less of the column; a double-click on one puts it back. The column is resizable from its right edge; double-click
  * resets it. What is folded and History's height are saved with the layout.
  */
 
@@ -16,13 +16,15 @@ import { Orientation, Panel } from '../../components/ui/AppProperties';
 import Resizer from '../../components/ui/Resizer';
 import { useUIStore } from '../../store/useUIStore';
 import HistoryPanel from '../layout/HistoryPanel';
-import SnapshotsSection from '../snapshots/SnapshotsSection';
+import SnapshotsSection, { SNAPSHOTS_PANE } from '../snapshots/SnapshotsSection';
 import { useEditorLayout } from '../layout/editorLayout';
 import { useAgTranslation } from '../locales';
 
-/** History's height until it is dragged, and the least either part keeps. */
+/** History's and the Snapshots list's heights until dragged, and the least each part keeps. */
 const HISTORY_START_PX = 220;
 const HISTORY_MIN_PX = 72;
+const SNAPSHOTS_START_PX = 120;
+const SNAPSHOTS_MIN_PX = 48;
 const FOLDERS_MIN_PX = 140;
 
 interface LeftColumnProps {
@@ -47,21 +49,23 @@ export default function LeftColumn({
   const t = useAgTranslation();
   const historyOpen = useEditorLayout((s) => s.panels.historyOpen);
   const historyHeight = useEditorLayout((s) => s.panels.historyHeightPx) ?? HISTORY_START_PX;
+  const snapshotsOpen = useEditorLayout((s) => !s.panels.folded.includes(SNAPSHOTS_PANE));
+  const snapshotsHeight = useEditorLayout((s) => s.panels.snapshotsHeightPx) ?? SNAPSHOTS_START_PX;
   const changePanels = useEditorLayout((s) => s.changePanels);
-  const column = useRef<HTMLDivElement>(null);
+  const folders = useRef<HTMLDivElement>(null);
   const [cameraOpen, setCameraOpen] = useState(false);
 
-  // Dragging the line up gives History more of the column, down gives Folders more.
-  const dragHistory = (e: ReactPointerEvent<HTMLDivElement>) => {
+  /**
+   * Dragging a line up gives the part under it more of the column, taken from
+   * Folders, which always keeps its least; down gives Folders more.
+   */
+  const drag = (e: ReactPointerEvent<HTMLDivElement>, from: number, min: number, keep: (px: number) => void) => {
     e.preventDefault();
     const line = e.currentTarget;
     line.setPointerCapture(e.pointerId);
     const startY = e.clientY;
-    const max = Math.max(HISTORY_MIN_PX, (column.current?.clientHeight ?? 0) - FOLDERS_MIN_PX);
-    const move = (ev: PointerEvent) => {
-      const height = Math.round(Math.min(max, Math.max(HISTORY_MIN_PX, historyHeight + startY - ev.clientY)));
-      changePanels({ historyHeightPx: height });
-    };
+    const max = Math.max(min, from + (folders.current?.clientHeight ?? 0) - FOLDERS_MIN_PX);
+    const move = (ev: PointerEvent) => keep(Math.round(Math.min(max, Math.max(min, from + startY - ev.clientY))));
     const end = () => {
       line.removeEventListener('pointermove', move);
       line.removeEventListener('pointerup', end);
@@ -75,9 +79,11 @@ export default function LeftColumn({
   const tethering = useUIStore((s) => Object.values(s.panelLayout).some((panels) => panels.includes(Panel.Tethering)));
 
   return (
-    <div className="agm-col agm-left" style={{ width }} ref={column}>
+    <div className="agm-col agm-left" style={{ width }}>
       {navigator}
-      <div className="agm-folders">{renderPanel(Panel.FolderTree)}</div>
+      <div className="agm-folders" ref={folders}>
+        {renderPanel(Panel.FolderTree)}
+      </div>
       {tethering && (
         <div className="flex flex-col min-h-0 border-b border-[var(--agm-line)]">
           <div className="agm-sec-head" onClick={() => setCameraOpen((o) => !o)}>
@@ -87,11 +93,20 @@ export default function LeftColumn({
           {cameraOpen && <div className="max-h-[320px] overflow-y-auto">{renderPanel(Panel.Tethering)}</div>}
         </div>
       )}
-      <SnapshotsSection editing={editing} />
+      {snapshotsOpen && (
+        <Resizer
+          direction={Orientation.Horizontal}
+          onMouseDown={(e) =>
+            drag(e, snapshotsHeight, SNAPSHOTS_MIN_PX, (px) => changePanels({ snapshotsHeightPx: px }))
+          }
+          onDoubleClick={() => changePanels({ snapshotsHeightPx: null })}
+        />
+      )}
+      <SnapshotsSection editing={editing} height={snapshotsHeight} />
       {historyOpen && (
         <Resizer
           direction={Orientation.Horizontal}
-          onMouseDown={dragHistory}
+          onMouseDown={(e) => drag(e, historyHeight, HISTORY_MIN_PX, (px) => changePanels({ historyHeightPx: px }))}
           onDoubleClick={() => changePanels({ historyHeightPx: null })}
         />
       )}

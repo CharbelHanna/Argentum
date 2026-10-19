@@ -148,6 +148,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     movePreset,
     renameItem,
     exportPresetsToFile,
+    refreshPresets,
   } = usePresets(adjustments);
   const [modal, setModal] = useState<Modal>(null);
   const [chip, setChip] = useState<Chip>('all');
@@ -408,9 +409,23 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         { label: t('looksDelete'), isDestructive: true, onClick: () => deleteItem(own.id) },
       );
     }
+    if (!own && look.preset) {
+      const preset = look.preset;
+      options.push(
+        { type: OPTION_SEPARATOR },
+        {
+          label: t('looksCopyToMine'),
+          onClick: () => copyToMine({ preset: { id: crypto.randomUUID(), name: look.name, adjustments: preset } }),
+        },
+      );
+    }
+    if ((!own && look.preset) || look.lut?.isBuiltIn) {
+      options.push({ type: OPTION_SEPARATOR }, { label: t('looksComesWithApp'), disabled: true });
+    }
     if (look.lut && !look.lut.isBuiltIn) {
       const path = look.lut.path;
       const here = look.lut.libraryId ?? UNCATEGORIZED;
+      options.push({ type: OPTION_SEPARATOR });
       options.push({
         label: t('looksMoveTo'),
         submenu: lutFolders
@@ -435,6 +450,27 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     showContextMenu(event.clientX, event.clientY, options);
   };
 
+  /** A copy of what comes with the app, as the user's own: it can be renamed and changed. */
+  const copyToMine = (item: UserPreset) =>
+    invoke(Invokes.SavePresets, { presets: [...userItems, item] })
+      .then(() => {
+        refreshPresets();
+        setOpen((was) => new Set([...was, 'mine']));
+      })
+      .catch((err) => toast.error(String(err)));
+
+  /**
+   * Imported is their uncategorized library, which cannot be renamed: its LUTs
+   * move into a new folder with the name instead, and the next import starts
+   * Imported again.
+   */
+  const renameImported = async (name: string) => {
+    const library = await invoke<{ id: string }>('create_lut_library', { name });
+    for (const lut of luts.filter((l) => !l.isBuiltIn && (l.libraryId ?? UNCATEGORIZED) === UNCATEGORIZED)) {
+      await invoke('set_lut_library', { path: lut.path, libraryId: library.id });
+    }
+  };
+
   /** The LUT folders a LUT can be in: Imported first, then the user's. */
   const lutFolders = [
     { id: UNCATEGORIZED, name: t('looksImported') },
@@ -442,10 +478,23 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   ];
 
   const lutFolderMenu = (event: MouseEvent, groupId: string) => {
-    const library = libraries.find((l) => `lib:${l.id}` === groupId && l.id !== UNCATEGORIZED);
-    if (!library) return;
     event.preventDefault();
     event.stopPropagation();
+    if (groupId === 'lib:film') {
+      showContextMenu(event.clientX, event.clientY, [{ label: t('looksComesWithApp'), disabled: true }]);
+      return;
+    }
+    if (groupId === `lib:${UNCATEGORIZED}`) {
+      showContextMenu(event.clientX, event.clientY, [
+        {
+          label: t('looksRenameFolder'),
+          onClick: () => setModal({ kind: 'renameLutFolder', id: UNCATEGORIZED, name: t('looksImported') }),
+        },
+      ]);
+      return;
+    }
+    const library = libraries.find((l) => `lib:${l.id}` === groupId);
+    if (!library) return;
     showContextMenu(event.clientX, event.clientY, [
       {
         label: t('looksRenameFolder'),
@@ -475,6 +524,38 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       { type: OPTION_SEPARATOR },
       { label: t('looksDelete'), isDestructive: true, onClick: () => deleteItem(id) },
     ]);
+  };
+
+  /** A group that comes with the app: copied whole into My presets, as a folder of the user's. */
+  const builtinFolderMenu = (event: MouseEvent, group: Group) => {
+    event.preventDefault();
+    event.stopPropagation();
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: t('looksCopyToMine'),
+        onClick: () =>
+          copyToMine({
+            folder: {
+              id: crypto.randomUUID(),
+              name: group.name,
+              children: group.looks.map((look) => ({
+                id: crypto.randomUUID(),
+                name: look.name,
+                adjustments: look.preset ?? {},
+              })),
+            },
+          }),
+      },
+      { type: OPTION_SEPARATOR },
+      { label: t('looksComesWithApp'), disabled: true },
+    ]);
+  };
+
+  /** Every folder answers a right-click; the sections above them do not. */
+  const groupMenu = (event: MouseEvent, group: Group) => {
+    if (group.id.startsWith('folder:')) folderMenu(event, group.id);
+    else if (group.id.startsWith('lib:')) lutFolderMenu(event, group.id);
+    else if (group.id.startsWith('builtin:')) builtinFolderMenu(event, group);
   };
 
   const saveMenu = (event: MouseEvent) => {
@@ -569,13 +650,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     <div
       className={folder ? 'agm-look-folder' : 'agm-sec-head'}
       onClick={() => toggle(group.id)}
-      onContextMenu={
-        group.id.startsWith('folder:')
-          ? (e) => folderMenu(e, group.id)
-          : group.id.startsWith('lib:')
-            ? (e) => lutFolderMenu(e, group.id)
-            : undefined
-      }
+      onContextMenu={(e) => groupMenu(e, group)}
     >
       {open.has(group.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       <span className="min-w-0 truncate">{group.name}</span>
@@ -748,7 +823,10 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         onClose={() => setModal(null)}
         onSave={(name) => {
           if (modal?.kind === 'renameLutFolder') {
-            invoke('rename_lut_library', { libraryId: modal.id, name })
+            (modal.id === UNCATEGORIZED
+              ? renameImported(name)
+              : invoke('rename_lut_library', { libraryId: modal.id, name })
+            )
               .then(refreshLuts)
               .catch((err) => toast.error(String(err)));
           }

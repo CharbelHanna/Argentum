@@ -41,6 +41,10 @@ pub struct LayoutPanels {
     /// History's height in the left column, in CSS pixels; none until dragged.
     #[serde(default)]
     pub history_height_px: Option<u16>,
+    /// The Snapshots list's height in the left column, in CSS pixels; none
+    /// until dragged.
+    #[serde(default)]
+    pub snapshots_height_px: Option<u16>,
     /// The Navigator floats over the photo instead of sitting in the left column.
     #[serde(default)]
     pub navigator_floating: bool,
@@ -161,6 +165,7 @@ mod tests {
             tab_width_px: 300,
             history_open: false,
             history_height_px: Some(180),
+            snapshots_height_px: Some(96),
             navigator_floating: true,
             navigator_at: Some([0.6, 0.1]),
             folded: vec!["crop.rotation".to_string()],
@@ -183,6 +188,7 @@ mod tests {
         let read = panels(&dir).expect("readable");
         assert!(read.history_open);
         assert_eq!(read.history_height_px, None);
+        assert_eq!(read.snapshots_height_px, None);
         assert!(!read.navigator_floating);
         assert_eq!(read.navigator_at, None);
         assert!(read.folded.is_empty());
@@ -240,6 +246,7 @@ mod tests {
             tab_width_px: 245,
             history_open: true,
             history_height_px: None,
+            snapshots_height_px: None,
             navigator_floating: false,
             navigator_at: None,
             folded: Vec::new(),

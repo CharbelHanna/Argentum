@@ -26,7 +26,8 @@ import { useAgTranslation } from '../locales';
 import { type Snapshot, useSnapshots } from './snapshotsStore';
 
 /** Its id among the folded panes (editorLayout.ts panels.folded). */
-const PANE = 'left.snapshots';
+export const SNAPSHOTS_PANE = 'left.snapshots';
+const PANE = SNAPSHOTS_PANE;
 
 /** Today the time, yesterday the word, before that the day. */
 function when(at: number, yesterday: string): string {
@@ -40,7 +41,8 @@ function when(at: number, yesterday: string): string {
   return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
-export default function SnapshotsSection({ editing }: { editing: boolean }) {
+/** `height` is the list's, dragged from the line above it (LeftColumn.tsx). */
+export default function SnapshotsSection({ editing, height }: { editing: boolean; height: number }) {
   const t = useAgTranslation();
   const { showContextMenu } = useContextMenu();
   const { setAdjustments } = useEditorActions();
@@ -178,7 +180,7 @@ export default function SnapshotsSection({ editing }: { editing: boolean }) {
         </span>
       </div>
       {!folded && (
-        <div className="agm-snapshots-body custom-scrollbar">
+        <div className="agm-snapshots-body custom-scrollbar" style={{ height }}>
           {shown.length === 0 && editing && <div className="agm-hint px-2.5 py-1">{t('snapEmpty')}</div>}
           {shown.map((snapshot) => (
             <div

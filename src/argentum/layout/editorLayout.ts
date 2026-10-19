@@ -34,6 +34,8 @@ export interface LayoutPanels {
   historyOpen: boolean;
   /** History's height in the left column; null until dragged. */
   historyHeightPx: number | null;
+  /** The Snapshots list's height in the left column; null until dragged. */
+  snapshotsHeightPx: number | null;
   /** The Navigator floats over the photo instead of sitting in the left column. */
   navigatorFloating: boolean;
   /** The floating Navigator's top-left corner, as fractions of the centre; null until moved. */
@@ -49,6 +51,7 @@ export const DEFAULT_PANELS: LayoutPanels = {
   tabWidthPx: 245,
   historyOpen: true,
   historyHeightPx: null,
+  snapshotsHeightPx: null,
   navigatorFloating: false,
   navigatorAt: null,
   folded: [],
