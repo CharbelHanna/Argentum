@@ -48,6 +48,10 @@ pub struct LayoutPanels {
     /// of the centre's width and height; none until moved.
     #[serde(default)]
     pub navigator_at: Option<[f32; 2]>,
+    /// The panes folded by their headings (src/argentum/FoldingPane.tsx), by
+    /// id, such as "crop.rotation". None until one is folded.
+    #[serde(default)]
+    pub folded: Vec<String>,
 }
 
 fn open() -> bool {
@@ -159,6 +163,7 @@ mod tests {
             history_height_px: Some(180),
             navigator_floating: true,
             navigator_at: Some([0.6, 0.1]),
+            folded: vec!["crop.rotation".to_string()],
         };
         save_panels(&dir, &left).expect("write");
         assert_eq!(panels(&dir), Some(left));
@@ -180,6 +185,7 @@ mod tests {
         assert_eq!(read.history_height_px, None);
         assert!(!read.navigator_floating);
         assert_eq!(read.navigator_at, None);
+        assert!(read.folded.is_empty());
     }
 
     #[test]
@@ -236,6 +242,7 @@ mod tests {
             history_height_px: None,
             navigator_floating: false,
             navigator_at: None,
+            folded: Vec::new(),
         };
         save_panels(&dir, &left).expect("write");
         assert_eq!(

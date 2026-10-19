@@ -2009,6 +2009,7 @@ export const REGISTRY = [
       'src/argentum/modern/folderCounts.ts',
       'src/argentum/modern/treeKeys.ts',
       'src/argentum/modern/NavigatorDock.tsx',
+      'src/argentum/FoldingPane.tsx',
       'src/argentum/modern/look.ts',
       'src/argentum/modern/modern.css',
       'src/argentum/modern/index.ts',
@@ -2048,6 +2049,10 @@ export const REGISTRY = [
           + 'grid. The section reset button is ours (.ag-section-reset), shown only in Modern.' },
       { file: 'src/components/panel/right/MasksPanel.tsx', symbol: 'showWaveform', how: 'extends',
         note: 'Same as ControlsPanel\'s showWaveform.' },
+      { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
+        note: 'Its five panes (Aspect Ratio, Rotation, Orientation, Transform, Lens Correction) are '
+          + 'FoldingPane.tsx: their heading with a chevron, folding the pane, the buttons beside it '
+          + 'kept. A sixth pane of theirs would not fold until added there.' },
       { file: 'src/components/panel/right/MetadataPanel.tsx', symbol: 'photo', how: 'extends',
         note: 'Optional prop: a photo not open in the editor, the grid\'s selection, shown from the '
           + 'path and EXIF the library already read. Without it, the open photo as before.' },

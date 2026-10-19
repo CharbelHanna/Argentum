@@ -38,6 +38,8 @@ export interface LayoutPanels {
   navigatorFloating: boolean;
   /** The floating Navigator's top-left corner, as fractions of the centre; null until moved. */
   navigatorAt: [number, number] | null;
+  /** The panes folded by their headings (FoldingPane.tsx), by id. */
+  folded: string[];
 }
 
 /** As the arrangement first opens: the Navigator and History open in the left column. */
@@ -49,6 +51,7 @@ export const DEFAULT_PANELS: LayoutPanels = {
   historyHeightPx: null,
   navigatorFloating: false,
   navigatorAt: null,
+  folded: [],
 };
 
 /**

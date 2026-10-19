@@ -27,7 +27,8 @@ Newest first.
     Edit, Crop, Looks, Masks, Retouch and Export. The Info line shows the photo's ISO,
     aperture, shutter and focal length; clicking it, or I, shows the photo's whole metadata
     at the panel's full height, and any tab goes back. In the grid, Edit shows the selected photo's
-    settings read-only; Enter opens it.
+    settings read-only; Enter opens it. The Crop tab's panes (Aspect Ratio, Rotation,
+    Orientation, Transform, Lens Correction) fold by their headings and stay folded.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes
     it and Ctrl+, opens it.
