@@ -1,7 +1,6 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Aperture,
   FlipHorizontal,
   FlipVertical,
   Grid3x3,
@@ -10,10 +9,7 @@ import {
   RotateCcw,
   RotateCw,
   Ruler,
-  Scan,
   X,
-  ChevronDown,
-  ChevronRight,
   Cuboid,
   Search,
   Check,
@@ -45,7 +41,6 @@ import { useEditorActions } from '../../../hooks/useEditorActions';
 import { calculateAreaPreservingCrop, calculateCenteredCrop } from '../../../utils/cropUtils';
 import { Crop } from 'react-image-crop';
 import { useShallow } from 'zustand/react/shallow';
-import { useUIStore } from '../../../store/useUIStore';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 
@@ -123,24 +118,10 @@ export default function CropPanel() {
   const [modeBubbleStyle, setModeBubbleStyle] = useState({});
   const isModeInitialAnimation = useRef(true);
 
-  const { cropSectionsState, setUI } = useUIStore(
-    useShallow((s) => ({
-      cropSectionsState: s.cropSectionsState,
-      setUI: s.setUI,
-    })),
-  );
-
-  const isTransformExpanded = cropSectionsState.transform;
-  const isLensExpanded = cropSectionsState.lens;
-
-  const toggleSection = (section: 'transform' | 'lens') => {
-    setUI((state) => ({
-      cropSectionsState: {
-        ...state.cropSectionsState,
-        [section]: !state.cropSectionsState[section],
-      },
-    }));
-  };
+  // Argentum: these panes fold by their headings (FoldingPane), so the card
+  // inside each no longer folds a second time.
+  const isTransformExpanded = true;
+  const isLensExpanded = true;
 
   const PRESETS = useMemo<Array<CropPreset>>(
     () => [
@@ -1089,16 +1070,6 @@ export default function CropPanel() {
 
             <FoldingPane id="crop.transform" title={t('modals.transform.title')}>
               <div className="bg-surface rounded-xl overflow-hidden" onContextMenu={handleTransformContextMenu}>
-                <button
-                  onClick={() => toggleSection('transform')}
-                  className="w-full flex items-center justify-between p-4 text-text-secondary hover:text-text-primary hover:bg-card-active transition-colors"
-                >
-                  <Text as="span" variant={TextVariants.label} className="flex items-center gap-3">
-                    <Scan size={16} /> {t('modals.transform.geometry')}
-                  </Text>
-                  {isTransformExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-
                 <AnimatePresence initial={false}>
                   {isTransformExpanded && (
                     <motion.div
@@ -1113,7 +1084,7 @@ export default function CropPanel() {
                       style={{ overflow: 'hidden' }}
                       className="overflow-hidden"
                     >
-                      <div className="px-4 pb-4 pt-3 border-t border-surface/50 flex flex-col gap-6">
+                      <div className="px-4 pb-4 pt-4 flex flex-col gap-6">
                         <div>
                           <Text variant={TextVariants.heading} className="mb-2">
                             {t('modals.transform.guided')}
@@ -1364,16 +1335,6 @@ export default function CropPanel() {
 
             <FoldingPane id="crop.lens" title={t('modals.lensCorrection.title')}>
               <div className="bg-surface rounded-xl overflow-hidden mb-6" onContextMenu={handleLensContextMenu}>
-                <button
-                  onClick={() => toggleSection('lens')}
-                  className="w-full flex items-center justify-between p-4 text-text-secondary hover:text-text-primary hover:bg-card-active transition-colors"
-                >
-                  <Text as="span" variant={TextVariants.label} className="flex items-center gap-3">
-                    <Aperture size={16} /> {t('modals.lensCorrection.title')}
-                  </Text>
-                  {isLensExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-
                 <AnimatePresence initial={false}>
                   {isLensExpanded && (
                     <motion.div
@@ -1383,7 +1344,7 @@ export default function CropPanel() {
                       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="px-4 pb-4 pt-2 border-t border-surface/50 flex flex-col gap-4">
+                      <div className="px-4 pb-4 pt-4 flex flex-col gap-4">
                         <div className="w-full p-1 bg-card-active rounded-md">
                           <div className="relative flex w-full">
                             <motion.div
