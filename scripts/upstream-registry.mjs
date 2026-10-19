@@ -302,7 +302,18 @@ export const REGISTRY = [
         note: 'A LUT or film look goes on through it, and previews through setLutPreviewOverride; a '
           + 'preset previews through the editor store\'s previewOverride, as the LUT preview does.' },
       { file: 'src/hooks/usePresets.ts', symbol: 'usePresets', how: 'calls',
-        note: 'The user\'s presets and folders, their import (importPresetsFromFiles) and deleteItem.' },
+        note: 'The user\'s presets and folders, their import and every change to them: addPreset, '
+          + 'configurePreset, overwritePreset, duplicatePreset, movePreset, addFolder, renameItem, '
+          + 'exportPresetsToFile, deleteItem. A folder\'s children are plain presets.' },
+      { file: 'src/components/modals/ConfigurePresetModal.tsx', how: 'calls',
+        note: 'Save > As preset and Configure, as today\'s presets panel opens it; CreateFolderModal '
+          + 'and RenameFolderModal the same way.' },
+      { file: 'src/components/panel/right/ExportPanel.tsx', symbol: 'wantLutExport', how: 'extends',
+        note: 'Save > As LUT file opens the Export tab with the format set to CUBE, read once from '
+          + 'looksStore.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'apply_adjustments_to_paths', how: 'calls',
+        note: 'A look clicked in the grid goes onto the selected photos as their paste does; the '
+          + 'Undo puts back each photo\'s own values for the keys the look changed (load_metadata).' },
       { file: 'src-tauri/src/lut_processing.rs', symbol: 'list_luts', how: 'calls',
         note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut and '
           + 'generate_lut_previews for the swatches.' },

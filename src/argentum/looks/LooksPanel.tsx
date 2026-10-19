@@ -6,7 +6,14 @@
  * groups: Presets (those that come with the app,
  * RAWmakase's, by group), My presets and My LUTs. Pointing at a look shows it
  * on the photo; a click puts it on, a click on the one on takes it off; the
- * star keeps it in Favourites.
+ * star keeps it in Favourites. In the grid a click puts the look on every
+ * selected photo at once, with an Undo in the note that says so.
+ *
+ * Save makes a preset of the open photo's settings (their Configure dialog) or
+ * a LUT file of them (the Export tab, set to CUBE). A preset of the user's has
+ * their whole menu on a right-click: Configure (its name and what it holds),
+ * Update with the current settings, Duplicate, Move to a folder, Export and
+ * Delete; a folder of them Rename, Export and Delete.
  *
  * Every part is today's: a LUT goes on through their handleLutSelect and
  * previews through their setLutPreviewOverride, swatches come from their
@@ -18,15 +25,28 @@
 
 import { type MouseEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { open as openDialog } from '@tauri-apps/plugin-dialog';
-import { ChevronDown, ChevronRight, Download, MoreHorizontal, Search, Star, X } from 'lucide-react';
+import { open as openDialog, save as saveDialog } from '@tauri-apps/plugin-dialog';
+import { ChevronDown, ChevronRight, Download, MoreHorizontal, Plus, Search, Star, X } from 'lucide-react';
 import clsx from 'clsx';
 import { toast } from 'react-toastify';
 import Slider from '../../components/ui/Slider';
+import ConfigurePresetModal from '../../components/modals/ConfigurePresetModal';
+import CreateFolderModal from '../../components/modals/CreateFolderModal';
+import RenameFolderModal from '../../components/modals/RenameFolderModal';
+import { Invokes, OPTION_SEPARATOR, Panel } from '../../components/ui/AppProperties';
+import { useLibraryStore } from '../../store/useLibraryStore';
+import { globalImageCache } from '../../utils/ImageLRUCache';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { useEditorActions } from '../../hooks/useEditorActions';
 import { usePresets, type UserPreset } from '../../hooks/usePresets';
 import type { Preset } from '../../components/ui/AppProperties';
+
+type Modal =
+  | { kind: 'save' }
+  | { kind: 'configure'; preset: Preset }
+  | { kind: 'newFolder' }
+  | { kind: 'renameFolder'; id: string; name: string }
+  | null;
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
 import { type Adjustments, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
@@ -43,8 +63,8 @@ interface Look {
   kind: Kind;
   lut?: LutEntry;
   preset?: Partial<Adjustments>;
-  /** A preset of the user's, which can be deleted. */
-  own?: boolean;
+  /** A preset of the user's: its record, for their menu. */
+  own?: Preset;
 }
 
 interface Group {
@@ -83,7 +103,7 @@ const presetLook = (preset: Preset): Look => ({
   name: preset.name,
   kind: 'preset',
   preset: preset.adjustments,
-  own: true,
+  own: preset,
 });
 
 /** Their list: presets at the top level as `{ preset }`, folders as `{ folder }` holding plain presets. */
@@ -111,7 +131,20 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const photo = useEditorStore((s) => (editing ? s.selectedImage : null));
   const setEditor = useEditorStore((s) => s.setEditor);
   const { builtin, luts, libraries, favourites, applied, load, refreshLuts, toggleFavourite, setApplied } = useLooks();
-  const { presets: userItems, importPresetsFromFiles, deleteItem } = usePresets(adjustments);
+  const {
+    presets: userItems,
+    importPresetsFromFiles,
+    deleteItem,
+    addPreset,
+    addFolder,
+    configurePreset,
+    overwritePreset,
+    duplicatePreset,
+    movePreset,
+    renameItem,
+    exportPresetsToFile,
+  } = usePresets(adjustments);
+  const [modal, setModal] = useState<Modal>(null);
   const [chip, setChip] = useState<Chip>('all');
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set(['presets', 'mine', 'luts', 'lib:film']));
@@ -207,10 +240,69 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     setApplied(null);
   };
 
+  /**
+   * In the grid: the look onto every selected photo, as their paste does
+   * (ApplyAdjustmentsToPaths), each photo's settings it changes kept first so
+   * the note's Undo can put them back.
+   */
+  const applyToSelection = async (look: Look) => {
+    const { multiSelectedPaths, libraryActivePath } = useLibraryStore.getState();
+    const paths = multiSelectedPaths.length > 0 ? multiSelectedPaths : libraryActivePath ? [libraryActivePath] : [];
+    if (paths.length === 0) {
+      toast.info(t('looksSelectFirst'));
+      return;
+    }
+    try {
+      let changes: Partial<Adjustments>;
+      if (look.lut) {
+        const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: look.lut.path });
+        changes = {
+          lutPath: look.lut.path,
+          lutName: look.lut.path.split(/[\\/]/).pop() ?? look.name,
+          lutSize: size,
+          lutIntensity: 100,
+          lutIsSceneReferred: look.lut.isBuiltIn,
+        };
+      } else if (look.preset) {
+        changes = look.preset;
+      } else return;
+      const keys = Object.keys(changes) as (keyof Adjustments)[];
+      const before = await Promise.all(
+        paths.map(async (path) => {
+          const meta = await invoke<{ adjustments?: Partial<Adjustments> | null }>('load_metadata', { path }).catch(
+            () => null,
+          );
+          const was = meta?.adjustments ?? {};
+          return { path, values: Object.fromEntries(keys.map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null])) };
+        }),
+      );
+      paths.forEach((p) => globalImageCache.delete(p));
+      await invoke(Invokes.ApplyAdjustmentsToPaths, { paths, adjustments: changes });
+      const undo = async () => {
+        for (const { path, values } of before) {
+          globalImageCache.delete(path);
+          await invoke(Invokes.ApplyAdjustmentsToPaths, { paths: [path], adjustments: values });
+        }
+        toast.info(t('looksUndone'));
+      };
+      toast.success(
+        <span className="flex items-center gap-3">
+          {t('looksApplied').replace('{name}', look.name).replace('{count}', String(paths.length))}
+          <button className="underline" onClick={undo}>
+            {t('looksUndo')}
+          </button>
+        </span>,
+      );
+    } catch (err) {
+      console.error('Looks: could not apply to the selection:', err);
+      toast.error(String(err));
+    }
+  };
+
   const choose = (look: Look) => {
     stopPreview();
     if (!photo) {
-      toast.info(t('looksHintGrid'));
+      applyToSelection(look);
       return;
     }
     if (look.lut) {
@@ -265,16 +357,43 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
   };
 
+  const exportItem = async (item: UserPreset, name: string) => {
+    const filePath = await saveDialog({
+      defaultPath: `${name}.rrpreset`.replace(/[<>:"/\\|?*]/g, '_'),
+      filters: [{ name: t('looksPresets'), extensions: ['rrpreset'] }],
+    });
+    if (filePath) await exportPresetsToFile([item], filePath).catch(() => toast.error(t('looksExportFailed')));
+  };
+
+  const folders = userItems.flatMap((item) => (item.folder ? [item.folder] : []));
+
   const lookMenu = (event: MouseEvent, look: Look) => {
     event.preventDefault();
     const starred = favourites.includes(look.id);
-    const options: { label: string; onClick: () => void; isDestructive?: boolean }[] = [
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- their menu's option type is not exported
+    const options: any[] = [
       { label: t(starred ? 'looksUnstar' : 'looksStar'), onClick: () => toggleFavourite(look.id) },
     ];
-    if (look.own) {
-      options.push({ label: t('looksDelete'), isDestructive: true, onClick: () => deleteItem(look.id) });
+    const own = look.own;
+    if (own) {
+      options.push(
+        { type: OPTION_SEPARATOR },
+        { label: t('looksConfigure'), onClick: () => setModal({ kind: 'configure', preset: own }) },
+        { label: t('looksOverwrite'), disabled: !photo, onClick: () => overwritePreset(own.id) },
+        { label: t('looksDuplicate'), onClick: () => duplicatePreset(own.id) },
+        {
+          label: t('looksMoveTo'),
+          submenu: [
+            { label: t('looksTopLevel'), onClick: () => movePreset(own.id, null) },
+            ...folders.map((folder) => ({ label: folder.name, onClick: () => movePreset(own.id, folder.id ?? null) })),
+          ],
+        },
+        { label: t('looksExport'), onClick: () => exportItem({ preset: own }, own.name) },
+        { type: OPTION_SEPARATOR },
+        { label: t('looksDelete'), isDestructive: true, onClick: () => deleteItem(own.id) },
+      );
     }
-    if (look.kind === 'lut' && look.lut) {
+    if (look.lut && !look.lut.isBuiltIn) {
       const path = look.lut.path;
       options.push({
         label: t('looksDelete'),
@@ -288,9 +407,40 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     showContextMenu(event.clientX, event.clientY, options);
   };
 
+  const folderMenu = (event: MouseEvent, groupId: string) => {
+    const folder = folders.find((f) => `folder:${f.id}` === groupId);
+    if (!folder?.id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const id = folder.id;
+    showContextMenu(event.clientX, event.clientY, [
+      { label: t('looksRenameFolder'), onClick: () => setModal({ kind: 'renameFolder', id, name: folder.name ?? '' }) },
+      { label: t('looksExport'), onClick: () => exportItem({ folder }, folder.name ?? 'presets') },
+      { type: OPTION_SEPARATOR },
+      { label: t('looksDelete'), isDestructive: true, onClick: () => deleteItem(id) },
+    ]);
+  };
+
+  const saveMenu = (event: MouseEvent) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    showContextMenu(rect.left, rect.bottom, [
+      { label: t('looksSavePreset'), disabled: !photo, onClick: () => setModal({ kind: 'save' }) },
+      {
+        label: t('looksSaveLut'),
+        disabled: !photo,
+        onClick: () => {
+          // The Export tab, set to CUBE (ExportPanel.tsx reads this once).
+          useLooks.setState({ wantLutExport: true });
+          useUIStore.getState().setUI({ activePanel: Panel.Export, renderedPanel: Panel.Export });
+        },
+      },
+    ]);
+  };
+
   const moreMenu = (event: MouseEvent) => {
     const rect = event.currentTarget.getBoundingClientRect();
     showContextMenu(rect.left, rect.bottom, [
+      { label: t('looksNewFolder'), onClick: () => setModal({ kind: 'newFolder' }) },
       { label: t('looksCommunity'), onClick: () => useUIStore.getState().setUI({ activeView: 'community' }) },
     ]);
   };
@@ -359,7 +509,11 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   );
 
   const groupHead = (group: Group, count: number, folder = false) => (
-    <div className={folder ? 'agm-look-folder' : 'agm-sec-head'} onClick={() => toggle(group.id)}>
+    <div
+      className={folder ? 'agm-look-folder' : 'agm-sec-head'}
+      onClick={() => toggle(group.id)}
+      onContextMenu={group.id.startsWith('folder:') ? (e) => folderMenu(e, group.id) : undefined}
+    >
       {open.has(group.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       <span className="min-w-0 truncate">{group.name}</span>
       <span className="agm-count">{count}</span>
@@ -386,6 +540,10 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
           <button className="agm-btn agm-btn-box" onClick={importLooks} data-tooltip={t('looksImportTip')}>
             <Download size={13} />
             {t('looksImport')}
+          </button>
+          <button className="agm-btn agm-btn-box" onClick={saveMenu} data-tooltip={t('looksSaveTip')}>
+            <Plus size={13} />
+            {t('looksSave')}
           </button>
           <button className="agm-btn" onClick={moreMenu} data-tooltip={t('looksMore')}>
             <MoreHorizontal size={14} />
@@ -497,6 +655,36 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
           ))
         )}
       </div>
+      <ConfigurePresetModal
+        isOpen={modal?.kind === 'save' || modal?.kind === 'configure'}
+        initialPreset={modal?.kind === 'configure' ? modal.preset : null}
+        onClose={() => setModal(null)}
+        onSave={(name, includeMasks, includeCropTransform, presetType) => {
+          if (modal?.kind === 'configure') {
+            configurePreset(modal.preset.id, name, includeMasks, includeCropTransform, presetType);
+          } else {
+            addPreset(name, null, includeMasks, includeCropTransform, presetType);
+          }
+          setModal(null);
+        }}
+      />
+      <CreateFolderModal
+        isOpen={modal?.kind === 'newFolder'}
+        onClose={() => setModal(null)}
+        onSave={(name) => {
+          addFolder(name);
+          setModal(null);
+        }}
+      />
+      <RenameFolderModal
+        isOpen={modal?.kind === 'renameFolder'}
+        currentName={modal?.kind === 'renameFolder' ? modal.name : ''}
+        onClose={() => setModal(null)}
+        onSave={(name) => {
+          if (modal?.kind === 'renameFolder') renameItem(modal.id, name);
+          setModal(null);
+        }}
+      />
     </div>
   );
 }

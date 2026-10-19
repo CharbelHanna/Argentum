@@ -31,6 +31,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useUIStore } from '../../../store/useUIStore';
+import { useLooks } from '../../../argentum/looks/looksStore';
 
 interface ExportPanelProps {
   exportState: ExportState;
@@ -377,6 +378,14 @@ export default function ExportPanel({
     subfolder,
     setSubfolder,
   } = useExportSettings();
+
+  // Argentum: Looks > Save > As LUT file opens this tab set to CUBE.
+  const wantLutExport = useLooks((s) => s.wantLutExport);
+  useEffect(() => {
+    if (!wantLutExport) return;
+    setFileFormat(FileFormats.Cube);
+    useLooks.setState({ wantLutExport: false });
+  }, [wantLutExport, setFileFormat]);
 
   const adjustmentsRef = useRef(useEditorStore.getState().adjustments);
 

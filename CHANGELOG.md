@@ -57,7 +57,12 @@ Newest first.
   Amount (0 to 200%). Amount now starts from the photo as it was and moves only what
   the preset changes: dragging it to 0 used to put every default back, crop and masks
   included. The LUT block left Effects, whose eye, reset, copy and paste no longer touch
-  the LUT. Community presets are in the tab's ⋯ menu. `argentum/looks/`,
+  the LUT. Community presets are in the tab's ⋯ menu, with New preset folder. Save makes a
+  preset of the photo's settings, or a LUT file of them through the Export tab set to CUBE.
+  A preset of yours has its whole menu on a right-click: Configure, Update with the current
+  settings, Duplicate, Move to a folder, Export and Delete; a folder Rename, Export and
+  Delete. In the grid, a click puts a look on every selected photo, and the note that says
+  so has an Undo. `argentum/looks/`,
   `mods/looks.rs`, `resources/presets/rawmakase` (MIT, `assets/presets` @ `7c3c81a`).
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
   Rendering). The default picture of a DNG renderer: the camera's exposure offset
