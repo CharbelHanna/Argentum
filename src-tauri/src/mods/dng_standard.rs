@@ -520,6 +520,14 @@ fn white_shift(sample: Option<[f32; 3]>, photo: Option<[f32; 2]>) -> f32 {
 /// The black and white level a mosaic is scaled by, as decoded: the first
 /// of each, as `raw_processing::develop_internal` takes them. None for sRAW
 /// and mRAW (three values a pixel), whose levels mean something else.
+///
+/// sRAW and mRAW take the full-size row as it is, not Adobe's own sRAW
+/// offsets (RAWmakase's `sraw_baseline_exposure`, e.g. +0.65 EV against +0.4
+/// for the EOS 5D Mark II). Those make up for Adobe's sRAW scale, which is
+/// not ours: measured 2026-10-20 on 95 EOS 5D Mark II photos (40 full RAW
+/// on two days, 55 sRAW on three), each against its own camera JPEG (the
+/// develop's median luminance where the JPEG's is 0.40-0.50), Argentum's
+/// sRAW (`sraw_levels`) comes out within 0.03 EV of its full RAW.
 fn decoded_levels(raw: &rawler::rawimage::RawImage) -> Option<[f32; 2]> {
     if raw.cpp != 1 {
         return None;

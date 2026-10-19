@@ -132,7 +132,9 @@ Newest first.
   does the same with the levels the photo is actually decoded with, which also makes the
   Canon offsets hold with rawler's white level. An EOS R6 Mark III photo at ISO 640 moves
   from +0.25 to +0.26 EV. 58 Canon bodies carry levels (`mods/dng_baseline.tsv`, a fifth
-  column); other makes and Canon sRAW / mRAW are unchanged. The levels are read from the
+  column); other makes are unchanged. Canon sRAW / mRAW keep the full-size row: Adobe's own
+  sRAW offsets make up for Adobe's sRAW scale, and Argentum's sRAW measures within 0.03 EV of
+  its full RAW (95 EOS 5D Mark II photos, each against its camera JPEG). The levels are read from the
   file's headers without decoding its pixels, only for a body whose row has them. The engine's
   copy (`tools/ag_dng_standard.rs`) takes them from the decoded image and gives the same
   number. From RAWmakase `white_shift` and `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT).
