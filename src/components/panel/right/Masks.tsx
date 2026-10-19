@@ -31,6 +31,7 @@ export enum Mask {
   AgSubject = 'ag-subject',
   AgSky = 'ag-sky',
   AgBackground = 'ag-background',
+  AgObject = 'ag-object',
   AiDepth = 'ai-depth',
   AiForeground = 'ai-foreground',
   AiSky = 'ai-sky',
@@ -86,6 +87,7 @@ export function formatMaskTypeName(type: string) {
   if (type === Mask.AgSubject) return agText('selSubject');
   if (type === Mask.AgSky) return agText('selSky');
   if (type === Mask.AgBackground) return agText('selBackground');
+  if (type === Mask.AgObject) return agText('selObject');
   if (type === Mask.AiDepth) return i18n.t('masks.types.depth');
   if (type === Mask.AiSubject) return i18n.t('masks.types.subject');
   if (type === Mask.AiForeground) return i18n.t('masks.types.foreground');
@@ -121,6 +123,7 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
   [Mask.AgSubject]: PersonStanding,
   [Mask.AgSky]: Cloud,
   [Mask.AgBackground]: Mountain,
+  [Mask.AgObject]: SquareMousePointer,
   [Mask.AiDepth]: BringToFront,
   [Mask.AiForeground]: User,
   [Mask.AiSky]: Cloud,
@@ -139,11 +142,12 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
   [Mask.Retouch]: MopSparkles,
 };
 
-// Argentum: Subject, Sky and Background are RAWmakase's (argentum/selection);
-// their Sky gives way to it. Object (their Subject) and Foreground stay.
+// Argentum: Subject, Object, Sky and Background are RAWmakase's
+// (argentum/selection); their Sky and their Object (SAM 1) give way to them.
+// Foreground stays.
 export const MASK_AI_TYPES: Array<MaskType> = [
   { disabled: false, icon: PersonStanding, name: 'Subject', type: Mask.AgSubject },
-  { disabled: false, icon: SquareMousePointer, name: 'Object', type: Mask.AiSubject },
+  { disabled: false, icon: SquareMousePointer, name: 'Object', type: Mask.AgObject },
   { disabled: false, icon: Cloud, name: 'Sky', type: Mask.AgSky },
   { disabled: false, icon: Mountain, name: 'Background', type: Mask.AgBackground },
   { disabled: false, icon: User, name: 'Foreground', type: Mask.AiForeground },

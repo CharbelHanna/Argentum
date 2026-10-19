@@ -305,8 +305,8 @@ export const REGISTRY = [
     id: 'selection-masks',
     kind: 'feature',
     what:
-      'Subject, Sky and Background masks: RAWmakase\'s selection (DETR panoptic finds people, '
-      + 'animals and sky, SAM 2.1 outlines them), its crate taken whole as src-tauri/rm_selection '
+      'Subject, Sky, Background and Object masks: RAWmakase\'s selection (DETR panoptic finds people, '
+      + 'animals and sky, SAM 2.1 outlines them and answers clicks), its crate taken whole as src-tauri/rm_selection '
       + '(crates/rawmakase-inference @ 7c3c81a, MIT, ported to ort rc.10). A selection is stored '
       + 'as their Foreground (Subject, Background) or Sky mask stores its own, with agSelection '
       + 'naming which, so it renders through their code unchanged. The models (271 MB) are fetched '
@@ -328,6 +328,15 @@ export const REGISTRY = [
           + 'menuTypeOf.' },
       { file: 'src/utils/maskUtils.ts', symbol: 'createSubMask', how: 'calls',
         note: 'Makes the stored sub-mask; its name is then set to ours.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'extends',
+        note: 'An Object selection takes their Object box gesture: a click (under 5 px of drag) adds a '
+          + 'point, with Alt it leaves one out, a drag replaces the box (refineObject). Its clicks are '
+          + 'drawn as green and red dots, its box as theirs is.' },
+      { file: 'src/components/panel/Editor.tsx', how: 'extends',
+        note: 'Panning is off while an Object selection is active, as for their Object.' },
+      { file: 'src-tauri/src/ai_commands.rs', symbol: 'generate_ai_subject_mask', how: 'calls',
+        note: 'Its mapping from the canvas to the warped picture (fine rotation, flips, quarter turns) '
+          + 'is repeated in selection.rs to_picture for each click, with tests.' },
       { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_ai_foreground_bitmap', how: 'calls',
         note: 'Draws a selection: the ai-foreground and ai-sky arms read maskDataBase64, rotation, '
           + 'flips and orientation steps and ignore agSelection. Change those parameters and '
@@ -346,6 +355,9 @@ export const REGISTRY = [
         + 'and geometry; a_person_is_found_and_background_is_the_rest with --ignored on a real RAW.',
       'Manual: Masks > Subject on a photo of a person; Background; Sky on a landscape; with the '
         + 'models folder empty, the size is asked before anything downloads.',
+      'src-tauri/src/mods/selection.rs #[cfg(test)]: clicks go back through flips, turns and tilt; clicks '
+        + 'and a box become fractions; a_click_on_the_person_selects_the_person with --ignored.',
+      'Manual: Masks > Object, click a person, Alt-click their bag, drag a box round a car; Start over.',
     ],
     keywords: /subject|sky|background|selection|sam ?2|detr|panoptic/i,
   },

@@ -1,10 +1,12 @@
 /**
- * One-click Subject, Sky and Background masks, from RAWmakase. Ours.
+ * Subject, Sky, Background and Object masks, from RAWmakase. Ours.
  *
  * Subject finds the photo's people and animals, Sky its sky, Background
- * everything but the Subject. The models run in mods/selection.rs, on
- * RAWmakase's code (src-tauri/rm_selection). They replace the old Sky in the
- * add-mask menus; Object (a box round anything) and Foreground stay.
+ * everything but the Subject; Object is whatever is clicked: a click adds,
+ * Alt-click leaves out, a dragged box says where. The models run in
+ * mods/selection.rs, on RAWmakase's code (src-tauri/rm_selection). They
+ * replace their Sky and their Object (SAM 1, one box) in the add-mask menus;
+ * Foreground stays, and masks made with theirs keep working.
  *
  * A selection is stored as their Foreground mask stores its own (their Sky's
  * for Sky), with `agSelection` naming which, so it renders through their code
@@ -26,12 +28,13 @@ import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
 import { agText } from '../locales';
 
-export type SelectionKind = 'subject' | 'sky' | 'background';
+export type SelectionKind = 'subject' | 'sky' | 'background' | 'object';
 
 const KINDS: Partial<Record<Mask, SelectionKind>> = {
   [Mask.AgSubject]: 'subject',
   [Mask.AgSky]: 'sky',
   [Mask.AgBackground]: 'background',
+  [Mask.AgObject]: 'object',
 };
 
 /** The selection a menu entry makes, if it is one of ours. */
@@ -53,7 +56,27 @@ export const startingParameters = (kind: SelectionKind) => ({
   maskDataBase64: null,
   grow: 0,
   feather: 0,
+  ...(kind === 'object' ? { agClicks: [], agBounds: null } : {}),
 });
+
+/** An Object selection: the canvas takes clicks and boxes for it. */
+export const isObjectSelection = (subMask?: Pick<SubMask, 'parameters'> | null): boolean =>
+  subMask?.parameters?.agSelection === 'object';
+
+/** A click on the photo, in the canvas's frame of the whole photo, as the Object box is. */
+export interface Click {
+  x: number;
+  y: number;
+  positive: boolean;
+}
+
+/** A dragged box, in the same frame. */
+export interface Bounds {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+}
 
 interface Status {
   installed: boolean;
@@ -135,6 +158,71 @@ function geometryOf(adjustments: Adjustments) {
   return rest;
 }
 
+function findSubMask(adjustments: Adjustments, id: string): SubMask | undefined {
+  return adjustments.masks?.flatMap((c) => c.subMasks).find((sm: SubMask) => sm.id === id);
+}
+
+/** The latest Object request per sub-mask: an answer to an older click is dropped. */
+const objectRequests = new Map<string, number>();
+
+/**
+ * One gesture on an Object selection (ImageCanvas.tsx): a click (start and
+ * end the same) adds a point, or leaves it out with Alt; a drag replaces the
+ * box. The gesture is kept on the sub-mask at once, one History step, and the
+ * outline follows when the model answers.
+ */
+export async function refineObject(
+  subMaskId: string,
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+  leaveOut: boolean,
+  update: (id: string, data: Partial<SubMask>) => void,
+) {
+  const sm = findSubMask(useEditorStore.getState().adjustments, subMaskId);
+  if (!sm) return;
+  const before = sm.parameters ?? {};
+  const clicks: Click[] = [...(before.agClicks ?? [])];
+  let bounds: Bounds | null = before.agBounds ?? null;
+  if (start.x === end.x && start.y === end.y) clicks.push({ x: start.x, y: start.y, positive: !leaveOut });
+  else bounds = { startX: start.x, startY: start.y, endX: end.x, endY: end.y };
+  update(subMaskId, { parameters: { ...before, agClicks: clicks, agBounds: bounds } });
+  if (!(await ensureModels())) return;
+
+  const request = (objectRequests.get(subMaskId) ?? 0) + 1;
+  objectRequests.set(subMaskId, request);
+  const { adjustments, patchesSentToBackend } = useEditorStore.getState();
+  const tasks = useProcessStore.getState();
+  tasks.registerAiTask(subMaskId, 'subject');
+  try {
+    const { found: _found, ...result } = await ag<Selection>('selection_object', {
+      jsAdjustments: geometryOf(adjustments),
+      clicks,
+      bounds,
+      rotation: adjustments.rotation,
+      flipHorizontal: adjustments.flipHorizontal,
+      flipVertical: adjustments.flipVertical,
+      orientationSteps: adjustments.orientationSteps,
+    });
+    if (objectRequests.get(subMaskId) !== request) return;
+    const latest = findSubMask(useEditorStore.getState().adjustments, subMaskId)?.parameters ?? {};
+    patchesSentToBackend.delete(subMaskId);
+    update(subMaskId, { parameters: { ...latest, ...result } });
+  } catch (err) {
+    toast.error(agText('selFailed').replace('{error}', String(err)));
+  } finally {
+    if (objectRequests.get(subMaskId) === request) tasks.unregisterAiTask(subMaskId);
+  }
+}
+
+/** Clears an Object selection's clicks, box and outline, to begin again. */
+export function startOverObject(subMaskId: string, update: (id: string, data: Partial<SubMask>) => void) {
+  const sm = findSubMask(useEditorStore.getState().adjustments, subMaskId);
+  if (!sm) return;
+  objectRequests.set(subMaskId, (objectRequests.get(subMaskId) ?? 0) + 1);
+  useEditorStore.getState().patchesSentToBackend.delete(subMaskId);
+  update(subMaskId, { parameters: { ...sm.parameters, agClicks: [], agBounds: null, maskDataBase64: null } });
+}
+
 /** Fills a new selection sub-mask: MasksPanel calls it as theirs call their own. */
 export function useSelectionMasks() {
   const { setAdjustments } = useEditorActions();
@@ -174,6 +262,8 @@ export function useSelectionMasks() {
         drop(subMaskId);
         return;
       }
+      // Object waits for clicks on the photo (refineObject).
+      if (kind === 'object') return;
       const { adjustments, patchesSentToBackend } = useEditorStore.getState();
       registerAiTask(subMaskId, 'foreground');
       try {
