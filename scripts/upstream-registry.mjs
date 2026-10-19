@@ -2087,6 +2087,20 @@ export const REGISTRY = [
     tests: ['By hand: create a worktree under .claude/worktrees while tauri dev runs; the page does not reload.'],
   },
   {
+    id: 'dev-warmup',
+    kind: 'behaviour-change',
+    what:
+      'The dev window opens on a ready page: Vite transforms the app while cargo builds, instead of '
+      + 'on the first request, so the frontend reports ready before the 4-second failsafe.',
+    dependsOn: [
+      { file: 'vite.config.mjs', how: 'extends',
+        note:
+          'Adds server.warmup.clientFiles. Measured on a freshly started server: frontend_ready at '
+          + '2.6-10.2 s without it, 0.6 s with it.' },
+    ],
+    tests: ['By hand: npm start; the log has no "Frontend failed to report ready within timeout".'],
+  },
+  {
     id: 'fast-dev-builds',
     kind: 'behaviour-change',
     what:
