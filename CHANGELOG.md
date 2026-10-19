@@ -48,6 +48,13 @@ Newest first.
   - The folder tree's keys are adapted from Shoebox `src/components/Sidebar.tsx` @
     `bccfd70` (`nav`, `onFocus`, `onKey`); moving onto a folder with the arrows also opens
     it, as Explorer's tree does.
+- **Snapshots**, in the left column above History: + (or Ctrl+N) keeps the open photo as it
+  is now under a name you type; a click puts it back as a History step, so Undo takes it off
+  again; a double-click renames it; a right-click renames, updates or deletes it. Newest
+  first, with when each was made. They are kept in the photo's sidecar beside the edit
+  (`agSnapshots`), so undoing never removes one. In the grid the selected photo's show
+  read-only. The behaviour is RAWmakase's (`src/app/snapshots.rs` @ `7c3c81a`), which keeps
+  them in its catalog. `argentum/snapshots/`, `mods/snapshots.rs`.
 - **The Looks tab: presets, LUTs and film looks in one place.** Search, Import for every
   format (.rrpreset, .xmp, .lrtemplate, .cube, .3dl, .png, .jpg, .tiff), and chips for
   All, Favourites, Presets and LUTs. The groups are Presets (20 that come with Argentum,

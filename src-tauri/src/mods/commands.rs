@@ -427,6 +427,21 @@ pub fn set_looks_favourites(ids: &[String]) -> Result<(), String> {
     crate::mods::looks::save_favourites(profile_library()?, ids)
 }
 
+/// A photo's snapshots (mods/snapshots.rs), from its sidecar.
+pub fn snapshots(path: &str) -> Vec<crate::mods::snapshots::Snapshot> {
+    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
+    crate::mods::snapshots::read(&sidecar)
+}
+
+/// Keep these as the photo's snapshots.
+pub fn set_snapshots(
+    path: &str,
+    list: Vec<crate::mods::snapshots::Snapshot>,
+) -> Result<(), String> {
+    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
+    crate::mods::snapshots::write(&sidecar, list)
+}
+
 /// How large the panels' text is drawn. Normal until chosen.
 pub fn text_size() -> Result<crate::mods::editor_layout::TextSize, String> {
     Ok(crate::mods::editor_layout::text_size(profile_library()?))

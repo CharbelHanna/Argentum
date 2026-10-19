@@ -282,6 +282,41 @@ export const REGISTRY = [
     keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
   },
   {
+    id: 'snapshots',
+    kind: 'feature',
+    what:
+      'Snapshots, in the Modern left column above History: named states of a photo\'s edit. + or '
+      + 'Ctrl+N keeps the photo as it is now and starts naming it; a click puts one back as a History '
+      + 'step; double-click renames; right-click renames, updates or deletes. Kept in the sidecar as '
+      + 'agSnapshots beside the edit, so undo never removes one. RAWmakase\'s behaviour '
+      + '(src/app/snapshots.rs @ 7c3c81a), kept in the sidecar because there is no catalog.',
+    ours: [
+      'src/argentum/snapshots/SnapshotsSection.tsx',
+      'src/argentum/snapshots/snapshotsStore.ts',
+      'src-tauri/src/mods/snapshots.rs',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'ImageMetadata', how: 'extends',
+        note: 'agSnapshots, an optional field beside adjustments. Their save of the edit '
+          + '(save_metadata_and_update_thumbnail) reads the sidecar and replaces only adjustments, '
+          + 'which is what keeps the snapshots; if it starts writing a fresh record, they are lost.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'load_sidecar', how: 'calls',
+        note: 'Snapshots are read and written through it, the rest of the sidecar kept as read.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'setAdjustments', how: 'calls',
+        note: 'A snapshot is put back through it, so it is a History step and Undo takes it off.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
+        note: 'A snapshot\'s edit is read the way a saved edit is, so one from an older version still applies.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/snapshots.rs #[cfg(test)]: kept beside the edit, the rest of the sidecar '
+        + 'untouched; deleting the last takes the field out.',
+      'Manual: open a photo, Ctrl+N, type a name, Enter. Change Exposure, click the snapshot: '
+        + 'Exposure is back; Ctrl+Z takes it off and the snapshot stays. Restart: still there. In '
+        + 'the grid the photo\'s snapshots show dimmed.',
+    ],
+    keywords: /snapshot/i,
+  },
+  {
     id: 'looks-tab',
     kind: 'feature',
     what:

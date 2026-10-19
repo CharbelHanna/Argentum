@@ -143,6 +143,7 @@ export default function ModernWindow(props: ModernWindowProps) {
         {sides && uiVisibility.leftPanel && roomForLeft && (
           <LeftColumn
             width={left}
+            editing={editing}
             navigator={editing && !navigatorFloats && <DockedNavigator {...navigator} />}
             renderPanel={props.renderAppPanel}
             onResize={props.createResizeHandler('left', left)}

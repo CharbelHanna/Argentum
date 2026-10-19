@@ -158,6 +158,13 @@ struct IdsArgs {
     ids: Vec<String>,
 }
 
+/// A photo and the snapshots to keep for it.
+#[derive(Deserialize)]
+struct SnapshotsArgs {
+    path: String,
+    snapshots: Vec<crate::mods::snapshots::Snapshot>,
+}
+
 /// A text size's name, narrowed by `TextSize::from_name`, Normal if unknown.
 #[derive(Deserialize)]
 struct TextSizeArgs {
@@ -434,6 +441,20 @@ async fn json(
                 .await
                 .map_err(|e| e.to_string())?;
             serde_json::to_value(groups).map_err(|e| e.to_string())
+        }
+        "snapshots" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let list = tokio::task::spawn_blocking(move || commands::snapshots(&a.path))
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_value(list).map_err(|e| e.to_string())
+        }
+        "set_snapshots" => {
+            let a: SnapshotsArgs = args_for(&name, args)?;
+            tokio::task::spawn_blocking(move || commands::set_snapshots(&a.path, a.snapshots))
+                .await
+                .map_err(|e| e.to_string())??;
+            Ok(serde_json::Value::Null)
         }
         "looks_favourites" => {
             serde_json::to_value(commands::looks_favourites()?).map_err(|e| e.to_string())

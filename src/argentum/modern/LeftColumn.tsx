@@ -1,7 +1,7 @@
 /**
  * The Modern window's left column: the Navigator while a photo is open, where
- * the photos are (Folders) and when the edits happened (History), plus the
- * camera while tethered shooting is available. Ours.
+ * the photos are (Folders) and when the edits happened (Snapshots, History),
+ * plus the camera while tethered shooting is available. Ours.
  *
  * Folders is today's folder tree in its Modern form (FolderTree.tsx: Favourites,
  * Recent, This computer). History is today's undo steps (layout/HistoryPanel);
@@ -16,6 +16,7 @@ import { Orientation, Panel } from '../../components/ui/AppProperties';
 import Resizer from '../../components/ui/Resizer';
 import { useUIStore } from '../../store/useUIStore';
 import HistoryPanel from '../layout/HistoryPanel';
+import SnapshotsSection from '../snapshots/SnapshotsSection';
 import { useEditorLayout } from '../layout/editorLayout';
 import { useAgTranslation } from '../locales';
 
@@ -26,6 +27,8 @@ const FOLDERS_MIN_PX = 140;
 
 interface LeftColumnProps {
   width: number;
+  /** A photo is open: Snapshots can be made and restored. */
+  editing: boolean;
   /** The docked Navigator, while a photo is open and it is not floating. */
   navigator: ReactNode;
   renderPanel(panel: Panel): ReactNode;
@@ -33,7 +36,14 @@ interface LeftColumnProps {
   onResetWidth(): void;
 }
 
-export default function LeftColumn({ width, navigator, renderPanel, onResize, onResetWidth }: LeftColumnProps) {
+export default function LeftColumn({
+  width,
+  editing,
+  navigator,
+  renderPanel,
+  onResize,
+  onResetWidth,
+}: LeftColumnProps) {
   const t = useAgTranslation();
   const historyOpen = useEditorLayout((s) => s.panels.historyOpen);
   const historyHeight = useEditorLayout((s) => s.panels.historyHeightPx) ?? HISTORY_START_PX;
@@ -77,6 +87,7 @@ export default function LeftColumn({ width, navigator, renderPanel, onResize, on
           {cameraOpen && <div className="max-h-[320px] overflow-y-auto">{renderPanel(Panel.Tethering)}</div>}
         </div>
       )}
+      <SnapshotsSection editing={editing} />
       {historyOpen && (
         <Resizer
           direction={Orientation.Horizontal}

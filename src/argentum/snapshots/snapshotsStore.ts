@@ -1,0 +1,51 @@
+/**
+ * Each photo's snapshots, as its sidecar keeps them (mods/snapshots.rs). Ours.
+ *
+ * Read when a photo is shown and written whole on every change: a photo has a
+ * handful, so the list is small, and writing it whole keeps the sidecar the
+ * one place they live.
+ */
+
+import { create } from 'zustand';
+import type { Adjustments } from '../../utils/adjustments';
+import { ag } from '../ag';
+
+/** Mirrors mods::snapshots::Snapshot. Hand-written: the app does not generate its types yet. */
+export interface Snapshot {
+  id: string;
+  name: string;
+  /** When it was made or last updated, in milliseconds since 1970. */
+  at: number;
+  /** The whole edit as it was. */
+  adjustments: Adjustments;
+}
+
+interface SnapshotsState {
+  byPath: Record<string, Snapshot[]>;
+  /** Read a photo's snapshots from its sidecar. */
+  load: (path: string) => Promise<void>;
+  /** Keep `list` as the photo's snapshots: shown at once, then written. */
+  keep: (path: string, list: Snapshot[]) => void;
+}
+
+export const useSnapshots = create<SnapshotsState>((set, get) => ({
+  byPath: {},
+
+  load: async (path) => {
+    try {
+      const list = await ag<Snapshot[]>('snapshots', { path });
+      set((s) => ({ byPath: { ...s.byPath, [path]: list } }));
+    } catch (err) {
+      console.error('Snapshots: could not read them:', err);
+    }
+  },
+
+  keep: (path, list) => {
+    const was = get().byPath[path] ?? [];
+    set((s) => ({ byPath: { ...s.byPath, [path]: list } }));
+    ag('set_snapshots', { path, snapshots: list }).catch((err) => {
+      console.error('Snapshots: could not keep them:', err);
+      set((s) => ({ byPath: { ...s.byPath, [path]: was } }));
+    });
+  },
+}));
