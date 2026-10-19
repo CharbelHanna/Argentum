@@ -8,20 +8,17 @@
 # Names are LibRaw's, matched to rawler's in letters and digits only.
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
-# Adobe Standard, adjusted for the difference between Adobe's white level and the
-# decoder's. The first version of this table carried RAWmakase's adjustment for
-# LibRaw's white level. Argentum decodes with rawler, whose white level differs
-# from LibRaw's by make:
+# Adobe Standard. The first version of this table carried RAWmakase's adjustment
+# for LibRaw's white level; RAWmakase 0.4.0 dropped it when it began reading
+# Adobe's levels. This table now is RAWmakase's, row for row: data/cameras.toml
+# @ a8c5d6d7 (v0.4.0, 2026-10-19).
 #
-#   Nikon, Olympus, OM Digital, Panasonic DC-GH5S: rawler's TOML whitepoint is
-#     Adobe's, so these 42 rows are Adobe's own BaselineExposure, from RAWmakase
-#     data/cameras.toml @ a8c5d6d7 (v0.4.0, 2026-10-19), which dropped the LibRaw
-#     adjustment when it began reading Adobe's levels.
-#   Canon: rawler takes the file's SpecularWhiteLevel, as LibRaw did (Adobe takes
-#     NormalWhiteLevel, by ISO speed), so Canon keeps the 7c3c81ab values.
-#   Every other make: unchanged between the two RAWmakase versions.
-#
-# From the tables only; no photo has been rendered to check these yet.
+# Known limit: for Canon, Adobe moves BaselineExposure with the white level it
+# takes by ISO speed, and RAWmakase 0.4.0 follows that per photo. This table
+# holds one value per body, the one at the sample's ISO. rawler takes the file's
+# SpecularWhiteLevel for Canon (Adobe: NormalWhiteLevel), so a Canon row may sit
+# a few hundredths to a quarter of a stop off Camera Raw. Not measured against
+# Camera Raw yet.
 #
 # Copyright (c) 2026 RAWmakase contributors. MIT licence, in full in
 # docs/licenses/RAWmakase-MIT.txt:
@@ -34,75 +31,75 @@
 #   furnished to do so, subject to the following conditions: the above copyright
 #   notice and this permission notice shall be included in all copies or
 #   substantial portions of the Software.
-Canon	EOS 100D	0.1	
-Canon	EOS 1100D|EOS REBEL T3	-0.15	
-Canon	EOS 1200D|EOS REBEL T5	-0.1	
-Canon	EOS 1300D|EOS Rebel T6|EOS Kiss X80	0.05	
-Canon	EOS 1500D|EOS 2000D|EOS Rebel T7|EOS Kiss X90	0.35	
-Canon	EOS 200D	0.5	
-Canon	EOS 250D	0.4	
-Canon	EOS 3000D|EOS 4000D|EOS Rebel T100	0.3	
-Canon	EOS 30D	0.25	
-Canon	EOS 450D	-0.15	
-Canon	EOS 500D	0.15	
-Canon	EOS 550D	0.1	
+Canon	EOS 100D	-0.1	
+Canon	EOS 1100D|EOS REBEL T3	-0.5	
+Canon	EOS 1200D|EOS REBEL T5	-0.35	
+Canon	EOS 1300D|EOS Rebel T6|EOS Kiss X80	-0.2	
+Canon	EOS 1500D|EOS 2000D|EOS Rebel T7|EOS Kiss X90	-0.1	
+Canon	EOS 200D	0	
+Canon	EOS 250D	-0.1	
+Canon	EOS 3000D|EOS 4000D|EOS Rebel T100	-0.2	
+Canon	EOS 30D	0	
+Canon	EOS 450D	0	
+Canon	EOS 500D	0.4	
+Canon	EOS 550D	-0.35	
 Canon	EOS 5D	0.25	
 Canon	EOS 5D Mark II	0.4	
-Canon	EOS 5D Mark III	0.3	
-Canon	EOS 5D Mark IV	0.35	
-Canon	EOS 5DS R	0.3	
-Canon	EOS 600D	-0.15	
+Canon	EOS 5D Mark III	0.25	
+Canon	EOS 5D Mark IV	0.15	
+Canon	EOS 5DS R	0.15	
+Canon	EOS 600D	0	
 Canon	EOS 60D	-0.35	
-Canon	EOS 650D	0.1	
-Canon	EOS 6D	0.3	
+Canon	EOS 650D	-0.1	
+Canon	EOS 6D	0.25	
 Canon	EOS 6D Mark II	0.25	
-Canon	EOS 700D|EOS REBEL T5i	0.3	
-Canon	EOS 70D	0.3	
-Canon	EOS 750D|EOS Rebel T6i	0.3	
-Canon	EOS 77D	0.55	
+Canon	EOS 700D|EOS REBEL T5i	-0.1	
+Canon	EOS 70D	-0.1	
+Canon	EOS 750D|EOS Rebel T6i	-0.15	
+Canon	EOS 77D	0.3	
 Canon	EOS 7D	-0.2	
 Canon	EOS 7D Mark II	-0.05	
-Canon	EOS 800D|EOS Rebel T7i	0.5	
-Canon	EOS 80D	0.5	
-Canon	EOS 850D	0.05	
-Canon	EOS 90D	0.5	
-Canon	EOS M100	0.3	
-Canon	EOS M200	0.4	
-Canon	EOS M5	0.3	
-Canon	EOS M50	0.5	
-Canon	EOS M50 Mark II	0.4	
-Canon	EOS M6 Mark II	0.5	
-Canon	EOS R	0.6	
+Canon	EOS 800D|EOS Rebel T7i	0	
+Canon	EOS 80D	0	
+Canon	EOS 850D	-0.45	
+Canon	EOS 90D	0.15	
+Canon	EOS M100	-0.05	
+Canon	EOS M200	-0.1	
+Canon	EOS M5	0.25	
+Canon	EOS M50	0	
+Canon	EOS M50 Mark II	-0.35	
+Canon	EOS M6 Mark II	-0.2	
+Canon	EOS R	0.4	
 Canon	EOS R10	0.4	
-Canon	EOS R100	0.35	
-Canon	EOS R3	0.3	
+Canon	EOS R100	-0.4	
+Canon	EOS R3	0.1	
 Canon	EOS R5	0.5	
 Canon	EOS R5 Mark II	0.5	
 Canon	EOS R50	0.3	
 Canon	EOS R50 V	0.4	
 Canon	EOS R6	0.35	
-Canon	EOS R6 Mark II	0.5	
-Canon	EOS R6 Mark III	0.5	
+Canon	EOS R6 Mark II	0.25	
+Canon	EOS R6 Mark III	0.25	
 Canon	EOS R7	0.4	
 Canon	EOS R8	0.25	
-Canon	EOS RP	0.5	
+Canon	EOS RP	0.3	
 Canon	EOS-1D Mark II N	0.25	
-Canon	EOS-1D X Mark II	0.5	
-Canon	EOS-1D X Mark III	0.45	
-Canon	PowerShot G1 X Mark III	0.3	
-Canon	PowerShot G5 X Mark II	0.25	
+Canon	EOS-1D X Mark II	0.4	
+Canon	EOS-1D X Mark III	0.4	
+Canon	PowerShot G1 X Mark III	0.25	
+Canon	PowerShot G5 X Mark II	0.05	
 Canon	PowerShot G7 X Mark II	0.35	
-Canon	PowerShot G7 X Mark III	0.35	
-Canon	PowerShot G9 X Mark II	0.3	
-Canon	PowerShot V1	0.5	
-Fujifilm	GFX 100	-0.05	
-Fujifilm	GFX 50R	-0.05	
-Fujifilm	GFX 50S	-0.05	
-Fujifilm	GFX100 II	-0.05	
-Fujifilm	GFX100RF	-0.05	
-Fujifilm	GFX100S	-0.05	
-Fujifilm	GFX100S II	-0.05	
-Fujifilm	GFX50S II	-0.05	
+Canon	PowerShot G7 X Mark III	0.15	
+Canon	PowerShot G9 X Mark II	0.25	
+Canon	PowerShot V1	0.15	
+Fujifilm	GFX 100	0	
+Fujifilm	GFX 50R	0	
+Fujifilm	GFX 50S	0	
+Fujifilm	GFX100 II	0	
+Fujifilm	GFX100RF	0	
+Fujifilm	GFX100S	0	
+Fujifilm	GFX100S II	0	
+Fujifilm	GFX50S II	0	
 Fujifilm	X-A10	-0.1	
 Fujifilm	X-A3	-0.1	
 Fujifilm	X-A5	-0.25	
@@ -133,9 +130,9 @@ Fujifilm	X100F	0.15
 Fujifilm	X100V	0.05	
 Fujifilm	X100VI	-0.15	
 Fujifilm	X70	-0.05	
-Fujifilm	XF10	-0.3	
+Fujifilm	XF10	-0.25	
 Hasselblad	CFV-100c|CFV 100C	-0.25	
-Hasselblad	X2D 100C-100c|X2D 100C	-0.2	
+Hasselblad	X2D 100C-100c|X2D 100C	-0.25	
 Leica	D-Lux 7	0.25	
 Leica	V-Lux 5	0	
 Nikon	COOLPIX A1000	-0.1	

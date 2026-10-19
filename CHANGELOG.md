@@ -108,8 +108,8 @@ Newest first.
     `7c3c81ab` (MIT, `mods/dng_baseline.tsv`). A body not listed takes its make's
     median, then the table's. Below a Sony body's lowest native ISO a stop comes
     off, as in Camera Raw. Not read yet: Canon Highlight Tone Priority and
-    Fujifilm DR modes. Canon's values were measured against LibRaw's white level,
-    which rawler shares; the other makes follow RAWmakase 0.4.0 (see Changed).
+    Fujifilm DR modes; and the values were measured against LibRaw's white level,
+    not rawler's (updated to RAWmakase 0.4.0's, see Changed).
   - The tone curve is the DNG SDK's ACR3 default curve as RawTherapee ships it,
     `rtengine/dcp.cc` @ `ca9234b1` (Adobe DNG SDK licence, `docs/licenses/`).
     RGBTone is ported from RawTherapee `rtengine/curves.h` @ `46b92d8e`
@@ -126,14 +126,15 @@ Newest first.
 
 ### Changed
 
-- **DNG Standard's exposure offsets follow RAWmakase 0.4.0 for Nikon, Olympus, OM Digital
-  and the Panasonic GH5S.** 42 bodies. RAWmakase stopped adding a correction for LibRaw's
-  white level when it began reading Adobe's levels, and rawler already reads Adobe's
-  levels for these makes, so the old values were 0.05 to 0.1 EV too bright (about 1.1 EV
-  for the GH5S at ISO 800). Canon keeps its values: rawler takes the file's specular
-  white level for Canon, as LibRaw did. `mods/dng_baseline.tsv`, from RAWmakase
-  `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT). Worked out from the two tables; not
-  yet checked on rendered photos.
+- **DNG Standard's exposure offsets now follow RAWmakase 0.4.0.** 97 of the 230 bodies change:
+  Canon 45, Nikon 27, Olympus 12, Fujifilm 9, OM Digital 2, Hasselblad 1 and the Panasonic
+  GH5S. RAWmakase stopped adding a correction for LibRaw's white level when it began
+  reading Adobe's levels, so its values are Adobe's own BaselineExposure. The table is now
+  theirs row for row. The shifts are mostly -0.05 to -0.1 EV for Nikon, Olympus and OM,
+  larger for Canon (median about -0.25 EV) and -1.1 EV for the GH5S. `mods/dng_baseline.tsv`,
+  from RAWmakase `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT). Known limit: Adobe moves a
+  Canon's offset with ISO speed and RAWmakase now follows that per photo; this table keeps
+  one value per body. Not yet checked on rendered photos.
 - **Copy settings, Paste and presets carry the camera profile, the RAW rendering and
   Argentum's sharpening.** They were left behind before. The Copy & Paste Settings dialog
   lists the first two as Camera Profile & RAW Rendering, and the sharpening with
