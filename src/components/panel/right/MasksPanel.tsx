@@ -82,12 +82,15 @@ import {
 } from '../../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../../../argentum/editSections';
 import {
+  isObjectSelection,
   menuTypeOf,
   selectionKind,
+  startOverObject,
   startingParameters,
   storedType,
   useSelectionMasks,
 } from '../../../argentum/selection/selection';
+import { agText } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation, Panel } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
@@ -2240,6 +2243,21 @@ function SettingsPanel({
                   onChange={handleDepthRangeChange}
                   onDragStateChange={onDragStateChange}
                 />
+              )}
+
+              {/* Argentum: how to make an Object selection, and beginning again. */}
+              {isObjectSelection(activeSubMask) && (
+                <div className="flex items-start justify-between gap-3">
+                  <Text variant={TextVariants.small} className="leading-relaxed">
+                    {agText('selObjectHint')}
+                  </Text>
+                  <button
+                    className="text-sm text-text-primary hover:text-accent transition-colors shrink-0"
+                    onClick={() => startOverObject(activeSubMask.id, updateSubMask)}
+                  >
+                    {agText('selStartOver')}
+                  </button>
+                </div>
               )}
 
               {subMaskConfig.parameters?.map((param: any) => (

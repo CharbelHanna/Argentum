@@ -11,8 +11,12 @@ Newest first.
 - **Subject, Sky and Background masks, from RAWmakase.** One click: Subject finds the photo's
   people and animals, Background is everything else, and Sky finds the sky and stops where it
   ends, leaving white-washed and blurred backgrounds alone. They take the old Sky's place in
-  the add-mask menus; Object (a box round anything) and Foreground stay, and masks made before
-  keep drawing as they did. The code is RAWmakase's selection crate, taken whole
+  the add-mask menus; Foreground stays, and masks made before keep drawing as they did.
+- **Object selects by clicking, on the same model.** Click what you want; click again to add a
+  part, Alt-click to leave one out, or drag a box round it. Green and red dots show the clicks,
+  and Start over clears them. It answers from the same analysis as Subject and Sky, about a
+  second and a half a click on a 24 MP photo. The old Object (SAM 1, one box) leaves the menu;
+  masks made with it keep working. The code is RAWmakase's selection crate, taken whole
   (`crates/rawmakase-inference` @ `7c3c81a`, MIT, in `src-tauri/rm_selection`), running SAM 2.1
   Hiera small (Meta AI) and DETR ResNet-50 panoptic (Facebook AI Research), both Apache-2.0, on
   the app's own ONNX Runtime. The models (271 MB) are fetched only after asking and saying the

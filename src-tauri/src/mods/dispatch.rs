@@ -85,6 +85,19 @@ struct SelectionArgs {
     frame: crate::mods::selection::Frame,
 }
 
+/// Object: the clicks and the box on the photo, the edit's geometry, and the frame.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ObjectArgs {
+    js_adjustments: serde_json::Value,
+    #[serde(default)]
+    clicks: Vec<crate::mods::selection::Click>,
+    #[serde(default)]
+    bounds: Option<crate::mods::selection::Bounds>,
+    #[serde(flatten)]
+    frame: crate::mods::selection::Frame,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathArgs {
@@ -378,6 +391,27 @@ async fn json(
             let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
             let selection = tokio::task::spawn_blocking(move || {
                 crate::mods::selection::select(&dir, &picture, key, a.kind, a.frame)
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            serde_json::to_value(selection).map_err(|e| e.to_string())
+        }
+        "selection_object" => {
+            let a: ObjectArgs = args_for(&name, args)?;
+            let dir = crate::mods::selection_models::dir(&app_handle)?;
+            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+            let path = state
+                .original_image
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_ref()
+                .map(|loaded| loaded.path.clone())
+                .ok_or("No image loaded")?;
+            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+            let selection = tokio::task::spawn_blocking(move || {
+                crate::mods::selection::select_object(
+                    &dir, &picture, key, &a.clicks, a.bounds, a.frame,
+                )
             })
             .await
             .map_err(|e| e.to_string())??;

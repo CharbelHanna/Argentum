@@ -307,5 +307,8 @@
   "selNotNow": "Not now",
   "selDownloading": "Downloading the selection models… {percent}%",
   "selDownloaded": "Selection models ready",
-  "selFailed": "Selection failed: {error}"
+  "selFailed": "Selection failed: {error}",
+  "selObject": "Object",
+  "selObjectHint": "Click what you want. Click again to add a part, Alt-click to leave one out, or drag a box round it.",
+  "selStartOver": "Start over"
 }

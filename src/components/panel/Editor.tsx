@@ -26,6 +26,7 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useAiMasking } from '../../hooks/useAiMasking';
+import { isObjectSelection } from '../../argentum/selection/selection';
 import { useEditorActions } from '../../hooks/useEditorActions';
 
 const parseRgb = (rgbStr: string): [number, number, number, number] => {
@@ -724,6 +725,7 @@ export default function Editor({
       (activeSubMask?.type === Mask.Brush ||
         activeSubMask?.type === Mask.Flow ||
         activeSubMask?.type === Mask.AiSubject ||
+        isObjectSelection(activeSubMask) || // Argentum: Object takes clicks, not pans
         activeSubMask?.type === Mask.Color ||
         activeSubMask?.type === Mask.Luminance ||
         activeSubMask?.parameters?.isInitialDraw)) ||

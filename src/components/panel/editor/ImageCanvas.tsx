@@ -16,6 +16,7 @@ import type { OverlayMode } from '../right/CropPanel';
 import CompositionOverlays from './overlays/CompositionOverlays';
 import { calculateStraightenAngle } from '../../../utils/cropUtils';
 import { toast } from 'react-toastify';
+import { type Bounds, type Click, isObjectSelection, refineObject } from '../../../argentum/selection/selection'; // Argentum: Object on SAM 2.1
 import {
   getWhiteBalanceMode,
   toRelativeWhiteBalance,
@@ -917,6 +918,40 @@ const MaskOverlay = memo(
       strokeWidth: isSelected ? 3 : 2,
     };
 
+    // Argentum: an Object selection's clicks (green adds, red leaves out) and its box.
+    if (isObjectSelection(subMask)) {
+      const clicks: Click[] = p?.agClicks ?? [];
+      const bounds: Bounds | null = p?.agBounds ?? null;
+      return (
+        <Group>
+          {bounds && (
+            <Rect
+              height={Math.max(0.1, Math.abs(bounds.endY - bounds.startY) * scale)}
+              width={Math.max(0.1, Math.abs(bounds.endX - bounds.startX) * scale)}
+              x={(Math.min(bounds.startX, bounds.endX) - cropX) * scale}
+              y={(Math.min(bounds.startY, bounds.endY) - cropY) * scale}
+              {...commonProps}
+            />
+          )}
+          {clicks.map((click, i) => (
+            <Circle
+              key={i}
+              x={(click.x - cropX) * scale}
+              y={(click.y - cropY) * scale}
+              radius={5}
+              stroke={click.positive ? '#22c55e' : '#f43f5e'}
+              strokeWidth={2}
+              fill="rgba(0,0,0,0.35)"
+              listening={false}
+              shadowColor="black"
+              shadowBlur={2}
+              shadowOpacity={0.8}
+            />
+          ))}
+        </Group>
+      );
+    }
+
     if (subMask.type === Mask.AiSubject || subMask.type === Mask.QuickEraser) {
       const { startX, startY, endX, endY } = p;
       if (startX !== undefined && startY !== undefined && endX !== undefined && endY !== undefined) {
@@ -1481,6 +1516,8 @@ const ImageCanvas = memo(
     const lastBrushPoint = useRef<Coord | null>(null);
     const currentLine = useRef<DrawnLine | null>(null);
     const previewBoxRef = useRef<{ start: Coord; end: Coord } | null>(null);
+    // Argentum: Alt held when an Object gesture began leaves that click out.
+    const objectLeaveOut = useRef(false);
     const [previewBox, setPreviewBox] = useState<{ start: Coord; end: Coord } | null>(null);
     const activeStrokeIndex = useRef<number | null>(null);
 
@@ -1817,7 +1854,9 @@ const ImageCanvas = memo(
 
     const isAiSubjectActive =
       (isMasking || isAiEditing) &&
-      (activeSubMask?.type === Mask.AiSubject || activeSubMask?.type === Mask.QuickEraser);
+      (activeSubMask?.type === Mask.AiSubject ||
+        activeSubMask?.type === Mask.QuickEraser ||
+        isObjectSelection(activeSubMask)); // Argentum: Object on SAM 2.1
     const isParametricActive =
       (isMasking || isAiEditing) && (activeSubMask?.type === Mask.Color || activeSubMask?.type === Mask.Luminance);
     const isInitialDrawing = (isMasking || isAiEditing) && activeSubMask?.parameters?.isInitialDraw === true;
@@ -2374,6 +2413,7 @@ const ImageCanvas = memo(
           }
 
           if (isAiSubjectActive) {
+            objectLeaveOut.current = e.evt.altKey || (window as any).altKeyDown;
             isDrawing.current = true;
             drawingStageRef.current = stage;
             const newBox = { start: pos, end: pos };
@@ -2899,6 +2939,12 @@ const ImageCanvas = memo(
         const dy = box.end.y - box.start.y;
         if (Math.sqrt(dx * dx + dy * dy) < 5) {
           endPoint = { x: startPoint.x, y: startPoint.y };
+        }
+
+        // Argentum: an Object selection takes the gesture as a click or a box.
+        if (activeId && isObjectSelection(activeSubMask)) {
+          void refineObject(activeId, startPoint, endPoint, objectLeaveOut.current, updateSubMask);
+          return;
         }
 
         if (activeId) {
