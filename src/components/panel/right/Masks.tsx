@@ -15,14 +15,22 @@ import {
   Bandage,
   Spline,
   MopSparkles,
+  Mountain,
+  PersonStanding,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import Text from '../../ui/Text';
 import { TextWeights } from '../../../types/typography';
 import i18n from 'i18next';
+import { agText } from '../../../argentum/locales';
 
 export enum Mask {
+  // Argentum: RAWmakase's one-click selections (argentum/selection). Menu
+  // entries only: a mask they make is stored as Foreground or Sky.
+  AgSubject = 'ag-subject',
+  AgSky = 'ag-sky',
+  AgBackground = 'ag-background',
   AiDepth = 'ai-depth',
   AiForeground = 'ai-foreground',
   AiSky = 'ai-sky',
@@ -75,6 +83,9 @@ export interface SubMask {
 }
 
 export function formatMaskTypeName(type: string) {
+  if (type === Mask.AgSubject) return agText('selSubject');
+  if (type === Mask.AgSky) return agText('selSky');
+  if (type === Mask.AgBackground) return agText('selBackground');
   if (type === Mask.AiDepth) return i18n.t('masks.types.depth');
   if (type === Mask.AiSubject) return i18n.t('masks.types.subject');
   if (type === Mask.AiForeground) return i18n.t('masks.types.foreground');
@@ -107,6 +118,9 @@ export function getSubMaskName(subMask: Pick<SubMask, 'name' | 'type'>) {
 }
 
 export const MASK_ICON_MAP: Record<Mask, any> = {
+  [Mask.AgSubject]: PersonStanding,
+  [Mask.AgSky]: Cloud,
+  [Mask.AgBackground]: Mountain,
   [Mask.AiDepth]: BringToFront,
   [Mask.AiForeground]: User,
   [Mask.AiSky]: Cloud,
@@ -125,9 +139,13 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
   [Mask.Retouch]: MopSparkles,
 };
 
+// Argentum: Subject, Sky and Background are RAWmakase's (argentum/selection);
+// their Sky gives way to it. Object (their Subject) and Foreground stay.
 export const MASK_AI_TYPES: Array<MaskType> = [
-  { disabled: false, icon: SquareMousePointer, name: 'Subject', type: Mask.AiSubject },
-  { disabled: false, icon: Cloud, name: 'Sky', type: Mask.AiSky },
+  { disabled: false, icon: PersonStanding, name: 'Subject', type: Mask.AgSubject },
+  { disabled: false, icon: SquareMousePointer, name: 'Object', type: Mask.AiSubject },
+  { disabled: false, icon: Cloud, name: 'Sky', type: Mask.AgSky },
+  { disabled: false, icon: Mountain, name: 'Background', type: Mask.AgBackground },
   { disabled: false, icon: User, name: 'Foreground', type: Mask.AiForeground },
   { disabled: false, icon: BringToFront, name: 'Depth', type: Mask.AiDepth },
 ];

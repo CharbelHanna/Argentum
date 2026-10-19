@@ -56,6 +56,8 @@ export const OURS = [
   'src-tauri/src/shaders/sharpen.wgsl',
   // The engine library: a crate of our own beside the app, not part of it.
   'src-tauri/engine/',
+  // RAWmakase's selection code (MIT), a crate beside the app like the engine.
+  'src-tauri/rm_selection/',
   'src/argentum/',
   // The new editor interface, and the contract types generated for it.
   'src/shell/',
@@ -298,6 +300,54 @@ export const REGISTRY = [
         + 'pastes, opens Copy & Paste Settings and turns Auto-sync on with a tick.',
     ],
     keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
+  },
+  {
+    id: 'selection-masks',
+    kind: 'feature',
+    what:
+      'Subject, Sky and Background masks: RAWmakase\'s selection (DETR panoptic finds people, '
+      + 'animals and sky, SAM 2.1 outlines them), its crate taken whole as src-tauri/rm_selection '
+      + '(crates/rawmakase-inference @ 7c3c81a, MIT, ported to ort rc.10). A selection is stored '
+      + 'as their Foreground (Subject, Background) or Sky mask stores its own, with agSelection '
+      + 'naming which, so it renders through their code unchanged. The models (271 MB) are fetched '
+      + 'on a yes, pinned and checksummed, into models/rawmakase-selection.',
+    ours: [
+      'src-tauri/rm_selection/',
+      'src-tauri/src/mods/selection.rs',
+      'src-tauri/src/mods/selection_models.rs',
+      'src/argentum/selection/selection.tsx',
+    ],
+    dependsOn: [
+      { file: 'src/components/panel/right/Masks.tsx', how: 'extends',
+        note: 'Three menu-only types (ag-subject, ag-sky, ag-background) with names and icons; '
+          + 'MASK_AI_TYPES lists Subject, Object, Sky, Background, Foreground, Depth, their Sky '
+          + 'replaced by ours.' },
+      { file: 'src/components/panel/right/MasksPanel.tsx', how: 'extends',
+        note: 'createMaskLogic makes a selection sub-mask as their Foreground or Sky with our '
+          + 'starting parameters; the two add paths call useSelectionMasks; icons come from '
+          + 'menuTypeOf.' },
+      { file: 'src/utils/maskUtils.ts', symbol: 'createSubMask', how: 'calls',
+        note: 'Makes the stored sub-mask; its name is then set to ours.' },
+      { file: 'src-tauri/src/mask_generation.rs', symbol: 'generate_ai_foreground_bitmap', how: 'calls',
+        note: 'Draws a selection: the ai-foreground and ai-sky arms read maskDataBase64, rotation, '
+          + 'flips and orientation steps and ignore agSelection. Change those parameters and '
+          + 'selections stop drawing.' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'get_cached_full_warped_image', how: 'calls',
+        note: 'The picture the models see, shared with their mask models\' cache.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'patchesSentToBackend', how: 'calls',
+        note: 'Cleared for a sub-mask when its mask changes, as their AI masks do, so it is sent again.' },
+    ],
+    tests: [
+      'src-tauri/rm_selection: cargo test (27 model-free tests of RAWmakase\'s); tests/real_model.rs '
+        + 'with --ignored and the models.',
+      'src-tauri/src/mods/selection_models.rs #[cfg(test)]: an empty folder needs every file; the '
+        + 'right size with the wrong bytes fails the check.',
+      'src-tauri/src/mods/selection.rs #[cfg(test)]: the analysis is reused only for the same photo '
+        + 'and geometry; a_person_is_found_and_background_is_the_rest with --ignored on a real RAW.',
+      'Manual: Masks > Subject on a photo of a person; Background; Sky on a landscape; with the '
+        + 'models folder empty, the size is asked before anything downloads.',
+    ],
+    keywords: /subject|sky|background|selection|sam ?2|detr|panoptic/i,
   },
   {
     id: 'copy-our-keys',

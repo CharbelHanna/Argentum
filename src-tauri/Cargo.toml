@@ -77,6 +77,7 @@ imgref = "1.12.2"
 sysinfo = "0.39.6"
 tauri-plugin-http = "2.8.0"
 argentum-engine = { path = "engine" } # Argentum: the new engine, for the new interface (mods/engine_bridge.rs)
+rm-selection = { path = "rm_selection" } # Argentum: RAWmakase's Subject, Sky and Background masks (mods/selection.rs)
 
 [target.'cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))'.dependencies]
 trash = "5.2.6"

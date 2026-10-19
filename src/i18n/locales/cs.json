@@ -1913,6 +1913,7 @@
       "description": "Velké poděkování patří následujícím projektům, které byly velmi důležité při vývoji RapidRAW:",
       "list": {
         "darktable": "Pro některé referenční implementace, které vedly části této práce.",
+        "detr": "Za panoptický model, který na fotografii najde lidi, zvířata a oblohu pro masky Subjekt, Obloha a Pozadí.",
         "depth": "Pro výkonný monokulární model odhadu hloubky, který umožňuje AI hloubkové maskování.",
         "lama": "Pro výkonný a jednoduchý model malování snímků, který umožňuje výplň a odstraňování objektů s ohledem na obsah.",
         "lensfun": "Pro svou neocenitelnou open-source knihovnu a komplexní databázi pro automatickou korekci objektivů.",
@@ -1920,7 +1921,7 @@
         "negpy": "Pro inspiraci negativní konverzní logiky.",
         "nind": "Za poskytování modelů AI, které pohánějí funkce redukce šumu AI v RapidRAW.",
         "rawler": "Za vynikající přepravku Rust, která poskytuje základ pro zpracování souborů RAW v tomto projektu.",
-        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, Curve, Grain, Vignetting). Také masky Subjekt, Obloha a Pozadí: jeho kód výběru se SAM 2.1 a DETR.",
         "sam2": "Za poskytnutí základního modelu používaného pro schopnosti detekce předmětů AI.",
         "spektrafilm": "Pro spektrálně založené filmové emulační LUT od Andrey Volpata, použité pro vestavěné filmové emulace v RapidRAW. Licence CC BY-SA 4.0.",
         "u2net": "Pro zajištění robustní architektury používané pro schopnosti detekce oblohy a popředí AI.",

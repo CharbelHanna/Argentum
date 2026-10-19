@@ -2,3 +2,6 @@
 # on their own. Without this, every engine build restarts a running
 # `tauri dev`.
 engine/target/
+
+# The selection crate (rm_selection) likewise, when its tests run on their own.
+rm_selection/target/

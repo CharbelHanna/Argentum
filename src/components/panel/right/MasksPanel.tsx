@@ -81,6 +81,13 @@ import {
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../../../argentum/editSections';
+import {
+  menuTypeOf,
+  selectionKind,
+  startingParameters,
+  storedType,
+  useSelectionMasks,
+} from '../../../argentum/selection/selection';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation, Panel } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
@@ -259,6 +266,8 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
   const isAiFree = useSettingsStore((s) => s.appSettings?.aiProvider === 'ai-free');
   const { handleGenerateAiDepthMask, handleGenerateAiForegroundMask, handleGenerateAiSkyMask, handleCancelAiTask } =
     useAiMasking();
+  // Argentum: Subject, Sky and Background from RAWmakase (argentum/selection).
+  const generateSelection = useSelectionMasks();
 
   const { setCustomEscapeHandler, isAdjustmentsPanelVisible } = useUIStore(
     useShallow((state) => {
@@ -455,6 +464,14 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
   };
 
   const createMaskLogic = (type: Mask, mode: SubMaskMode = SubMaskMode.Additive) => {
+    // Argentum: a one-click selection is stored as their Foreground or Sky (argentum/selection).
+    const selection = selectionKind(type);
+    if (selection) {
+      const subMask: SubMask = createSubMask(storedType(selection), selectedImage || ({} as any), mode);
+      subMask.name = formatMaskTypeName(type);
+      subMask.parameters = { ...subMask.parameters, ...startingParameters(selection) };
+      return subMask;
+    }
     if (!selectedImage) return createSubMask(type, {} as any, mode);
     const subMask = createSubMask(type, selectedImage, mode);
 
@@ -515,6 +532,7 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
     if (type === Mask.AiForeground) handleGenerateAiForegroundMask(subMask.id);
     else if (type === Mask.AiSky) handleGenerateAiSkyMask(subMask.id);
     else if (type === Mask.AiDepth) handleGenerateAiDepthMask(subMask.id, subMask.parameters);
+    else if (selectionKind(type)) generateSelection(subMask.id, selectionKind(type)!);
   };
 
   const handleAddSubMask = (
@@ -546,6 +564,7 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
     if (type === Mask.AiForeground) handleGenerateAiForegroundMask(subMask.id);
     else if (type === Mask.AiSky) handleGenerateAiSkyMask(subMask.id);
     else if (type === Mask.AiDepth) handleGenerateAiDepthMask(subMask.id, subMask.parameters);
+    else if (selectionKind(type)) generateSelection(subMask.id, selectionKind(type)!);
   };
 
   const handleGridClick = (type: Mask, forceNewMaskContainer: boolean = false) => {
@@ -1260,7 +1279,7 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
               >
                 {(() => {
                   const sm = activeDragItem.item as SubMask;
-                  const Icon = MASK_ICON_MAP[sm.type] || Circle;
+                  const Icon = MASK_ICON_MAP[menuTypeOf(sm)] || Circle;
                   return <Icon size={16} className={`shrink-0 ml-1 ${TEXT_COLOR_KEYS[TextColors.secondary]}`} />;
                 })()}
                 <span className="flex-1 truncate">{getSubMaskName(activeDragItem.item as SubMask)}</span>
@@ -1688,7 +1707,7 @@ function SubMaskRow({
     setNodeRef(node);
     setDroppableRef(node);
   };
-  const MaskIcon = MASK_ICON_MAP[subMask.type] || Circle;
+  const MaskIcon = MASK_ICON_MAP[menuTypeOf(subMask)] || Circle;
   const { showContextMenu } = useContextMenu();
   const [isHovered, setIsHovered] = useState(false);
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);

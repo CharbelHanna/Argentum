@@ -1887,6 +1887,7 @@
       "description": "Veel dank aan de volgende projecten die zeer belangrijk waren bij de ontwikkeling van RapidRAW:",
       "list": {
         "darktable": "Voor enkele referentie-implementaties die delen van dit werk hebben geleid.",
+        "detr": "Voor het panoptische model dat mensen, dieren en lucht in een foto vindt voor de maskers Onderwerp, Lucht en Achtergrond.",
         "depth": "Voor het krachtige monoculaire diepteschattingsmodel dat de AI-dieptemaskering mogelijk maakt.",
         "lama": "Voor het krachtige en eenvoudige afbeeldingsinpainting-model dat inhoudsgebaseerde opvulling en objectverwijdering mogelijk maakt.",
         "lensfun": "Voor de onschatbare open-source bibliotheek en uitgebreide database voor automatische lenscorrectie.",
@@ -1894,7 +1895,7 @@
         "negpy": "Voor de inspiratie achter de negatief-omzetlogica.",
         "nind": "Voor het leveren van AI-modellen die de AI-ruisonderdrukkingmogelijkheden in RapidRAW aandrijven.",
         "rawler": "Voor de uitstekende Rust-crate die de basis vormt voor RAW-bestandsverwerking in dit project.",
-        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken. Ook de presets die bij Argentum horen (Color, Creative, Curve, Grain, Vignetting).",
+        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken. Ook de presets die bij Argentum horen (Color, Creative, Curve, Grain, Vignetting). Ook de maskers Onderwerp, Lucht en Achtergrond: de selectiecode, met SAM 2.1 en DETR.",
         "sam2": "Voor het leveren van het basismodel dat wordt gebruikt voor de AI-onderwerpdetectiemogelijkheden.",
         "spektrafilm": "Voor de spectraalgebaseerde filmemulatie-LUT's door Andrea Volpato, gebruikt voor de ingebouwde filmemulaties van RapidRAW. Gelicenseerd onder CC BY-SA 4.0.",
         "u2net": "Voor het leveren van de robuuste architectuur die wordt gebruikt voor de AI-lucht- en voorgronddetectiemogelijkheden.",

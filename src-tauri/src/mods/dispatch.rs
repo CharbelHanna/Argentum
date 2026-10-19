@@ -75,6 +75,16 @@ struct MeasureWbArgs {
     from: Option<String>,
 }
 
+/// A one-click selection: which part, the edit's geometry, and the frame it is stored in.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectionArgs {
+    kind: crate::mods::selection::Kind,
+    js_adjustments: serde_json::Value,
+    #[serde(flatten)]
+    frame: crate::mods::selection::Frame,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathArgs {
@@ -336,6 +346,43 @@ async fn json(
     window: tauri::WebviewWindow,
 ) -> Result<serde_json::Value, String> {
     match name.as_str() {
+        "selection_models_status" => {
+            let dir = crate::mods::selection_models::dir(&app_handle)?;
+            serde_json::to_value(crate::mods::selection_models::status(&dir))
+                .map_err(|e| e.to_string())
+        }
+        "download_selection_models" => {
+            use tauri::Emitter;
+            let dir = crate::mods::selection_models::dir(&app_handle)?;
+            let app = app_handle.clone();
+            crate::mods::selection_models::download(&dir, move |done, total| {
+                let _ = app.emit(
+                    "ag-selection-download",
+                    serde_json::json!({ "done": done, "total": total }),
+                );
+            })
+            .await?;
+            Ok(serde_json::Value::Null)
+        }
+        "selection_mask" => {
+            let a: SelectionArgs = args_for(&name, args)?;
+            let dir = crate::mods::selection_models::dir(&app_handle)?;
+            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+            let path = state
+                .original_image
+                .lock()
+                .map_err(|e| e.to_string())?
+                .as_ref()
+                .map(|loaded| loaded.path.clone())
+                .ok_or("No image loaded")?;
+            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+            let selection = tokio::task::spawn_blocking(move || {
+                crate::mods::selection::select(&dir, &picture, key, a.kind, a.frame)
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            serde_json::to_value(selection).map_err(|e| e.to_string())
+        }
         "detect_auto_white_balance" => {
             let a: AutoWbArgs = args_for(&name, args)?;
             let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;

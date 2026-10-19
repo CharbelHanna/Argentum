@@ -125,6 +125,34 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'AI masks',
+    entries: [
+      {
+        name: 'RAWmakase',
+        href: 'https://github.com/pch/rawmakase',
+        what:
+          'Subject, Sky and Background are RAWmakase’s selection code (crates/rawmakase-inference ' +
+          '@ 7c3c81a), taken whole: DETR finds the people, animals and sky, SAM 2.1 draws their ' +
+          'outlines, and its edge refinement and its rule for where a sky stops are kept as ' +
+          'written. MIT.',
+      },
+      {
+        name: 'SAM 2.1 (Meta AI)',
+        href: 'https://github.com/facebookresearch/sam2',
+        what:
+          'Segment Anything Model 2.1, Hiera small, draws the outline of each selection. ' +
+          'Apache-2.0; ONNX export by the Hugging Face onnx-community.',
+      },
+      {
+        name: 'DETR (Facebook AI Research)',
+        href: 'https://github.com/facebookresearch/detr',
+        what:
+          'DETR ResNet-50 panoptic, trained on COCO, says where a photo’s people, animals and sky ' +
+          'are. Apache-2.0; ONNX export by Xenova.',
+      },
+    ],
+  },
+  {
     heading: 'Camera profiles',
     blurb:
       'Argentum reads camera profiles but ships none — the free collections are ' +

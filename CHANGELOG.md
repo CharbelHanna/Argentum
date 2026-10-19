@@ -8,6 +8,18 @@ Newest first.
 
 ### Added
 
+- **Subject, Sky and Background masks, from RAWmakase.** One click: Subject finds the photo's
+  people and animals, Background is everything else, and Sky finds the sky and stops where it
+  ends, leaving white-washed and blurred backgrounds alone. They take the old Sky's place in
+  the add-mask menus; Object (a box round anything) and Foreground stay, and masks made before
+  keep drawing as they did. The code is RAWmakase's selection crate, taken whole
+  (`crates/rawmakase-inference` @ `7c3c81a`, MIT, in `src-tauri/rm_selection`), running SAM 2.1
+  Hiera small (Meta AI) and DETR ResNet-50 panoptic (Facebook AI Research), both Apache-2.0, on
+  the app's own ONNX Runtime. The models (271 MB) are fetched only after asking and saying the
+  size, from pinned commits, each checked against its SHA-256; files already in the model
+  folder's `rawmakase-selection` are used as they are. They are let go after five idle minutes,
+  like the other mask models. `mods/selection.rs`, `mods/selection_models.rs`,
+  `argentum/selection/`.
 - **The Modern window**, now the only arrangement: the whole app in one window built from
   today's panels, in Lightroom Classic's neutral greys (Grey, Deep or Light, in Settings >
   General > Theme). One bar per edge:
