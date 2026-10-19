@@ -1,5 +1,16 @@
 import React, { useCallback } from 'react';
-import { RotateCcw, Copy, ClipboardPaste, PencilSparkles, ChartArea, LayoutList } from 'lucide-react';
+import {
+  RotateCcw,
+  Copy,
+  ClipboardPaste,
+  PencilSparkles,
+  ChartArea,
+  LayoutList,
+  MoreHorizontal,
+  Check,
+  RefreshCw,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
@@ -20,6 +31,7 @@ import {
 } from '../../../utils/adjustments';
 import { EDIT_SECTION_KEYS, initialValues, PROFILE_KEYS } from '../../../argentum/editSections';
 import ProfileSection, { PROFILE_SECTION } from '../../../argentum/ProfileSection';
+import { useAgTranslation } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { OPTION_SEPARATOR, Orientation } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
@@ -54,15 +66,19 @@ export default function Controls({
   const {
     setAdjustments: setLiveAdjustments,
     handleAutoAdjustments,
+    handleCopyAdjustments,
+    handlePasteAdjustments,
     handleLutSelect,
     setLutPreviewOverride,
   } = useEditorActions();
   const setAdjustments = readOnly ? () => {} : setLiveAdjustments;
 
-  const { appSettings, theme } = useSettingsStore(
+  const agT = useAgTranslation();
+  const { appSettings, theme, handleSettingsChange } = useSettingsStore(
     useShallow((state) => ({
       appSettings: state.appSettings,
       theme: state.theme,
+      handleSettingsChange: state.handleSettingsChange,
     })),
   );
 
@@ -180,6 +196,42 @@ export default function Controls({
     }));
   };
 
+  // Argentum: the header's ⋯, what acts on the whole photo (modern-spec, Edit header).
+  const moreMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const sync = appSettings?.copyPasteSettings;
+    showContextMenu(rect.left, rect.bottom, [
+      { label: t('ui.bottomBar.tooltips.copySettings'), icon: Copy, onClick: () => handleCopyAdjustments() },
+      {
+        label: t('ui.bottomBar.tooltips.pasteSettings'),
+        icon: ClipboardPaste,
+        onClick: () => handlePasteAdjustments(),
+      },
+      {
+        label: `${t('modals.copyPaste.title')}…`,
+        icon: SlidersHorizontal,
+        onClick: () => setUI({ isCopyPasteSettingsModalOpen: true }),
+      },
+      { type: OPTION_SEPARATOR },
+      {
+        label: t('modals.copyPaste.autoSyncTitle'),
+        // A tick while it is on.
+        icon: sync?.autoSync ? Check : RefreshCw,
+        disabled: !appSettings || !sync,
+        onClick: () =>
+          appSettings &&
+          sync &&
+          handleSettingsChange({ ...appSettings, copyPasteSettings: { ...sync, autoSync: !sync.autoSync } }),
+      },
+      { type: OPTION_SEPARATOR },
+      {
+        label: t('editor.adjustments.actions.customizePanels'),
+        icon: LayoutList,
+        submenu: [{ customComponent: AdjustmentSectionsSubMenu }],
+      },
+    ]);
+  };
+
   const handleSectionContextMenu = (event: any, sectionName: string) => {
     event.preventDefault();
     event.stopPropagation();
@@ -276,6 +328,14 @@ export default function Controls({
             data-tooltip={t('editor.adjustments.tooltips.resetAdjustments')}
           >
             <RotateCcw size={18} />
+          </button>
+          <button
+            className="p-2 rounded-full hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!selectedImage}
+            onClick={moreMenu}
+            data-tooltip={agT('editMoreTip')}
+          >
+            <MoreHorizontal size={18} />
           </button>
         </div>
       </div>

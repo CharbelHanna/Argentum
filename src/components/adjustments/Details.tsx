@@ -1,8 +1,16 @@
 import { useTranslation } from 'react-i18next';
 import Slider from '../ui/Slider';
-import { Adjustments, DetailsAdjustment, getAdjustmentToolOrder, getHiddenAdjustmentTools } from '../../utils/adjustments';
+import {
+  Adjustments,
+  DetailsAdjustment,
+  getAdjustmentToolOrder,
+  getHiddenAdjustmentTools,
+} from '../../utils/adjustments';
 import { AppSettings } from '../ui/AppProperties';
 import AdjustmentSubSection from './AdjustmentSubSection';
+// Argentum: Denoise… and Restore & Enlarge… live here; the manual fringe
+// (chromatic aberration) sliders moved to Crop > Lens (CropPanel.tsx).
+import { DenoiseButton, EnhanceSection } from '../../argentum/DetailTools';
 
 interface DetailsPanelProps {
   adjustments: Adjustments;
@@ -87,37 +95,11 @@ export default function DetailsPanel({
             value={adjustments.colorNoiseReduction}
             onDragStateChange={onDragStateChange}
           />
+          {!isForMask && <DenoiseButton />}
         </AdjustmentSubSection>
       )}
 
-      {!isForMask && !hiddenTools.includes('chromaticAberration') && (
-        <AdjustmentSubSection
-          id="chromaticAberration"
-          order={toolOrder.indexOf('chromaticAberration')}
-          title={t('adjustments.details.chromaticAberration')}
-        >
-          <Slider
-            label={t('adjustments.details.redCyan')}
-            max={100}
-            min={-100}
-            onChange={(e: any) => handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationRedCyan, e.target.value)}
-            step={1}
-            value={adjustments.chromaticAberrationRedCyan}
-            onDragStateChange={onDragStateChange}
-          />
-          <Slider
-            label={t('adjustments.details.blueYellow')}
-            max={100}
-            min={-100}
-            onChange={(e: any) =>
-              handleAdjustmentChange(DetailsAdjustment.ChromaticAberrationBlueYellow, e.target.value)
-            }
-            step={1}
-            value={adjustments.chromaticAberrationBlueYellow}
-            onDragStateChange={onDragStateChange}
-          />
-        </AdjustmentSubSection>
-      )}
+      {!isForMask && <EnhanceSection order={toolOrder.length} />}
     </div>
   );
 }

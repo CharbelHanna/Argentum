@@ -31,6 +31,7 @@ import { CustomAspectRatio, Orientation } from '../../ui/AppProperties';
 import { motion, AnimatePresence } from 'framer-motion';
 import Text from '../../ui/Text';
 import FoldingPane from '../../../argentum/FoldingPane'; // Argentum: the panes fold by their headings
+import { useAgTranslation } from '../../../argentum/locales';
 import Slider from '../../ui/Slider';
 import Switch from '../../ui/Switch';
 import Dropdown from '../../ui/Dropdown';
@@ -120,6 +121,7 @@ export default function CropPanel() {
 
   // Argentum: these panes fold by their headings (FoldingPane), so the card
   // inside each no longer folds a second time.
+  const agT = useAgTranslation();
   const isTransformExpanded = true;
   const isLensExpanded = true;
 
@@ -804,6 +806,8 @@ export default function CropPanel() {
         lensVignetteEnabled: INITIAL_ADJUSTMENTS.lensVignetteEnabled,
         lensDistortionParams: INITIAL_ADJUSTMENTS.lensDistortionParams,
         lensCorrectionMode: INITIAL_ADJUSTMENTS.lensCorrectionMode,
+        chromaticAberrationRedCyan: INITIAL_ADJUSTMENTS.chromaticAberrationRedCyan,
+        chromaticAberrationBlueYellow: INITIAL_ADJUSTMENTS.chromaticAberrationBlueYellow,
       }));
     };
 
@@ -1560,6 +1564,43 @@ export default function CropPanel() {
                                 </motion.div>
                               )}
                             </AnimatePresence>
+                          </div>
+
+                          {/* Argentum: the manual fringe sliders, moved here from Detail. They
+                              correct any lens, with or without a profile, so they are not greyed. */}
+                          <div className="bg-bg-primary p-3 rounded-md border border-surface" data-ag-fringe>
+                            <div className="flex items-center gap-3">
+                              <Activity size={16} className="text-text-secondary shrink-0" />
+                              <span className="grow text-sm select-none">{agT('cropManualFringe')}</span>
+                            </div>
+                            <div className="px-2 mt-4">
+                              <Slider
+                                label={t('adjustments.details.redCyan')}
+                                max={100}
+                                min={-100}
+                                step={1}
+                                value={adjustments.chromaticAberrationRedCyan}
+                                onChange={(e) =>
+                                  setAdjustments((prev) => ({
+                                    ...prev,
+                                    chromaticAberrationRedCyan: Number(e.target.value),
+                                  }))
+                                }
+                              />
+                              <Slider
+                                label={t('adjustments.details.blueYellow')}
+                                max={100}
+                                min={-100}
+                                step={1}
+                                value={adjustments.chromaticAberrationBlueYellow}
+                                onChange={(e) =>
+                                  setAdjustments((prev) => ({
+                                    ...prev,
+                                    chromaticAberrationBlueYellow: Number(e.target.value),
+                                  }))
+                                }
+                              />
+                            </div>
                           </div>
                         </div>
 

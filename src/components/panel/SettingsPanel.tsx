@@ -54,6 +54,8 @@ import { useCloudUsage } from '../../hooks/useCloudUsage';
 import { open } from '@tauri-apps/plugin-shell';
 import { RotateCcw } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
+import { useAgTranslation } from '../../argentum/locales';
+import { getWhiteBalanceMode, WhiteBalanceMode } from '../../utils/whiteBalance';
 
 interface ConfirmModalState {
   confirmText: string;
@@ -555,6 +557,7 @@ export default function SettingsPanel({
     useShallow((s) => ({ authStatus: s.authStatus, clerk: s.clerk, user: s.user, initAuth: s.initAuth })),
   );
   const { t } = useTranslation();
+  const agT = useAgTranslation();
   const [isClearing, setIsClearing] = useState(false);
   const [clearMessage, setClearMessage] = useState('');
   const [isClearingCache, setIsClearingCache] = useState(false);
@@ -1313,6 +1316,21 @@ export default function SettingsPanel({
                           id="tool-focus-mode-toggle"
                           label={t('settings.general.enableToolFocusMode')}
                           onChange={(checked) => onSettingsChange({ ...appSettings, enableToolFocusMode: checked })}
+                        />
+                      </SettingItem>
+
+                      {/* Argentum: Kelvin is for every photo, so it is here, not on the white balance row. */}
+                      <SettingItem label={agT('settingsKelvin')} description={agT('settingsKelvinDesc')}>
+                        <Switch
+                          checked={getWhiteBalanceMode(appSettings) === WhiteBalanceMode.Kelvin}
+                          id="kelvin-toggle"
+                          label={t('adjustments.color.kelvinModeTooltip')}
+                          onChange={(checked) =>
+                            onSettingsChange({
+                              ...appSettings,
+                              whiteBalanceMode: checked ? WhiteBalanceMode.Kelvin : WhiteBalanceMode.Relative,
+                            })
+                          }
                         />
                       </SettingItem>
 

@@ -113,17 +113,24 @@ Newest first.
   comes first: the camera profile, the RAW rendering, the tone mapper (Basic or AgX)
   and highlight recovery, which were a RAW card inside Color and a switch inside
   Basic. Basic then starts with the white balance row (the preset menu, an Auto
-  button, K and the picker) with Temperature and Tint, then Tone (Exposure to
+  button and the picker) with Temperature and Tint, then Tone (Exposure to
   Brightness), then Presence (Clarity, Dehaze, Structure, Centre, Vibrance,
   Saturation). Color keeps Hue, the colour mixer, colour grading and calibration;
-  Details keeps sharpening, noise reduction and chromatic aberration. Masks show
+  Details keeps sharpening and noise reduction, with a Denoise… button under it, and
+  gains Enhance with Restore & Enlarge…, which the Modern window had no way to open.
+  The manual fringe sliders (Red/Cyan, Blue/Yellow) moved to Crop > Lens Correction
+  as Manual fringe, where the lens reset puts them back and Details' eye no longer
+  turns them off. Showing temperature in kelvin is a switch in Settings > General, no
+  longer a K button on the white balance row. The panel's header gains ⋯: Copy
+  settings, Paste settings, the Copy & Paste Settings dialog, Auto-sync and Customize
+  Panels. Details' reset, copy and paste now take Argentum's sharpening too. Masks show
   the same arrangement. Each section's eye, reset, copy and paste follow what it
   shows: Basic's eye now turns off white balance and Presence too, so an edit saved
   with Color or Details turned off shows those sliders' effect again. Reset all also
   puts the profile, the RAW rendering and Auto white balance back. On a RAW the tone
   mapper is greyed out unless Rendering is Default, since every other rendering sets
   the tones itself.
-  `argentum/editSections.ts`, `argentum/ProfileSection.tsx`,
+  `argentum/editSections.ts`, `argentum/ProfileSection.tsx`, `argentum/DetailTools.tsx`,
   `components/adjustments/WhiteBalance.tsx` (their white balance code from
   `Color.tsx` @ `79c2a46b`, moved unchanged).
 - **Effects > Vignette is now called Post-Crop Vignette**, in every language and
