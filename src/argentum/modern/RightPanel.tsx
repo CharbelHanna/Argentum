@@ -2,9 +2,10 @@
  * The Modern window's right panel: every tool, in one panel. Ours.
  *
  * Top to bottom: the histogram (one, for every tab), the Info line, the tab
- * strip, and the open tab. The tabs are today's panels as they are: Edit is the
- * adjustments, Looks ours (argentum/looks: presets, LUTs and film looks), Crop,
- * Masks, Retouch (today's AI panel) and Export. The Info line, the photo's ISO, aperture, shutter and focal length,
+ * strip, and the open tab. The tabs are today's panels as they are, in the
+ * order a photo is worked on: Edit is the adjustments, then Crop, Looks (ours,
+ * argentum/looks: presets and LUTs, the film looks among the LUTs), Masks,
+ * Retouch (today's AI panel) and Export. The Info line, the photo's ISO, aperture, shutter and focal length,
  * is a tab of its own without a seventh name in the strip: a click on it, or
  * I, shows today's metadata panel at the panel's full height, and any tab goes
  * back. The keys are today's (D, P, R, M, K, E, I), which set the same active
@@ -33,8 +34,8 @@ import { useGridAdjustments } from './gridAdjustments';
 
 const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] = [
   { panel: Panel.Adjustments, label: 'mwTabEdit', key: 'D' },
-  { panel: Panel.Presets, label: 'mwTabLooks', key: 'P' },
   { panel: Panel.Crop, label: 'mwTabCrop', key: 'R', needsPhoto: true },
+  { panel: Panel.Presets, label: 'mwTabLooks', key: 'P' },
   { panel: Panel.Masks, label: 'mwTabMasks', key: 'M', needsPhoto: true },
   { panel: Panel.Ai, label: 'mwTabRetouch', key: 'K', needsPhoto: true },
   { panel: Panel.Export, label: 'mwTabExport', key: 'E' },

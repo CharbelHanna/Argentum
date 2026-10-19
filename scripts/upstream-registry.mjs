@@ -286,7 +286,7 @@ export const REGISTRY = [
     kind: 'feature',
     what:
       'The Looks tab: presets, LUTs and film looks in one list, with search, chips (All, Favourites, '
-      + 'Film, Presets, LUTs), hover preview on the photo, click to put on and take off, stars, one '
+      + 'Presets, LUTs; the film looks are the first folder of LUTs), hover preview on the photo, click to put on and take off, stars, one '
       + 'Import, and On this photo with a LUT\'s Strength and a preset\'s Amount. The presets that '
       + 'come with the app are RAWmakase\'s (assets/presets @ 7c3c81a, MIT, without B&W). Amount '
       + 'follows RAWmakase\'s rule on RapidRAW\'s mixing: from the photo before the preset, only '
@@ -1988,7 +1988,7 @@ export const REGISTRY = [
       + 'the centre showing the '
       + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
       + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) that opens the metadata at full height, and six tabs over today\'s panels '
-      + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
+      + '(Edit, Crop, Looks, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
       + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
       + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',

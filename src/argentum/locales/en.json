@@ -240,7 +240,6 @@
   "looksCommunity": "Community presets…",
   "looksAll": "All",
   "looksFavourites": "Favourites",
-  "looksFilm": "Film",
   "looksPresets": "Presets",
   "looksLuts": "LUTs",
   "looksHintPhoto": "Hover to preview on the photo, click to apply.",
@@ -255,11 +254,10 @@
   "looksGroupFilm": "Film",
   "looksGroupPresets": "Presets",
   "looksGroupMine": "My presets",
-  "looksGroupMyLuts": "My LUTs",
+  "looksGroupLuts": "LUTs",
   "looksImported": "Imported",
   "looksNoFavourites": "Star a look to keep it here.",
   "looksNothing": "No look matches.",
-  "looksKindFilm": "Film",
   "looksKindPreset": "Preset",
   "looksKindLut": "LUT"
 }

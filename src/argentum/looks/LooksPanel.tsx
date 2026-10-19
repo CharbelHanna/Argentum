@@ -1,9 +1,9 @@
 /**
  * The Looks tab: presets, LUTs and film looks in one list. Ours.
  *
- * Search, Import, and chips for All, Favourites, Film, Presets and LUTs; then
- * what is on the photo, with a LUT's Strength and a preset's Amount; then the
- * groups: Film (the app's film LUTs), Presets (those that come with the app,
+ * Search, Import, and chips for All, Favourites, Presets and LUTs; then what
+ * is on the photo, with a LUT's Strength and a preset's Amount; then the
+ * groups: Presets (those that come with the app,
  * RAWmakase's, by group), My presets and My LUTs. Pointing at a look shows it
  * on the photo; a click puts it on, a click on the one on takes it off; the
  * star keeps it in Favourites.
@@ -26,6 +26,7 @@ import Slider from '../../components/ui/Slider';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import { useEditorActions } from '../../hooks/useEditorActions';
 import { usePresets, type UserPreset } from '../../hooks/usePresets';
+import type { Preset } from '../../components/ui/AppProperties';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
 import { type Adjustments, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
@@ -33,8 +34,8 @@ import { type AgKey, useAgTranslation } from '../locales';
 import { presetAt } from './presetAmount';
 import { type LutEntry, useLooks } from './looksStore';
 
-type Kind = 'film' | 'preset' | 'lut';
-type Chip = 'all' | 'favourites' | 'film' | 'presets' | 'luts';
+type Kind = 'preset' | 'lut';
+type Chip = 'all' | 'favourites' | 'presets' | 'luts';
 
 interface Look {
   id: string;
@@ -56,12 +57,11 @@ interface Group {
 const CHIPS: { id: Chip; label: AgKey }[] = [
   { id: 'all', label: 'looksAll' },
   { id: 'favourites', label: 'looksFavourites' },
-  { id: 'film', label: 'looksFilm' },
   { id: 'presets', label: 'looksPresets' },
   { id: 'luts', label: 'looksLuts' },
 ];
 
-const KIND_LABEL: Record<Kind, AgKey> = { film: 'looksKindFilm', preset: 'looksKindPreset', lut: 'looksKindLut' };
+const KIND_LABEL: Record<Kind, AgKey> = { preset: 'looksKindPreset', lut: 'looksKindLut' };
 
 const LUT_FILES = ['cube', '3dl', 'png', 'jpg', 'jpeg', 'tiff'];
 const PRESET_FILES = ['rrpreset', 'xmp', 'lrtemplate'];
@@ -74,23 +74,32 @@ const UNCATEGORIZED = 'uncategorized';
 const lutLook = (entry: LutEntry): Look => ({
   id: entry.path,
   name: entry.name.replace(/\.[^.]+$/, ''),
-  kind: entry.isBuiltIn ? 'film' : 'lut',
+  kind: 'lut',
   lut: entry,
 });
 
+const presetLook = (preset: Preset): Look => ({
+  id: preset.id,
+  name: preset.name,
+  kind: 'preset',
+  preset: preset.adjustments,
+  own: true,
+});
+
+/** Their list: presets at the top level as `{ preset }`, folders as `{ folder }` holding plain presets. */
 function userGroups(items: UserPreset[]): { root: Look[]; folders: Group[] } {
-  const look = (item: UserPreset): Look | null =>
-    item.preset
-      ? { id: item.preset.id, name: item.preset.name, kind: 'preset', preset: item.preset.adjustments, own: true }
-      : null;
-  const root = items.map(look).filter((l): l is Look => l !== null);
-  const folders = items
-    .filter((item) => item.folder)
-    .map((item) => ({
-      id: `folder:${item.folder?.id}`,
-      name: item.folder?.name ?? '',
-      looks: ((item.folder?.children ?? []) as UserPreset[]).map(look).filter((l): l is Look => l !== null),
-    }));
+  const root = items.flatMap((item) => (item.preset ? [presetLook(item.preset)] : []));
+  const folders = items.flatMap((item) =>
+    item.folder
+      ? [
+          {
+            id: `folder:${item.folder.id}`,
+            name: item.folder.name ?? '',
+            looks: ((item.folder.children ?? []) as Preset[]).map(presetLook),
+          },
+        ]
+      : [],
+  );
   return { root, folders };
 }
 
@@ -105,7 +114,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const { presets: userItems, importPresetsFromFiles, deleteItem } = usePresets(adjustments);
   const [chip, setChip] = useState<Chip>('all');
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<Set<string>>(() => new Set(['film', 'presets', 'mine', 'myluts']));
+  const [open, setOpen] = useState<Set<string>>(() => new Set(['presets', 'mine', 'luts', 'lib:film']));
   const hover = useRef<number | undefined>(undefined);
 
   useEffect(() => {
@@ -122,7 +131,6 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 
   const sections = useMemo(() => {
     const mine = userGroups(userItems);
-    const film: Group = { id: 'film', name: t('looksGroupFilm'), looks: luts.filter((l) => l.isBuiltIn).map(lutLook) };
     const presets: Group = {
       id: 'presets',
       name: t('looksGroupPresets'),
@@ -134,24 +142,30 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       })),
     };
     const own: Group = { id: 'mine', name: t('looksGroupMine'), looks: mine.root, folders: mine.folders };
-    const myLuts: Group = {
-      id: 'myluts',
-      name: t('looksGroupMyLuts'),
+    // The film looks are LUTs that come with the app: the first folder of LUTs.
+    const lutGroup: Group = {
+      id: 'luts',
+      name: t('looksGroupLuts'),
       looks: [],
-      folders: [{ id: UNCATEGORIZED, name: t('looksImported') }, ...libraries]
-        .map((library) => ({
+      folders: [
+        { id: 'lib:film', name: t('looksGroupFilm'), looks: luts.filter((l) => l.isBuiltIn).map(lutLook) },
+        // Their list may hold the uncategorized library itself: once, named Imported.
+        ...[
+          { id: UNCATEGORIZED, name: t('looksImported') },
+          ...libraries.filter((library) => library.id !== UNCATEGORIZED),
+        ].map((library) => ({
           id: `lib:${library.id}`,
           name: library.name,
           looks: luts.filter((l) => !l.isBuiltIn && (l.libraryId ?? UNCATEGORIZED) === library.id).map(lutLook),
-        }))
-        .filter((group) => group.looks.length > 0),
+        })),
+      ].filter((group) => group.looks.length > 0),
     };
-    return { film, presets, own, myLuts };
+    return { presets, own, lutGroup };
   }, [builtin, luts, libraries, userItems, t]);
 
   const everyLook = useMemo(() => {
     const flat = (g: Group): Look[] => [...g.looks, ...(g.folders ?? []).flatMap(flat)];
-    return [sections.film, sections.presets, sections.own, sections.myLuts].flatMap(flat);
+    return [sections.presets, sections.own, sections.lutGroup].flatMap(flat);
   }, [sections]);
 
   // ------------------------------------------------------------- actions
@@ -291,13 +305,11 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     : [];
   const shownSections = flatList
     ? []
-    : chip === 'film'
-      ? [sections.film]
-      : chip === 'presets'
-        ? [sections.presets, sections.own]
-        : chip === 'luts'
-          ? [sections.myLuts]
-          : [sections.film, sections.presets, sections.own, sections.myLuts];
+    : chip === 'presets'
+      ? [sections.presets, sections.own]
+      : chip === 'luts'
+        ? [sections.lutGroup]
+        : [sections.presets, sections.own, sections.lutGroup];
 
   // Swatches only for what is on screen: a group asks for its own when it opens.
   const visible = flatList
@@ -411,7 +423,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
                   }
                 />
                 <span className="agm-look-name">{(adjustments.lutName ?? '').replace(/\.[^.]+$/, '')}</span>
-                <span className="agm-kind">{t(lutOn?.isBuiltIn ? 'looksKindFilm' : 'looksKindLut')}</span>
+                <span className="agm-kind">{t('looksKindLut')}</span>
                 <button className="agm-btn" onClick={clearLut} data-tooltip={t('looksTakeOff')}>
                   <X size={12} />
                 </button>
@@ -490,7 +502,6 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 }
 
 function inChip(look: Look, chip: Chip): boolean {
-  if (chip === 'film') return look.kind === 'film';
   if (chip === 'presets') return look.kind === 'preset';
   if (chip === 'luts') return look.kind === 'lut';
   return true;
