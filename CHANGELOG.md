@@ -28,7 +28,8 @@ Newest first.
     aperture, shutter and focal length; clicking it, or I, shows the photo's whole metadata
     at the panel's full height, and any tab goes back. In the grid, Edit shows the selected photo's
     settings read-only; Enter opens it. The Crop tab's panes (Aspect Ratio, Rotation,
-    Orientation, Transform, Lens Correction) fold by their headings and stay folded.
+    Orientation, Transform, Lens Correction) fold by their headings and stay folded; the
+    Transform and Lens Correction cards inside them no longer fold a second time.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes
     it and Ctrl+, opens it.
@@ -69,7 +70,9 @@ Newest first.
   preset of the photo's settings, or a LUT file of them through the Export tab set to CUBE.
   A preset of yours has its whole menu on a right-click: Configure, Update with the current
   settings, Duplicate, Move to a folder, Export and Delete; a folder Rename, Export and
-  Delete. In the grid, a click puts a look on every selected photo, and the note that says
+  Delete. A LUT folder renames and deletes the same way, a LUT moves to another folder, and
+  New LUT folder is in the ⋯ menu. LUTs are listed by name with numbers in order (Portrait2
+  before Portrait10). In the grid, a click puts a look on every selected photo, and the note that says
   so has an Undo. `argentum/looks/`,
   `mods/looks.rs`, `resources/presets/rawmakase` (MIT, `assets/presets` @ `7c3c81a`).
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >

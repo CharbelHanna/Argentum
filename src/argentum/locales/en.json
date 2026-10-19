@@ -284,5 +284,6 @@
   "snapRename": "Rename",
   "snapUpdate": "Update with the current settings",
   "snapDelete": "Delete",
-  "snapYesterday": "yesterday"
+  "snapYesterday": "yesterday",
+  "looksNewLutFolder": "New LUT folder…"
 }

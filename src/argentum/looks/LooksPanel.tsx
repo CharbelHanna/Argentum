@@ -46,6 +46,8 @@ type Modal =
   | { kind: 'configure'; preset: Preset }
   | { kind: 'newFolder' }
   | { kind: 'renameFolder'; id: string; name: string }
+  | { kind: 'newLutFolder' }
+  | { kind: 'renameLutFolder'; id: string; name: string }
   | null;
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
@@ -90,6 +92,9 @@ const PRESET_FILES = ['rrpreset', 'xmp', 'lrtemplate'];
 const PREVIEW_AFTER_MS = 120;
 const SWATCH_PX = 72;
 const UNCATEGORIZED = 'uncategorized';
+
+/** Portrait2 before Portrait10. */
+const byName = (a: Look, b: Look) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 
 const lutLook = (entry: LutEntry): Look => ({
   id: entry.path,
@@ -181,7 +186,14 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       name: t('looksGroupLuts'),
       looks: [],
       folders: [
-        { id: 'lib:film', name: t('looksGroupFilm'), looks: luts.filter((l) => l.isBuiltIn).map(lutLook) },
+        {
+          id: 'lib:film',
+          name: t('looksGroupFilm'),
+          looks: luts
+            .filter((l) => l.isBuiltIn)
+            .map(lutLook)
+            .sort(byName),
+        },
         // Their list may hold the uncategorized library itself: once, named Imported.
         ...[
           { id: UNCATEGORIZED, name: t('looksImported') },
@@ -189,7 +201,10 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         ].map((library) => ({
           id: `lib:${library.id}`,
           name: library.name,
-          looks: luts.filter((l) => !l.isBuiltIn && (l.libraryId ?? UNCATEGORIZED) === library.id).map(lutLook),
+          looks: luts
+            .filter((l) => !l.isBuiltIn && (l.libraryId ?? UNCATEGORIZED) === library.id)
+            .map(lutLook)
+            .sort(byName),
         })),
       ].filter((group) => group.looks.length > 0),
     };
@@ -395,6 +410,19 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
     if (look.lut && !look.lut.isBuiltIn) {
       const path = look.lut.path;
+      const here = look.lut.libraryId ?? UNCATEGORIZED;
+      options.push({
+        label: t('looksMoveTo'),
+        submenu: lutFolders
+          .filter((library) => library.id !== here)
+          .map((library) => ({
+            label: library.name,
+            onClick: () =>
+              invoke('set_lut_library', { path, libraryId: library.id })
+                .then(refreshLuts)
+                .catch((err) => toast.error(String(err))),
+          })),
+      });
       options.push({
         label: t('looksDelete'),
         isDestructive: true,
@@ -405,6 +433,34 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       });
     }
     showContextMenu(event.clientX, event.clientY, options);
+  };
+
+  /** The LUT folders a LUT can be in: Imported first, then the user's. */
+  const lutFolders = [
+    { id: UNCATEGORIZED, name: t('looksImported') },
+    ...libraries.filter((library) => library.id !== UNCATEGORIZED),
+  ];
+
+  const lutFolderMenu = (event: MouseEvent, groupId: string) => {
+    const library = libraries.find((l) => `lib:${l.id}` === groupId && l.id !== UNCATEGORIZED);
+    if (!library) return;
+    event.preventDefault();
+    event.stopPropagation();
+    showContextMenu(event.clientX, event.clientY, [
+      {
+        label: t('looksRenameFolder'),
+        onClick: () => setModal({ kind: 'renameLutFolder', id: library.id, name: library.name }),
+      },
+      { type: OPTION_SEPARATOR },
+      {
+        label: t('looksDelete'),
+        isDestructive: true,
+        onClick: () =>
+          invoke('delete_lut_library', { libraryId: library.id })
+            .then(refreshLuts)
+            .catch((err) => toast.error(String(err))),
+      },
+    ]);
   };
 
   const folderMenu = (event: MouseEvent, groupId: string) => {
@@ -441,6 +497,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     const rect = event.currentTarget.getBoundingClientRect();
     showContextMenu(rect.left, rect.bottom, [
       { label: t('looksNewFolder'), onClick: () => setModal({ kind: 'newFolder' }) },
+      { label: t('looksNewLutFolder'), onClick: () => setModal({ kind: 'newLutFolder' }) },
       { label: t('looksCommunity'), onClick: () => useUIStore.getState().setUI({ activeView: 'community' }) },
     ]);
   };
@@ -512,7 +569,13 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     <div
       className={folder ? 'agm-look-folder' : 'agm-sec-head'}
       onClick={() => toggle(group.id)}
-      onContextMenu={group.id.startsWith('folder:') ? (e) => folderMenu(e, group.id) : undefined}
+      onContextMenu={
+        group.id.startsWith('folder:')
+          ? (e) => folderMenu(e, group.id)
+          : group.id.startsWith('lib:')
+            ? (e) => lutFolderMenu(e, group.id)
+            : undefined
+      }
     >
       {open.has(group.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
       <span className="min-w-0 truncate">{group.name}</span>
@@ -664,6 +727,30 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
             configurePreset(modal.preset.id, name, includeMasks, includeCropTransform, presetType);
           } else {
             addPreset(name, null, includeMasks, includeCropTransform, presetType);
+          }
+          setModal(null);
+        }}
+      />
+      <CreateFolderModal
+        isOpen={modal?.kind === 'newLutFolder'}
+        title={t('looksNewLutFolder')}
+        onClose={() => setModal(null)}
+        onSave={(name) => {
+          invoke('create_lut_library', { name })
+            .then(refreshLuts)
+            .catch((err) => toast.error(String(err)));
+          setModal(null);
+        }}
+      />
+      <RenameFolderModal
+        isOpen={modal?.kind === 'renameLutFolder'}
+        currentName={modal?.kind === 'renameLutFolder' ? modal.name : ''}
+        onClose={() => setModal(null)}
+        onSave={(name) => {
+          if (modal?.kind === 'renameLutFolder') {
+            invoke('rename_lut_library', { libraryId: modal.id, name })
+              .then(refreshLuts)
+              .catch((err) => toast.error(String(err)));
           }
           setModal(null);
         }}

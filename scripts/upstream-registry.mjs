@@ -350,8 +350,9 @@ export const REGISTRY = [
         note: 'A look clicked in the grid goes onto the selected photos as their paste does; the '
           + 'Undo puts back each photo\'s own values for the keys the look changed (load_metadata).' },
       { file: 'src-tauri/src/lut_processing.rs', symbol: 'list_luts', how: 'calls',
-        note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut and '
-          + 'generate_lut_previews for the swatches.' },
+        note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut, '
+          + 'set_lut_library (Move to), create_lut_library, rename_lut_library, delete_lut_library, '
+          + 'and generate_lut_previews for the swatches.' },
       { file: 'src-tauri/src/lib.rs', symbol: 'generate_preset_preview', how: 'calls',
         note: 'A preset\'s swatch, rendered on the app\'s defaults as today\'s presets panel does.' },
       { file: 'src-tauri/src/preset_converter.rs', symbol: 'convert_xmp_to_preset', how: 'calls',
@@ -2098,7 +2099,9 @@ export const REGISTRY = [
       { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
         note: 'Its five panes (Aspect Ratio, Rotation, Orientation, Transform, Lens Correction) are '
           + 'FoldingPane.tsx: their heading with a chevron, folding the pane, the buttons beside it '
-          + 'kept. A sixth pane of theirs would not fold until added there.' },
+          + 'kept. A sixth pane of theirs would not fold until added there. The Transform and Lens '
+          + 'Correction cards no longer fold inside their panes: isTransformExpanded and isLensExpanded '
+          + 'are always true, and their cropSectionsState is no longer read.' },
       { file: 'src/components/panel/right/MetadataPanel.tsx', symbol: 'photo', how: 'extends',
         note: 'Optional prop: a photo not open in the editor, the grid\'s selection, shown from the '
           + 'path and EXIF the library already read. Without it, the open photo as before.' },
