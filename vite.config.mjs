@@ -23,6 +23,7 @@ export default defineConfig(async () => ({
     watch: {
       ignored: ['**/src-tauri/**', '**/.claude/**'], // Argentum: agents' worktrees live under .claude/
     },
+    warmup: { clientFiles: ['./src/main.tsx'] }, // Argentum: transform the app while cargo builds
   },
 
   envPrefix: ['VITE_', 'TAURI_ENV_*'],
