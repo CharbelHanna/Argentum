@@ -80,6 +80,9 @@ export const OURS = [
   // Ours by creation too: upstream has no cargo config. It holds the dev
   // linker (registry entry fast-dev-builds).
   '.cargo/config.toml',
+  // Ours by creation: upstream ships no presets. The presets that come with
+  // the app, each source in its own folder with its licence (mods/looks.rs).
+  'src-tauri/resources/presets/',
 ];
 
 /**
