@@ -34,6 +34,7 @@ import clsx from 'clsx';
 import { CustomAspectRatio, Orientation } from '../../ui/AppProperties';
 import { motion, AnimatePresence } from 'framer-motion';
 import Text from '../../ui/Text';
+import FoldingPane from '../../../argentum/FoldingPane'; // Argentum: the panes fold by their headings
 import Slider from '../../ui/Slider';
 import Switch from '../../ui/Switch';
 import Dropdown from '../../ui/Dropdown';
@@ -852,10 +853,11 @@ export default function CropPanel() {
       <div className="grow overflow-y-auto p-3 space-y-6 custom-scrollbar">
         {selectedImage ? (
           <>
-            <div className="space-y-4">
-              <Text variant={TextVariants.heading} className="mb-2 flex items-center justify-between">
-                {t('editor.crop.aspectRatioHeading')}
-                <div className="flex items-center gap-2">
+            <FoldingPane
+              id="crop.aspect"
+              title={t('editor.crop.aspectRatioHeading')}
+              actions={
+                <>
                   <button
                     className="p-1.5 rounded-md hover:bg-surface transition-colors"
                     onClick={handleOverlayCycle}
@@ -875,8 +877,9 @@ export default function CropPanel() {
                       <RectangleHorizontal size={16} />
                     )}
                   </button>
-                </div>
-              </Text>
+                </>
+              }
+            >
               <div className="grid grid-cols-3 gap-2">
                 {ALL_PRESETS.map((preset: CropPreset, index: number) => {
                   const savedIndex = index - PRESETS.length;
@@ -979,12 +982,9 @@ export default function CropPanel() {
                   </div>
                 </div>
               </div>
-            </div>
+            </FoldingPane>
 
-            <div className="space-y-4">
-              <Text variant={TextVariants.heading} className="mb-2">
-                {t('editor.crop.rotationHeading')}
-              </Text>
+            <FoldingPane id="crop.rotation" title={t('editor.crop.rotationHeading')}>
               <div className="bg-surface px-4 pt-3 pb-4 rounded-lg">
                 <Slider
                   label={
@@ -1025,12 +1025,9 @@ export default function CropPanel() {
                   onDragStateChange={handleDragStateChange}
                 />
               </div>
-            </div>
+            </FoldingPane>
 
-            <div className="space-y-4">
-              <Text variant={TextVariants.heading} className="mb-2">
-                {t('editor.crop.orientationHeading')}
-              </Text>
+            <FoldingPane id="crop.orientation" title={t('editor.crop.orientationHeading')}>
               <div className="grid grid-cols-2 gap-2">
                 <motion.div
                   className="flex flex-col items-center justify-center p-3 cursor-pointer rounded-lg transition-colors bg-surface text-text-secondary hover:bg-card-active hover:text-text-primary"
@@ -1088,12 +1085,9 @@ export default function CropPanel() {
                   <span className="text-xs mt-2 transition-none">{t('editor.crop.labels.flipVert')}</span>
                 </motion.div>
               </div>
-            </div>
+            </FoldingPane>
 
-            <div className="space-y-4">
-              <Text variant={TextVariants.heading} className="mb-2">
-                {t('modals.transform.title')}
-              </Text>
+            <FoldingPane id="crop.transform" title={t('modals.transform.title')}>
               <div className="bg-surface rounded-xl overflow-hidden" onContextMenu={handleTransformContextMenu}>
                 <button
                   onClick={() => toggleSection('transform')}
@@ -1366,12 +1360,9 @@ export default function CropPanel() {
                   )}
                 </AnimatePresence>
               </div>
-            </div>
+            </FoldingPane>
 
-            <div className="space-y-4">
-              <Text variant={TextVariants.heading} className="mb-2">
-                {t('modals.lensCorrection.title')}
-              </Text>
+            <FoldingPane id="crop.lens" title={t('modals.lensCorrection.title')}>
               <div className="bg-surface rounded-xl overflow-hidden mb-6" onContextMenu={handleLensContextMenu}>
                 <button
                   onClick={() => toggleSection('lens')}
@@ -1644,7 +1635,7 @@ export default function CropPanel() {
                   )}
                 </AnimatePresence>
               </div>
-            </div>
+            </FoldingPane>
           </>
         ) : (
           <div className="flex items-center justify-center h-full">
