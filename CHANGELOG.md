@@ -108,8 +108,8 @@ Newest first.
     `7c3c81ab` (MIT, `mods/dng_baseline.tsv`). A body not listed takes its make's
     median, then the table's. Below a Sony body's lowest native ISO a stop comes
     off, as in Camera Raw. Not read yet: Canon Highlight Tone Priority and
-    Fujifilm DR modes; and the values were measured against LibRaw's white level,
-    not rawler's.
+    Fujifilm DR modes. Canon's values were measured against LibRaw's white level,
+    which rawler shares; the other makes follow RAWmakase 0.4.0 (see Changed).
   - The tone curve is the DNG SDK's ACR3 default curve as RawTherapee ships it,
     `rtengine/dcp.cc` @ `ca9234b1` (Adobe DNG SDK licence, `docs/licenses/`).
     RGBTone is ported from RawTherapee `rtengine/curves.h` @ `46b92d8e`
@@ -126,6 +126,14 @@ Newest first.
 
 ### Changed
 
+- **DNG Standard's exposure offsets follow RAWmakase 0.4.0 for Nikon, Olympus, OM Digital
+  and the Panasonic GH5S.** 42 bodies. RAWmakase stopped adding a correction for LibRaw's
+  white level when it began reading Adobe's levels, and rawler already reads Adobe's
+  levels for these makes, so the old values were 0.05 to 0.1 EV too bright (about 1.1 EV
+  for the GH5S at ISO 800). Canon keeps its values: rawler takes the file's specular
+  white level for Canon, as LibRaw did. `mods/dng_baseline.tsv`, from RAWmakase
+  `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT). Worked out from the two tables; not
+  yet checked on rendered photos.
 - **Copy settings, Paste and presets carry the camera profile, the RAW rendering and
   Argentum's sharpening.** They were left behind before. The Copy & Paste Settings dialog
   lists the first two as Camera Profile & RAW Rendering, and the sharpening with

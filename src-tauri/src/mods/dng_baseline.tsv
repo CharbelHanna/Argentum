@@ -8,9 +8,20 @@
 # Names are LibRaw's, matched to rawler's in letters and digits only.
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
-# Adobe Standard, adjusted by RAWmakase for the difference between Adobe's and
-# LibRaw's white level. Argentum decodes with rawler, whose white level for a
-# body may differ from LibRaw's; that has not been measured here.
+# Adobe Standard, adjusted for the difference between Adobe's white level and the
+# decoder's. The first version of this table carried RAWmakase's adjustment for
+# LibRaw's white level. Argentum decodes with rawler, whose white level differs
+# from LibRaw's by make:
+#
+#   Nikon, Olympus, OM Digital, Panasonic DC-GH5S: rawler's TOML whitepoint is
+#     Adobe's, so these 42 rows are Adobe's own BaselineExposure, from RAWmakase
+#     data/cameras.toml @ a8c5d6d7 (v0.4.0, 2026-10-19), which dropped the LibRaw
+#     adjustment when it began reading Adobe's levels.
+#   Canon: rawler takes the file's SpecularWhiteLevel, as LibRaw did (Adobe takes
+#     NormalWhiteLevel, by ISO speed), so Canon keeps the 7c3c81ab values.
+#   Every other make: unchanged between the two RAWmakase versions.
+#
+# From the tables only; no photo has been rendered to check these yet.
 #
 # Copyright (c) 2026 RAWmakase contributors. MIT licence, in full in
 # docs/licenses/RAWmakase-MIT.txt:
@@ -130,49 +141,49 @@ Leica	V-Lux 5	0
 Nikon	COOLPIX A1000	-0.1	
 Nikon	COOLPIX P1100	-0.3	
 Nikon	COOLPIX P950	-0.3	
-Nikon	D3400	0.45	
-Nikon	D3500	0.25	
-Nikon	D5	0.45	
-Nikon	D500	0.3	
-Nikon	D5600	0.15	
-Nikon	D6	0.35	
-Nikon	D610	0.45	
-Nikon	D7200	0.4	
-Nikon	D750	0.2	
-Nikon	D7500	0.45	
-Nikon	D780	0.3	
-Nikon	D850	0.3	
-Nikon	Df	0.35	
-Nikon	Z 30	0.35	
-Nikon	Z 5	0.3	
-Nikon	Z 50	0.45	
-Nikon	Z 6	0.3	
-Nikon	Z 6_2	0.3	
-Nikon	Z 7	0.35	
-Nikon	Z 7_2	0.25	
-Nikon	Z 8	0.25	
-Nikon	Z 9	0.25	
-Nikon	Z f	0.25	
-Nikon	Z fc	0.3	
-Nikon	Z50_2	0.3	
-Nikon	Z5_2	0.25	
-Nikon	Z6_3	0.3	
-Olympus	E-M10 Mark III	0.55	
-Olympus	E-M10MarkIIIS|E-M10 Mark IIIs	0.55	
-Olympus	E-M10MarkIV|E-M10 Mark IV	0.55	
-Olympus	E-M1MarkII|E-M1 Mark II	0.85	
-Olympus	E-M1MarkIII|E-M1 Mark III	0.35	
-Olympus	E-M1X	0.35	
-Olympus	E-M5MarkIII|E-M5 Mark III	0.35	
-Olympus	E-P7	0.35	
-Olympus	E-PL10	0.55	
-Olympus	E-PL8	0.55	
-Olympus	E-PL9	0.55	
-Olympus	PEN-F	0.6	
-OM Digital	OM-1	0.4	
+Nikon	D3400	0.35	
+Nikon	D3500	0.2	
+Nikon	D5	0.35	
+Nikon	D500	0.2	
+Nikon	D5600	0.1	
+Nikon	D6	0.25	
+Nikon	D610	0.35	
+Nikon	D7200	0.35	
+Nikon	D750	0.1	
+Nikon	D7500	0.35	
+Nikon	D780	0.2	
+Nikon	D850	0.2	
+Nikon	Df	0.25	
+Nikon	Z 30	0.3	
+Nikon	Z 5	0.2	
+Nikon	Z 50	0.35	
+Nikon	Z 6	0.2	
+Nikon	Z 6_2	0.2	
+Nikon	Z 7	0.25	
+Nikon	Z 7_2	0.15	
+Nikon	Z 8	0.2	
+Nikon	Z 9	0.2	
+Nikon	Z f	0.2	
+Nikon	Z fc	0.25	
+Nikon	Z50_2	0.25	
+Nikon	Z5_2	0.2	
+Nikon	Z6_3	0.25	
+Olympus	E-M10 Mark III	0.5	
+Olympus	E-M10MarkIIIS|E-M10 Mark IIIs	0.5	
+Olympus	E-M10MarkIV|E-M10 Mark IV	0.5	
+Olympus	E-M1MarkII|E-M1 Mark II	0.8	
+Olympus	E-M1MarkIII|E-M1 Mark III	0.3	
+Olympus	E-M1X	0.3	
+Olympus	E-M5MarkIII|E-M5 Mark III	0.3	
+Olympus	E-P7	0.3	
+Olympus	E-PL10	0.5	
+Olympus	E-PL8	0.5	
+Olympus	E-PL9	0.5	
+Olympus	PEN-F	0.55	
+OM Digital	OM-1	0.35	
 OM Digital	OM-1MarkII|OM-1 Mark II	0.35	
 OM Digital	OM-3	0.35	
-OM Digital	OM-5	0.35	
+OM Digital	OM-5	0.3	
 OM Digital	OM-5MarkII|OM-5 Mark II	0.3	
 OM Digital	TG-7	-0.2	
 Panasonic	DC-G100	0.25	
@@ -182,7 +193,7 @@ Panasonic	DC-G95	0.25
 Panasonic	DC-G9M2	0	
 Panasonic	DC-GH5	0.3	
 Panasonic	DC-GH5M2	0.75	
-Panasonic	DC-GH5S	0.35	
+Panasonic	DC-GH5S	-0.75	
 Panasonic	DC-GH6	0	
 Panasonic	DC-GH7	0.5	
 Panasonic	DC-GX9	0.25	
