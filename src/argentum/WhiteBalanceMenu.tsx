@@ -60,15 +60,12 @@ import { Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { useAgTranslation } from './locales';
 import { useEditorStore } from '../store/useEditorStore';
-import { useSettingsStore } from '../store/useSettingsStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { Adjustments } from '../utils/adjustments';
+import { autoChanges, type AutoMarker } from './autoWhiteBalance';
 import {
-  getWhiteBalanceMode,
   resolveWhiteBalance,
-  toRelativeWhiteBalance,
   WhiteBalance,
-  WhiteBalanceMode,
   withKelvinWhiteBalance,
   withRelativeWhiteBalance,
 } from '../utils/whiteBalance';
@@ -84,7 +81,7 @@ interface AutoWhiteBalanceResult {
 }
 
 /** Their adjustments, plus the white balance Auto last found. */
-type WithAuto = Adjustments & { whiteBalanceAuto?: WhiteBalance };
+type WithAuto = Adjustments & { whiteBalanceAuto?: AutoMarker };
 
 type Choice = 'asShot' | 'auto' | 'daylight' | 'cloudy' | 'shade' | 'tungsten' | 'fluorescent' | 'flash' | 'custom';
 
@@ -151,7 +148,6 @@ export default function WhiteBalanceMenu() {
   // there is no parent to pass anything down. See Argentum.tsx.
   const adjustments = useEditorStore((s) => s.adjustments) as WithAuto;
   const asShot = useEditorStore((s) => s.selectedImage?.asShotWhiteBalance);
-  const appSettings = useSettingsStore((s) => s.appSettings);
   const { setAdjustments } = useEditorActions();
   const t = useAgTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -275,14 +271,8 @@ export default function WhiteBalanceMenu() {
       if (useEditorStore.getState().selectedImage?.path !== path) {
         return;
       }
-      const picked = result.whiteBalance;
-      const isKelvin = getWhiteBalanceMode(appSettings) === WhiteBalanceMode.Kelvin;
-      setAdjustments((prev: WithAuto) => {
-        const next = isKelvin
-          ? withKelvinWhiteBalance(prev, picked)
-          : withRelativeWhiteBalance(prev, toRelativeWhiteBalance(asShot, picked));
-        return { ...next, whiteBalanceAuto: resolveWhiteBalance(asShot, next) };
-      });
+      // Named for this photo, so on another one it is measured again (autoWhiteBalance.ts).
+      setAdjustments((prev: WithAuto) => ({ ...prev, ...autoChanges(asShot, result.whiteBalance, path ?? '') }));
     } catch (err) {
       console.error('Auto white balance failed:', err);
     } finally {

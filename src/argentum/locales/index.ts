@@ -77,3 +77,6 @@ export function useAgTranslation() {
   const { t } = useTranslation(AG_NS as never);
   return (key: AgKey): string => t(key as never) as string;
 }
+
+/** The same lookup outside a component, for code that runs on an event. */
+export const agText = (key: AgKey): string => i18n.t(key as never, { ns: AG_NS }) as string;

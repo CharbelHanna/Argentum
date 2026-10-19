@@ -117,9 +117,14 @@ Newest first.
   is left out there, since a profile made for one body renders another wrong. The RAW
   rendering travels without the curve fitted to the photo it came from: each photo
   fits its own when opened, and a curve left from another rendering is no longer used.
-  Auto white balance is not carried: Auto measures the photo it is pressed on, so
-  pasting it would hand that photo's numbers to the rest. `mods/copy_keys.rs`,
-  `mods/raw_tone.rs`, `mods/profile_correction.rs`.
+  Auto white balance is carried too, and measured again on each photo it lands on: Auto
+  measures the photo it is pressed on, so its numbers alone would give the rest that
+  photo's light. Each photo pasted onto is decoded and measured in the background, a note
+  counting them, and gets its own Auto; the open photo measures its own as soon as it holds
+  one from elsewhere, which also covers a preset kept with Auto and any photo a paste
+  missed. An Auto set before this version is taken as its photo's own; press Auto again on
+  the photo to copy from. `mods/copy_keys.rs`, `mods/raw_tone.rs`,
+  `mods/profile_correction.rs`, `mods/auto_wb_photo.rs`, `argentum/autoWhiteBalance.ts`.
 - **The Edit panel follows the order a photo is corrected in.** A new Profile section
   comes first: the camera profile, the RAW rendering, the tone mapper (Basic or AgX)
   and highlight recovery, which were a RAW card inside Color and a switch inside
