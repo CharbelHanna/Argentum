@@ -55,7 +55,11 @@ use std::path::{Path, PathBuf};
 ///    (`mods/mask_falloff.rs`).
 /// 6. A RAW nobody has edited starts in DNG Standard, with its Sharpen
 ///    (`mods/dng_standard.rs`, `raw_tone::mode_of`).
-pub const PIPELINE: u32 = 7;
+/// 7. Inpainted areas sit where they were painted. Their pixels are stored at
+///    full size, and were pasted unscaled onto the half-size RAW a thumbnail
+///    decodes; a photo with any now decodes at full size for its thumbnail
+///    (`image_loader::load_and_composite`).
+pub const PIPELINE: u32 = 8;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

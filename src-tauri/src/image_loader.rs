@@ -74,6 +74,7 @@ pub fn load_and_composite(
     settings: &AppSettings,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<DynamicImage> {
+    let use_fast_raw_dev = use_fast_raw_dev && adjustments["aiPatches"][0].is_null(); // Argentum
     let base_image =
         load_base_image_from_bytes(base_image, path, use_fast_raw_dev, settings, cancel_token)?;
     composite_patches_on_image(&base_image, adjustments)
@@ -129,7 +130,6 @@ pub fn load_base_image_from_bytes(
     }
 
     if is_raw_file(path_for_ext_check) {
-        let owned_path = path_for_ext_check.to_string(); // Argentum
         match panic::catch_unwind(move || {
             crate::raw_processing::develop_raw_image(
                 bytes,
@@ -137,7 +137,7 @@ pub fn load_base_image_from_bytes(
                 highlight_compression,
                 linear_mode,
                 cancel_token,
-                Some(&owned_path), // Argentum
+                Some(path_for_ext_check), // Argentum
             )
         }) {
             Ok(Ok(mut image)) => {
