@@ -59,9 +59,10 @@ Newest first.
   `7c3c81a`), which keeps them in its catalog. `argentum/snapshots/`, `mods/snapshots.rs`.
 - **The Looks tab: presets, LUTs and film looks in one place.** Search, Import for every
   format (.rrpreset, .xmp, .lrtemplate, .cube, .3dl, .png, .jpg, .tiff), and chips for
-  All, Favourites, Presets and LUTs. The groups are Presets (20 that come with Argentum,
-  from RAWmakase, in Color, Creative, Curve, Grain and Vignetting), My presets with their
-  folders, and LUTs, whose first folder is Film, the six film LUTs. Pointing at a look shows it on the photo; a
+  All, Favourites, Presets and LUTs. The groups are Presets · RAWmakase (20 that come with
+  Argentum, in Color, Creative, Curve, Grain and Vignetting), My presets with their
+  folders, and LUTs, whose first folder is Film · spektrafilm, the six film LUTs by Andrea
+  Volpato (CC BY-SA 4.0) that RapidRAW ships; the names say where each comes from. Pointing at a look shows it on the photo; a
   click puts it on and a click on the one on takes it off; the star keeps it in
   Favourites. On this photo lists what is on, with a LUT's Strength and a preset's
   Amount (0 to 200%). Amount now starts from the photo as it was and moves only what

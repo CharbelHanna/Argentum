@@ -170,6 +170,9 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 
   const sections = useMemo(() => {
     const mine = userGroups(userItems);
+    // The shipped looks are named with where they come from: these presets are
+    // RAWmakase's (resources/presets/rawmakase), the film LUTs spektrafilm's.
+    // The user's own stay unnamed, under My presets.
     const presets: Group = {
       id: 'presets',
       name: t('looksGroupPresets'),
