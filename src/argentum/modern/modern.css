@@ -1458,3 +1458,65 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 .agm-star.agm-on svg {
   fill: currentColor;
 }
+
+/* --------------------------------------------------------------- snapshots */
+
+/* Snapshots, above History (argentum/snapshots): rows like History's. */
+.agm-snapshots {
+  flex: none;
+  border-top: 1px solid var(--agm-line);
+}
+
+.agm-snapshots-body {
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+
+.agm-snap {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  color: var(--agm-text);
+  font-size: calc(12px * var(--agm-text-scale, 1));
+  cursor: pointer;
+}
+
+.agm-snap:hover {
+  background: var(--agm-hover);
+}
+
+.agm-snap.agm-dim {
+  color: var(--agm-dim);
+  cursor: default;
+}
+
+.agm-snap.agm-dim:hover {
+  background: transparent;
+}
+
+.agm-snap-name {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agm-snap-when {
+  flex: none;
+  color: var(--agm-dim);
+  font-size: calc(10.5px * var(--agm-text-scale, 1));
+}
+
+.agm-snap-field {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--agm-surface);
+  color: var(--agm-text);
+  outline: 1px solid var(--agm-marker);
+}

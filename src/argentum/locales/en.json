@@ -276,5 +276,16 @@
   "looksUndo": "Undo",
   "looksUndone": "Put back as it was.",
   "looksSelectFirst": "Select photos in the grid first.",
-  "looksHintGrid": "Click a look to put it on the selected photos. Open one (Enter) to preview."
+  "looksHintGrid": "Click a look to put it on the selected photos. Open one (Enter) to preview.",
+  "snapTitle": "Snapshots",
+  "snapNew": "New snapshot of the photo as it is now (Ctrl+N)",
+  "snapEmpty": "+ keeps the photo as it is now.",
+  "snapGridNote": "Open the photo (Enter) to restore one.",
+  "snapRename": "Rename",
+  "snapUpdate": "Update with the current settings",
+  "snapDelete": "Delete",
+  "snapYesterday": "yesterday",
+  "looksNewLutFolder": "New LUT folder…",
+  "looksCopyToMine": "Copy to My presets",
+  "looksComesWithApp": "Comes with Argentum"
 }

@@ -282,6 +282,42 @@ export const REGISTRY = [
     keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
   },
   {
+    id: 'snapshots',
+    kind: 'feature',
+    what:
+      'Snapshots, in the Modern left column above History: named states of a photo\'s edit. + or '
+      + 'Ctrl+N keeps the photo as it is now and starts naming it; a click puts one back as a History '
+      + 'step; double-click renames; right-click renames, updates or deletes. Kept in the sidecar as '
+      + 'agSnapshots beside the edit, so undo never removes one. The line above the list drags its '
+      + 'height (snapshotsHeightPx in the layout). RAWmakase\'s behaviour '
+      + '(src/app/snapshots.rs @ 7c3c81a), kept in the sidecar because there is no catalog.',
+    ours: [
+      'src/argentum/snapshots/SnapshotsSection.tsx',
+      'src/argentum/snapshots/snapshotsStore.ts',
+      'src-tauri/src/mods/snapshots.rs',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'ImageMetadata', how: 'extends',
+        note: 'agSnapshots, an optional field beside adjustments. Their save of the edit '
+          + '(save_metadata_and_update_thumbnail) reads the sidecar and replaces only adjustments, '
+          + 'which is what keeps the snapshots; if it starts writing a fresh record, they are lost.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'load_sidecar', how: 'calls',
+        note: 'Snapshots are read and written through it, the rest of the sidecar kept as read.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'setAdjustments', how: 'calls',
+        note: 'A snapshot is put back through it, so it is a History step and Undo takes it off.' },
+      { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
+        note: 'A snapshot\'s edit is read the way a saved edit is, so one from an older version still applies.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/snapshots.rs #[cfg(test)]: kept beside the edit, the rest of the sidecar '
+        + 'untouched; deleting the last takes the field out.',
+      'Manual: open a photo, Ctrl+N, type a name, Enter. Change Exposure, click the snapshot: '
+        + 'Exposure is back; Ctrl+Z takes it off and the snapshot stays. Restart: still there. In '
+        + 'the grid the photo\'s snapshots show dimmed.',
+    ],
+    keywords: /snapshot/i,
+  },
+  {
     id: 'looks-tab',
     kind: 'feature',
     what:
@@ -315,8 +351,13 @@ export const REGISTRY = [
         note: 'A look clicked in the grid goes onto the selected photos as their paste does; the '
           + 'Undo puts back each photo\'s own values for the keys the look changed (load_metadata).' },
       { file: 'src-tauri/src/lut_processing.rs', symbol: 'list_luts', how: 'calls',
-        note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut and '
-          + 'generate_lut_previews for the swatches.' },
+        note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut, '
+          + 'set_lut_library (Move to), create_lut_library, rename_lut_library, delete_lut_library, '
+          + 'and generate_lut_previews for the swatches. Their uncategorized library cannot be '
+          + 'renamed, so renaming Imported creates a library and moves its LUTs there.' },
+      { file: 'src-tauri/src/file_management.rs', symbol: 'save_presets', how: 'calls',
+        note: 'Copy to My presets writes the user\'s list with the copied preset or group added, '
+          + 'then reloads it through usePresets.' },
       { file: 'src-tauri/src/lib.rs', symbol: 'generate_preset_preview', how: 'calls',
         note: 'A preset\'s swatch, rendered on the app\'s defaults as today\'s presets panel does.' },
       { file: 'src-tauri/src/preset_converter.rs', symbol: 'convert_xmp_to_preset', how: 'calls',
@@ -2063,7 +2104,9 @@ export const REGISTRY = [
       { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
         note: 'Its five panes (Aspect Ratio, Rotation, Orientation, Transform, Lens Correction) are '
           + 'FoldingPane.tsx: their heading with a chevron, folding the pane, the buttons beside it '
-          + 'kept. A sixth pane of theirs would not fold until added there.' },
+          + 'kept. A sixth pane of theirs would not fold until added there. The Transform and Lens '
+          + 'Correction cards no longer fold inside their panes: isTransformExpanded and isLensExpanded '
+          + 'are always true, and their cropSectionsState is no longer read.' },
       { file: 'src/components/panel/right/MetadataPanel.tsx', symbol: 'photo', how: 'extends',
         note: 'Optional prop: a photo not open in the editor, the grid\'s selection, shown from the '
           + 'path and EXIF the library already read. Without it, the open photo as before.' },

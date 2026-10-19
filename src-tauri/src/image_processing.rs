@@ -80,6 +80,14 @@ pub struct ImageMetadata {
     pub tags: Option<Vec<String>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub exif: Option<std::collections::HashMap<String, String>>,
+    /// Argentum: named states of the edit (mods/snapshots.rs), kept beside it
+    /// so an undo or a save of the edit leaves them alone.
+    #[serde(
+        rename = "agSnapshots",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ag_snapshots: Option<Vec<crate::mods::snapshots::Snapshot>>,
 }
 
 impl Default for ImageMetadata {
@@ -91,6 +99,7 @@ impl Default for ImageMetadata {
             adjustments: Value::Null,
             tags: None,
             exif: None,
+            ag_snapshots: None,
         }
     }
 }

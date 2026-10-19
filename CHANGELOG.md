@@ -28,7 +28,8 @@ Newest first.
     aperture, shutter and focal length; clicking it, or I, shows the photo's whole metadata
     at the panel's full height, and any tab goes back. In the grid, Edit shows the selected photo's
     settings read-only; Enter opens it. The Crop tab's panes (Aspect Ratio, Rotation,
-    Orientation, Transform, Lens Correction) fold by their headings and stay folded.
+    Orientation, Transform, Lens Correction) fold by their headings and stay folded; the
+    Transform and Lens Correction cards inside them no longer fold a second time.
   - There is no start screen: the window opens on the folder last open. Settings opens in
     the centre with its own sections, including AI and models, My Gear and About; Esc closes
     it and Ctrl+, opens it.
@@ -48,6 +49,14 @@ Newest first.
   - The folder tree's keys are adapted from Shoebox `src/components/Sidebar.tsx` @
     `bccfd70` (`nav`, `onFocus`, `onKey`); moving onto a folder with the arrows also opens
     it, as Explorer's tree does.
+- **Snapshots**, in the left column above History: + (or Ctrl+N) keeps the open photo as it
+  is now under a name you type; a click puts it back as a History step, so Undo takes it off
+  again; a double-click renames it; a right-click renames, updates or deletes it. Newest
+  first, with when each was made. They are kept in the photo's sidecar beside the edit
+  (`agSnapshots`), so undoing never removes one. In the grid the selected photo's show
+  read-only. The line above it drags to make the list taller or shorter, as History's does,
+  and the height is remembered. The behaviour is RAWmakase's (`src/app/snapshots.rs` @
+  `7c3c81a`), which keeps them in its catalog. `argentum/snapshots/`, `mods/snapshots.rs`.
 - **The Looks tab: presets, LUTs and film looks in one place.** Search, Import for every
   format (.rrpreset, .xmp, .lrtemplate, .cube, .3dl, .png, .jpg, .tiff), and chips for
   All, Favourites, Presets and LUTs. The groups are Presets (20 that come with Argentum,
@@ -62,7 +71,12 @@ Newest first.
   preset of the photo's settings, or a LUT file of them through the Export tab set to CUBE.
   A preset of yours has its whole menu on a right-click: Configure, Update with the current
   settings, Duplicate, Move to a folder, Export and Delete; a folder Rename, Export and
-  Delete. In the grid, a click puts a look on every selected photo, and the note that says
+  Delete. A LUT folder renames and deletes the same way, a LUT moves to another folder, and
+  New LUT folder is in the ⋯ menu. Renaming Imported moves its LUTs into a folder with the
+  new name, and the next import starts Imported again. What comes with the app (Film and
+  the preset groups) says so on a right-click, and a preset or a whole group copies into My
+  presets, where it can be renamed and changed. LUTs are listed by name with numbers in
+  order (Portrait2 before Portrait10). In the grid, a click puts a look on every selected photo, and the note that says
   so has an Undo. `argentum/looks/`,
   `mods/looks.rs`, `resources/presets/rawmakase` (MIT, `assets/presets` @ `7c3c81a`).
 - **DNG Standard, a RAW rendering in the style of Lightroom's default** (RAW >
