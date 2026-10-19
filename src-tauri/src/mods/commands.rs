@@ -404,6 +404,29 @@ pub fn set_modern_theme(theme: &str) -> Result<(), String> {
     )
 }
 
+/// The presets that come with the app, by group (mods/looks.rs).
+pub fn builtin_presets(app_handle: &tauri::AppHandle) -> Vec<crate::mods::looks::PresetGroup> {
+    use tauri::Manager;
+    app_handle
+        .path()
+        .resolve(
+            "resources/presets/rawmakase",
+            tauri::path::BaseDirectory::Resource,
+        )
+        .map(|dir| crate::mods::looks::builtin_presets(&dir))
+        .unwrap_or_default()
+}
+
+/// The starred looks' ids.
+pub fn looks_favourites() -> Result<Vec<String>, String> {
+    Ok(crate::mods::looks::favourites(profile_library()?))
+}
+
+/// Keep these as the starred looks.
+pub fn set_looks_favourites(ids: &[String]) -> Result<(), String> {
+    crate::mods::looks::save_favourites(profile_library()?, ids)
+}
+
 /// How large the panels' text is drawn. Normal until chosen.
 pub fn text_size() -> Result<crate::mods::editor_layout::TextSize, String> {
     Ok(crate::mods::editor_layout::text_size(profile_library()?))

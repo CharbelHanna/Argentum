@@ -1956,7 +1956,7 @@
         "negpy": "Per l'ispirazione dietro alla logica di conversione dei negativi.",
         "nind": "Per aver fornito i modelli AI che alimentano le capacità di riduzione del rumore AI in RapidRAW.",
         "rawler": "Per l'eccellente crate Rust che fornisce le basi per l'elaborazione dei file RAW in questo progetto.",
-        "rawmakase": "Per DNG Standard, l'aspetto con cui parte ogni RAW: lo scostamento di esposizione di ogni fotocamera dalla sua tabella delle fotocamere, e la resa e la nitidezza predefinite con cui vengono confrontate quelle di Argentum.",
+        "rawmakase": "Per DNG Standard, l'aspetto con cui parte ogni RAW: lo scostamento di esposizione di ogni fotocamera dalla sua tabella delle fotocamere, e la resa e la nitidezza predefinite con cui vengono confrontate quelle di Argentum. Anche i preset inclusi in Argentum (Color, Creative, Curve, Grain, Vignetting).",
         "sam2": "Per aver fornito il modello fondamentale usato per le funzionalità di rilevamento del soggetto tramite AI.",
         "spektrafilm": "Per le LUT di emulazione pellicola su base spettrale di Andrea Volpato, che alimentano le emulazioni integrate di RapidRAW. Concesse in licenza CC BY-SA 4.0.",
         "u2net": "Per aver fornito la robusta architettura usata per le funzionalità di rilevamento AI del cielo e del primo piano.",

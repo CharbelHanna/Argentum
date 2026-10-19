@@ -32,6 +32,9 @@ const INTO_BASIC = [
 /** The Profile section, ahead of the others. It has no eye: none of it can be turned off. */
 export const PROFILE_KEYS = ['cameraProfile', 'rawToneRendering', 'rawToneCurve', 'toneMapper'];
 
+/** The LUT, a look now (argentum/looks): no section's reset, copy or eye touches it. */
+const LUT_KEYS = ['lutData', 'lutIntensity', 'lutName', 'lutPath', 'lutSize', 'lutIsSceneReferred'];
+
 const without = (keys: string[], gone: string[]) => keys.filter((key) => !gone.includes(key));
 
 export const EDIT_SECTION_KEYS: Record<string, string[]> = {
@@ -39,11 +42,11 @@ export const EDIT_SECTION_KEYS: Record<string, string[]> = {
   curves: ADJUSTMENT_SECTIONS.curves,
   color: without(ADJUSTMENT_SECTIONS.color, INTO_BASIC),
   details: without(ADJUSTMENT_SECTIONS.details, INTO_BASIC),
-  effects: ADJUSTMENT_SECTIONS.effects,
+  effects: without(ADJUSTMENT_SECTIONS.effects, LUT_KEYS),
 };
 
-/** Their tools that left their section for Basic; the Customise menu no longer lists them there. */
-export const MOVED_TOOLS = ['whiteBalance', 'colorPresence', 'presence'];
+/** Their tools that left their section, for Basic or the Looks tab; the Customise menu no longer lists them. */
+export const MOVED_TOOLS = ['whiteBalance', 'colorPresence', 'presence', 'lut'];
 
 /** What `keys` start as on a new photo; a key with no starting value of theirs is cleared. */
 export function initialValues(keys: string[]): Partial<Adjustments> {

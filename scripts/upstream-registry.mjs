@@ -80,6 +80,9 @@ export const OURS = [
   // Ours by creation too: upstream has no cargo config. It holds the dev
   // linker (registry entry fast-dev-builds).
   '.cargo/config.toml',
+  // Ours by creation: upstream ships no presets. The presets that come with
+  // the app, each source in its own folder with its licence (mods/looks.rs).
+  'src-tauri/resources/presets/',
 ];
 
 /**
@@ -277,6 +280,54 @@ export const REGISTRY = [
         + 'Reset all: the profile goes back to Built-in.',
     ],
     keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
+  },
+  {
+    id: 'looks-tab',
+    kind: 'feature',
+    what:
+      'The Looks tab: presets, LUTs and film looks in one list, with search, chips (All, Favourites, '
+      + 'Presets, LUTs; the film looks are the first folder of LUTs), hover preview on the photo, click to put on and take off, stars, one '
+      + 'Import, and On this photo with a LUT\'s Strength and a preset\'s Amount. The presets that '
+      + 'come with the app are RAWmakase\'s (assets/presets @ 7c3c81a, MIT, without B&W). Amount '
+      + 'follows RAWmakase\'s rule on RapidRAW\'s mixing: from the photo before the preset, only '
+      + 'the preset\'s settings. The LUT block left Effects.',
+    ours: [
+      'src/argentum/looks/LooksPanel.tsx',
+      'src/argentum/looks/looksStore.ts',
+      'src/argentum/looks/presetAmount.ts',
+      'src-tauri/src/mods/looks.rs',
+    ],
+    dependsOn: [
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleLutSelect', how: 'calls',
+        note: 'A LUT or film look goes on through it, and previews through setLutPreviewOverride; a '
+          + 'preset previews through the editor store\'s previewOverride, as the LUT preview does.' },
+      { file: 'src/hooks/usePresets.ts', symbol: 'usePresets', how: 'calls',
+        note: 'The user\'s presets and folders, their import (importPresetsFromFiles) and deleteItem.' },
+      { file: 'src-tauri/src/lut_processing.rs', symbol: 'list_luts', how: 'calls',
+        note: 'Film looks are the built-in LUTs; with list_lut_libraries, import_luts, remove_lut and '
+          + 'generate_lut_previews for the swatches.' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'generate_preset_preview', how: 'calls',
+        note: 'A preset\'s swatch, rendered on the app\'s defaults as today\'s presets panel does.' },
+      { file: 'src-tauri/src/preset_converter.rs', symbol: 'convert_xmp_to_preset', how: 'calls',
+        note: 'Reads the shipped RAWmakase XMPs, as an imported XMP is read. What it does not map '
+          + '(Convert to Grayscale, the gray mixer) is why B&W is not shipped.' },
+      { file: 'src/components/adjustments/Effects.tsx', how: 'extends',
+        note: 'Without its LUT block; editSections.ts takes the LUT keys out of Effects and the tool '
+          + 'out of the Customise menu.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_global_adjustments_from_json', how: 'extends',
+        note: 'The LUT is applied whatever Effects\' eye says.' },
+      { file: 'src/components/panel/right/PresetsPanel.tsx', symbol: 'mixAdjustments', how: 'shadows',
+        note: 'presetAmount.ts is a copy with RAWmakase\'s changes; theirs still serves the presets '
+          + 'panel where it shows (a narrow portrait window).' },
+    ],
+    tests: [
+      'src-tauri/src/mods/looks.rs #[cfg(test)]: every shipped preset reads into its group; stars read back.',
+      'Manual: open a photo, press P. Hover K-Portra 400: the photo previews it; away: back. Click it: '
+        + 'On this photo with Strength. Open Presets > Color, click Warm: Amount; drag to 0: the '
+        + 'photo is as before the preset, other edits kept. Star a look: Favourites lists it after a '
+        + 'restart. Import a .cube and an .xmp at once: both appear. Effects has no LUT block.',
+    ],
+    keywords: /preset|lut|look|film|cube|favourite|amount/i,
   },
   {
     id: 'camera-profile',
@@ -1937,7 +1988,7 @@ export const REGISTRY = [
       + 'the centre showing the '
       + 'folder\'s grid or the open photo; the filmstrip under the centre with the status line in its '
       + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) that opens the metadata at full height, and six tabs over today\'s panels '
-      + '(Edit, Looks, Crop, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
+      + '(Edit, Crop, Looks, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
       + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
       + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',

@@ -1894,7 +1894,7 @@
         "negpy": "Voor de inspiratie achter de negatief-omzetlogica.",
         "nind": "Voor het leveren van AI-modellen die de AI-ruisonderdrukkingmogelijkheden in RapidRAW aandrijven.",
         "rawler": "Voor de uitstekende Rust-crate die de basis vormt voor RAW-bestandsverwerking in dit project.",
-        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken.",
+        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken. Ook de presets die bij Argentum horen (Color, Creative, Curve, Grain, Vignetting).",
         "sam2": "Voor het leveren van het basismodel dat wordt gebruikt voor de AI-onderwerpdetectiemogelijkheden.",
         "spektrafilm": "Voor de spectraalgebaseerde filmemulatie-LUT's door Andrea Volpato, gebruikt voor de ingebouwde filmemulaties van RapidRAW. Gelicenseerd onder CC BY-SA 4.0.",
         "u2net": "Voor het leveren van de robuuste architectuur die wordt gebruikt voor de AI-lucht- en voorgronddetectiemogelijkheden.",
