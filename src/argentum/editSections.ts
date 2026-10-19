@@ -15,6 +15,20 @@
 
 import { ADJUSTMENT_SECTIONS, INITIAL_ADJUSTMENTS, type Adjustments } from '../utils/adjustments';
 
+/**
+ * Which sections' eyes are open: `sectionVisibility` in an edit, read by the
+ * renderer's section checks. RapidRAW 1.6.6 replaced it with an eye per tool
+ * (`activeTools`), which Argentum did not take, so the type lives here now.
+ */
+export interface SectionVisibility {
+  [index: string]: boolean;
+  basic: boolean;
+  curves: boolean;
+  color: boolean;
+  details: boolean;
+  effects: boolean;
+}
+
 /** Moved into Basic from Color and Details. `whiteBalanceAuto` is ours (WhiteBalanceMenu.tsx). */
 const INTO_BASIC = [
   'temperature',
@@ -27,6 +41,8 @@ const INTO_BASIC = [
   'dehaze',
   'structure',
   'centré',
+  'centréX',
+  'centréY',
 ];
 
 /** The Profile section, ahead of the others. It has no eye: none of it can be turned off. */

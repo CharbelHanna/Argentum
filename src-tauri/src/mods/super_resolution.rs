@@ -1127,7 +1127,7 @@ fn write_super_resolution_sidecar(
         let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
         carry_raw_look(
             &mut metadata.adjustments,
-            white_balance::as_shot_white_balance(&source_path.to_string_lossy()),
+            crate::as_shot::as_shot(&source_path.to_string_lossy()).white_balance,
             crate::image_processing::resolve_tonemapper_override(&settings, true),
             crate::image_processing::resolve_tonemapper_override(&settings, false),
             Some(&source_path.to_string_lossy()),

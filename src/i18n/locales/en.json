@@ -133,7 +133,8 @@
       "roughness": "Roughness",
       "roundness": "Roundness",
       "size": "Size",
-      "vignette": "Post-Crop Vignette"
+      "vignette": "Post-Crop Vignette",
+      "spatial": "Spatial"
     }
   },
   "contextMenus": {
@@ -208,7 +209,8 @@
       "stitchPanorama": "Stitch Panorama",
       "tagging": "Tagging",
       "undo": "Undo",
-      "unflagged": "Unflagged"
+      "unflagged": "Unflagged",
+      "autoStraighten": "Auto Straighten"
     },
     "folders": {
       "changeIcon": "Change Icon",
@@ -281,7 +283,9 @@
       "resetAdjustments_one": "Reset Adjustments",
       "resetAdjustments_other": "Reset Adjustments on {{count}} Images",
       "showExplorer": "Show in File Explorer",
-      "virtualCopy": "Virtual Copy"
+      "virtualCopy": "Virtual Copy",
+      "autoStraighten_one": "Auto Straighten Image",
+      "autoStraighten_other": "Auto Straighten Images"
     },
     "toasts": {
       "couldNotShowExplorer": "Could not show file in explorer: {{err}}",
@@ -555,7 +559,9 @@
         "switchToLandscape": "Switch to landscape",
         "switchToPortrait": "Switch to portrait",
         "transform": "Perspective and keystone correction"
-      }
+      },
+      "autoStraightenFailed": "Auto straighten failed: {{error}}",
+      "autoStraightenNoLines": "No straight lines found to level from"
     },
     "externalEdit": {
       "done": "Done",
@@ -1402,7 +1408,8 @@
       "presetNone": "None",
       "sourceFiles": "Source Files",
       "startImport": "Start Import",
-      "title": "Import Settings"
+      "title": "Import Settings",
+      "notUniqueWarning": "Without {original_filename}, {original_filename_number} or {sequence}, files may get the same name. Those files are not imported."
     },
     "lensCorrection": {
       "amount": "Amount",
@@ -1490,7 +1497,8 @@
       "titleMultiple": "Rename {{count}} Images",
       "titleMultiple_one": "Rename {{count}} Image",
       "titleMultiple_other": "Rename {{count}} Images",
-      "titleSingle": "Rename Image"
+      "titleSingle": "Rename Image",
+      "notUniqueWarning": "Without {original_filename}, {original_filename_number} or {sequence}, files may get the same name. Then nothing is renamed."
     },
     "renameFolder": {
       "cancel": "Cancel",
@@ -1700,7 +1708,8 @@
         "zoom_in": "Zoom in",
         "zoom_in_step": "Zoom in (by step)",
         "zoom_out": "Zoom out",
-        "zoom_out_step": "Zoom out (by step)"
+        "zoom_out_step": "Zoom out (by step)",
+        "auto_straighten": "Auto straighten"
       },
       "sections": {
         "editing": "Editing",

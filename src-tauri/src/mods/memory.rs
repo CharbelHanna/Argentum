@@ -317,10 +317,24 @@ impl Held {
         {
             add(&mut held, img);
         }
+        for cache in [
+            &state.patched_cache,
+            &state.working_cache,
+            &state.effects_cache,
+        ] {
+            if let Some(g) = peek(cache)
+                && let Some((_, img)) = g.as_ref()
+            {
+                add(&mut held, img);
+            }
+        }
         if let Some(g) = peek(&state.full_transformed_cache)
-            && let Some((_, img, _)) = g.as_ref()
+            && let Some((_, img, _, _)) = g.as_ref()
         {
             add(&mut held, img);
+        }
+        if let Some(img) = super::input_stage::full_picture() {
+            add(&mut held, &img);
         }
         if let Some(g) = peek(&state.thumbnail_geometry_cache) {
             for (_, img, _) in g.values() {

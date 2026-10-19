@@ -132,7 +132,8 @@
       "roughness": "Rugosité",
       "roundness": "Arrondi",
       "size": "Taille",
-      "vignette": "Vignettage après recadrage"
+      "vignette": "Vignettage après recadrage",
+      "spatial": "Spatial"
     }
   },
   "contextMenus": {
@@ -208,7 +209,8 @@
       "stitchPanorama": "Assembler le panorama",
       "tagging": "Marquage",
       "undo": "Annuler",
-      "unflagged": "Non marquée"
+      "unflagged": "Non marquée",
+      "autoStraighten": "Redresser automatiquement"
     },
     "folders": {
       "changeIcon": "Changer l'icône",
@@ -296,7 +298,10 @@
       "resetAdjustments_one": "Réinitialiser les ajustements",
       "resetAdjustments_other": "Réinitialiser les ajustements sur {{count}} images",
       "showExplorer": "Afficher dans l'explorateur",
-      "virtualCopy": "Copie virtuelle"
+      "virtualCopy": "Copie virtuelle",
+      "autoStraighten_many": "Redresser les images automatiquement",
+      "autoStraighten_one": "Redresser l'image automatiquement",
+      "autoStraighten_other": "Redresser les images automatiquement"
     },
     "toasts": {
       "couldNotShowExplorer": "Impossible d'afficher le fichier dans l'explorateur : {{err}}",
@@ -574,7 +579,9 @@
         "switchToLandscape": "Basculer en paysage",
         "switchToPortrait": "Basculer en portrait",
         "transform": "Correction de perspective et de trapèze"
-      }
+      },
+      "autoStraightenFailed": "Échec du redressement automatique : {{error}}",
+      "autoStraightenNoLines": "Aucune ligne droite trouvée pour redresser"
     },
     "externalEdit": {
       "done": "Terminé",
@@ -1429,7 +1436,8 @@
       "presetNone": "Aucun",
       "sourceFiles": "Fichiers sources",
       "startImport": "Démarrer l'importation",
-      "title": "Paramètres d'importation"
+      "title": "Paramètres d'importation",
+      "notUniqueWarning": "Sans {original_filename}, {original_filename_number} ou {sequence}, plusieurs fichiers peuvent recevoir le même nom. Ces fichiers ne sont pas importés."
     },
     "lensCorrection": {
       "amount": "Quantité",
@@ -1520,7 +1528,8 @@
       "titleMultiple_many": "Renommer {{count}} images",
       "titleMultiple_one": "Renommer {{count}} image",
       "titleMultiple_other": "Renommer {{count}} images",
-      "titleSingle": "Renommer l'image"
+      "titleSingle": "Renommer l'image",
+      "notUniqueWarning": "Sans {original_filename}, {original_filename_number} ou {sequence}, plusieurs fichiers peuvent recevoir le même nom. Dans ce cas, rien n'est renommé."
     },
     "renameFolder": {
       "cancel": "Annuler",
@@ -1733,7 +1742,8 @@
         "zoom_in": "Zoom avant",
         "zoom_in_step": "Zoom avant (par palier)",
         "zoom_out": "Zoom arrière",
-        "zoom_out_step": "Zoom arrière (par palier)"
+        "zoom_out_step": "Zoom arrière (par palier)",
+        "auto_straighten": "Redresser automatiquement"
       },
       "sections": {
         "editing": "Retouche",

@@ -1843,8 +1843,8 @@ mod tests {
         let mut all = crate::image_processing::get_all_adjustments_from_json(
             &js,
             true,
-            crate::white_balance::WhiteBalance::reference(),
-            None,
+            crate::as_shot::AsShot::reference(),
+            Default::default(),
             None,
         );
         all.global.show_clipping = show;
@@ -2014,8 +2014,8 @@ mod tests {
                 let adjustments = crate::image_processing::get_all_adjustments_from_json(
                     &serde_json::json!({}),
                     true,
-                    crate::white_balance::WhiteBalance::reference(),
-                    None,
+                    crate::as_shot::AsShot::reference(),
+                    Default::default(),
                     None,
                 );
                 let staged = sharpen.then(|| {
@@ -2138,8 +2138,8 @@ mod tests {
                     crate::image_processing::get_all_adjustments_from_json(
                         &serde_json::json!({ "agSharpen": { "amount": 50 } }),
                         true,
-                        crate::white_balance::WhiteBalance::reference(),
-                        None,
+                        crate::as_shot::AsShot::reference(),
+                        Default::default(),
                         None,
                     )
                 };

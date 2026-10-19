@@ -799,8 +799,16 @@ mod gpu {
         js: serde_json::Value,
         as_shot: crate::white_balance::WhiteBalance,
     ) -> image::Rgba32FImage {
-        let adjustments =
-            crate::image_processing::get_all_adjustments_from_json(&js, true, as_shot, None, None);
+        let adjustments = crate::image_processing::get_all_adjustments_from_json(
+            &js,
+            true,
+            crate::as_shot::AsShot {
+                white_balance: as_shot,
+                ..crate::as_shot::AsShot::reference()
+            },
+            Default::default(),
+            None,
+        );
         crate::mods::export_precision::render_high_precision(
             ctx,
             image,
@@ -1044,7 +1052,8 @@ mod gpu {
             .expect("decodes");
             let h = (linear.height() as f32 * width as f32 / linear.width() as f32).round() as u32;
             let small = crate::image_processing::downscale_f32_image(&linear, width, h);
-            let wb = crate::raw_processing::read_as_shot_white_balance(&bytes)
+            let wb = crate::raw_processing::read_as_shot(&bytes)
+                .map(|a| a.white_balance)
                 .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
             let facts = facts(&bytes).expect("metadata");
             let base = baseline(&facts);
@@ -1165,7 +1174,8 @@ mod gpu {
             .expect("decodes");
             let (x, y) = busiest(&linear, cw, ch);
             let crop = linear.crop_imm(x, y, cw, ch);
-            let wb = crate::raw_processing::read_as_shot_white_balance(&bytes)
+            let wb = crate::raw_processing::read_as_shot(&bytes)
+                .map(|a| a.white_balance)
                 .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
             let base = baseline(&facts(&bytes).expect("metadata"));
             let radius = crate::mods::sharpen::auto_radius(path);
@@ -1343,7 +1353,8 @@ mod gpu {
             Some(&path),
         )
         .expect("decodes");
-        let wb = crate::raw_processing::read_as_shot_white_balance(&bytes)
+        let wb = crate::raw_processing::read_as_shot(&bytes)
+            .map(|a| a.white_balance)
             .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
         let base = baseline(&facts(&bytes).expect("metadata"));
         eprintln!(

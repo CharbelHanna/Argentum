@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import Switch from '../ui/Switch';
 import Dropdown from '../ui/Dropdown';
-import { FILENAME_VARIABLES } from '../ui/ExportImportProperties';
+import { FILENAME_VARIABLES, isUniqueFilenameTemplate } from '../ui/ExportImportProperties';
 import Text from '../ui/Text';
 import { ImportSettings, Invokes, Preset } from '../ui/AppProperties';
 import { Adjustments } from '../../utils/adjustments';
@@ -110,19 +110,10 @@ export default function ImportSettingsModal({
   );
 
   const handleSave = useCallback(() => {
-    let finalFilenameTemplate = filenameTemplate;
-    if (
-      fileCount > 1 &&
-      !filenameTemplate.includes('{sequence}') &&
-      !filenameTemplate.includes('{original_filename}')
-    ) {
-      finalFilenameTemplate = `${filenameTemplate}_{sequence}`;
-    }
-
     const selectedPreset = presetId ? presets.find((p) => p.id === presetId) : null;
 
     onSave({
-      filenameTemplate: finalFilenameTemplate,
+      filenameTemplate,
       organizeByDate,
       dateFolderFormat,
       deleteAfterImport,
@@ -220,6 +211,11 @@ export default function ImportSettingsModal({
                 </button>
               ))}
             </div>
+            {fileCount > 1 && !isUniqueFilenameTemplate(filenameTemplate) && (
+              <Text variant={TextVariants.small} className="mt-2">
+                {t('modals.importSettings.notUniqueWarning')}
+              </Text>
+            )}
           </div>
 
           <div>

@@ -132,7 +132,8 @@
       "roughness": "거칠기",
       "roundness": "둥글기",
       "size": "크기",
-      "vignette": "자르기 후 비네트"
+      "vignette": "자르기 후 비네트",
+      "spatial": "공간"
     }
   },
   "contextMenus": {
@@ -207,7 +208,8 @@
       "stitchPanorama": "파노라마 스티칭",
       "tagging": "태그 지정",
       "undo": "실행 취소",
-      "unflagged": "플래그 없음"
+      "unflagged": "플래그 없음",
+      "autoStraighten": "자동 수평 맞추기"
     },
     "folders": {
       "changeIcon": "아이콘 변경",
@@ -280,7 +282,9 @@
       "resetAdjustments_one": "조정값 초기화",
       "resetAdjustments_other": "이미지 {{count}}개의 조정값 초기화",
       "showExplorer": "파일 탐색기에서 표시",
-      "virtualCopy": "가상 복사본"
+      "virtualCopy": "가상 복사본",
+      "autoStraighten_one": "이미지 자동 수평 맞추기",
+      "autoStraighten_other": "이미지 자동 수평 맞추기"
     },
     "toasts": {
       "couldNotShowExplorer": "탐색기에서 파일을 표시할 수 없습니다: {{err}}",
@@ -552,7 +556,9 @@
         "switchToLandscape": "가로로 전환",
         "switchToPortrait": "세로로 전환",
         "transform": "원근 및 키스톤 보정"
-      }
+      },
+      "autoStraightenFailed": "자동 수평 맞추기 실패: {{error}}",
+      "autoStraightenNoLines": "수평을 맞출 직선을 찾을 수 없습니다"
     },
     "externalEdit": {
       "done": "완료",
@@ -1398,7 +1404,8 @@
       "presetNone": "없음",
       "sourceFiles": "원본 파일",
       "startImport": "가져오기 시작",
-      "title": "가져오기 설정"
+      "title": "가져오기 설정",
+      "notUniqueWarning": "{original_filename}, {original_filename_number}, {sequence} 중 하나도 없으면 파일 이름이 중복될 수 있습니다. 중복된 파일은 가져오지 않습니다."
     },
     "lensCorrection": {
       "amount": "양",
@@ -1486,7 +1493,8 @@
       "titleMultiple": "이미지 {{count}}개 이름 변경",
       "titleMultiple_one": "이미지 {{count}}개 이름 변경",
       "titleMultiple_other": "이미지 {{count}}개 이름 변경",
-      "titleSingle": "이미지 이름 변경"
+      "titleSingle": "이미지 이름 변경",
+      "notUniqueWarning": "{original_filename}, {original_filename_number}, {sequence} 중 하나도 없으면 파일 이름이 중복될 수 있습니다. 이 경우 아무 파일도 이름이 변경되지 않습니다."
     },
     "renameFolder": {
       "cancel": "취소",
@@ -1696,7 +1704,8 @@
         "zoom_in": "확대",
         "zoom_in_step": "확대 (단계별)",
         "zoom_out": "축소",
-        "zoom_out_step": "축소 (단계별)"
+        "zoom_out_step": "축소 (단계별)",
+        "auto_straighten": "자동 수평 맞추기"
       },
       "sections": {
         "editing": "편집",

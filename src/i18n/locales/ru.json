@@ -132,7 +132,8 @@
       "roughness": "Шероховатость",
       "roundness": "Округлость",
       "size": "Размер",
-      "vignette": "Виньетирование после обрезки"
+      "vignette": "Виньетирование после обрезки",
+      "spatial": "Пространственные"
     }
   },
   "contextMenus": {
@@ -209,7 +210,8 @@
       "stitchPanorama": "Сшить панораму",
       "tagging": "Теги",
       "undo": "Отменить",
-      "unflagged": "Без отметки"
+      "unflagged": "Без отметки",
+      "autoStraighten": "Автовыравнивание"
     },
     "folders": {
       "changeIcon": "Изменить значок",
@@ -312,7 +314,11 @@
       "resetAdjustments_one": "Сбросить настройки",
       "resetAdjustments_other": "Сбросить настройки для {{count}} изображений",
       "showExplorer": "Показать в проводнике",
-      "virtualCopy": "Виртуальная копия"
+      "virtualCopy": "Виртуальная копия",
+      "autoStraighten_few": "Автовыравнивание изображений",
+      "autoStraighten_many": "Автовыравнивание изображений",
+      "autoStraighten_one": "Автовыравнивание изображения",
+      "autoStraighten_other": "Автовыравнивание изображений"
     },
     "toasts": {
       "couldNotShowExplorer": "Не удалось показать файл в проводнике: {{err}}",
@@ -594,7 +600,9 @@
         "switchToLandscape": "Переключить на альбомную",
         "switchToPortrait": "Переключить на портретную",
         "transform": "Коррекция перспективы и искажений"
-      }
+      },
+      "autoStraightenFailed": "Не удалось выровнять автоматически: {{error}}",
+      "autoStraightenNoLines": "Не найдено прямых линий для выравнивания"
     },
     "externalEdit": {
       "done": "Готово",
@@ -1460,7 +1468,8 @@
       "presetNone": "Нет",
       "sourceFiles": "Исходные файлы",
       "startImport": "Начать импорт",
-      "title": "Параметры импорта"
+      "title": "Параметры импорта",
+      "notUniqueWarning": "Без {original_filename}, {original_filename_number} или {sequence} файлы могут получить одинаковые имена. Такие файлы не импортируются."
     },
     "lensCorrection": {
       "amount": "Интенсивность",
@@ -1554,7 +1563,8 @@
       "titleMultiple_many": "Переименовать {{count}} изобр.",
       "titleMultiple_one": "Переименовать {{count}} изображение",
       "titleMultiple_other": "Переименовать {{count}} изображений",
-      "titleSingle": "Переименовать изображение"
+      "titleSingle": "Переименовать изображение",
+      "notUniqueWarning": "Без {original_filename}, {original_filename_number} или {sequence} файлы могут получить одинаковые имена. Тогда ничего не будет переименовано."
     },
     "renameFolder": {
       "cancel": "Отмена",
@@ -1770,7 +1780,8 @@
         "zoom_in": "Приблизить",
         "zoom_in_step": "Приблизить по шагам",
         "zoom_out": "Отдалить",
-        "zoom_out_step": "Отдалить по шагам"
+        "zoom_out_step": "Отдалить по шагам",
+        "auto_straighten": "Автовыравнивание"
       },
       "sections": {
         "editing": "Редактирование",

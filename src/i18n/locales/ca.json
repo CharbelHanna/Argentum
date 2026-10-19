@@ -132,7 +132,8 @@
       "roughness": "Rugositat",
       "roundness": "Rodonesa",
       "size": "Mida",
-      "vignette": "Vinyetatge post-retall"
+      "vignette": "Vinyetatge post-retall",
+      "spatial": "Espacial"
     }
   },
   "contextMenus": {
@@ -207,7 +208,8 @@
       "stitchPanorama": "Unir panorama",
       "tagging": "Etiquetatge",
       "undo": "Desfer",
-      "unflagged": "Sense marca"
+      "unflagged": "Sense marca",
+      "autoStraighten": "Redreçar automàticament"
     },
     "folders": {
       "changeIcon": "Canviar icona",
@@ -280,7 +282,10 @@
       "resetAdjustments_one": "Restablir ajustaments",
       "resetAdjustments_other": "Restablir ajustaments a {{count}} imatges",
       "showExplorer": "Mostrar a l'Explorador de fitxers",
-      "virtualCopy": "Còpia virtual"
+      "virtualCopy": "Còpia virtual",
+      "autoStraighten_many": "Redreçar automàticament les imatges",
+      "autoStraighten_one": "Redreçar automàticament la imatge",
+      "autoStraighten_other": "Redreçar automàticament les imatges"
     },
     "toasts": {
       "couldNotShowExplorer": "No s'ha pogut mostrar el fitxer a l'explorador: {{err}}",
@@ -554,7 +559,9 @@
         "switchToLandscape": "Canviar a apaïsat",
         "switchToPortrait": "Canviar a vertical",
         "transform": "Correcció de perspectiva i trapezi"
-      }
+      },
+      "autoStraightenFailed": "No s'ha pogut redreçar automàticament: {{error}}",
+      "autoStraightenNoLines": "No s'han trobat línies rectes per redreçar"
     },
     "externalEdit": {
       "done": "Fet",
@@ -1402,7 +1409,8 @@
       "presetNone": "Cap",
       "sourceFiles": "Fitxers d'origen",
       "startImport": "Iniciar importació",
-      "title": "Configuració d'importació"
+      "title": "Configuració d'importació",
+      "notUniqueWarning": "Sense {original_filename}, {original_filename_number} o {sequence}, diversos fitxers poden rebre el mateix nom. Aquests fitxers no s'importen."
     },
     "lensCorrection": {
       "amount": "Quantitat",
@@ -1490,7 +1498,8 @@
       "titleMultiple": "Reanomenar {{count}} imatges",
       "titleMultiple_one": "Reanomenar {{count}} imatge",
       "titleMultiple_other": "Reanomenar {{count}} imatges",
-      "titleSingle": "Reanomenar imatge"
+      "titleSingle": "Reanomenar imatge",
+      "notUniqueWarning": "Sense {original_filename}, {original_filename_number} o {sequence}, diversos fitxers poden rebre el mateix nom. Aleshores no es canvia el nom de cap fitxer."
     },
     "renameFolder": {
       "cancel": "Cancel·lar",
@@ -1700,7 +1709,8 @@
         "zoom_in": "Apropar",
         "zoom_in_step": "Apropar (per passos)",
         "zoom_out": "Allunyar",
-        "zoom_out_step": "Allunyar (per passos)"
+        "zoom_out_step": "Allunyar (per passos)",
+        "auto_straighten": "Redreçar automàticament"
       },
       "sections": {
         "editing": "Edició",

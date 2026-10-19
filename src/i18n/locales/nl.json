@@ -131,7 +131,8 @@
       "roughness": "Ruwheid",
       "roundness": "Rondheid",
       "size": "Grootte",
-      "vignette": "Vignet na bijsnijden"
+      "vignette": "Vignet na bijsnijden",
+      "spatial": "Ruimtelijk"
     }
   },
   "contextMenus": {
@@ -202,7 +203,8 @@
       "resetAdjustments": "Aanpassingen herstellen",
       "stitchPanorama": "Panorama samenvoegen",
       "tagging": "Tags toevoegen",
-      "undo": "Ongedaan maken"
+      "undo": "Ongedaan maken",
+      "autoStraighten": "Automatisch rechtzetten"
     },
     "folders": {
       "changeIcon": "Pictogram wijzigen",
@@ -274,7 +276,9 @@
       "resetAdjustments_one": "Aanpassingen herstellen",
       "resetAdjustments_other": "Aanpassingen herstellen op {{count}} afbeeldingen",
       "showExplorer": "Weergeven in Verkenner",
-      "virtualCopy": "Virtuele kopie"
+      "virtualCopy": "Virtuele kopie",
+      "autoStraighten_one": "Afbeelding automatisch rechtzetten",
+      "autoStraighten_other": "Afbeeldingen automatisch rechtzetten"
     },
     "toasts": {
       "couldNotShowExplorer": "Kon bestand niet weergeven in Verkenner: {{err}}",
@@ -548,7 +552,9 @@
         "switchToLandscape": "Overschakelen naar liggend",
         "switchToPortrait": "Overschakelen naar staand",
         "transform": "Perspectief en keystonecorrectie"
-      }
+      },
+      "autoStraightenFailed": "Automatisch rechtzetten mislukt: {{error}}",
+      "autoStraightenNoLines": "Geen rechte lijnen gevonden om recht te zetten"
     },
     "externalEdit": {
       "done": "Gereed",
@@ -1377,7 +1383,8 @@
       "applyPreset": "Een voorinstelling op elke foto toepassen",
       "editsOnImport": "Bewerkingen bij importeren",
       "editsOnImportHint": "Automatische bewerkingen omvatten lenscorrectie wanneer de lens uit de EXIF-gegevens kan worden herkend; foto's zonder overeenkomst blijven ongecorrigeerd.",
-      "presetNone": "Geen"
+      "presetNone": "Geen",
+      "notUniqueWarning": "Zonder {original_filename}, {original_filename_number} of {sequence} kunnen bestanden dezelfde naam krijgen. Die bestanden worden niet geïmporteerd."
     },
     "lensCorrection": {
       "amount": "Hoeveelheid",
@@ -1465,7 +1472,8 @@
       "titleMultiple": "{{count}} afbeeldingen hernoemen",
       "titleMultiple_one": "{{count}} afbeelding hernoemen",
       "titleMultiple_other": "{{count}} afbeeldingen hernoemen",
-      "titleSingle": "Afbeelding hernoemen"
+      "titleSingle": "Afbeelding hernoemen",
+      "notUniqueWarning": "Zonder {original_filename}, {original_filename_number} of {sequence} kunnen bestanden dezelfde naam krijgen. Dan wordt er niets hernoemd."
     },
     "renameFolder": {
       "cancel": "Annuleren",
@@ -1671,7 +1679,8 @@
         "zoom_in": "Inzoomen",
         "zoom_in_step": "Inzoomen (stap voor stap)",
         "zoom_out": "Uitzoomen",
-        "zoom_out_step": "Uitzoomen (stap voor stap)"
+        "zoom_out_step": "Uitzoomen (stap voor stap)",
+        "auto_straighten": "Automatisch rechtzetten"
       },
       "sections": {
         "editing": "Bewerken",

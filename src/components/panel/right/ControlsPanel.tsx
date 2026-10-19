@@ -25,11 +25,10 @@ import Resizer from '../../ui/Resizer';
 import AdjustmentSectionsSubMenu from './AdjustmentSectionsSubMenu';
 import {
   Adjustments,
-  SectionVisibility,
   INITIAL_ADJUSTMENTS,
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
-import { EDIT_SECTION_KEYS, initialValues, PROFILE_KEYS } from '../../../argentum/editSections';
+import { EDIT_SECTION_KEYS, initialValues, PROFILE_KEYS, type SectionVisibility } from '../../../argentum/editSections';
 import ProfileSection, { PROFILE_SECTION } from '../../../argentum/ProfileSection';
 import { useAgTranslation } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';

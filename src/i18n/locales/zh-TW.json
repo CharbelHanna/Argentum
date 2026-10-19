@@ -132,7 +132,8 @@
       "roughness": "粗糙度",
       "roundness": "圓度",
       "size": "大小",
-      "vignette": "裁剪後暗角"
+      "vignette": "裁剪後暗角",
+      "spatial": "空間"
     }
   },
   "contextMenus": {
@@ -207,7 +208,8 @@
       "stitchPanorama": "拼接全景圖",
       "tagging": "標籤",
       "undo": "復原",
-      "unflagged": "無標記"
+      "unflagged": "無標記",
+      "autoStraighten": "自動拉直"
     },
     "folders": {
       "changeIcon": "更換圖示",
@@ -280,7 +282,9 @@
       "resetAdjustments_one": "重置調整",
       "resetAdjustments_other": "重置 {{count}} 張影像的調整",
       "showExplorer": "在檔案資源管理器中顯示",
-      "virtualCopy": "虛擬副本"
+      "virtualCopy": "虛擬副本",
+      "autoStraighten_one": "自動拉直影像",
+      "autoStraighten_other": "自動拉直影像"
     },
     "toasts": {
       "couldNotShowExplorer": "無法在檔案資源管理器中顯示檔案：{{err}}",
@@ -552,7 +556,9 @@
         "switchToLandscape": "切換為橫向",
         "switchToPortrait": "切換為縱向",
         "transform": "透視和梯形校正"
-      }
+      },
+      "autoStraightenFailed": "自動拉直失敗：{{error}}",
+      "autoStraightenNoLines": "找不到可用於拉直的直線"
     },
     "externalEdit": {
       "done": "完成",
@@ -1398,7 +1404,8 @@
       "presetNone": "無",
       "sourceFiles": "原始檔",
       "startImport": "開始匯入",
-      "title": "匯入設定"
+      "title": "匯入設定",
+      "notUniqueWarning": "如果不包含 {original_filename}、{original_filename_number} 或 {sequence}，檔案可能會重名。重名的檔案不會被匯入。"
     },
     "lensCorrection": {
       "amount": "數量",
@@ -1486,7 +1493,8 @@
       "titleMultiple": "重新命名 {{count}} 張影像",
       "titleMultiple_one": "重新命名 {{count}} 張影像",
       "titleMultiple_other": "重新命名 {{count}} 張影像",
-      "titleSingle": "重新命名影像"
+      "titleSingle": "重新命名影像",
+      "notUniqueWarning": "如果不包含 {original_filename}、{original_filename_number} 或 {sequence}，檔案可能會重名。此時不會重新命名任何檔案。"
     },
     "renameFolder": {
       "cancel": "取消",
@@ -1696,7 +1704,8 @@
         "zoom_in": "放大",
         "zoom_in_step": "放大（步進）",
         "zoom_out": "縮小",
-        "zoom_out_step": "縮小（步進）"
+        "zoom_out_step": "縮小（步進）",
+        "auto_straighten": "自動拉直"
       },
       "sections": {
         "editing": "編輯",

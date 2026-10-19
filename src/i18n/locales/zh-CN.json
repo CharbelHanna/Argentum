@@ -132,7 +132,8 @@
       "roughness": "粗糙度",
       "roundness": "圆度",
       "size": "大小",
-      "vignette": "裁剪后暗角"
+      "vignette": "裁剪后暗角",
+      "spatial": "空间"
     }
   },
   "contextMenus": {
@@ -207,7 +208,8 @@
       "stitchPanorama": "拼接全景图",
       "tagging": "标签",
       "undo": "撤销",
-      "unflagged": "无标记"
+      "unflagged": "无标记",
+      "autoStraighten": "自动拉直"
     },
     "folders": {
       "changeIcon": "更换图标",
@@ -280,7 +282,9 @@
       "resetAdjustments_one": "重置调整",
       "resetAdjustments_other": "重置 {{count}} 张图像的调整",
       "showExplorer": "在文件资源管理器中显示",
-      "virtualCopy": "虚拟副本"
+      "virtualCopy": "虚拟副本",
+      "autoStraighten_one": "自动拉直图像",
+      "autoStraighten_other": "自动拉直图像"
     },
     "toasts": {
       "couldNotShowExplorer": "无法在文件资源管理器中显示文件：{{err}}",
@@ -552,7 +556,9 @@
         "switchToLandscape": "切换为横向",
         "switchToPortrait": "切换为纵向",
         "transform": "透视和梯形校正"
-      }
+      },
+      "autoStraightenFailed": "自动拉直失败：{{error}}",
+      "autoStraightenNoLines": "未找到可用于拉直的直线"
     },
     "externalEdit": {
       "done": "完成",
@@ -1398,7 +1404,8 @@
       "presetNone": "无",
       "sourceFiles": "源文件",
       "startImport": "开始导入",
-      "title": "导入设置"
+      "title": "导入设置",
+      "notUniqueWarning": "如果不包含 {original_filename}、{original_filename_number} 或 {sequence}，文件可能会重名。重名的文件不会被导入。"
     },
     "lensCorrection": {
       "amount": "数量",
@@ -1486,7 +1493,8 @@
       "titleMultiple": "重命名 {{count}} 张图像",
       "titleMultiple_one": "重命名 {{count}} 张图像",
       "titleMultiple_other": "重命名 {{count}} 张图像",
-      "titleSingle": "重命名图像"
+      "titleSingle": "重命名图像",
+      "notUniqueWarning": "如果不包含 {original_filename}、{original_filename_number} 或 {sequence}，文件可能会重名。此时不会重命名任何文件。"
     },
     "renameFolder": {
       "cancel": "取消",
@@ -1696,7 +1704,8 @@
         "zoom_in": "放大",
         "zoom_in_step": "放大（步进）",
         "zoom_out": "缩小",
-        "zoom_out_step": "缩小（步进）"
+        "zoom_out_step": "缩小（步进）",
+        "auto_straighten": "自动拉直"
       },
       "sections": {
         "editing": "编辑",

@@ -132,7 +132,8 @@
       "roughness": "Ruvidezza",
       "roundness": "Rotondità",
       "size": "Dimensione",
-      "vignette": "Vignettatura post-ritaglio"
+      "vignette": "Vignettatura post-ritaglio",
+      "spatial": "Spaziale"
     }
   },
   "contextMenus": {
@@ -208,7 +209,8 @@
       "stitchPanorama": "Unisci Panorama",
       "tagging": "Tagging",
       "undo": "Annulla",
-      "unflagged": "Senza flag"
+      "unflagged": "Senza flag",
+      "autoStraighten": "Raddrizza automaticamente"
     },
     "folders": {
       "changeIcon": "Cambia Icona",
@@ -296,7 +298,10 @@
       "resetAdjustments_one": "Ripristina Regolazioni",
       "resetAdjustments_other": "Ripristina Regolazioni su {{count}} Immagini",
       "showExplorer": "Mostra in Esplora File",
-      "virtualCopy": "Copia Virtuale"
+      "virtualCopy": "Copia Virtuale",
+      "autoStraighten_many": "Raddrizza immagini automaticamente",
+      "autoStraighten_one": "Raddrizza immagine automaticamente",
+      "autoStraighten_other": "Raddrizza immagini automaticamente"
     },
     "toasts": {
       "couldNotShowExplorer": "Impossibile mostrare il file in esplora risorse: {{err}}",
@@ -574,7 +579,9 @@
         "switchToLandscape": "Passa a paesaggio",
         "switchToPortrait": "Passa a ritratto",
         "transform": "Correzione prospettiva e distorsione trapezoidale"
-      }
+      },
+      "autoStraightenFailed": "Raddrizzamento automatico non riuscito: {{error}}",
+      "autoStraightenNoLines": "Nessuna linea retta trovata per raddrizzare"
     },
     "externalEdit": {
       "done": "Fatto",
@@ -1429,7 +1436,8 @@
       "presetNone": "Nessuno",
       "sourceFiles": "File Sorgente",
       "startImport": "Inizia Importazione",
-      "title": "Impostazioni di Importazione"
+      "title": "Impostazioni di Importazione",
+      "notUniqueWarning": "Senza {original_filename}, {original_filename_number} o {sequence}, più file possono ricevere lo stesso nome. Questi file non vengono importati."
     },
     "lensCorrection": {
       "amount": "Quantità",
@@ -1520,7 +1528,8 @@
       "titleMultiple_many": "Rinomina {{count}} Immagini",
       "titleMultiple_one": "Rinomina {{count}} Immagine",
       "titleMultiple_other": "Rinomina {{count}} Immagini",
-      "titleSingle": "Rinomina Immagine"
+      "titleSingle": "Rinomina Immagine",
+      "notUniqueWarning": "Senza {original_filename}, {original_filename_number} o {sequence}, più file possono ricevere lo stesso nome. In tal caso non viene rinominato nulla."
     },
     "renameFolder": {
       "cancel": "Annulla",
@@ -1733,7 +1742,8 @@
         "zoom_in": "Ingrandisci",
         "zoom_in_step": "Ingrandisci (a step)",
         "zoom_out": "Riduci",
-        "zoom_out_step": "Riduci (a step)"
+        "zoom_out_step": "Riduci (a step)",
+        "auto_straighten": "Raddrizza automaticamente"
       },
       "sections": {
         "editing": "Modifica",

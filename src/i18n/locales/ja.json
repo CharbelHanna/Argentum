@@ -132,7 +132,8 @@
       "roughness": "粗さ",
       "roundness": "丸み",
       "size": "サイズ",
-      "vignette": "切り抜き後の周辺光量補正"
+      "vignette": "切り抜き後の周辺光量補正",
+      "spatial": "空間"
     }
   },
   "contextMenus": {
@@ -207,7 +208,8 @@
       "stitchPanorama": "パノラマ写真を作成",
       "tagging": "タグ付け",
       "undo": "元に戻す",
-      "unflagged": "フラグなし"
+      "unflagged": "フラグなし",
+      "autoStraighten": "自動角度補正"
     },
     "folders": {
       "changeIcon": "アイコンを変更",
@@ -280,7 +282,9 @@
       "resetAdjustments_one": "補正設定をリセット",
       "resetAdjustments_other": "{{count}} 枚の画像の補正設定をリセット",
       "showExplorer": "エクスプローラーで表示",
-      "virtualCopy": "仮想コピー"
+      "virtualCopy": "仮想コピー",
+      "autoStraighten_one": "画像を自動角度補正",
+      "autoStraighten_other": "画像を自動角度補正"
     },
     "toasts": {
       "couldNotShowExplorer": "エクスプローラーでファイルを表示できませんでした: {{err}}",
@@ -552,7 +556,9 @@
         "switchToLandscape": "横向きに切り替え",
         "switchToPortrait": "縦向きに切り替え",
         "transform": "遠近歪みとあおり補正"
-      }
+      },
+      "autoStraightenFailed": "自動角度補正に失敗しました: {{error}}",
+      "autoStraightenNoLines": "補正に使える直線が見つかりません"
     },
     "externalEdit": {
       "done": "完了",
@@ -1398,7 +1404,8 @@
       "presetNone": "なし",
       "sourceFiles": "ソースファイル",
       "startImport": "インポートを開始",
-      "title": "インポート設定"
+      "title": "インポート設定",
+      "notUniqueWarning": "{original_filename}、{original_filename_number}、{sequence} のいずれも含まれない場合、ファイル名が重複することがあります。重複したファイルはインポートされません。"
     },
     "lensCorrection": {
       "amount": "適用量",
@@ -1486,7 +1493,8 @@
       "titleMultiple": "{{count}} 件の画像名を変更",
       "titleMultiple_one": "{{count}} 件の画像名を変更",
       "titleMultiple_other": "{{count}} 件の画像名を変更",
-      "titleSingle": "画像名を変更"
+      "titleSingle": "画像名を変更",
+      "notUniqueWarning": "{original_filename}、{original_filename_number}、{sequence} のいずれも含まれない場合、ファイル名が重複することがあります。その場合、名前は一切変更されません。"
     },
     "renameFolder": {
       "cancel": "キャンセル",
@@ -1696,7 +1704,8 @@
         "zoom_in": "ズームイン",
         "zoom_in_step": "段階的にズームイン",
         "zoom_out": "ズームアウト",
-        "zoom_out_step": "段階的にズームアウト"
+        "zoom_out_step": "段階的にズームアウト",
+        "auto_straighten": "自動角度補正"
       },
       "sections": {
         "editing": "編集",
