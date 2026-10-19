@@ -243,30 +243,44 @@ export const REGISTRY = [
     ours: [
       'src/argentum/editSections.ts',
       'src/argentum/ProfileSection.tsx',
+      'src/argentum/DetailTools.tsx',
     ],
     dependsOn: [
       { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_SECTIONS', how: 'calls',
         note: 'The panel\'s section keys are derived from theirs (editSections.ts EDIT_SECTION_KEYS), '
-          + 'with the moved keys taken out of color and details and put in basic. A key they add to a '
+          + 'with the moved keys taken out of color and details and put in basic, the manual fringe keys '
+          + 'out of details (Crop > Lens now), and agSharpen added to details. A key they add to a '
           + 'section arrives in it; a key they move between sections is not followed.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'is_section_visible', how: 'extends',
         note: 'White balance, saturation, vibrance, clarity, dehaze, structure and centre, global '
           + 'and in masks, are turned off by the basic eye, not by color\'s or details\'. An edit saved '
-          + 'with Color or Details turned off renders those with them on.' },
+          + 'with Color or Details turned off renders those with them on. The manual fringe sliders are '
+          + 'read with no section, like the lens corrections beside them in Crop.' },
       { file: 'src/components/adjustments/Basic.tsx', how: 'extends',
         note: 'Basic renders the white balance row and sliders (WhiteBalance.tsx, their Color code '
           + 'moved unchanged), Tone and Presence. ToneMapperSwitch is exported for Profile, without '
           + 'the Exposure slider it held.' },
       { file: 'src/components/adjustments/WhiteBalance.tsx', how: 'extends',
         note: 'New beside their sections: their white balance row and Temperature and Tint sliders, '
-          + 'moved unchanged out of Color.tsx, with the label and the white-balance slot added.' },
+          + 'moved unchanged out of Color.tsx, with the label and the white-balance slot added. Without '
+          + 'the K button: Kelvin is a switch in Settings.' },
       { file: 'src/components/adjustments/Color.tsx', how: 'extends',
         note: 'Without its White Balance and Presence tools and the camera-profile slot.' },
       { file: 'src/components/adjustments/Details.tsx', how: 'extends',
-        note: 'Without its Presence tool.' },
+        note: 'Without its Presence and Chromatic Aberration tools; Denoise… under Noise reduction and '
+          + 'an Enhance tool with Restore & Enlarge… (argentum/DetailTools.tsx).' },
+      { file: 'src/store/useUIStore.ts', symbol: 'denoiseModalState', how: 'calls',
+        note: 'Denoise… opens their dialog for the open photo as the right-click menu does.' },
+      { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
+        note: 'A Manual fringe tile after the profile tiles in Lens Correction, never greyed; the lens '
+          + 'reset also puts the fringe sliders back.' },
+      { file: 'src/components/panel/SettingsPanel.tsx', how: 'extends',
+        note: 'White balance in Kelvin, a switch after Tool Focus Mode setting their whiteBalanceMode.' },
       { file: 'src/components/panel/right/ControlsPanel.tsx', how: 'extends',
         note: 'Profile first; Reset all, a section\'s reset, copy and paste by EDIT_SECTION_KEYS. '
-          + 'Profile folds with their sections under "profile" in their open sections.' },
+          + 'Profile folds with their sections under "profile" in their open sections. The header\'s ⋯: '
+          + 'handleCopyAdjustments, handlePasteAdjustments, their Copy & Paste Settings dialog '
+          + '(isCopyPasteSettingsModalOpen), copyPasteSettings.autoSync and Customize Panels.' },
       { file: 'src/components/panel/right/MasksPanel.tsx', how: 'extends',
         note: 'A mask\'s section copy, paste and reset by EDIT_SECTION_KEYS.' },
       { file: 'src/components/panel/right/AdjustmentSectionsSubMenu.tsx', how: 'extends',
@@ -275,9 +289,13 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/image_processing.rs #[cfg(test)] section_eyes_follow_the_edit_panel.',
       'Manual: open a RAW. Edit reads Profile, Basic, Curves, Color, Details, Effects; Basic starts '
-        + 'with White Balance (As Shot menu, Auto, K, picker). Turn Basic\'s eye off: white balance '
+        + 'with White Balance (As Shot menu, Auto, picker). Turn Basic\'s eye off: white balance '
         + 'and Presence go too; Color\'s eye leaves them. Reset Basic: Temperature and Clarity go back. '
         + 'Reset all: the profile goes back to Built-in.',
+      'Manual: Details shows Denoise… (opens the Denoise dialog) and Enhance > Restore & Enlarge…; '
+        + 'Crop > Lens Correction shows Manual fringe, and Details\' eye leaves it on. Settings > '
+        + 'General > White balance in Kelvin shows Temperature in K. ⋯ in the Edit header copies, '
+        + 'pastes, opens Copy & Paste Settings and turns Auto-sync on with a tick.',
     ],
     keywords: /section|basic|presence|white.?balance|profile|tone.?mapper|edit.?panel/i,
   },

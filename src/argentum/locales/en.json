@@ -287,5 +287,12 @@
   "snapYesterday": "yesterday",
   "looksNewLutFolder": "New LUT folder…",
   "looksCopyToMine": "Copy to My presets",
-  "looksComesWithApp": "Comes with Argentum"
+  "looksComesWithApp": "Comes with Argentum",
+  "detailDenoise": "Denoise…",
+  "detailEnhance": "Enhance",
+  "detailRestore": "Restore & Enlarge…",
+  "cropManualFringe": "Manual fringe",
+  "settingsKelvin": "White balance in Kelvin",
+  "settingsKelvinDesc": "Temperature in kelvin (K) and Tint as absolute values, instead of a change from as shot. A photo with no as-shot white balance stays as a change.",
+  "editMoreTip": "Copy, paste, sync, panels"
 }

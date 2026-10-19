@@ -3,12 +3,13 @@
 // picker and the Temperature and Tint sliders are theirs. The row adds the
 // label and the data-argentum="white-balance" slot, where the preset menu and
 // Auto mount (argentum/WhiteBalanceMenu.tsx). A mask shows only its sliders.
+// Kelvin is a setting for every photo, so its switch is in Settings > General
+// (SettingsPanel.tsx), no longer a K button on the row.
 import { Pipette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import Slider, { SliderChangeEvent } from '../ui/Slider';
 import { Adjustments } from '../../utils/adjustments';
 import { AppSettings } from '../ui/AppProperties';
-import { useSettingsStore } from '../../store/useSettingsStore';
 import {
   getRelativeWhiteBalance,
   getWhiteBalanceMode,
@@ -46,7 +47,6 @@ export default function WhiteBalanceControls({
   onDragStateChange,
 }: WhiteBalanceControlsProps) {
   const { t } = useTranslation();
-  const handleSettingsChange = useSettingsStore((state) => state.handleSettingsChange);
 
   const kelvinAsShot =
     !isForMask && getWhiteBalanceMode(appSettings) === WhiteBalanceMode.Kelvin ? asShotWhiteBalance : undefined;
@@ -55,15 +55,6 @@ export default function WhiteBalanceControls({
     ? resolveWhiteBalance(kelvinAsShot, adjustments)
     : getRelativeWhiteBalance(asShotWhiteBalance, adjustments);
   const tintRange = kelvinAsShot ? MAX_TINT : RELATIVE_RANGE;
-
-  const toggleWhiteBalanceMode = () => {
-    if (appSettings) {
-      handleSettingsChange({
-        ...appSettings,
-        whiteBalanceMode: isKelvinMode ? WhiteBalanceMode.Relative : WhiteBalanceMode.Kelvin,
-      });
-    }
-  };
 
   const handleWhiteBalanceChange = (key: keyof WhiteBalance, value: number | string) => {
     setAdjustments((prev: Adjustments) => {
@@ -87,15 +78,6 @@ export default function WhiteBalanceControls({
             {t('adjustments.color.whiteBalance')}
           </span>
           <span data-argentum="white-balance" className="ml-auto flex items-center gap-1 min-w-0" />
-          <button
-            onClick={toggleWhiteBalanceMode}
-            className={`w-6 h-6 flex items-center justify-center rounded-md text-xs font-semibold transition-colors ${
-              isKelvinMode ? 'bg-accent text-button-text' : 'hover:bg-bg-secondary text-text-secondary'
-            }`}
-            data-tooltip={t('adjustments.color.kelvinModeTooltip')}
-          >
-            K
-          </button>
           {toggleWbPicker && (
             <button
               onClick={toggleWbPicker}

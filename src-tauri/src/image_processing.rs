@@ -2360,18 +2360,16 @@ fn get_global_adjustments_from_json(
             Some(50.0),
         ),
 
-        chromatic_aberration_red_cyan: get_val(
-            "details",
-            "chromaticAberrationRedCyan",
-            SCALES.chromatic_aberration,
-            None,
-        ),
-        chromatic_aberration_blue_yellow: get_val(
-            "details",
-            "chromaticAberrationBlueYellow",
-            SCALES.chromatic_aberration,
-            None,
-        ),
+        // Argentum: the manual fringe sliders are in Crop > Lens (CropPanel.tsx),
+        // read like the lens corrections there: Detail's eye no longer turns them off.
+        chromatic_aberration_red_cyan: js_adjustments["chromaticAberrationRedCyan"]
+            .as_f64()
+            .unwrap_or(0.0) as f32
+            / SCALES.chromatic_aberration,
+        chromatic_aberration_blue_yellow: js_adjustments["chromaticAberrationBlueYellow"]
+            .as_f64()
+            .unwrap_or(0.0) as f32
+            / SCALES.chromatic_aberration,
         show_clipping: crate::mods::clipping::mode(js_adjustments), // Argentum: off / any / per channel
         is_raw_image: if is_raw { 1 } else { 0 },
         _pad_ca1: 0.0,
@@ -3699,7 +3697,8 @@ mod tests {
         let edit = |visibility: serde_json::Value| {
             let js = json!({
                 "saturation": 40, "vibrance": 30, "clarity": 20, "dehaze": 10, "structure": 15,
-                "hue": 25, "sharpness": 35, "sectionVisibility": visibility,
+                "hue": 25, "sharpness": 35, "chromaticAberrationRedCyan": 20,
+                "sectionVisibility": visibility,
             });
             get_global_adjustments_from_json(&js, false, [0.0; 3], None, None)
         };
@@ -3719,6 +3718,8 @@ mod tests {
         assert!(others_off.saturation != 0.0 && others_off.clarity != 0.0);
         assert_eq!(others_off.hue, 0.0);
         assert_eq!(others_off.sharpness, 0.0);
+        // The fringe sliders are in Crop > Lens: Detail's eye leaves them on.
+        assert!(others_off.chromatic_aberration_red_cyan != 0.0);
     }
 }
 
