@@ -118,8 +118,8 @@ Newest first.
   rendering travels without the curve fitted to the photo it came from: each photo
   fits its own when opened, and a curve left from another rendering is no longer used.
   Auto white balance is not carried: Auto measures the photo it is pressed on, so
-  pasting it would hand that photo's numbers to the rest. `argentum/profileKeys.ts`,
-  `mods/copy_keys.rs`.
+  pasting it would hand that photo's numbers to the rest. `mods/copy_keys.rs`,
+  `mods/raw_tone.rs`, `mods/profile_correction.rs`.
 - **The Edit panel follows the order a photo is corrected in.** A new Profile section
   comes first: the camera profile, the RAW rendering, the tone mapper (Basic or AgX)
   and highlight recovery, which were a RAW card inside Color and a switch inside

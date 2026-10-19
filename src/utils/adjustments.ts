@@ -3,7 +3,6 @@ import { v4 as uuidv4 } from 'uuid';
 import { SubMask, SubMaskMode } from '../components/panel/right/Masks';
 import type { AdjustmentLayout, AppSettings } from '../components/ui/AppProperties';
 import type { WhiteBalance } from './whiteBalance';
-import { loadedProfile, type RawToneRendering } from '../argentum/profileKeys'; // Argentum
 
 export enum ActiveChannel {
   Blue = 'blue',
@@ -239,7 +238,7 @@ export interface Adjustments {
   lensMaker: string | null;
   lensModel: string | null;
   lumaNoiseReduction: number;
-  rawToneRendering: RawToneRendering;
+  rawToneRendering: 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
   rawToneCurve: Coord[] | null;
   lutData?: string | null;
   lutIntensity?: number;
@@ -740,7 +739,6 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
     lensBlurMinDepth: loadedAdjustments.lensBlurMinDepth ?? INITIAL_ADJUSTMENTS.lensBlurMinDepth,
     lensBlurMinFade: loadedAdjustments.lensBlurMinFade ?? INITIAL_ADJUSTMENTS.lensBlurMinFade,
     lensCorrectionMode: loadedAdjustments.lensCorrectionMode || 'manual',
-    ...loadedProfile(loadedAdjustments, INITIAL_ADJUSTMENTS), // Argentum: argentum/profileKeys.ts
     lensMaker: loadedAdjustments.lensMaker ?? INITIAL_ADJUSTMENTS.lensMaker,
     lensModel: loadedAdjustments.lensModel ?? INITIAL_ADJUSTMENTS.lensModel,
     lensDistortionAmount: loadedAdjustments.lensDistortionAmount ?? INITIAL_ADJUSTMENTS.lensDistortionAmount,

@@ -305,12 +305,11 @@ export const REGISTRY = [
     what:
       'Copy settings, Paste and presets carry cameraProfile, rawToneRendering and agSharpen. They '
       + 'are in their copy groups (a Camera Profile & RAW Rendering group; agSharpen with Sharpness) '
-      + 'and in their paste list through mods/copy_keys.rs. A profile made for another camera is '
+      + 'and written into their paste list (mods/copy_keys.rs holds the test). A profile made for another camera is '
       + 'left out of a render (profile_correction fits_this_photo); a curve fitted for another '
       + 'rendering is not used (raw_tone points_of, by rawToneCurveMode). Never rawToneCurve or '
       + 'whiteBalanceAuto: each is worked out for one photo.',
     ours: [
-      'src/argentum/profileKeys.ts',
       'src-tauri/src/mods/copy_keys.rs',
     ],
     dependsOn: [
@@ -319,11 +318,12 @@ export const REGISTRY = [
           + 'line. COPYABLE_ADJUSTMENT_KEYS, presets and the Copy & Paste Settings dialog follow from '
           + 'it. If they rebuild the groups, the keys must go back in.' },
       { file: 'src/utils/adjustments.ts', symbol: 'normalizeLoadedAdjustments', how: 'calls',
-        note: 'The camera profile and RAW rendering are read back through profileKeys.ts '
-          + 'loadedProfile, one line of ours, and the RawToneRendering type comes from there.' },
+        note: 'Our keys come back from a saved edit only because their loader spreads it over the '
+          + 'defaults; our own checks of them there were removed to stay under the line cap. If the '
+          + 'loader starts picking keys, the camera profile and RAW rendering are lost on reload.' },
       { file: 'src-tauri/src/app_settings.rs', symbol: 'all_available_adjustments', how: 'extends',
-        note: 'Chains mods/copy_keys.rs KEYS in, one line. Their load switches a key new to the list '
-          + 'on in includedAdjustments, which is what makes Paste carry ours for existing users.' },
+        note: 'Our three keys written into their list, three lines. Their load switches a key new to '
+          + 'the list on in includedAdjustments, which is what makes Paste carry ours for existing users.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handlePasteAdjustments', how: 'calls',
         note: 'Paste applies the keys in copyPasteSettings.includedAdjustments and nothing else.' },
     ],
@@ -1480,8 +1480,8 @@ export const REGISTRY = [
           + 'their tone mapper’s result for a RAW when a curve is set. Until 2026-10-17 that was two '
           + 'blocks inside their main(). Their struct and ours must stay in step.' },
       { file: 'src/utils/adjustments.ts', key: 'rawToneRendering', how: 'extends',
-        note: 'rawToneRendering and rawToneCurve in their adjustments type, defaults and loader; '
-          + 'the loader reads them through argentum/profileKeys.ts, one line.' },
+        note: 'rawToneRendering and rawToneCurve in their adjustments type and defaults; their loader '
+          + 'keeps them by spreading the saved edit.' },
       { file: 'src-tauri/src/image_loader.rs', symbol: 'embedded_preview_fallback', how: 'calls',
         note: 'Auto-Matched compares the RAW with this. Kept crate-visible; 1.6.5 dropped its path '
           + 'argument and now finds the preview through raw_processing::extract_embedded_preview.' },

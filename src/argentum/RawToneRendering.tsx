@@ -8,6 +8,12 @@
  * embedded in this RAW file; DNG Standard is a DNG renderer's default - the
  * camera's exposure offset and Adobe's default tone curve, applied as Adobe
  * applies it (mods/dng_standard.rs).
+ *
+ * The curve is fitted to this photo, so Copy settings and presets carry the
+ * rendering but never `rawToneCurve` (mods/copy_keys.rs). `rawToneCurveMode`
+ * names the rendering a curve was fitted for: a photo that receives another
+ * rendering fits its own here, and until then the renderer ignores the old
+ * curve (mods/raw_tone.rs `points_of`).
  */
 
 import { useCallback, useEffect, useState } from 'react';
@@ -15,12 +21,15 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
-import { RAW_TONE_RENDERINGS as MODES, type RawToneRendering as RawToneRenderingMode } from './profileKeys';
+
+type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
 
 interface ToneCurvePoint {
   x: number;
   y: number;
 }
+
+const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard'];
 
 export default function RawToneRendering() {
   const t = useAgTranslation();
@@ -59,7 +68,7 @@ export default function RawToneRendering() {
   // DNG Standard needs nothing fitted: the renderer reads the photo's curve
   // itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
   // written to. A curve fitted for another rendering - left behind when a
-  // rendering is pasted onto the photo - counts as none (profileKeys.ts).
+  // rendering is pasted onto the photo - counts as none.
   const fitted = adjustments?.rawToneCurve?.length >= 2 && (adjustments?.rawToneCurveMode ?? current) === current;
   useEffect(() => {
     if (!isRaw || !path || current === 'default' || current === 'dngStandard' || fitted || busy) {

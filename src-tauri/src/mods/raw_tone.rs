@@ -71,7 +71,7 @@ pub fn mode_of(js: &Value) -> u32 {
 /// rendering it asks for, otherwise `fill_missing`'s.
 ///
 /// Copy settings and presets carry a rendering without the curve fitted to the
-/// photo it came from (argentum/profileKeys.ts), so a photo can receive a
+/// photo it came from (mods/copy_keys.rs), so a photo can receive a
 /// rendering while still holding a curve fitted for another. `rawToneCurveMode`
 /// names the rendering a curve was fitted for; an edit saved before it existed
 /// is taken at its word.

@@ -165,9 +165,11 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "lensTcaEnabled",
         "lensVignetteEnabled",
         "guidedPerspective",
+        "cameraProfile", // Argentum: our keys that Copy settings carries, mods/copy_keys.rs
+        "rawToneRendering",
+        "agSharpen",
     ]
     .iter()
-    .chain(crate::mods::copy_keys::KEYS.iter()) // Argentum: mods/copy_keys.rs
     .map(|s| s.to_string())
     .collect()
 }

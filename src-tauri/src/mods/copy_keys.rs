@@ -1,21 +1,23 @@
-//! Our keys in a photo's edit that Copy settings, Paste and presets carry.
+//! Our keys in a photo's edit that Copy settings, Paste and presets carry:
+//! `cameraProfile`, `rawToneRendering` and `agSharpen`.
 //!
 //! RapidRAW's paste goes through a saved list of keys
 //! (`copyPasteSettings.includedAdjustments`), seeded and extended at each start
-//! from their `all_available_adjustments` (app_settings.rs), which chains these
-//! in. A key new to that list is switched on for everyone at the next start.
-//!
-//! The same keys are in their copy groups on the interface's side
+//! from their `all_available_adjustments` (app_settings.rs), where ours are
+//! written in. A key new to that list is switched on for everyone at the next
+//! start. On the interface's side they are in their copy groups
 //! (`ADJUSTMENT_GROUPS` in utils/adjustments.ts): the camera profile and the
-//! RAW rendering as one group, `agSharpen` with Sharpness. Never `rawToneCurve`
-//! or `whiteBalanceAuto`: each is worked out for one photo
-//! (argentum/profileKeys.ts, argentum/WhiteBalanceMenu.tsx).
-
-pub const KEYS: [&str; 3] = ["cameraProfile", "rawToneRendering", "agSharpen"];
+//! RAW rendering as one group, `agSharpen` with Sharpness.
+//!
+//! Never `rawToneCurve` or `whiteBalanceAuto`: each is worked out for one photo
+//! (argentum/RawToneRendering.tsx, argentum/WhiteBalanceMenu.tsx). A profile
+//! that reaches a photo from another camera is left out of its render
+//! (profile_correction.rs `fits_this_photo`).
+//!
+//! What is here is the test that holds their list to ours.
 
 #[cfg(test)]
 mod tests {
-    use super::KEYS;
     use crate::app_settings::{all_available_adjustments, default_included_adjustments};
 
     /// Each is offered to paste, and pasted unless the user turns it off.
@@ -23,7 +25,7 @@ mod tests {
     fn our_keys_are_pasted_by_default() {
         let available = all_available_adjustments();
         let included = default_included_adjustments();
-        for key in KEYS {
+        for key in ["cameraProfile", "rawToneRendering", "agSharpen"] {
             assert!(available.contains(key), "{key} is not offered to paste");
             assert!(included.contains(key), "{key} is not pasted by default");
         }
