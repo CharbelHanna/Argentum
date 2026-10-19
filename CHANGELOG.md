@@ -126,6 +126,14 @@ Newest first.
 
 ### Changed
 
+- **Colours on a Canon EOS 1000D and a Pentax K-S2 are corrected, and two Nikon white levels.**
+  The rawler fork carried a dropped digit in the 1000D's colour matrix (`-0.0114` for Adobe's
+  `-0.1140`) and a matrix on the wrong scale for the K-S2 (first row `5.29, -1.66, -0.75`). The Nikon
+  Z 9 and Z fc had the older bodies' white levels (3880 / 15520) where Adobe's are 3972 / 15892.
+  Values from RAWmakase `data/raw-matrices.toml` and `data/raw-cameras.toml` @ `a8c5d6d7`
+  (v0.4.0, MIT), which carry Adobe DNG Converter 18.7's output. rawler is pinned to the fork
+  commit `b83a9e07` (`fix/rawler-data-matrices-nikon-white`, one commit on the C50 data commit
+  `16b9b010`, four data files).
 - **DNG Standard's exposure offsets now follow RAWmakase 0.4.0.** 97 of the 230 bodies change:
   Canon 45, Nikon 27, Olympus 12, Fujifilm 9, OM Digital 2, Hasselblad 1 and the Panasonic
   GH5S. RAWmakase stopped adding a correction for LibRaw's white level when it began
