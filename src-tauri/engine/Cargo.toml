@@ -15,7 +15,7 @@ exclude = ["reference"]
 
 [dependencies]
 # The same pinned fork the app decodes with (src-tauri/Cargo.toml).
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "16b9b01068ac1f7a9b5319705a075ef6c7789d7a" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "b83a9e0743198b45e04ccbe0473406769f73c180" }
 wgpu = "29.0"
 pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
