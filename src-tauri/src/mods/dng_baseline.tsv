@@ -8,9 +8,17 @@
 # Names are LibRaw's, matched to rawler's in letters and digits only.
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
-# Adobe Standard, adjusted by RAWmakase for the difference between Adobe's and
-# LibRaw's white level. Argentum decodes with rawler, whose white level for a
-# body may differ from LibRaw's; that has not been measured here.
+# Adobe Standard. The first version of this table carried RAWmakase's adjustment
+# for LibRaw's white level; RAWmakase 0.4.0 dropped it when it began reading
+# Adobe's levels. This table now is RAWmakase's, row for row: data/cameras.toml
+# @ a8c5d6d7 (v0.4.0, 2026-10-19).
+#
+# Known limit: for Canon, Adobe moves BaselineExposure with the white level it
+# takes by ISO speed, and RAWmakase 0.4.0 follows that per photo. This table
+# holds one value per body, the one at the sample's ISO. rawler takes the file's
+# SpecularWhiteLevel for Canon (Adobe: NormalWhiteLevel), so a Canon row may sit
+# a few hundredths to a quarter of a stop off Camera Raw. Not measured against
+# Camera Raw yet.
 #
 # Copyright (c) 2026 RAWmakase contributors. MIT licence, in full in
 # docs/licenses/RAWmakase-MIT.txt:
@@ -23,75 +31,75 @@
 #   furnished to do so, subject to the following conditions: the above copyright
 #   notice and this permission notice shall be included in all copies or
 #   substantial portions of the Software.
-Canon	EOS 100D	0.1	
-Canon	EOS 1100D|EOS REBEL T3	-0.15	
-Canon	EOS 1200D|EOS REBEL T5	-0.1	
-Canon	EOS 1300D|EOS Rebel T6|EOS Kiss X80	0.05	
-Canon	EOS 1500D|EOS 2000D|EOS Rebel T7|EOS Kiss X90	0.35	
-Canon	EOS 200D	0.5	
-Canon	EOS 250D	0.4	
-Canon	EOS 3000D|EOS 4000D|EOS Rebel T100	0.3	
-Canon	EOS 30D	0.25	
-Canon	EOS 450D	-0.15	
-Canon	EOS 500D	0.15	
-Canon	EOS 550D	0.1	
+Canon	EOS 100D	-0.1	
+Canon	EOS 1100D|EOS REBEL T3	-0.5	
+Canon	EOS 1200D|EOS REBEL T5	-0.35	
+Canon	EOS 1300D|EOS Rebel T6|EOS Kiss X80	-0.2	
+Canon	EOS 1500D|EOS 2000D|EOS Rebel T7|EOS Kiss X90	-0.1	
+Canon	EOS 200D	0	
+Canon	EOS 250D	-0.1	
+Canon	EOS 3000D|EOS 4000D|EOS Rebel T100	-0.2	
+Canon	EOS 30D	0	
+Canon	EOS 450D	0	
+Canon	EOS 500D	0.4	
+Canon	EOS 550D	-0.35	
 Canon	EOS 5D	0.25	
 Canon	EOS 5D Mark II	0.4	
-Canon	EOS 5D Mark III	0.3	
-Canon	EOS 5D Mark IV	0.35	
-Canon	EOS 5DS R	0.3	
-Canon	EOS 600D	-0.15	
+Canon	EOS 5D Mark III	0.25	
+Canon	EOS 5D Mark IV	0.15	
+Canon	EOS 5DS R	0.15	
+Canon	EOS 600D	0	
 Canon	EOS 60D	-0.35	
-Canon	EOS 650D	0.1	
-Canon	EOS 6D	0.3	
+Canon	EOS 650D	-0.1	
+Canon	EOS 6D	0.25	
 Canon	EOS 6D Mark II	0.25	
-Canon	EOS 700D|EOS REBEL T5i	0.3	
-Canon	EOS 70D	0.3	
-Canon	EOS 750D|EOS Rebel T6i	0.3	
-Canon	EOS 77D	0.55	
+Canon	EOS 700D|EOS REBEL T5i	-0.1	
+Canon	EOS 70D	-0.1	
+Canon	EOS 750D|EOS Rebel T6i	-0.15	
+Canon	EOS 77D	0.3	
 Canon	EOS 7D	-0.2	
 Canon	EOS 7D Mark II	-0.05	
-Canon	EOS 800D|EOS Rebel T7i	0.5	
-Canon	EOS 80D	0.5	
-Canon	EOS 850D	0.05	
-Canon	EOS 90D	0.5	
-Canon	EOS M100	0.3	
-Canon	EOS M200	0.4	
-Canon	EOS M5	0.3	
-Canon	EOS M50	0.5	
-Canon	EOS M50 Mark II	0.4	
-Canon	EOS M6 Mark II	0.5	
-Canon	EOS R	0.6	
+Canon	EOS 800D|EOS Rebel T7i	0	
+Canon	EOS 80D	0	
+Canon	EOS 850D	-0.45	
+Canon	EOS 90D	0.15	
+Canon	EOS M100	-0.05	
+Canon	EOS M200	-0.1	
+Canon	EOS M5	0.25	
+Canon	EOS M50	0	
+Canon	EOS M50 Mark II	-0.35	
+Canon	EOS M6 Mark II	-0.2	
+Canon	EOS R	0.4	
 Canon	EOS R10	0.4	
-Canon	EOS R100	0.35	
-Canon	EOS R3	0.3	
+Canon	EOS R100	-0.4	
+Canon	EOS R3	0.1	
 Canon	EOS R5	0.5	
 Canon	EOS R5 Mark II	0.5	
 Canon	EOS R50	0.3	
 Canon	EOS R50 V	0.4	
 Canon	EOS R6	0.35	
-Canon	EOS R6 Mark II	0.5	
-Canon	EOS R6 Mark III	0.5	
+Canon	EOS R6 Mark II	0.25	
+Canon	EOS R6 Mark III	0.25	
 Canon	EOS R7	0.4	
 Canon	EOS R8	0.25	
-Canon	EOS RP	0.5	
+Canon	EOS RP	0.3	
 Canon	EOS-1D Mark II N	0.25	
-Canon	EOS-1D X Mark II	0.5	
-Canon	EOS-1D X Mark III	0.45	
-Canon	PowerShot G1 X Mark III	0.3	
-Canon	PowerShot G5 X Mark II	0.25	
+Canon	EOS-1D X Mark II	0.4	
+Canon	EOS-1D X Mark III	0.4	
+Canon	PowerShot G1 X Mark III	0.25	
+Canon	PowerShot G5 X Mark II	0.05	
 Canon	PowerShot G7 X Mark II	0.35	
-Canon	PowerShot G7 X Mark III	0.35	
-Canon	PowerShot G9 X Mark II	0.3	
-Canon	PowerShot V1	0.5	
-Fujifilm	GFX 100	-0.05	
-Fujifilm	GFX 50R	-0.05	
-Fujifilm	GFX 50S	-0.05	
-Fujifilm	GFX100 II	-0.05	
-Fujifilm	GFX100RF	-0.05	
-Fujifilm	GFX100S	-0.05	
-Fujifilm	GFX100S II	-0.05	
-Fujifilm	GFX50S II	-0.05	
+Canon	PowerShot G7 X Mark III	0.15	
+Canon	PowerShot G9 X Mark II	0.25	
+Canon	PowerShot V1	0.15	
+Fujifilm	GFX 100	0	
+Fujifilm	GFX 50R	0	
+Fujifilm	GFX 50S	0	
+Fujifilm	GFX100 II	0	
+Fujifilm	GFX100RF	0	
+Fujifilm	GFX100S	0	
+Fujifilm	GFX100S II	0	
+Fujifilm	GFX50S II	0	
 Fujifilm	X-A10	-0.1	
 Fujifilm	X-A3	-0.1	
 Fujifilm	X-A5	-0.25	
@@ -122,57 +130,57 @@ Fujifilm	X100F	0.15
 Fujifilm	X100V	0.05	
 Fujifilm	X100VI	-0.15	
 Fujifilm	X70	-0.05	
-Fujifilm	XF10	-0.3	
+Fujifilm	XF10	-0.25	
 Hasselblad	CFV-100c|CFV 100C	-0.25	
-Hasselblad	X2D 100C-100c|X2D 100C	-0.2	
+Hasselblad	X2D 100C-100c|X2D 100C	-0.25	
 Leica	D-Lux 7	0.25	
 Leica	V-Lux 5	0	
 Nikon	COOLPIX A1000	-0.1	
 Nikon	COOLPIX P1100	-0.3	
 Nikon	COOLPIX P950	-0.3	
-Nikon	D3400	0.45	
-Nikon	D3500	0.25	
-Nikon	D5	0.45	
-Nikon	D500	0.3	
-Nikon	D5600	0.15	
-Nikon	D6	0.35	
-Nikon	D610	0.45	
-Nikon	D7200	0.4	
-Nikon	D750	0.2	
-Nikon	D7500	0.45	
-Nikon	D780	0.3	
-Nikon	D850	0.3	
-Nikon	Df	0.35	
-Nikon	Z 30	0.35	
-Nikon	Z 5	0.3	
-Nikon	Z 50	0.45	
-Nikon	Z 6	0.3	
-Nikon	Z 6_2	0.3	
-Nikon	Z 7	0.35	
-Nikon	Z 7_2	0.25	
-Nikon	Z 8	0.25	
-Nikon	Z 9	0.25	
-Nikon	Z f	0.25	
-Nikon	Z fc	0.3	
-Nikon	Z50_2	0.3	
-Nikon	Z5_2	0.25	
-Nikon	Z6_3	0.3	
-Olympus	E-M10 Mark III	0.55	
-Olympus	E-M10MarkIIIS|E-M10 Mark IIIs	0.55	
-Olympus	E-M10MarkIV|E-M10 Mark IV	0.55	
-Olympus	E-M1MarkII|E-M1 Mark II	0.85	
-Olympus	E-M1MarkIII|E-M1 Mark III	0.35	
-Olympus	E-M1X	0.35	
-Olympus	E-M5MarkIII|E-M5 Mark III	0.35	
-Olympus	E-P7	0.35	
-Olympus	E-PL10	0.55	
-Olympus	E-PL8	0.55	
-Olympus	E-PL9	0.55	
-Olympus	PEN-F	0.6	
-OM Digital	OM-1	0.4	
+Nikon	D3400	0.35	
+Nikon	D3500	0.2	
+Nikon	D5	0.35	
+Nikon	D500	0.2	
+Nikon	D5600	0.1	
+Nikon	D6	0.25	
+Nikon	D610	0.35	
+Nikon	D7200	0.35	
+Nikon	D750	0.1	
+Nikon	D7500	0.35	
+Nikon	D780	0.2	
+Nikon	D850	0.2	
+Nikon	Df	0.25	
+Nikon	Z 30	0.3	
+Nikon	Z 5	0.2	
+Nikon	Z 50	0.35	
+Nikon	Z 6	0.2	
+Nikon	Z 6_2	0.2	
+Nikon	Z 7	0.25	
+Nikon	Z 7_2	0.15	
+Nikon	Z 8	0.2	
+Nikon	Z 9	0.2	
+Nikon	Z f	0.2	
+Nikon	Z fc	0.25	
+Nikon	Z50_2	0.25	
+Nikon	Z5_2	0.2	
+Nikon	Z6_3	0.25	
+Olympus	E-M10 Mark III	0.5	
+Olympus	E-M10MarkIIIS|E-M10 Mark IIIs	0.5	
+Olympus	E-M10MarkIV|E-M10 Mark IV	0.5	
+Olympus	E-M1MarkII|E-M1 Mark II	0.8	
+Olympus	E-M1MarkIII|E-M1 Mark III	0.3	
+Olympus	E-M1X	0.3	
+Olympus	E-M5MarkIII|E-M5 Mark III	0.3	
+Olympus	E-P7	0.3	
+Olympus	E-PL10	0.5	
+Olympus	E-PL8	0.5	
+Olympus	E-PL9	0.5	
+Olympus	PEN-F	0.55	
+OM Digital	OM-1	0.35	
 OM Digital	OM-1MarkII|OM-1 Mark II	0.35	
 OM Digital	OM-3	0.35	
-OM Digital	OM-5	0.35	
+OM Digital	OM-5	0.3	
 OM Digital	OM-5MarkII|OM-5 Mark II	0.3	
 OM Digital	TG-7	-0.2	
 Panasonic	DC-G100	0.25	
@@ -182,7 +190,7 @@ Panasonic	DC-G95	0.25
 Panasonic	DC-G9M2	0	
 Panasonic	DC-GH5	0.3	
 Panasonic	DC-GH5M2	0.75	
-Panasonic	DC-GH5S	0.35	
+Panasonic	DC-GH5S	-0.75	
 Panasonic	DC-GH6	0	
 Panasonic	DC-GH7	0.5	
 Panasonic	DC-GX9	0.25	
