@@ -2299,6 +2299,11 @@ export const REGISTRY = [
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
         note: 'The top bar\'s Zoom menu and the Navigator, in the units today\'s zoom control uses; '
           + 'toggleShowOriginal for Before.' },
+      { file: 'src/store/useUIStore.ts', symbol: 'movePanel', how: 'replaces',
+        note: 'Deleted with Classic\'s side panel areas: movePanel, movePanelToIndex, setLayoutDragItem and '
+          + 'setPanelSwitcherPlacement, which moved tabs between areas. panelLayout, panelSwitcherPlacement '
+          + 'and activeLayoutDragItem stay: the saved workspace still carries them, setPanel finds a panel '
+          + 'through panelLayout, and FolderTree.tsx still reads activeLayoutDragItem (now always null).' },
       { file: 'src/store/useUIStore.ts', symbol: 'activePanel', how: 'calls',
         note: 'The tabs read and set activePanel, as today\'s D, P, R, M, K and E keys do; the panel '
           + 'toggles are uiVisibility, the widths leftPanelWidth, rightPanelWidth and bottomPanelHeight.' },
