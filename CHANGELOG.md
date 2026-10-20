@@ -489,6 +489,12 @@ against the 1.6.5 review.
     photo is fitted is 0.66 GB with it and 0.74 GB without, against a limit
     of 0.73 GB in `tests/memory.rs`. Closing a photo also lets go of the
     pixel pass's input on the GPU.
+  - The pixel pass sends its input to the GPU a 64 MB band at a time, each
+    band sent and waited for before the next. Written without a send
+    between them, wgpu kept every band's staging copy until the render's
+    dispatch: a second copy of the picture, 0.45 GB at 61 MP. The process's
+    peak in `tests/memory.rs` for the synthetic 61 MP photo is 2.47 GB with
+    it and 2.74 GB without, against a limit of 2.51 GB.
   - A tool can start a photo at the photo's own settings
     (`Tool::defaults_for`, after darktable's `reload_defaults`), and `null`
     in a patch puts a setting back to them.

@@ -24,7 +24,10 @@ use argentum_engine::pipeline::DEFAULT_CACHE_BYTES;
 /// budget of 1.5 GB, on an integrated GPU, whose memory is the process's,
 /// 2026-10-18, and never to be raised. This one: 0.69 to 0.89 for a 32 MP
 /// Canon CR3 (a peak of 1.75 to 1.82 GB over three runs) and 1.03 for the
-/// synthetic 61 MP photo (2.19 GB).
+/// synthetic 61 MP photo (2.19 GB). Those were before the pixel pass kept its
+/// input on the GPU, 8 bytes a pixel; with it, 2026-10-20: 0.86 for the CR3
+/// (1.81 GB) and 1.44 for the synthetic photo (2.47 GB, the same over four
+/// runs).
 const PAST_THE_BUDGET_PICTURES: f64 = 1.5;
 
 /// What the process may hold at its peak while the photo is only fitted, in
