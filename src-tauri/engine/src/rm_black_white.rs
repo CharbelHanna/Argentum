@@ -439,7 +439,10 @@ mod tests {
         );
         // Two equally bright colours: an axis with no brightness component is found too.
         let opposed = spread([1.0, -1.0, 0.0]).principal_axis();
-        assert!((opposed[0].abs() - 0.5f64.sqrt()).abs() < 1e-6, "{opposed:?}");
+        assert!(
+            (opposed[0].abs() - 0.5f64.sqrt()).abs() < 1e-6,
+            "{opposed:?}"
+        );
         // White balance is part of what Auto measures: cooling the same photo does the same.
         let cooler = neutral.transformed([[0.8, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.6]]);
         let cooled = percent(auto_mix(&cooler));
@@ -460,7 +463,8 @@ mod tests {
         };
         let s = ColorSpread::measure(w, h, pixel);
         for c in 0..3 {
-            assert!((s.mean[c] - (warm[c] + cool[c]) / 2.0).abs() < 1e-6, "{s:?}");
+            let half_way = (f64::from(warm[c]) + f64::from(cool[c])) / 2.0;
+            assert!((s.mean[c] - half_way).abs() < 1e-6, "{s:?}");
         }
         // The axis runs from one colour to the other.
         let axis = s.principal_axis();

@@ -57,8 +57,8 @@ use serde_json::{Map, Value};
 use crate::app_state::LoadedImage;
 use crate::image_processing::{GlobalAdjustments, HslColor};
 
-use argentum_engine::rm_black_white::{ColorSpread, SRGB_TO_PROPHOTO, auto_mix};
 pub use argentum_engine::rm_black_white::{CELLS, gray_grid};
+use argentum_engine::rm_black_white::{ColorSpread, SRGB_TO_PROPHOTO, auto_mix};
 
 /// The key in an edit.
 pub const KEY: &str = "agBlackWhite";
@@ -223,11 +223,7 @@ fn spread_of(image: &DynamicImage, is_raw: bool) -> ColorSpread {
                 [p[0], p[1], p[2]].map(|v| f32::from(v) / 255.0)
             }
         };
-        if is_raw {
-            rgb
-        } else {
-            rgb.map(srgb_to_linear)
-        }
+        if is_raw { rgb } else { rgb.map(srgb_to_linear) }
     };
     ColorSpread::measure(image.width() as usize, image.height() as usize, pixel)
 }
@@ -338,7 +334,10 @@ mod tests {
         let neutral = mix_of(&auto(&ramp, &json!({})));
         let camera_raw = [-9, -19, -22, -27, -19, 9, 15, 4];
         assert!(
-            neutral.iter().zip(camera_raw).all(|(a, b)| (a - b).abs() <= 2),
+            neutral
+                .iter()
+                .zip(camera_raw)
+                .all(|(a, b)| (a - b).abs() <= 2),
             "{neutral:?}"
         );
         let cooled = mix_of(&auto(&ramp, &json!({ "temperature": -40 })));
@@ -564,7 +563,10 @@ mod sheet {
                     Value::Object(mix.clone()).to_string(),
                 )
                 .unwrap();
-                looks.push(("B&W".into(), serde_json::json!({ super::KEY: { "enabled": true } })));
+                looks.push((
+                    "B&W".into(),
+                    serde_json::json!({ super::KEY: { "enabled": true } }),
+                ));
                 mix.insert("enabled".into(), Value::from(true));
                 looks.push(("B&W Auto".into(), serde_json::json!({ super::KEY: mix })));
                 std::sync::Arc::try_unwrap(loaded.image).expect("one owner")
