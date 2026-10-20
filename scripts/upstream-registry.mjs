@@ -123,6 +123,10 @@ export const RENDER_PATH = [
   'src-tauri/src/gpu_processing.rs',
   'src-tauri/src/lib.rs',
   'src-tauri/src/image_processing.rs',
+  // Their main compute shader, since 2026-10-20: the slow Vulkan and DirectX 12
+  // renders were caused inside it (arrays passed by value, copied per pixel),
+  // and the fix could only go there.
+  'src-tauri/src/shaders/shader.wgsl',
 ];
 
 export const isRenderPath = (file) => RENDER_PATH.includes(file);
