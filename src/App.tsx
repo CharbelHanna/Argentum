@@ -1,5 +1,4 @@
 import Argentum from './argentum/Argentum';
-import { useModernLayout } from './argentum/layout';
 import { ModernWindow, refreshModernTrees, rootImageCounts, startModernLibrary } from './argentum/modern';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -19,15 +18,11 @@ import {
 } from '@dnd-kit/core';
 import clsx from 'clsx';
 
-import TitleBar from './window/TitleBar';
 import FolderTree from './components/panel/right/FolderTree';
-import SettingsPanel from './components/panel/SettingsPanel';
 import ExportPanel from './components/panel/right/ExportPanel';
 import GlobalTooltip from './components/ui/GlobalTooltip';
 import AppModals from './components/modals/AppModals';
 
-import SidePanelArea from './components/panel/SidePanelArea';
-import { PANEL_ICONS } from './components/panel/PanelSwitcher';
 import Controls from './components/panel/right/ControlsPanel';
 import MetadataPanel from './components/panel/right/MetadataPanel';
 import CropPanel from './components/panel/right/CropPanel';
@@ -35,9 +30,6 @@ import MasksPanel from './components/panel/right/MasksPanel';
 import AIPanel from './components/panel/right/AIPanel';
 import PresetsPanel from './components/panel/right/PresetsPanel';
 import TetheringPanel from './components/panel/right/TetheringPanel';
-
-import EditorView from './components/views/EditorView';
-import LibraryView from './components/views/LibraryView';
 
 import { ContextMenuProvider } from './context/ContextMenuContext';
 import { useSettingsStore } from './store/useSettingsStore';
@@ -48,7 +40,6 @@ import { useProcessStore } from './store/useProcessStore';
 import { useShallow } from 'zustand/react/shallow';
 
 import { useThumbnails } from './hooks/useThumbnails';
-import { ImageDimensions } from './hooks/useImageRenderSize';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useTauriListeners } from './hooks/useTauriListeners';
 import { useFileOperations } from './hooks/useFileOperations';
@@ -72,7 +63,6 @@ import {
   ImageFile,
   LibraryViewMode,
   Panel,
-  PanelRegion,
   Theme,
   ThumbnailSize,
   ThumbnailAspectRatio,
@@ -153,41 +143,14 @@ function App() {
     })),
   );
 
-  const {
-    activeView,
-    isFullScreen,
-    isWindowFullScreen,
-    isInstantTransition,
-    isLayoutReady,
-    uiVisibility,
-    leftPanelWidth,
-    rightPanelWidth,
-    compactEditorPanelHeightOverride,
-    activePanel,
-    activeLayoutDragItem,
-    isSettingsOpen,
-    setUI,
-    setPanel,
-    setLayoutDragItem,
-    movePanel,
-  } = useUIStore(
+  const { activeView, isFullScreen, isWindowFullScreen, isInstantTransition, activePanel, setUI } = useUIStore(
     useShallow((state) => ({
       activeView: state.activeView,
       isFullScreen: state.isFullScreen,
       isWindowFullScreen: state.isWindowFullScreen,
       isInstantTransition: state.isInstantTransition,
-      isLayoutReady: state.isLayoutReady,
-      uiVisibility: state.uiVisibility,
-      leftPanelWidth: state.leftPanelWidth,
-      rightPanelWidth: state.rightPanelWidth,
-      compactEditorPanelHeightOverride: state.compactEditorPanelHeightOverride,
       activePanel: state.activePanel,
-      activeLayoutDragItem: state.activeLayoutDragItem,
-      isSettingsOpen: state.isSettingsOpen,
       setUI: state.setUI,
-      setPanel: state.setPanel,
-      setLayoutDragItem: state.setLayoutDragItem,
-      movePanel: state.movePanel,
     })),
   );
 
@@ -229,17 +192,6 @@ function App() {
 
   const prevAdjustmentsRef = useRef<any>(null);
 
-  const [viewportSize, setViewportSize] = useState<ImageDimensions>(() => {
-    if (typeof window === 'undefined') {
-      return { width: 0, height: 0 };
-    }
-
-    return {
-      width: Math.round(window.visualViewport?.width ?? window.innerWidth),
-      height: Math.round(window.visualViewport?.height ?? window.innerHeight),
-    };
-  });
-
   const isBackendReadyRef = useRef(true);
   const previewJobIdRef = useRef<number>(0);
   const latestRenderedJobIdRef = useRef<number>(0);
@@ -272,59 +224,6 @@ function App() {
   });
 
   const isAndroid = osPlatform === 'android';
-  const COMPACT_EDITOR_MAX_WIDTH = 900;
-  const ANDROID_COMPACT_MAX_WIDTH = 600;
-  const ANDROID_FULL_MIN_WIDTH = 1000;
-
-  const isPortraitViewport = viewportSize.width > 0 && viewportSize.height > viewportSize.width;
-
-  type LayoutMode = 'compact' | 'wide' | 'full';
-  const layoutMode: LayoutMode = isAndroid
-    ? viewportSize.width >= ANDROID_FULL_MIN_WIDTH
-      ? 'full'
-      : isPortraitViewport && viewportSize.width < ANDROID_COMPACT_MAX_WIDTH
-        ? 'compact'
-        : 'wide'
-    : isPortraitViewport && viewportSize.width > 0 && viewportSize.width <= COMPACT_EDITOR_MAX_WIDTH
-      ? 'compact'
-      : 'full';
-
-  const useCompactPanels = layoutMode === 'compact';
-  const useWidePanels = layoutMode === 'wide';
-  const compactEditorPanelMinHeight = 220;
-  const compactEditorPanelMaxHeight =
-    viewportSize.height > 0
-      ? Math.max(compactEditorPanelMinHeight, Math.min(Math.round(viewportSize.height * 0.85), 850))
-      : 520;
-
-  const getDynamicCompactPanelHeight = () => {
-    const { originalSize, adjustments } = useEditorStore.getState();
-    const halfScreenHeight = viewportSize.height > 0 ? Math.round(viewportSize.height * 0.5) : 340;
-
-    if (!selectedImage || originalSize.width === 0 || originalSize.height === 0 || viewportSize.width === 0) {
-      return halfScreenHeight;
-    }
-    let effectiveRatio = originalSize.width / originalSize.height;
-    const orientationSteps = adjustments?.orientationSteps || 0;
-    if (orientationSteps % 2 !== 0) {
-      effectiveRatio = originalSize.height / originalSize.width;
-    }
-    if (adjustments?.aspectRatio && adjustments.aspectRatio > 0) {
-      effectiveRatio = adjustments.aspectRatio;
-    }
-    const desiredImageHeight = viewportSize.width / effectiveRatio;
-    const topUiEstimation = !appSettings?.decorations && !isWindowFullScreen ? 110 : 60;
-    const totalDesiredTopHeight = desiredImageHeight + topUiEstimation;
-    const calculatedBottomHeight = Math.round(viewportSize.height - totalDesiredTopHeight);
-    return Math.max(halfScreenHeight, calculatedBottomHeight);
-  };
-
-  const compactEditorPanelDefaultHeight = getDynamicCompactPanelHeight();
-  const compactEditorPanelHeight = Math.max(
-    compactEditorPanelMinHeight,
-    Math.min(compactEditorPanelHeightOverride ?? compactEditorPanelDefaultHeight, compactEditorPanelMaxHeight),
-  );
-  const compactEditorPanelCollapsedHeight = 96;
 
   const { handleCopyAdjustments, handlePasteAdjustments, handleResetAdjustments, handleZoomChange } =
     useEditorActions();
@@ -371,17 +270,15 @@ function App() {
     handleLibraryImageSingleClick,
     handleImageClick,
     handleSetFlag,
-    refreshAllFolderTrees: refreshLibraryTrees,
     handleTogglePinFolder,
     handleCreateAlbumItem,
     handleRenameAlbumItem,
   } = useLibraryActions(handleImageSelect);
 
-  // Argentum: under the Modern layout the folder tree's roots are the disks. It
-  // starts on them with no start screen, and its refresh leaves their photos
-  // uncounted, which would read every folder on a disk.
-  const isModernLayout = useModernLayout();
-  const refreshAllFolderTrees = isModernLayout ? refreshModernTrees : refreshLibraryTrees;
+  // Argentum: the folder tree's roots are the disks. It starts on them with no
+  // start screen, and its refresh leaves their photos uncounted, which would
+  // read every folder on a disk.
+  const refreshAllFolderTrees = refreshModernTrees;
   const handleModernStart = useCallback(
     () => startModernLibrary(preloadedDataRef, handleSelectSubfolder),
     [handleSelectSubfolder],
@@ -491,33 +388,6 @@ function App() {
   });
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const updateViewportSize = () => {
-      const nextViewportSize = {
-        width: Math.round(window.visualViewport?.width ?? window.innerWidth),
-        height: Math.round(window.visualViewport?.height ?? window.innerHeight),
-      };
-
-      setViewportSize((prev) =>
-        prev.width === nextViewportSize.width && prev.height === nextViewportSize.height ? prev : nextViewportSize,
-      );
-    };
-
-    updateViewportSize();
-
-    window.addEventListener('resize', updateViewportSize);
-    window.addEventListener('orientationchange', updateViewportSize);
-    window.visualViewport?.addEventListener('resize', updateViewportSize);
-
-    return () => {
-      window.removeEventListener('resize', updateViewportSize);
-      window.removeEventListener('orientationchange', updateViewportSize);
-      window.visualViewport?.removeEventListener('resize', updateViewportSize);
-    };
-  }, []);
-
-  useEffect(() => {
     const handleGlobalContextMenu = (event: MouseEvent) => {
       event.preventDefault();
     };
@@ -614,15 +484,6 @@ function App() {
             uiVisibility: { ...state.uiVisibility, filmstrip: true },
           }));
         }
-      } else if (stateKey === 'compact') {
-        setUI({
-          compactEditorPanelHeightOverride: Math.round(
-            Math.max(
-              compactEditorPanelMinHeight,
-              Math.min(startSize - (moveEvent.clientY - startY), compactEditorPanelMaxHeight),
-            ),
-          ),
-        });
       }
     };
 
@@ -640,8 +501,7 @@ function App() {
       setIsResizing(false);
     };
 
-    document.documentElement.style.cursor =
-      stateKey === 'bottom' || stateKey === 'compact' ? 'row-resize' : 'col-resize';
+    document.documentElement.style.cursor = stateKey === 'bottom' ? 'row-resize' : 'col-resize';
 
     window.addEventListener('pointermove', doDrag, { passive: false });
     window.addEventListener('pointerup', stopDrag);
@@ -664,8 +524,6 @@ function App() {
         bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
         uiVisibility: { ...state.uiVisibility, filmstrip: true },
       }));
-    } else if (stateKey === 'compact') {
-      setUI({ compactEditorPanelHeightOverride: null });
     }
   };
 
@@ -680,13 +538,6 @@ function App() {
       unlistenPromise.then((unlisten: any) => unlisten());
     };
   }, [setUI]);
-
-  const handlePanelSelect = useCallback(
-    (panelId: Panel) => {
-      setPanel(panelId);
-    },
-    [setPanel],
-  );
 
   const handleToggleFolder = useCallback(
     async (path: string) => {
@@ -795,18 +646,12 @@ function App() {
     ],
   );
 
-  const hasRoots = rootPaths && rootPaths.length > 0;
-  const hasMainContent = hasRoots || (activeView === 'editor' && !!selectedImage);
-
-  const shouldHideFolderTree = useCompactPanels || useWidePanels;
   const isWgpuActive =
     activeView === 'editor' &&
     appSettings?.useWgpuRenderer !== false &&
     selectedImage?.isReady &&
     hasRenderedFirstFrame;
   const useMacWindowShell = osPlatform === 'macos' && !appSettings?.decorations && !isWindowFullScreen && !isFullScreen;
-  // Argentum: the Modern window replaces today's title bar, side panels and views (argentum/modern).
-  const isModernWindow = isModernLayout && layoutMode === 'full' && !isAndroid;
 
   const libraryViewProps = {
     sortedImageList,
@@ -815,7 +660,7 @@ function App() {
     thumbnailAspectRatio,
     libraryViewMode,
     isAndroid,
-    layoutMode,
+    layoutMode: 'full' as const,
     setThumbnailSize,
     setThumbnailAspectRatio,
     setLibraryViewMode,
@@ -838,9 +683,7 @@ function App() {
 
   const layoutSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const handleDragStart = (e: any) => {
-    if (e.active.data.current?.type === 'layout-tab') {
-      setLayoutDragItem(e.active.data.current.panel as Panel);
-    } else if (e.active.data.current?.type === 'library-image') {
+    if (e.active.data.current?.type === 'library-image') {
       const path = e.active.data.current.path;
       const multiSelected = useLibraryStore.getState().multiSelectedPaths;
       const paths = multiSelected.includes(path) ? multiSelected : [path];
@@ -849,13 +692,8 @@ function App() {
   };
 
   const handleDragEnd = (e: any) => {
-    setLayoutDragItem(null);
     setActiveImageDragItem(null);
     const { active, over } = e;
-
-    if (active.data.current?.type === 'layout-tab' && over?.data.current?.type === 'layout-region') {
-      movePanel(active.data.current.panel as Panel, over.data.current.region as PanelRegion);
-    }
 
     if (active.data.current?.type === 'library-image' && over?.data.current?.type === 'folder') {
       const targetFolder = over.data.current.path;
@@ -888,10 +726,6 @@ function App() {
     }
   };
 
-  const ActiveOverlayIcon = activeLayoutDragItem ? PANEL_ICONS[activeLayoutDragItem] : null;
-  const effectiveLeftWidth = uiVisibility.leftPanel ? leftPanelWidth : 48;
-  const effectiveRightWidth = uiVisibility.rightPanel ? rightPanelWidth : useWidePanels ? 58 : 48;
-
   return (
     <>
       <Argentum onImageSelect={handleImageSelect} onLibraryRefresh={handleLibraryRefresh} />
@@ -910,24 +744,7 @@ function App() {
           isWgpuActive ? 'bg-transparent' : 'bg-bg-primary',
         )}
       >
-        {!isAndroid && !isModernWindow && (
-          <div
-            className={clsx(
-              'shrink-0 overflow-hidden z-50',
-              !isInstantTransition && 'transition-all duration-300 ease-in-out',
-              isFullScreen ? 'max-h-0 opacity-0 pointer-events-none' : 'max-h-15 opacity-100',
-            )}
-          >
-            {appSettings?.decorations || (!isWindowFullScreen && <TitleBar />)}
-          </div>
-        )}
-        <div
-          className={clsx(
-            'flex-1 flex flex-col min-h-0',
-            isLayoutReady && hasMainContent && !isInstantTransition && 'transition-all duration-300 ease-in-out',
-            [hasMainContent && !isModernWindow && (isFullScreen ? 'p-0 gap-0' : 'p-2 gap-2')],
-          )}
-        >
+        <div className="flex-1 flex flex-col min-h-0">
           <DndContext
             sensors={layoutSensors}
             onDragStart={handleDragStart}
@@ -939,147 +756,48 @@ function App() {
               },
             }}
           >
-            {isModernWindow ? (
-              <ModernWindow
-                gpu={appSettings?.useWgpuRenderer !== false}
-                renderAppPanel={renderAppPanel}
-                createResizeHandler={createResizeHandler}
-                createResizeResetHandler={createResizeResetHandler}
-                onStart={handleModernStart}
-                onSelectFolder={(path) => handleSelectSubfolder(path, false, undefined, true)}
-                onNavBack={handleNavBack}
-                onNavForward={handleNavForward}
-                transformWrapperRef={transformWrapperRef}
-                onBackToLibrary={handleBackToLibrary}
-                onEditorContextMenu={handleEditorContextMenu}
-                onOpenInEditor={handleImageClick}
-                onOpenPhoto={handleImageSelect}
-                onZoom={handleZoomChange}
-                libraryProps={libraryViewProps}
-                sortedImageList={sortedImageList}
-                thumbnailAspectRatio={thumbnailAspectRatio}
-                onSelectInGrid={handleLibraryImageSingleClick}
-                onClearSelection={handleClearSelection}
-                onThumbnailContextMenu={handleThumbnailContextMenu}
-                onEmptyAreaContextMenu={handleMainLibraryContextMenu}
-                onRequestThumbnails={requestThumbnails}
-                settingsProps={{
-                  appSettings,
-                  onLibraryRefresh: handleLibraryRefresh,
-                  onSettingsChange: handleSettingsChange,
-                  rootPaths,
-                }}
-                externalEditBar={
-                  selectedImage && externalEditSession ? (
-                    <ExternalEditBar
-                      session={externalEditSession}
-                      isFinishing={isExternalEditFinishing}
-                      errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
-                      onDone={finishExternalEdit}
-                    />
-                  ) : undefined
-                }
-              />
-            ) : (
-              <div className="flex flex-row grow h-full min-h-0">
-                {!shouldHideFolderTree && hasMainContent && (
-                  <SidePanelArea
-                    side="left"
-                    width={effectiveLeftWidth}
-                    topRegion="leftTop"
-                    bottomRegion="leftBottom"
-                    renderPanel={renderAppPanel}
-                    onWidthChange={createResizeHandler('left', effectiveLeftWidth)}
-                    onWidthReset={createResizeResetHandler('left')}
-                    isResizing={isResizing}
+            {/* Argentum: the Modern window is the whole app at every size (argentum/modern). */}
+            <ModernWindow
+              gpu={appSettings?.useWgpuRenderer !== false}
+              renderAppPanel={renderAppPanel}
+              createResizeHandler={createResizeHandler}
+              createResizeResetHandler={createResizeResetHandler}
+              onStart={handleModernStart}
+              onSelectFolder={(path) => handleSelectSubfolder(path, false, undefined, true)}
+              onNavBack={handleNavBack}
+              onNavForward={handleNavForward}
+              transformWrapperRef={transformWrapperRef}
+              onBackToLibrary={handleBackToLibrary}
+              onEditorContextMenu={handleEditorContextMenu}
+              onOpenInEditor={handleImageClick}
+              onOpenPhoto={handleImageSelect}
+              onZoom={handleZoomChange}
+              libraryProps={libraryViewProps}
+              sortedImageList={sortedImageList}
+              thumbnailAspectRatio={thumbnailAspectRatio}
+              onSelectInGrid={handleLibraryImageSingleClick}
+              onClearSelection={handleClearSelection}
+              onThumbnailContextMenu={handleThumbnailContextMenu}
+              onEmptyAreaContextMenu={handleMainLibraryContextMenu}
+              onRequestThumbnails={requestThumbnails}
+              settingsProps={{
+                appSettings,
+                onLibraryRefresh: handleLibraryRefresh,
+                onSettingsChange: handleSettingsChange,
+                rootPaths,
+              }}
+              externalEditBar={
+                selectedImage && externalEditSession ? (
+                  <ExternalEditBar
+                    session={externalEditSession}
+                    isFinishing={isExternalEditFinishing}
+                    errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
+                    onDone={finishExternalEdit}
                   />
-                )}
-                <div className="relative flex-1 flex flex-col min-w-0">
-                  {selectedImage && externalEditSession && (
-                    <ExternalEditBar
-                      session={externalEditSession}
-                      isFinishing={isExternalEditFinishing}
-                      errorMessage={exportState.status === Status.Error ? exportState.errorMessage : ''}
-                      onDone={finishExternalEdit}
-                    />
-                  )}
-                  <div
-                    className={clsx(
-                      'flex-1 flex flex-col min-w-0 h-full',
-                      activeView === 'editor' && selectedImage ? 'flex' : 'hidden',
-                    )}
-                  >
-                    {selectedImage && (
-                      <EditorView
-                        transformWrapperRef={transformWrapperRef}
-                        isResizing={isResizing}
-                        layoutMode={layoutMode}
-                        isAndroid={isAndroid}
-                        compactEditorPanelHeight={compactEditorPanelHeight}
-                        compactEditorPanelCollapsedHeight={compactEditorPanelCollapsedHeight}
-                        thumbnailAspectRatio={thumbnailAspectRatio}
-                        sortedImageList={sortedImageList}
-                        createResizeHandler={createResizeHandler}
-                        createResizeResetHandler={createResizeResetHandler}
-                        handleBackToLibrary={handleBackToLibrary}
-                        handleEditorContextMenu={handleEditorContextMenu}
-                        handleThumbnailContextMenu={handleThumbnailContextMenu}
-                        handleMainLibraryContextMenu={handleMainLibraryContextMenu}
-                        handleImageClick={handleImageClick}
-                        handleClearSelection={handleClearSelection}
-                        handleCopyAdjustments={handleCopyAdjustments}
-                        handlePasteAdjustments={handlePasteAdjustments}
-                        handleRate={handleRate}
-                        handleZoomChange={handleZoomChange}
-                        handlePanelSelect={handlePanelSelect}
-                        requestThumbnails={requestThumbnails}
-                        renderAppPanel={renderAppPanel}
-                      />
-                    )}
-                  </div>
-                  <div
-                    className={clsx(
-                      'flex-1 flex flex-col min-w-0 h-full',
-                      activeView === 'editor' && selectedImage ? 'hidden' : 'flex',
-                    )}
-                  >
-                    <LibraryView {...libraryViewProps} />
-                  </div>
-                  {isSettingsOpen && appSettings && hasRoots && (
-                    <div className="absolute inset-0 z-50 flex bg-bg-secondary rounded-lg">
-                      <div className="w-full h-full flex flex-col p-4 lg:p-8 overflow-y-auto custom-scrollbar">
-                        <SettingsPanel
-                          appSettings={appSettings}
-                          onBack={() => setUI({ isSettingsOpen: false })}
-                          onLibraryRefresh={handleLibraryRefresh}
-                          onSettingsChange={handleSettingsChange}
-                          rootPaths={rootPaths}
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {!useCompactPanels && hasMainContent && (
-                  <SidePanelArea
-                    side="right"
-                    width={effectiveRightWidth}
-                    topRegion="rightTop"
-                    bottomRegion="rightBottom"
-                    renderPanel={renderAppPanel}
-                    onWidthChange={createResizeHandler('right', effectiveRightWidth)}
-                    onWidthReset={createResizeResetHandler('right')}
-                    isResizing={isResizing}
-                    showAdditionalTabs={useWidePanels}
-                  />
-                )}
-              </div>
-            )}
+                ) : undefined
+              }
+            />
             <DragOverlay modifiers={activeImageDragItem ? [imageDragModifier] : undefined} dropAnimation={null}>
-              {activeLayoutDragItem && ActiveOverlayIcon ? (
-                <div className="w-10 h-10 bg-surface shadow-2xl rounded-md flex items-center justify-center text-text-primary ring-1 ring-border-color">
-                  <ActiveOverlayIcon size={20} />
-                </div>
-              ) : null}
               {activeImageDragItem ? <ImageDragOverlayNode activeItem={activeImageDragItem} /> : null}
             </DragOverlay>
           </DndContext>

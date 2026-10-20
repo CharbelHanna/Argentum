@@ -2231,11 +2231,10 @@ export const REGISTRY = [
     ],
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls',
-        note: 'One import line from src/argentum/modern. While the layout is Modern on a full-width '
-          + 'window, App renders ModernWindow in place of its title bar, side panels and views, passing '
-          + 'its own handlers on; LibraryView takes the same props object in both. Its tree refresh is '
-          + 'swapped for refreshModernTrees and unfolding a folder counts no photos, since the roots are '
-          + 'whole disks.' },
+        note: 'One import line from src/argentum/modern. App renders ModernWindow at every window '
+          + 'size and on every platform, passing its own handlers on; Classic\'s title bar, side panels, '
+          + 'views and narrow-window arrangement are gone. Its tree refresh is refreshModernTrees and '
+          + 'unfolding a folder counts no photos, since the roots are whole disks.' },
       { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
         note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
       { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
