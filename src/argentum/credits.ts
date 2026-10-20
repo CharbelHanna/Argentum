@@ -105,7 +105,8 @@ export const CREDITS: CreditGroup[] = [
           'each camera’s exposure offset, from RAWmakase’s camera table, which its contributors ' +
           'measured against Camera Raw (230 bodies across 10 makes); Adobe’s default tone curve, ' +
           'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
-          'output. RAWmakase is also where the comparison started. MIT.',
+          'output. B&W’s black and white mix is RAWmakase’s too: the grey Camera Raw makes of each ' +
+          'colour, measured on a colour chart. RAWmakase is also where the comparison started. MIT.',
       },
       {
         name: 'RawTherapee',

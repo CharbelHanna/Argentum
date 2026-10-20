@@ -82,11 +82,17 @@ rendering, its *Standard* profile with Lightroom's default sharpening:
   RAWmakase 0.3.3's render of Camera Raw's defaults on 200% crops.
 
 **The presets that come with Argentum** are RAWmakase's (`assets/presets` @
-`7c3c81a`, MIT): Color, Creative, Curve, Grain and Vignetting, 20 Lightroom XMP
-files shipped unchanged in `src-tauri/resources/presets/rawmakase` with their
-licence, and read through Argentum's own XMP import. Its six B&W presets are not
-included yet. The Amount slider for a preset follows its rule: it starts from the
-photo as it was and moves only what the preset changes.
+`7c3c81a`, and `BandW` @ `a8c5d6d7`, v0.4.0; MIT): Color, Creative, B&W, Curve,
+Grain and Vignetting, 26 Lightroom XMP files shipped unchanged in
+`src-tauri/resources/presets/rawmakase` with their licence, and read through
+Argentum's own XMP import. The Amount slider for a preset follows its rule: it
+starts from the photo as it was and moves only what the preset changes.
+
+**B&W's black and white mix** is RAWmakase's (`black_white.rs` @ `a8c5d6d7`, its
+chart at v0.4.1, unchanged since): the grey Camera Raw 18.7 makes of each colour, measured by its
+contributors on a colour chart at a zero mix and with each of the eight bands at
+four positions, kept in Argentum as `src-tauri/engine/src/rm_black_white_chart.tsv`
+and regenerated from each RAWmakase release, which the chart names.
 
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not

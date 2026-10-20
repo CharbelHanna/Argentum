@@ -1,0 +1,28 @@
+/*
+ * B&W Mix's slider tracks (BlackWhite.tsx): black, through the band's colour,
+ * to white. The colours are the Color Mixer's swatches (Color.tsx). Ours.
+ */
+.ag-bw-track-reds {
+  background: linear-gradient(to right, #000, #f87171, #fff) !important;
+}
+.ag-bw-track-oranges {
+  background: linear-gradient(to right, #000, #fb923c, #fff) !important;
+}
+.ag-bw-track-yellows {
+  background: linear-gradient(to right, #000, #facc15, #fff) !important;
+}
+.ag-bw-track-greens {
+  background: linear-gradient(to right, #000, #4ade80, #fff) !important;
+}
+.ag-bw-track-aquas {
+  background: linear-gradient(to right, #000, #2dd4bf, #fff) !important;
+}
+.ag-bw-track-blues {
+  background: linear-gradient(to right, #000, #60a5fa, #fff) !important;
+}
+.ag-bw-track-purples {
+  background: linear-gradient(to right, #000, #a78bfa, #fff) !important;
+}
+.ag-bw-track-magentas {
+  background: linear-gradient(to right, #000, #f472b6, #fff) !important;
+}

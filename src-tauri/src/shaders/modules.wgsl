@@ -53,12 +53,14 @@
 //
 // STAGES
 //
-// Three of them, because tools genuinely belong at different points and pretending
+// Four of them, because tools genuinely belong at different points and pretending
 // otherwise would be worse than the line it saves:
 //
 //   ag_stage_scene_linear  before the tone curve, on linear data. Colour work
 //                          lives here: white balance, calibration, anything
 //                          involving a matrix.
+//   ag_stage_color         after their colour controls, before their Color
+//                          Grading: B&W.
 //   ag_stage_tone          right after their tone mapper, which it can replace
 //                          for a RAW: the RAW tone renderings (see below).
 //   ag_stage_display       after tone mapping, on display-referred data.
@@ -99,6 +101,17 @@ struct AgSharpen {
     local_contrast: array<f32, 32>,
 }
 
+/// B&W's settings, as `mods/black_white.rs` lays them out (`Params`, 48
+/// bytes). The shader reads `enabled`; the grid made from `mix` is in
+/// `ag_gray_grid`.
+struct AgBlackWhite {
+    enabled: u32,
+    _pad0: u32,
+    _pad1: u32,
+    _pad2: u32,
+    mix: array<f32, 8>,
+}
+
 /// The camera profile, as a correction on already-decoded pixels.
 ///
 /// The decode has already turned camera RGB into sRGB using rawler's own matrix
@@ -131,6 +144,90 @@ fn ag_stage_scene_linear(
     var c = color;
     c = ag_camera_profile(c, profile_r0, profile_r1, profile_r2);
     return c;
+}
+
+
+// ============================================================================
+// THE COLOUR ANCHOR
+//
+// After their colour controls (Color Mixer, Hue, Saturation, Vibrance) and
+// before their Color Grading: where Lightroom turns a photo black and white,
+// so that grading tints the grey. The fourth call into shader.wgsl, taken
+// 2026-10-20 for B&W, once their shader had joined the render path (DEC-36).
+// ============================================================================
+
+/// B&W's grid (mods/black_white.rs `gray_grid`): for each cell of the mix's
+/// 36 hues x 6 saturations x 6 values, log2 of the grey's luminance over the
+/// colour's. Written by gpu_processing.rs when a render asks for B&W.
+@group(0) @binding(14) var<storage, read> ag_gray_grid: array<f32>;
+
+// from RAWmakase crates/rawmakase-engine/src/develop/gpu/develop.wgsl @ a8c5d6d7
+// (v0.4.0, MIT), `rem_euclid`.
+fn rm_rem_euclid(a: f32, b: f32) -> f32 {
+    return a - b * floor(a / b);
+}
+
+// from RAWmakase crates/rawmakase-engine/src/develop/gpu/develop.wgsl @ a8c5d6d7
+// (v0.4.0, MIT): `mixer`, with only the value change its black & white grid
+// holds, and `adjust`'s black & white step. The colour (linear sRGB) is placed
+// in the grid by its hue, saturation and value in linear ProPhoto, and its
+// luminance is scaled by the cell it falls in. Returns linear luminance.
+// mods/black_white.rs `gray` is its CPU twin.
+fn rm_gray(rgb_in: vec3<f32>) -> f32 {
+    let rgb = max(rgb_in, vec3<f32>(0.0));
+    let luminance = dot(rgb, vec3<f32>(0.2126, 0.7152, 0.0722));
+    let q = max(AG_SRGB_TO_PROPHOTO * rgb, vec3<f32>(0.0));
+    let max_v = max(max(q.x, q.y), q.z);
+    if (max_v <= 1.0e-6) {
+        return luminance;
+    }
+    let d = max_v - min(min(q.x, q.y), q.z);
+    var hue = 0.0;
+    if (d >= 1.0e-9) {
+        if (max_v == q.x) {
+            hue = rm_rem_euclid((q.y - q.z) / d, 6.0) / 6.0;
+        } else if (max_v == q.y) {
+            hue = ((q.z - q.x) / d + 2.0) / 6.0;
+        } else {
+            hue = ((q.x - q.y) / d + 4.0) / 6.0;
+        }
+    }
+    let fh = rm_rem_euclid(hue, 1.0) * 36.0 - 0.5;
+    let fs = clamp(sqrt(clamp(d / max_v, 0.0, 1.0)) * 6.0 - 0.5, 0.0, 5.0);
+    let fv = clamp(pow(clamp(max_v, 0.0, 1.0), 0.45) * 6.0 - 0.5, 0.0, 5.0);
+    let h0 = floor(fh);
+    let th = fh - h0;
+    let ts = fract(fs);
+    let tv = fract(fv);
+    let s0 = u32(fs);
+    let v0 = u32(fv);
+    let s1 = min(s0 + 1u, 5u);
+    let v1 = min(v0 + 1u, 5u);
+    var dv = 0.0;
+    for (var dh = 0; dh < 2; dh++) {
+        let hi = u32(rm_rem_euclid(h0 + f32(dh), 36.0));
+        let wh = select(1.0 - th, th, dh == 1);
+        for (var k = 0u; k < 2u; k++) {
+            let si = select(s0, s1, k == 1u);
+            let ws = select(1.0 - ts, ts, k == 1u);
+            for (var m = 0u; m < 2u; m++) {
+                let vi = select(v0, v1, m == 1u);
+                let wv = select(1.0 - tv, tv, m == 1u);
+                dv += ag_gray_grid[(hi * 6u + si) * 6u + vi] * (wh * ws * wv);
+            }
+        }
+    }
+    return max(luminance * exp2(dv), 0.0);
+}
+
+/// Colour stage: everything Argentum does between their colour controls and
+/// their Color Grading. B&W (mods/black_white.rs) turns the photo grey; the
+/// renderer has already left the colour controls out while it is on.
+fn ag_stage_color(color: vec3<f32>) -> vec3<f32> {
+    if (adjustments.global.ag_black_white.enabled == 0u) {
+        return color;
+    }
+    return vec3<f32>(rm_gray(color));
 }
 
 

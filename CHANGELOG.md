@@ -8,6 +8,23 @@ Newest first.
 
 ### Added
 
+- **B&W.** A Color | B&W switch at the top of Edit > Basic, as Lightroom's Treatment (V switches
+  too). In B&W the photo turns grey after Saturation and before Color Grading, so grading tints
+  the grey, and Edit > Color's Color Mixer gives way to the B&W Mix: eight sliders for how light
+  each colour turns. The Color Mixer, Hue, Saturation and Vibrance are kept in the edit and left
+  out while B&W is on. The grey is RAWmakase's measured mix: Camera Raw 18.7's own renders of a
+  colour chart at a zero mix and with each band at four positions, kept as text in
+  `src-tauri/engine/src/rm_black_white_chart.tsv`, generated from RAWmakase v0.4.1 by
+  `scripts/rawmakase-gray-chart.mjs` (check:merge warns when a newer release is out). Through the
+  shader, each colour comes out within 0.3/255 of the chart's grey. Looks ships RAWmakase's six B&W
+  presets (Green Filter, High Contrast, Neutral, Red Filter, Sepia, Soft) in a B&W group, and Copy
+  settings carries B&W in the Camera Profile group. From RAWmakase @ `a8c5d6d7` (v0.4.0, MIT):
+  `crates/rawmakase-engine/src/develop/black_white.rs` (`gray_grid`, `gray`, the chart test) and
+  its `black_white_chart.bin`, `crates/rawmakase-engine/src/develop/gpu/develop.wgsl` (`mixer`,
+  `adjust`), `crates/rawmakase-interop/src/xmp/apply.rs` (`ConvertToGrayscale`, `GrayMixer`) and
+  `assets/presets/BandW`. Unlike RAWmakase, which grades before its grey step and so renders Sepia
+  untinted, Color Grading tints the grey; today's Color Grading is gentler than Lightroom's split
+  toning, so Sepia's tint shows mostly in the light tones. No Auto mix yet.
 - **DNGs get the lens correction they carry.** A DNG records the corrections Lightroom applies
   as opcodes: FixVignetteRadial (corner shading) and WarpRectilinear (distortion, and colour
   fringing when it has a plane per colour). Leica, DJI's drones, phones and Lightroom's own DNGs

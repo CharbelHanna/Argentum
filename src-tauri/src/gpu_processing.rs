@@ -622,6 +622,8 @@ pub struct GpuProcessor {
     main_bgl: wgpu::BindGroupLayout,
     main_pipeline: wgpu::ComputePipeline,
     adjustments_buffer: wgpu::Buffer,
+    // Argentum: B&W's grid, written when a render asks for B&W (mods/black_white.rs).
+    ag_gray_grid_buffer: wgpu::Buffer,
     dummy_blur_view: wgpu::TextureView,
     dummy_lut_view: wgpu::TextureView,
     dummy_lut_sampler: wgpu::Sampler,
@@ -1084,6 +1086,17 @@ impl GpuProcessor {
             },
             count: None,
         });
+        // Argentum: B&W's grid, ag_gray_grid in modules.wgsl.
+        bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 13 + MAX_MASK_BINDINGS,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
 
         let main_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Main BGL"),
@@ -1111,6 +1124,12 @@ impl GpuProcessor {
         let adjustments_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Adjustments Buffer"),
             size: std::mem::size_of::<AllAdjustments>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let ag_gray_grid_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("B&W Grid Buffer"),
+            size: (crate::mods::black_white::CELLS * std::mem::size_of::<f32>()) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1266,6 +1285,7 @@ impl GpuProcessor {
             main_bgl,
             main_pipeline,
             adjustments_buffer,
+            ag_gray_grid_buffer,
             dummy_blur_view,
             dummy_lut_view,
             dummy_lut_sampler,
@@ -1587,6 +1607,11 @@ impl GpuProcessor {
         };
 
         let adjustments = request.adjustments;
+        let black_white = adjustments.global.ag_black_white; // Argentum: B&W's grid for this render
+        if black_white.is_on() {
+            let grid = crate::mods::black_white::gray_grid(black_white.mix);
+            queue.write_buffer(&self.ag_gray_grid_buffer, 0, bytemuck::cast_slice(&grid));
+        }
         if adjustments.global.flare_amount > 0.0 {
             let mut encoder = device.create_command_encoder(&Default::default());
 
@@ -1932,6 +1957,10 @@ impl GpuProcessor {
                 bind_group_entries.push(wgpu::BindGroupEntry {
                     binding: 12 + MAX_MASK_BINDINGS,
                     resource: wgpu::BindingResource::TextureView(gf_dehaze_view),
+                });
+                bind_group_entries.push(wgpu::BindGroupEntry {
+                    binding: 13 + MAX_MASK_BINDINGS,
+                    resource: self.ag_gray_grid_buffer.as_entire_binding(),
                 });
 
                 let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {

@@ -10,6 +10,8 @@ import { AppSettings } from '../ui/AppProperties';
 import Text from '../ui/Text';
 import AdjustmentSubSection from './AdjustmentSubSection';
 import { TextColors, TextWeights } from '../../types/typography';
+import { useAgTranslation } from '../../argentum/locales';
+import { BlackWhiteMix, BlackWhiteMixReset, NO_EFFECT_IN_BLACK_WHITE, isBlackWhite } from '../../argentum/BlackWhite';
 
 interface ColorProps {
   color: string;
@@ -399,6 +401,9 @@ export default function ColorPanel({
   onDragStateChange,
 }: ColorPanelProps) {
   const { t } = useTranslation();
+  const ag = useAgTranslation();
+  // Argentum: while the photo is B&W, the B&W Mix takes the Color Mixer's place and Hue has no effect.
+  const blackWhite = !isForMask && isBlackWhite(adjustments);
   const [activeColor, setActiveColor] = useState('reds');
   const hiddenTools = getHiddenAdjustmentTools(appSettings?.adjustmentLayout);
   const toolOrder = getAdjustmentToolOrder('color', appSettings?.adjustmentLayout?.toolOrder);
@@ -472,16 +477,18 @@ export default function ColorPanel({
           order={toolOrder.indexOf('hue')}
           title={isForMask ? t('adjustments.color.localHue') : t('adjustments.color.hue')}
         >
-          <Slider
-            label={t('adjustments.color.hue')}
-            max={180}
-            min={-180}
-            onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Hue, e.target.value)}
-            step={1}
-            value={adjustments.hue || 0}
-            trackClassName="hue-range-track"
-            onDragStateChange={onDragStateChange}
-          />
+          <div className={blackWhite ? NO_EFFECT_IN_BLACK_WHITE : undefined}>
+            <Slider
+              label={t('adjustments.color.hue')}
+              max={180}
+              min={-180}
+              onChange={(e: any) => handleAdjustmentChange(ColorAdjustment.Hue, e.target.value)}
+              step={1}
+              value={adjustments.hue || 0}
+              trackClassName="hue-range-track"
+              onDragStateChange={onDragStateChange}
+            />
+          </div>
         </AdjustmentSubSection>
       )}
 
@@ -500,7 +507,22 @@ export default function ColorPanel({
         </AdjustmentSubSection>
       )}
 
-      {!hiddenTools.includes('colorMixer') && (
+      {!hiddenTools.includes('colorMixer') && blackWhite && (
+        <AdjustmentSubSection
+          id="colorMixer"
+          order={toolOrder.indexOf('colorMixer')}
+          title={ag('bwMix')}
+          actions={<BlackWhiteMixReset setAdjustments={setAdjustments} />}
+        >
+          <BlackWhiteMix
+            adjustments={adjustments}
+            setAdjustments={setAdjustments}
+            onDragStateChange={onDragStateChange}
+          />
+        </AdjustmentSubSection>
+      )}
+
+      {!hiddenTools.includes('colorMixer') && !blackWhite && (
         <AdjustmentSubSection
           id="colorMixer"
           order={toolOrder.indexOf('colorMixer')}

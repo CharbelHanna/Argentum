@@ -12,6 +12,7 @@ pub mod ag_settings;
 pub mod ai_session;
 pub mod auto_wb;
 pub mod auto_wb_photo;
+pub mod black_white;
 pub mod cache_key;
 pub mod cache_version;
 pub mod canon_makernote;

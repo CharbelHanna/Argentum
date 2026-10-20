@@ -349,5 +349,10 @@
   "fx166VignetteCentre": "Vignette centre",
   "fx166Centre": "Centre",
   "fx166PinHint": "drag to move · double-click to reset",
-  "fx166CentreTip": "Touch a slider, then drag the pin on the photo to move the centre"
+  "fx166CentreTip": "Touch a slider, then drag the pin on the photo to move the centre",
+  "bwColor": "Color",
+  "bwBlackWhite": "B&W",
+  "bwSwitchTip": "Color or black and white (V)",
+  "bwMix": "B&W Mix",
+  "bwMixReset": "Reset"
 }
