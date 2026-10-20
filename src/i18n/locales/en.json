@@ -1962,7 +1962,7 @@
         "negpy": "For the inspiration behind the negative conversion logic.",
         "nind": "For providing AI models that power the AI noise reduction capabilities in RapidRAW.",
         "rawler": "For the excellent Rust crate that provides the foundation for RAW file processing in this project.",
-        "rawmakase": "For DNG Standard, the look every RAW starts in: each camera's exposure offset from its camera table, and the default rendering and sharpening Argentum's are matched against. Also the presets that come with Argentum (Color, Creative, Curve, Grain, Vignetting). Also the Subject, Sky and Background masks: its selection code, run with SAM 2.1 and DETR. Also the lens correction the camera stores in each photo, starting with Fujifilm's.",
+        "rawmakase": "For DNG Standard, the look every RAW starts in: each camera's exposure offset from its camera table, and the default rendering and sharpening Argentum's are matched against. Also the presets that come with Argentum (Color, Creative, Curve, Grain, Vignetting). Also the Subject, Sky and Background masks: its selection code, run with SAM 2.1 and DETR. Also the lens correction the camera stores in each photo, Fujifilm's and Sony's.",
         "sam2": "For providing the foundation model used for the AI subject detection capabilities.",
         "spektrafilm": "For the spectrally-based film emulation LUTs by Andrea Volpato, used to power RapidRAW's built-in film emulations. Licensed CC BY-SA 4.0.",
         "u2net": "For providing the robust architecture used for the AI sky and foreground detection capabilities.",
