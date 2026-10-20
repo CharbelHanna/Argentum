@@ -204,7 +204,7 @@ impl Run {
         input_key: u64,
     ) -> Result<Rgb> {
         let size = (input.width as u32, input.height as u32);
-        self.keep(guided, input, input_key);
+        self.keep(guided, input, input_key)?;
         let gpu = self.gpu.clone();
         let out = texture(
             &gpu,
@@ -243,7 +243,7 @@ impl Run {
         layout: &Layout,
         ticket: RenderTicket,
     ) -> Result<Frame> {
-        self.keep(guided, input, input_key);
+        self.keep(guided, input, input_key)?;
         let gpu = self.gpu.clone();
         let columns = layout.columns(input.width);
         let rows = layout.rows(input.height);
@@ -283,19 +283,19 @@ impl Run {
 
     /// Keep `input` on the GPU, with its guided filter when the run reads
     /// it: sent once per picture, as the app keeps its input texture.
-    fn keep(&mut self, guided: Option<&Guided>, input: &Rgb, input_key: u64) {
+    fn keep(&mut self, guided: Option<&Guided>, input: &Rgb, input_key: u64) -> Result<()> {
         let size = (input.width as u32, input.height as u32);
         if self
             .resident
             .as_ref()
             .is_some_and(|r| r.key == input_key && r.size == size)
         {
-            return;
+            return Ok(());
         }
         // The one before goes first: at full size it is hundreds of MB.
         self.resident = None;
         let gpu = &self.gpu;
-        let input_texture = upload(gpu, input);
+        let input_texture = upload(gpu, input)?;
         let input_view = input_texture.create_view(&Default::default());
         let (tonal, coarse) = match guided {
             Some(guided) => guided.coefficients(gpu, &input_view, size),
@@ -321,6 +321,7 @@ impl Run {
             tonal,
             coarse,
         });
+        Ok(())
     }
 
     fn resident(&self) -> Result<&Resident> {
@@ -374,8 +375,11 @@ fn bind_buffer(binding: u32, buffer: &wgpu::Buffer) -> wgpu::BindGroupEntry<'_> 
 }
 
 /// `rgb` as an rgba16float texture, the app's input format, a band of rows at
-/// a time.
-fn upload(gpu: &Gpu, rgb: &Rgb) -> wgpu::Texture {
+/// a time. Each band is sent and waited for before the next: wgpu keeps a
+/// written band's staging copy until the copy is submitted and done, so
+/// bands written without a submit add up to the whole picture again - 0.45
+/// GB at 61 MP, on an integrated GPU the process's.
+fn upload(gpu: &Gpu, rgb: &Rgb) -> Result<wgpu::Texture> {
     let (w, h) = (rgb.width as u32, rgb.height as u32);
     let input = texture(
         gpu,
@@ -418,8 +422,15 @@ fn upload(gpu: &Gpu, rgb: &Rgb) -> wgpu::Texture {
                 depth_or_array_layers: 1,
             },
         );
+        let sent = gpu.queue.submit([]);
+        gpu.device
+            .poll(wgpu::PollType::Wait {
+                submission_index: Some(sent),
+                timeout: Some(Duration::from_secs(120)),
+            })
+            .map_err(|e| failed("sending the pixel pass its input", e))?;
     }
-    input
+    Ok(input)
 }
 
 /// A texture's texels back from the GPU as `T`s, rows packed tight, a band

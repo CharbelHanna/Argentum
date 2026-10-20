@@ -69,8 +69,8 @@ enum Op {
 /// 1.5 GB, for a 16 GB laptop. A full-size render of a 32 MP photo keeps
 /// about 1.1 GB - the developed picture and each tool's result after it - so
 /// a slider dragged at 100% finds what it needs. With it the engine's peak,
-/// measured by tests/memory.rs, is 1.75 GB for a 32 MP photo and 2.2 GB for a
-/// 61 MP one, and 0.6 and 0.8 GB while they are only fitted.
+/// measured by tests/memory.rs, is 1.8 GB for a 32 MP photo and 2.5 GB for a
+/// 61 MP one, and 0.65 and 0.95 GB while they are only fitted.
 pub const DEFAULT_CACHE_BYTES: usize = 3 << 29;
 
 pub struct Pipeline {
