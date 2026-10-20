@@ -126,6 +126,13 @@ Newest first.
 
 ### Changed
 
+- **Nikon High Efficiency and High Efficiency★ RAWs open.** These NEFs (Z 8, Z 9, Z f, Z 6III and
+  other recent bodies) hold a JPEG XS codestream, which rawler refused. The rawler fork now
+  decodes it with RAWmakase's decoder (`crates/rawmakase-raw/src/codec/nikon_he.rs` @ `a8c5d6d7`,
+  v0.4.0, MIT), added to the fork as `decompressors/nikon_he.rs` with only its error type
+  adapted; rawler is pinned to the fork commit `df7f3aec` (branch `feat/nikon-high-efficiency`,
+  on `b83a9e07`). Checked on raw.pixls.us's Z 9 samples of both kinds: 8280×5520, black 1008,
+  white 15892, the camera JPEG's picture.
 - **DNG Standard follows a Canon photo's levels, as Camera Raw does by ISO.** Adobe takes a
   Canon's white level by ISO speed and moves its exposure offset with it; RAWmakase 0.4.0
   records each body's sample levels and shifts the offset by the difference. Argentum now
