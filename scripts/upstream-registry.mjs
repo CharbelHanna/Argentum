@@ -911,11 +911,13 @@ export const REGISTRY = [
   {
     id: 'identity',
     kind: 'behaviour-change',
-    what: 'The fork is Argentum: name, bundle id, update URL, no donation link.',
+    what: 'The fork is Argentum: name, bundle id, no donation link.',
     ours: ['src-tauri/.identity', 'scripts/check-identity.mjs'],
     dependsOn: [
       { file: 'src/components/panel/MainLibrary.tsx', how: 'replaces',
-        note: 'Their update check points at our releases, and the Ko-fi link is gone: Argentum must not raise money on its splash in another author’s name. The credit is in Special Thanks and CREDITS.md.' },
+        note: 'Their start screen is gone (editor-layout-modern), and with it the update check that '
+          + 'pointed at our releases and the place their Ko-fi link was: Argentum must not raise money in '
+          + 'another author’s name. The credit is in Special Thanks and CREDITS.md.' },
       { file: 'package.json', how: 'rebrands' },
       { file: 'package-lock.json', how: 'rebrands',
         note: 'Its package name follows package.json, which npm rewrites on every install.' },
@@ -2253,8 +2255,11 @@ export const REGISTRY = [
           + 'uiVisibility.quickFilter is left in their store and types.' },
       { file: 'src/components/views/LibraryView.tsx', how: 'extends',
         note: 'No bottom bar (deleted with Classic), and MainLibrary in its modern form.' },
-      { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
-        note: 'Optional prop: no header and no start screen; ModernEmpty until a folder is picked.' },
+      { file: 'src/components/panel/MainLibrary.tsx', how: 'replaces',
+        note: 'The grid alone: its header (path, grid/list/cull switch, search, view options, community '
+          + 'and home buttons) and its start screen (splash, continue, open folder, settings, version '
+          + 'and update check) are deleted; the top bar, the folder column and Settings hold what the '
+          + 'window uses. ModernEmpty until a folder is picked.' },
       { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',
         note: 'Optional prop: no toolbar (its tools are in the top bar) and a square frame with 20 px '
           + 'round the photo. The transform handle on transformWrapperRef is what the Navigator reads.' },

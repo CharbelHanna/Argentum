@@ -251,7 +251,6 @@ function App() {
     handleOpenFolder,
     handleNavBack,
     handleNavForward,
-    handleContinueSession,
   } = useAppNavigation({
     clearThumbnailQueue,
     refs: navigationRefs,
@@ -667,11 +666,7 @@ function App() {
     handleImageSelect,
     handleThumbnailContextMenu,
     handleMainLibraryContextMenu,
-    handleContinueSession,
-    handleGoHome,
-    handleOpenFolder,
     handleImportClick,
-    handleLibraryRefresh,
     requestThumbnails,
   };
 

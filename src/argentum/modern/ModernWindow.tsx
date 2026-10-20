@@ -27,7 +27,12 @@ import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
 import Editor from '../../components/panel/Editor';
 import LibraryView from '../../components/views/LibraryView';
-import { type ImageFile, Panel, type ThumbnailAspectRatio } from '../../components/ui/AppProperties';
+import {
+  type ImageFile,
+  type LibraryViewMode,
+  Panel,
+  type ThumbnailAspectRatio,
+} from '../../components/ui/AppProperties';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
@@ -54,6 +59,12 @@ const RIGHT = { start: 330, min: 300, max: 480 };
 const widthOf = (stored: number, c: typeof LEFT) =>
   stored === DEFAULT_PANEL_WIDTH ? c.start : Math.min(c.max, Math.max(c.min, stored));
 
+/** The grid's props, with the view tools the top bar sets. */
+type LibraryProps = ComponentProps<typeof LibraryView> & {
+  setThumbnailAspectRatio(ratio: ThumbnailAspectRatio): void;
+  setLibraryViewMode(mode: LibraryViewMode): void;
+};
+
 /** Under this much room for the centre, the left column folds by itself; the tools never do. */
 const CENTRE_MIN_PX = 480;
 
@@ -76,7 +87,7 @@ export interface ModernWindowProps {
   onOpenPhoto(path: string): void;
   onZoom(zoom: number, fitToWindow?: boolean): void;
   // The grid and the filmstrip.
-  libraryProps: ComponentProps<typeof LibraryView>;
+  libraryProps: LibraryProps;
   sortedImageList: ImageFile[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
   onSelectInGrid(path: string, event: MouseEvent): void;
