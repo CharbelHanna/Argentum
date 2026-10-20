@@ -140,8 +140,8 @@ pub fn measure(raw: &RawImage) -> Option<Clipping> {
 /// Canon sRAW and mRAW, where every pixel already carries all three channels.
 ///
 /// No block arithmetic and no guessing which colour a photosite is: "one
-/// channel gone, two good" is a fact about the pixel itself. AK shoots a great
-/// deal of sRAW, so leaving this out would have measured the wrong half of the
+/// channel gone, two good" is a fact about the pixel itself. The test set has a
+/// lot of sRAW, so leaving this out would have measured the wrong half of the
 /// library.
 fn measure_three_colour(raw: &RawImage) -> Option<Clipping> {
     let RawImageData::Integer(pixels) = &raw.data else {
@@ -237,7 +237,7 @@ mod tests {
 
 /// What real photos actually look like, before any recovery exists.
 ///
-/// Run by hand against AK's files. The point is a number, not a pass: if the
+/// Run by hand against local files. The point is a number, not a pass: if the
 /// recoverable share of a bright photo is a fraction of a percent then highlight
 /// recovery is not the big rock it was put on the roadmap as, and that is worth
 /// knowing before it is built rather than after.
@@ -263,7 +263,7 @@ mod survey {
     }
 
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn how_much_of_a_real_photo_is_clipped() {
         let dir = std::env::var("AG_DIR").expect("set AG_DIR to a folder of RAWs");
         let mut rows = Vec::new();
@@ -595,7 +595,7 @@ const SAMPLE_STRIDE: usize = 4;
 /// Runs from the decode anchor on every RAW. That is deliberate and safe: a
 /// pixel with nothing clipped is returned bit-for-bit, so a photo with no blown
 /// highlights decodes exactly as it did before this existed. The measurement
-/// says most of AK's photos are in that state.
+/// says most real photos are in that state.
 ///
 /// Silent about everything it cannot do — an unreadable level table, a format
 /// that is not a mosaic or a triple, a frame too dark to learn a colour from.
@@ -1292,7 +1292,7 @@ mod end_to_end {
     /// or highlights slider later works on; on screen as decoded; and on screen
     /// one stop down, which is the first thing anyone does to a blown window.
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn blown_highlights_are_not_pink_where_the_app_decodes() {
         let path = std::env::var("AG_RAW").expect("set AG_RAW");
         let out_dir = std::env::var("AG_OUT_DIR").ok();
@@ -1435,7 +1435,7 @@ mod proof {
     }
 
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn recovery_makes_blown_highlights_less_coloured() {
         let path = std::env::var("AG_RAW").expect("set AG_RAW");
 
@@ -1492,7 +1492,7 @@ mod proof {
     /// And the property the whole always-on decision rests on: a photo with
     /// nothing clipped has to come out bit for bit identical.
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn a_photo_without_clipping_is_untouched() {
         let path =
             std::env::var("AG_CLEAN_RAW").expect("set AG_CLEAN_RAW to a photo with no clipping");
@@ -1519,7 +1519,7 @@ mod diagnose {
     use super::*;
 
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn what_do_the_clipped_pixels_look_like() {
         let path = std::env::var("AG_RAW").expect("set AG_RAW");
         let bytes = std::fs::read(&path).expect("read");

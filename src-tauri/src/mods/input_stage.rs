@@ -7,7 +7,7 @@
 //! and the next thing that needs whole-image passes rather than one pixel at a
 //! time (denoise, diffuse or sharpen) goes in here, not in another line of
 //! theirs. See `modules.wgsl` for the per-pixel stages, which are the same
-//! idea one level down. AK's decision, 2026-10-10.
+//! idea one level down. Decided 2026-10-10.
 //!
 //! ORDER IS THE CONTRACT
 //!

@@ -11,7 +11,7 @@
  * not in any dependency list, so the estimate went on showing the size of the
  * depth you had before — 8-bit selected, 16-bit number, or the reverse.
  *
- * AK found that within a minute of first running it. It is exactly the kind of
+ * It showed up within a minute of first running it. It is exactly the kind of
  * thing the unit tests could not see: every layer was correct on its own, and
  * the number on screen was still wrong.
  *

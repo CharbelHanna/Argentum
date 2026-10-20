@@ -27,10 +27,11 @@ use argentum_engine::{Gpu, Rgb, Source};
 use argentum_engine_reference::mods::dng_standard as app;
 use common::app_shader::{AppShader, Job};
 
-fn app_offset(make: &str, model: &str) -> f32 {
+fn app_offset(make: &str, model: &str, levels: Option<[f32; 2]>) -> f32 {
     app::baseline(&app::Facts {
         make: make.into(),
         model: model.into(),
+        levels,
         ..Default::default()
     })
     .ev
@@ -55,12 +56,15 @@ fn each_bodys_offset_is_the_apps() {
             asked.push((fields[0].to_uppercase(), format!("{} {name}", fields[0])));
         }
     }
-    for (make, model) in &asked {
-        assert_eq!(
-            ag_dng_standard::baseline(make, model).to_bits(),
-            app_offset(make, model).to_bits(),
-            "{make} / {model}"
-        );
+    // With no levels, and with a photo's levels other than any sample's.
+    for levels in [None, Some([2048.0, 14351.0])] {
+        for (make, model) in &asked {
+            assert_eq!(
+                ag_dng_standard::baseline(make, model, levels).to_bits(),
+                app_offset(make, model, levels).to_bits(),
+                "{make} / {model} / {levels:?}"
+            );
+        }
     }
     eprintln!("\n  {} make and model pairs, all the app's", asked.len());
 }
@@ -82,9 +86,13 @@ fn a_photos_offset_is_its_bodys() {
             "  {name:<52} {} {}, ISO {:?}: ours {ours:+.2} EV, the app's {app_full:+.2} EV",
             facts.make, facts.model, facts.iso
         );
-        // By make and model, the app's; ISO and a DNG's own offset are not
-        // read by the engine yet.
-        assert_eq!(ours, app_offset(&facts.make, &facts.model), "{name}");
+        // By make, model and the photo's levels, the app's; ISO and a DNG's
+        // own offset are not read by the engine yet.
+        assert_eq!(
+            ours,
+            app_offset(&facts.make, &facts.model, facts.levels),
+            "{name}"
+        );
     }
 }
 

@@ -8,7 +8,7 @@
 
    Automatic illuminant detection from the image itself - darktable's
    "detect from image surfaces" and "detect from image edges". This is the
-   feature AK wants; Argentum already has spot/click white balance.
+   missing feature; Argentum already has spot/click white balance.
 
    Two modes:
      SURFACES - weighted average of chromaticities over flat areas

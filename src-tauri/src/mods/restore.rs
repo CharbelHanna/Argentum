@@ -24,12 +24,12 @@
 //! WHY A MASK
 //!
 //! It was trained on clean renders, so it reads sensor grain as aberration and
-//! sharpens it: soft backgrounds turn to grit. Measured on AK's R6 Mark III
+//! sharpens it: soft backgrounds turn to grit. Measured on R6 Mark III
 //! 400 mm frames, 2026-10-11. So the result is blended in by local contrast -
 //! the shape of capture sharpening's contrast mask, RawTherapee
 //! `rtengine/rt_algo.cc` - and smooth areas keep the original. The slider
-//! moves the threshold. AK chose the tight end as the default: the loose end
-//! sharpens fur further but "the noise feels like painting".
+//! moves the threshold. The tight end is the default: the loose end
+//! sharpens fur further but makes the noise look painted.
 
 use std::sync::{Arc, Mutex};
 
@@ -41,7 +41,7 @@ pub const DEFAULT_MASK: f32 = 60.0;
 
 /// The local-contrast window where the mask goes from off to fully on, for
 /// slider position `setting` (0..100). Linear in the setting, so 0 is the
-/// whole photo, and 60 lands on the pair tuned by eye on AK's frames
+/// whole photo, and 60 lands on the pair tuned by eye on test frames
 /// (0.012, 0.035 of sRGB-encoded luminance gradient after a 1.2 px blur).
 fn thresholds(setting: f32) -> (f32, f32) {
     let s = setting.clamp(0.0, 100.0);

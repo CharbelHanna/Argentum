@@ -8,7 +8,7 @@
  * effect is at half strength, the dashed lines are where the fade starts and
  * stops, and nothing on screen says which side gets the effect. Drawing one,
  * the drag starts at the middle of the fade and the effect lands behind it.
- * AK: "which side does what makes 0 sense".
+ * In use, which side does what made no sense.
  *
  * WHAT IT IS INSTEAD
  *
@@ -110,8 +110,8 @@ function hit(p: Point, e: Edges, screenPerPixel: number): Grab | null {
 function moved(drag: Drag, p: Point): { full: Point; none: Point; dir: Point } | null {
   const e = drag.edges;
   if (drag.grab === 'create' || !e) {
-    // Full where the drag began, gone where it ends. AK tried it the other way
-    // round first and wanted it back: the press is the dark end of the filter.
+    // Full where the drag began, gone where it ends. The other way round was
+    // tried first and read wrong: the press is the dark end of the filter.
     const span = { x: p.x - drag.start.x, y: p.y - drag.start.y };
     const len = Math.hypot(span.x, span.y) || 1;
     return { full: drag.start, none: p, dir: { x: span.x / len, y: span.y / len } };

@@ -599,8 +599,8 @@ export const REGISTRY = [
     retired: {
       recordedIn: '79c2a46b448b9a0bee0b30f8c345daad003ad694',
       why:
-        'Reverted on 2026-10-18 by the owner\x27s choice, not because upstream moved: the camera JPEG first '
-        + 'showed edited photos in their unedited look, and the owner had not asked for thumbnail changes. '
+        'Reverted on 2026-10-18 by our choice, not because upstream moved: the camera JPEG first '
+        + 'showed edited photos in their unedited look, and thumbnail changes were not wanted. '
         + 'Their thumbnail path is unchanged again. The code is in git history (#83 and #78).',
     },
   },
@@ -1397,7 +1397,7 @@ export const REGISTRY = [
     retired: {
       recordedIn: '71a07921',
       why:
-        'Removed in 26.41.5 by our choice, not because upstream moved. On AK\'s first real '
+        'Removed in 26.41.5 by our choice, not because upstream moved. On the first real '
         + 'test a stroke along one eye took its lids and brow, where their Subject box round the '
         + 'other took that eye alone: a box tells SAM the size of the thing, paint only roughly where it is, and five '
         + 'guessed prompts plus thresholds tuned on a dozen cases did not close that gap. Its '
@@ -2011,7 +2011,7 @@ export const REGISTRY = [
           + 'sharpening it would bend the exported LUT. Also generate_thumbnail_data and the other '
           + 'small previews in input_stage::NOT_SHARPENED. A renamed caller gets sharpened at 1:1.' },
       { file: 'src-tauri/src/app_settings.rs', symbol: 'raw_preprocessing_sharpening', how: 'calls',
-        note: 'Set to 0 once (AK, 2026-10-10): their load-time box-blur pre-sharpening would stack '
+        note: 'Set to 0 once (2026-10-10): their load-time box-blur pre-sharpening would stack '
           + 'on capture sharpening. A user who turns it back up keeps it.' },
       { file: 'src-tauri/src/image_loader.rs', symbol: 'remove_raw_artifacts_and_enhance', how: 'calls',
         note: 'Where that pre-sharpening runs. If upstream makes it unconditional, the stacking is back.' },
@@ -2085,6 +2085,20 @@ export const REGISTRY = [
           + 'Without it every new worktree reloaded the page of a running dev app.' },
     ],
     tests: ['By hand: create a worktree under .claude/worktrees while tauri dev runs; the page does not reload.'],
+  },
+  {
+    id: 'dev-warmup',
+    kind: 'behaviour-change',
+    what:
+      'The dev window opens on a ready page: Vite transforms the app while cargo builds, instead of '
+      + 'on the first request, so the frontend reports ready before the 4-second failsafe.',
+    dependsOn: [
+      { file: 'vite.config.mjs', how: 'extends',
+        note:
+          'Adds server.warmup.clientFiles. Measured on a freshly started server: frontend_ready at '
+          + '2.6-10.2 s without it, 0.6 s with it.' },
+    ],
+    tests: ['By hand: npm start; the log has no "Frontend failed to report ready within timeout".'],
   },
   {
     id: 'fast-dev-builds',

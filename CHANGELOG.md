@@ -170,6 +170,26 @@ Newest first.
   not taken).
 - Lensfun database, Italian and Russian translations updated from RapidRAW 1.6.6.
 
+- **DNG Standard follows a Canon photo's levels, as Camera Raw does by ISO.** Adobe takes a
+  Canon's white level by ISO speed and moves its exposure offset with it; RAWmakase 0.4.0
+  records each body's sample levels and shifts the offset by the difference. Argentum now
+  does the same with the levels the photo is actually decoded with, which also makes the
+  Canon offsets hold with rawler's white level. An EOS R6 Mark III photo at ISO 640 moves
+  from +0.25 to +0.26 EV. 58 Canon bodies carry levels (`mods/dng_baseline.tsv`, a fifth
+  column); other makes are unchanged. Canon sRAW / mRAW keep the full-size row: Adobe's own
+  sRAW offsets make up for Adobe's sRAW scale, and Argentum's sRAW measures within 0.03 EV of
+  its full RAW (95 EOS 5D Mark II photos, each against its camera JPEG). The levels are read from the
+  file's headers without decoding its pixels, only for a body whose row has them. The engine's
+  copy (`tools/ag_dng_standard.rs`) takes them from the decoded image and gives the same
+  number. From RAWmakase `white_shift` and `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT).
+- **Colours on a Canon EOS 1000D and a Pentax K-S2 are corrected, and two Nikon white levels.**
+  The rawler fork carried a dropped digit in the 1000D's colour matrix (`-0.0114` for Adobe's
+  `-0.1140`) and a matrix on the wrong scale for the K-S2 (first row `5.29, -1.66, -0.75`). The Nikon
+  Z 9 and Z fc had the older bodies' white levels (3880 / 15520) where Adobe's are 3972 / 15892.
+  Values from RAWmakase `data/raw-matrices.toml` and `data/raw-cameras.toml` @ `a8c5d6d7`
+  (v0.4.0, MIT), which carry Adobe DNG Converter 18.7's output. rawler is pinned to the fork
+  commit `b83a9e07` (`fix/rawler-data-matrices-nikon-white`, one commit on the C50 data commit
+  `16b9b010`, four data files).
 - **DNG Standard's exposure offsets now follow RAWmakase 0.4.0.** 97 of the 230 bodies change:
   Canon 45, Nikon 27, Olympus 12, Fujifilm 9, OM Digital 2, Hasselblad 1 and the Panasonic
   GH5S. RAWmakase stopped adding a correction for LibRaw's white level when it began
@@ -423,7 +443,7 @@ against the 1.6.5 review.
 ### Added
 
 - **Restore: undo lens softness at the photo's own size.** For a lens that
-  is soft wide open - AK's 100-400 L at 400 mm on the R6 Mark III - rather
+  is soft wide open - a 100-400 L at 400 mm on an R6 Mark III - rather
   than missed focus. The model is OmniLens (Jiang et al., Zhejiang
   University): SwinIR pretrained on a library of simulated lens designs, so
   it corrects a lens it has never seen. Code `basicsr/archs/swinir_arch.py`
@@ -436,7 +456,7 @@ against the 1.6.5 review.
   PyTorch original on random tiles. `mods/restore.rs`.
   - It runs through a **detail mask** (the shape of RawTherapee's contrast
     mask): trained on clean renders, it turns grain in a soft background to
-    grit. Tight by default, AK's choice; a Mask slider loosens it, and an
+    grit. Tight by default; a Mask slider loosens it, and an
     eye shows it, white where Restore applies, live as the slider moves -
     the mask comes from the photo, so it shows before Enhance. With Restore
     on its own, a new Mask re-blends the kept model output without running
@@ -446,8 +466,8 @@ against the 1.6.5 review.
     `agRestore.captureRadius` - the radius measured on the RAW's mosaic,
     which the TIFF no longer has - and `sharpen::from_json` and the
     Sharpening card treat it as a RAW for Capture. Live and adjustable.
-  - Chosen by side-by-side on AK's RAWs: over enlarging models shrunk back
-    to size (their detail is under a pixel at 1x - "0 diff"), GRL and
+  - Chosen by side-by-side on real RAWs: over enlarging models shrunk back
+    to size (their detail is under a pixel at 1x - no visible difference), GRL and
     Restormer defocus models (smears, or no change), and HAT (lab tests by a
     hair, 14 min on the GPU for a 700 mm crop). 2.9 s/MP on an Arc 140T with
     DirectML, about 1.5 min for 32 MP, measured through this code.
@@ -539,8 +559,8 @@ against the 1.6.5 review.
 
 - **RapidRAW's Base Pre-Sharpening goes to 0, once.** It sharpened every RAW
   as it loaded, at 0.35, and capture sharpening would stack on top of it. Set
-  on the first start of this version (`retire_presharpening_once`, AK's
-  decision); turn it back up and it stays.
+  on the first start of this version (`retire_presharpening_once`);
+  turn it back up and it stays.
 - A photo edited with their old sharpening keeps it, and the card says so,
   with a button to remove it.
 ### Fixed
@@ -589,7 +609,7 @@ against the 1.6.5 review.
   its sessions until the app quits. Two changes:
   - Every model session is built without the arena (`mods/ai_session.rs`), so
     a run's working memory goes back when the run ends. Their
-    `ai_processing.rs` imports it, on an anchor taken by AK's decision today,
+    `ai_processing.rs` imports it, on an anchor taken deliberately,
     and its eight `Session::builder()` calls became `session_builder()`, one
     line for one. The same test now settles at 3-4.5 GB with the models loaded,
     peaking at 7.2 GB for a few seconds while they run.
@@ -921,7 +941,7 @@ reasoning and the open ends are in `docs/UPSTREAM_CATCHUP.md`.
     of its box's edge — a line drawn across a mug, a stroke down a lawn — the
     box grows by half the paint's size on every side. The unbounded answer is
     used only for a single dab, which is a click: unbounded, a line along an
-    eye on AK's close-up became the whole face.
+    eye on a close-up became the whole face.
   - Parts of the answer the paint does not touch are dropped, and Alt-painted
     exclusions put the boxed answer in doubt.
 
@@ -1746,8 +1766,8 @@ came from — without it there's no way to tell later whether upstream moved on.
   a budget of 8, and the budget is not raised. One line of vanity is not worth
   the room a real change will need.
 
-- **README rewritten for a reader who is not AK.** The machine-layout and
-  backup sections described one person's disk and meant nothing to anyone else.
+- **README rewritten for a new reader.** The machine-layout and
+  backup sections described one disk and meant nothing to anyone else.
   In their place a `Known limitations` section says plainly that the screen
   conversion is Windows-only and that the macOS and Linux builds are untested —
   the same wording as `knownIssues.ts`, so the app and the repository do not
@@ -1874,7 +1894,7 @@ came from — without it there's no way to tell later whether upstream moved on.
 ### Measured
 - **Three apps, one file, three different pictures — and now three answers.**
 
-  AK's export looked faded in Windows Photos, richer in GIMP, and different
+  An export looked faded in Windows Photos, richer in GIMP, and different
   again in Argentum. Embedding an sRGB profile in a copy changed nothing in
   either viewer, so the missing tag was not the cause.
 
@@ -2047,7 +2067,7 @@ screen, since before any of the colour work started.
   and 255 is nothing to look at on a photograph.
 
 ### Measured
-- Highlight recovery does almost nothing on AK's photos, and that is the honest
+- Highlight recovery does almost nothing on the test photos, and that is the honest
   result. sRAW cannot be recovered at all: the format keeps one brightness for
   all three channels, so when it saturates they all go. On full RAW there is too
   little clipped — 0.05% of a frame on average — and what does clip is blown in
@@ -2072,10 +2092,10 @@ screen, since before any of the colour work started.
   them apart.
 
   The first version colour-coded all three channels into one view. It answered
-  the same question in one look, and AK misread it within seconds — because red
+  the same question in one look, and it was misread within seconds — because red
   already means *blown highlight*, and there it would also have meant *the red
-  channel*. Two meanings on one button. Stepping through the channels was AK's
-  suggestion and is what shipped.
+  channel*. Two meanings on one button. Stepping through the channels was the
+  alternative, and is what shipped.
 
   The mode rides in their existing `showClipping` field. Their button only asks
   whether it is truthy, so a number works without their code knowing modes
@@ -2106,7 +2126,7 @@ screen, since before any of the colour work started.
     2026-06-06  126 photos    mean 2.03%   worst 45.5%
   ```
 
-  AK found the third folder. It is 25x the others and is what any recovery has
+  The third folder turned up later. It is 25x the others and is what any recovery has
   to be judged on.
 
 - **Highlight recovery cannot work on Canon sRAW.** Not a limit of the method —
