@@ -1,0 +1,281 @@
+//! Lightroom's colour grading in today's app. Ours.
+//!
+//! WHAT IT IS
+//!
+//! RapidRAW's Color Grading (`apply_color_grading` in shader.wgsl) adds a
+//! constant tint scaled down to a tenth in the shadows, so it shows in the
+//! darkest tones and hardly anywhere else: Lightroom's split toning at
+//! Saturation 25 barely shows on a mid-grey. RAWmakase measured how Camera
+//! Raw grades (the engine's `rm_color_grade.rs`). The same wheels and sliders,
+//! in the same units, render with that.
+//!
+//! WHICH EDITS
+//!
+//! The new maths changes how an existing grading looks, so a Color Grading
+//! block graded before it keeps RapidRAW's. A block - the photo's, or a
+//! mask's - is Lightroom's when it carries `"agLightroom": 1`: the panel
+//! writes it the first time a block that grades nothing is changed
+//! (src/argentum/colorGrading.ts), and the Looks carry it (`mark_lightroom`,
+//! from mods/looks.rs). A block without it that grades something was saved
+//! before, and renders as it did. The mark lives inside the block, so Copy,
+//! Paste and presets carry it with the grading.
+//!
+//! WHERE
+//!
+//! Where Camera Raw grades: after the tone curve, the Curves panel and a
+//! LUT, on display-referred linear values (`ag_stage_grade` in modules.wgsl).
+//! RapidRAW's grading runs earlier, on scene-linear values. Each render,
+//! `move_to_curves` takes a Lightroom block's settings out of RapidRAW's
+//! uniforms, so their grading adds nothing for it, and turns them into the
+//! 64 gains per channel the GPU looks up.
+
+use argentum_engine::rm_color_grade::{self, Gains, Grading, SAMPLES};
+use bytemuck::{Pod, Zeroable};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+
+use crate::image_processing::{AllAdjustments, ColorGradeSettings, MAX_MASKS};
+
+/// The key inside a `colorGrading` block that marks it as Lightroom's, with
+/// the value 1. A number, as their block's type holds only numbers and wheels.
+pub const LIGHTROOM_KEY: &str = "agLightroom";
+
+/// Slots in the curves buffer: the photo's block, then each mask's, as their
+/// shader indexes masks.
+pub const SLOTS: usize = 1 + MAX_MASKS;
+/// f32 values per slot: `SAMPLES` gains for each of three channels, sample
+/// by sample.
+pub const SLOT_LEN: usize = SAMPLES * 3;
+
+/// Which blocks are Lightroom's, in the layout the GPU struct carries
+/// (`AgGrade` in modules.wgsl). It rides inside RapidRAW's
+/// `GlobalAdjustments`, as `sharpen::Params` does. 16 bytes.
+#[repr(C)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default, PartialEq)]
+pub struct Params {
+    /// 1 when the photo's own block is Lightroom's.
+    pub global: u32,
+    /// Bit i: mask i's block.
+    pub masks: u32,
+    _pad: [u32; 2],
+}
+
+impl Params {
+    /// The photo's own block, from its adjustments; no mask marked yet.
+    pub fn of(adjustments: &Value) -> Self {
+        Self {
+            global: u32::from(is_lightroom(adjustments)),
+            ..Self::default()
+        }
+    }
+
+    /// Marks mask `index` when its adjustments' block is Lightroom's.
+    pub fn mark_mask(&mut self, index: usize, mask_adjustments: &Value) {
+        if index < MAX_MASKS && is_lightroom(mask_adjustments) {
+            self.masks |= 1 << index;
+        }
+    }
+
+    pub fn is_on(&self) -> bool {
+        self.global != 0 || self.masks != 0
+    }
+}
+
+/// Whether these adjustments' `colorGrading` block is Lightroom's.
+fn is_lightroom(adjustments: &Value) -> bool {
+    adjustments
+        .get("colorGrading")
+        .and_then(|block| block.get(LIGHTROOM_KEY))
+        .and_then(Value::as_f64)
+        == Some(1.0)
+}
+
+/// A preset's adjustments with their `colorGrading` block, if they have one,
+/// marked as Lightroom's: for presets read from Lightroom's own XMP.
+pub fn mark_lightroom(mut adjustments: Value) -> Value {
+    if let Some(Value::Object(block)) = adjustments.get_mut("colorGrading") {
+        block.insert(LIGHTROOM_KEY.to_string(), Value::from(1));
+    }
+    adjustments
+}
+
+/// One block's settings, as their uniforms hold them.
+struct Block<'a> {
+    regions: [&'a mut ColorGradeSettings; 4],
+    blending: f32,
+    balance: f32,
+}
+
+impl Block<'_> {
+    /// The block's gains, its settings taken out of the uniforms so their
+    /// grading adds nothing. `None` when it grades nothing.
+    fn take(self) -> Option<Gains> {
+        let settings = self.regions.each_ref().map(|s| **s);
+        let gains = rm_color_grade::gains(&crate::image_processing::lightroom_grading(
+            settings,
+            self.blending,
+            self.balance,
+        ));
+        for region in self.regions {
+            *region = ColorGradeSettings::default();
+        }
+        gains
+    }
+}
+
+/// For one render: the Lightroom blocks' curves, a slot each (no change in
+/// the others), with their settings moved out of RapidRAW's uniforms. `None`
+/// when no block is Lightroom's.
+pub fn move_to_curves(adjustments: &mut AllAdjustments) -> Option<Vec<f32>> {
+    let marked = adjustments.global.ag_grade;
+    if !marked.is_on() {
+        return None;
+    }
+    let mut curves = vec![1.0; SLOTS * SLOT_LEN];
+    let mut write = |slot: usize, gains: Option<Gains>| {
+        if let Some(gains) = gains {
+            curves[slot * SLOT_LEN..(slot + 1) * SLOT_LEN].copy_from_slice(gains.as_flattened());
+        }
+    };
+    if marked.global != 0 {
+        let g = &mut adjustments.global;
+        let block = Block {
+            blending: g.color_grading_blending,
+            balance: g.color_grading_balance,
+            regions: [
+                &mut g.color_grading_shadows,
+                &mut g.color_grading_midtones,
+                &mut g.color_grading_highlights,
+                &mut g.color_grading_global,
+            ],
+        };
+        write(0, block.take());
+    }
+    let count = (adjustments.mask_count as usize).min(MAX_MASKS);
+    for (i, m) in adjustments.mask_adjustments[..count].iter_mut().enumerate() {
+        if marked.masks & (1 << i) == 0 {
+            continue;
+        }
+        let block = Block {
+            blending: m.color_grading_blending,
+            balance: m.color_grading_balance,
+            regions: [
+                &mut m.color_grading_shadows,
+                &mut m.color_grading_midtones,
+                &mut m.color_grading_highlights,
+                &mut m.color_grading_global,
+            ],
+        };
+        write(1 + i, block.take());
+    }
+    Some(curves)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::image_processing::{RenderOptions, get_all_adjustments_from_json};
+    use serde_json::json;
+
+    fn render(adjustments: &Value) -> AllAdjustments {
+        get_all_adjustments_from_json(
+            adjustments,
+            true,
+            crate::as_shot::AsShot::reference(),
+            RenderOptions::default(),
+            None,
+        )
+    }
+
+    fn sepia(marked: bool) -> Value {
+        let mut block = json!({
+            "shadows": { "hue": 38, "saturation": 25, "luminance": 0 },
+            "highlights": { "hue": 45, "saturation": 18, "luminance": 0 },
+            "blending": 50,
+            "balance": 0,
+        });
+        if marked {
+            block[LIGHTROOM_KEY] = json!(1);
+        }
+        json!({ "colorGrading": block })
+    }
+
+    #[test]
+    fn an_unmarked_block_keeps_rapidraws_grading() {
+        let mut all = render(&sepia(false));
+        assert_eq!(all.global.ag_grade, Params::default());
+        assert!(move_to_curves(&mut all).is_none());
+        // Their uniforms are untouched: their grading still runs.
+        assert!(all.global.color_grading_shadows.saturation > 0.0);
+    }
+
+    #[test]
+    fn a_marked_block_moves_to_lightroom_s_curves() {
+        let mut all = render(&sepia(true));
+        assert_eq!(all.global.ag_grade.global, 1);
+        let curves = move_to_curves(&mut all).expect("curves");
+        assert_eq!(curves.len(), SLOTS * SLOT_LEN);
+        // Their grading adds nothing now.
+        assert_eq!(all.global.color_grading_shadows.saturation, 0.0);
+        assert_eq!(all.global.color_grading_highlights.saturation, 0.0);
+        // The same gains as the engine gives Sepia in Lightroom's units.
+        let expected = rm_color_grade::gains(&Grading {
+            regions: [
+                [38. / 360., 0.25, 0.],
+                [0.; 3],
+                [45. / 360., 0.18, 0.],
+                [0.; 3],
+            ],
+            ..Grading::default()
+        })
+        .unwrap();
+        for (got, want) in curves[..SLOT_LEN].iter().zip(expected.as_flattened()) {
+            assert!((got - want).abs() < 1e-5, "{got} {want}");
+        }
+        // Masks' slots change nothing.
+        assert!(curves[SLOT_LEN..].iter().all(|&g| g == 1.0));
+    }
+
+    #[test]
+    fn masks_are_marked_in_their_shader_order() {
+        let mask = |marked: bool, visible: bool| {
+            json!({
+                "id": "m",
+                "name": "m",
+                "visible": visible,
+                "invert": false,
+                "subMasks": [{
+                    "id": "s",
+                    "type": "radial",
+                    "visible": true,
+                    "mode": "additive",
+                    "parameters": {},
+                }],
+                "adjustments": sepia(marked),
+            })
+        };
+        let adjustments = json!({
+            "masks": [mask(true, false), mask(false, true), mask(true, true)],
+        });
+        let mut all = render(&adjustments);
+        // The hidden mask is not sent to the shader, so the third is mask 1.
+        assert_eq!(all.mask_count, 2);
+        assert_eq!(all.global.ag_grade.masks, 0b10);
+        let curves = move_to_curves(&mut all).expect("curves");
+        assert!(curves[..2 * SLOT_LEN].iter().all(|&g| g == 1.0));
+        assert!(curves[2 * SLOT_LEN..3 * SLOT_LEN].iter().any(|&g| g != 1.0));
+        assert!(all.mask_adjustments[0].color_grading_shadows.saturation > 0.0);
+        assert_eq!(
+            all.mask_adjustments[1].color_grading_shadows.saturation,
+            0.0
+        );
+    }
+
+    #[test]
+    fn looks_are_marked_and_presets_without_grading_are_left_alone() {
+        let marked = mark_lightroom(sepia(false));
+        assert_eq!(marked["colorGrading"][LIGHTROOM_KEY], 1);
+        let plain = json!({ "exposure": 0.5 });
+        assert_eq!(mark_lightroom(plain.clone()), plain);
+    }
+}

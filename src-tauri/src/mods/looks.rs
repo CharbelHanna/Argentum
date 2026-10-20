@@ -62,7 +62,8 @@ pub fn builtin_presets(dir: &Path) -> Vec<PresetGroup> {
                     Some(BuiltinPreset {
                         id: format!("rawmakase:{group}/{stem}"),
                         name: preset.name,
-                        adjustments: preset.adjustments,
+                        // Lightroom's own XMP: graded as Lightroom grades.
+                        adjustments: crate::mods::color_grade::mark_lightroom(preset.adjustments),
                     })
                 })
                 .collect();
