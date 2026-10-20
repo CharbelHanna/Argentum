@@ -272,7 +272,9 @@ fn fuji(file: &[u8]) -> Option<LensCorrection> {
     let fuji = IFD::new(&mut reader, offset, base, 0, root.endian, &[]).ok()?;
     let numbers = |tag: u16| -> Option<Vec<f32>> {
         let v = &fuji.get_entry(tag)?.value;
-        (0..v.count()).map(|i| v.get_f32(i).ok().flatten()).collect()
+        (0..v.count())
+            .map(|i| v.get_f32(i).ok().flatten())
+            .collect()
     };
     // [scale, n knots, n values]
     let pairs = |v: &[f32], f: &dyn Fn(f32) -> f32| {
@@ -499,7 +501,10 @@ mod tests {
         };
         eprintln!();
         eprintln!("{path}: {}", c.source);
-        eprintln!("  vignetting gain at r 0.5/0.8/1: {:.3?}", at(&c.vignetting));
+        eprintln!(
+            "  vignetting gain at r 0.5/0.8/1: {:.3?}",
+            at(&c.vignetting)
+        );
         eprintln!("  distortion at r 0.5/0.8/1: {:.4?}", at(&c.distortion));
         if let Some([red, blue]) = &c.chromatic {
             eprintln!(
