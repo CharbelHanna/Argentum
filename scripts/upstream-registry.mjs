@@ -994,8 +994,6 @@ export const REGISTRY = [
         note: 'Keeps Argentum’s high-precision TIFF rendering path and removes the redundant readback boolean.' },
       { file: 'src/components/adjustments/Basic.tsx', how: 'extends',
         note: 'Adopts the final Brightness label and control placement from the reviewed v1.6.4 UI.' },
-      { file: 'src/components/panel/BottomBar.tsx', how: 'extends',
-        note: 'Persists Quick Filter visibility through Argentum’s UI store rather than a component-local flag.' },
       { file: 'src/components/panel/Editor.tsx', how: 'extends',
         note: 'Adds the optional neutral-grey editor canvas without changing the app theme.' },
       { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
@@ -2247,8 +2245,14 @@ export const REGISTRY = [
         note: 'Deleted: Classic\'s title bar (the app name and the window controls). The Modern top bar '
           + 'is the title bar; its window controls are WindowControls.tsx, adapted from this file. Its '
           + 'one rebranded line, the name Argentum, went with it.' },
-      { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
-        note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
+      { file: 'src/components/panel/BottomBar.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s bar under the grid and the photo (stars and flags, copy and paste, '
+          + 'the quick filter, zoom, panel toggles, the filmstrip). The Modern window has the filmstrip '
+          + '(FilmstripArea.tsx), copy and paste in the Edit header\'s menu, zoom and the panel toggles '
+          + 'in the top bar. It carried the 1.6.4 catch-up\'s Quick Filter persistence, which went with it; '
+          + 'uiVisibility.quickFilter is left in their store and types.' },
+      { file: 'src/components/views/LibraryView.tsx', how: 'extends',
+        note: 'No bottom bar (deleted with Classic), and MainLibrary in its modern form.' },
       { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
         note: 'Optional prop: no header and no start screen; ModernEmpty until a folder is picked.' },
       { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',

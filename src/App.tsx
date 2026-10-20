@@ -225,8 +225,7 @@ function App() {
 
   const isAndroid = osPlatform === 'android';
 
-  const { handleCopyAdjustments, handlePasteAdjustments, handleResetAdjustments, handleZoomChange } =
-    useEditorActions();
+  const { handleZoomChange } = useEditorActions();
 
   const navigationRefs = useMemo(
     () => ({
@@ -660,14 +659,12 @@ function App() {
     thumbnailAspectRatio,
     libraryViewMode,
     isAndroid,
-    layoutMode: 'full' as const,
     setThumbnailSize,
     setThumbnailAspectRatio,
     setLibraryViewMode,
     handleClearSelection,
     handleLibraryImageSingleClick,
     handleImageSelect,
-    handleRate,
     handleThumbnailContextMenu,
     handleMainLibraryContextMenu,
     handleContinueSession,
@@ -675,9 +672,6 @@ function App() {
     handleOpenFolder,
     handleImportClick,
     handleLibraryRefresh,
-    handleCopyAdjustments,
-    handlePasteAdjustments,
-    handleResetAdjustments,
     requestThumbnails,
   };
 

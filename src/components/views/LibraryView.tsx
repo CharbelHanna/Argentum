@@ -2,17 +2,14 @@ import { useShallow } from 'zustand/react/shallow';
 
 import CommunityPage from '../panel/CommunityPage';
 import MainLibrary from '../panel/MainLibrary';
-import BottomBar from '../panel/BottomBar';
 
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
-import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 
 import { ImageFile, LibraryViewMode, ThumbnailAspectRatio, ThumbnailSize } from '../ui/AppProperties';
 import { GroupBadgeInfo, GroupId } from '../../utils/imageGrouping';
-import { getImageFlag } from '../../utils/imageFlags';
 
 interface LibraryViewProps {
   sortedImageList: ImageFile[];
@@ -21,14 +18,12 @@ interface LibraryViewProps {
   thumbnailAspectRatio: ThumbnailAspectRatio;
   libraryViewMode: LibraryViewMode;
   isAndroid: boolean;
-  layoutMode: 'compact' | 'wide' | 'full';
   setThumbnailSize: (size: ThumbnailSize) => void;
   setThumbnailAspectRatio: (ratio: ThumbnailAspectRatio) => void;
   setLibraryViewMode: (mode: LibraryViewMode) => void;
   handleClearSelection: () => void;
   handleLibraryImageSingleClick: (...args: any) => void;
   handleImageSelect: (...args: any) => void;
-  handleRate: (...args: any) => void;
   handleThumbnailContextMenu: (...args: any) => void;
   handleMainLibraryContextMenu: (...args: any) => void;
   handleContinueSession: (...args: any) => void;
@@ -36,9 +31,6 @@ interface LibraryViewProps {
   handleOpenFolder: (...args: any) => void;
   handleImportClick: (path: string) => void;
   handleLibraryRefresh: () => Promise<void>;
-  handleCopyAdjustments: () => void;
-  handlePasteAdjustments: () => void;
-  handleResetAdjustments: () => void;
   requestThumbnails: any;
 }
 
@@ -49,14 +41,12 @@ export default function LibraryView({
   thumbnailAspectRatio,
   libraryViewMode,
   isAndroid,
-  layoutMode,
   setThumbnailSize,
   setThumbnailAspectRatio,
   setLibraryViewMode,
   handleClearSelection,
   handleLibraryImageSingleClick,
   handleImageSelect,
-  handleRate,
   handleThumbnailContextMenu,
   handleMainLibraryContextMenu,
   handleContinueSession,
@@ -64,12 +54,8 @@ export default function LibraryView({
   handleOpenFolder,
   handleImportClick,
   handleLibraryRefresh,
-  handleCopyAdjustments,
-  handlePasteAdjustments,
-  handleResetAdjustments,
   requestThumbnails,
-  modern = false,
-}: LibraryViewProps & { modern?: boolean }) {
+}: LibraryViewProps) {
   const { activeView, setUI } = useUIStore(
     useShallow((state) => ({
       activeView: state.activeView,
@@ -82,7 +68,6 @@ export default function LibraryView({
     currentFolderPath,
     libraryActivePath,
     multiSelectedPaths,
-    imageList,
     imageRatings,
     isViewLoading,
     isTreeLoading,
@@ -92,7 +77,6 @@ export default function LibraryView({
       currentFolderPath: state.currentFolderPath,
       libraryActivePath: state.libraryActivePath,
       multiSelectedPaths: state.multiSelectedPaths,
-      imageList: state.imageList,
       imageRatings: state.imageRatings,
       isViewLoading: state.isViewLoading,
       isTreeLoading: state.isTreeLoading,
@@ -108,18 +92,15 @@ export default function LibraryView({
     })),
   );
 
-  const { aiModelDownloadStatus, importState, indexingProgress, isIndexing, thumbnailProgress, isCopied, isPasted } =
-    useProcessStore(
-      useShallow((state) => ({
-        aiModelDownloadStatus: state.aiModelDownloadStatus,
-        importState: state.importState,
-        indexingProgress: state.indexingProgress,
-        isIndexing: state.isIndexing,
-        thumbnailProgress: state.thumbnailProgress,
-        isCopied: state.isCopied,
-        isPasted: state.isPasted,
-      })),
-    );
+  const { aiModelDownloadStatus, importState, indexingProgress, isIndexing, thumbnailProgress } = useProcessStore(
+    useShallow((state) => ({
+      aiModelDownloadStatus: state.aiModelDownloadStatus,
+      importState: state.importState,
+      indexingProgress: state.indexingProgress,
+      isIndexing: state.isIndexing,
+      thumbnailProgress: state.thumbnailProgress,
+    })),
+  );
 
   return (
     <div className="flex flex-row grow h-full min-h-0">
@@ -133,7 +114,7 @@ export default function LibraryView({
           />
         ) : (
           <MainLibrary
-            modern={modern}
+            modern
             activePath={libraryActivePath}
             aiModelDownloadStatus={aiModelDownloadStatus}
             appSettings={appSettings}
@@ -170,33 +151,6 @@ export default function LibraryView({
             thumbnailProgress={thumbnailProgress}
             thumbnailSize={thumbnailSize}
             onNavigateToCommunity={() => setUI({ activeView: 'community' })}
-          />
-        )}
-        {/* Argentum: the Modern window has its own filmstrip and no bottom bar. */}
-        {!modern && rootPaths && rootPaths.length > 0 && (
-          <BottomBar
-            isCopied={isCopied}
-            isCopyDisabled={multiSelectedPaths.length !== 1}
-            isExportDisabled={multiSelectedPaths.length === 0}
-            isLibraryView={true}
-            layoutMode={layoutMode}
-            isPasted={isPasted}
-            isPasteDisabled={useEditorStore.getState().copiedAdjustments === null || multiSelectedPaths.length === 0}
-            isRatingDisabled={multiSelectedPaths.length === 0}
-            isResetDisabled={multiSelectedPaths.length === 0}
-            multiSelectedPaths={multiSelectedPaths}
-            onCopy={handleCopyAdjustments}
-            onExportClick={() =>
-              setUI((state) => ({ isLibraryExportPanelVisible: !state.isLibraryExportPanelVisible }))
-            }
-            onOpenCopyPasteSettings={() => setUI({ isCopyPasteSettingsModalOpen: true })}
-            onPaste={() => handlePasteAdjustments()}
-            onRate={handleRate}
-            onReset={() => handleResetAdjustments()}
-            rating={imageRatings[libraryActivePath || ''] || 0}
-            flag={getImageFlag(imageList, libraryActivePath)}
-            thumbnailAspectRatio={thumbnailAspectRatio}
-            totalImages={imageList.length}
           />
         )}
       </div>

@@ -168,7 +168,7 @@ export default function ModernWindow(props: ModernWindowProps) {
               )}
             </div>
             <div className={clsx('flex-1 flex flex-col min-h-0', editing && 'hidden')}>
-              <LibraryView {...props.libraryProps} modern />
+              <LibraryView {...props.libraryProps} />
             </div>
             {isSettingsOpen && (
               <div className="absolute inset-0 z-30 flex">
