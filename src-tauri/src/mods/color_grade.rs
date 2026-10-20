@@ -435,3 +435,128 @@ mod gpu {
         assert!(ours - plain > 3.0 * (theirs - plain).abs());
     }
 }
+
+/// Renders for judging the grading by eye, on real photos: `AG_RAWS` (paths
+/// separated by ';') and `AG_OUT` set, `cargo test --lib color_grade::sheet -- --ignored`.
+#[cfg(test)]
+mod sheet {
+    use super::*;
+    use crate::mods::dng_standard::gpu::device;
+    use image::{DynamicImage, GenericImageView};
+
+    /// The Looks that come with the app and grade.
+    const GRADED: [&str; 5] = ["Cool", "Matte", "Warm", "Faded Gold", "Sepia"];
+
+    fn save(image: &DynamicImage, path: &std::path::Path) {
+        let file = std::fs::File::create(path).expect("create");
+        let mut jpeg = image::codecs::jpeg::JpegEncoder::new_with_quality(file, 95);
+        jpeg.encode_image(&DynamicImage::ImageRgb8(image.to_rgb8()))
+            .expect("write jpeg");
+    }
+
+    /// The Look as RapidRAW grades it: the same settings without the mark.
+    fn unmarked(mut adjustments: Value) -> Value {
+        if let Some(Value::Object(block)) = adjustments.get_mut("colorGrading") {
+            block.remove(LIGHTROOM_KEY);
+        }
+        adjustments
+    }
+
+    /// Each RAW developed as the app does, then rendered with each graded
+    /// Look that comes with the app, as RapidRAW grades it and as Lightroom
+    /// does: `<n>-<look>-rapidraw.jpg` and `<n>-<look>-lightroom.jpg`,
+    /// `AG_WIDTH` wide (1200 by default), and where `AG_CROPS` gives the photo
+    /// a part `x,y,w,h` (fractions, ';' per RAW), `...-crop.jpg` of that part
+    /// at full size. A Look not in this build (Sepia before B&W) is skipped.
+    #[test]
+    #[ignore = "reads RAW files; run by hand"]
+    fn sheet_renders() {
+        let raws = std::env::var("AG_RAWS").expect("set AG_RAWS");
+        let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("set AG_OUT"));
+        let width: u32 = std::env::var("AG_WIDTH")
+            .ok()
+            .and_then(|w| w.parse().ok())
+            .unwrap_or(1200);
+        let crops: Vec<Option<[f32; 4]>> = std::env::var("AG_CROPS")
+            .unwrap_or_default()
+            .split(';')
+            .map(|c| {
+                let v: Vec<f32> = c.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+            })
+            .collect();
+        std::fs::create_dir_all(&out).unwrap();
+        let ctx = device().expect("no wgpu adapter");
+        let shipped =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/presets/rawmakase");
+        let mut looks: Vec<(String, Value)> = Vec::new();
+        for group in crate::mods::looks::builtin_presets(&shipped) {
+            for preset in group.presets {
+                if GRADED.contains(&preset.name.as_str()) {
+                    let name = preset.name.to_lowercase().replace(' ', "-");
+                    looks.push((
+                        format!("{name}-rapidraw"),
+                        unmarked(preset.adjustments.clone()),
+                    ));
+                    looks.push((format!("{name}-lightroom"), preset.adjustments));
+                }
+            }
+        }
+        for (n, path) in raws.split(';').filter(|p| !p.trim().is_empty()).enumerate() {
+            let bytes = std::fs::read(path).expect("read raw");
+            let as_shot = crate::raw_processing::read_as_shot(&bytes)
+                .unwrap_or_else(crate::as_shot::AsShot::reference);
+            let linear = crate::raw_processing::develop_raw_image(
+                &bytes,
+                false,
+                2.5,
+                "default".to_string(),
+                None,
+                Some(path),
+            )
+            .expect("decodes");
+            let crop = crops.get(n).copied().flatten();
+            let source = if crop.is_some() {
+                linear
+            } else {
+                let h = (linear.height() as f32 * width as f32 / linear.width() as f32) as u32;
+                crate::image_processing::downscale_f32_image(&linear, width, h)
+            };
+            for (look, js) in &looks {
+                let adjustments = crate::image_processing::get_all_adjustments_from_json(
+                    js,
+                    true,
+                    as_shot,
+                    Default::default(),
+                    Some(path),
+                );
+                let rendered = crate::mods::export_precision::render_high_precision(
+                    &ctx,
+                    &source,
+                    crate::gpu_processing::RenderRequest {
+                        adjustments,
+                        mask_bitmaps: &[],
+                        lut: None,
+                        roi: None,
+                    },
+                )
+                .expect("renders");
+                let name = format!("{}-{look}", n + 1);
+                let (w, h) = rendered.dimensions();
+                let whole =
+                    rendered.resize(width, width * h / w, image::imageops::FilterType::Lanczos3);
+                save(&whole, &out.join(format!("{name}.jpg")));
+                if let Some([x, y, cw, ch]) = crop {
+                    let part = rendered.crop_imm(
+                        (x * w as f32) as u32,
+                        (y * h as f32) as u32,
+                        (cw * w as f32) as u32,
+                        (ch * h as f32) as u32,
+                    );
+                    save(&part, &out.join(format!("{name}-crop.jpg")));
+                }
+                eprintln!("{path}: {look}");
+            }
+        }
+    }
+}
