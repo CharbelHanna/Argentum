@@ -53,7 +53,7 @@
 //
 // STAGES
 //
-// Four of them, because tools genuinely belong at different points and pretending
+// Five of them, because tools genuinely belong at different points and pretending
 // otherwise would be worse than the line it saves:
 //
 //   ag_stage_scene_linear  before the tone curve, on linear data. Colour work
@@ -63,6 +63,8 @@
 //                          Grading: B&W.
 //   ag_stage_tone          right after their tone mapper, which it can replace
 //                          for a RAW: the RAW tone renderings (see below).
+//   ag_stage_grade         after the Curves panel and a LUT, before grain:
+//                          Lightroom's colour grading (see below).
 //   ag_stage_display       after tone mapping, on display-referred data.
 //
 // A tool joins the stage it belongs to here, so adding it never touches their
@@ -326,6 +328,75 @@ fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
     let toned = rt_rgb_tone(prophoto, count);
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
+
+// ============================================================================
+// THE GRADING ANCHOR
+//
+// Lightroom's colour grading (mods/color_grade.rs): after the tone curve, the
+// Curves panel and a LUT, where Camera Raw grades, on display-referred linear
+// sRGB. Blocks not marked as Lightroom's keep RapidRAW's grading, earlier in
+// their main(); for a marked block Rust has taken the settings out of their
+// uniforms, so theirs adds nothing.
+// ============================================================================
+
+/// Which blocks are Lightroom's, as `color_grade::Params` lays them out.
+struct AgGrade {
+    global: u32,  // 1 when the photo's own block is
+    masks: u32,   // bit i: mask i's
+    _pad0: u32,
+    _pad1: u32,
+}
+
+/// The marked blocks' curves (mods/color_grade.rs `move_to_curves`): a slot
+/// per block, the photo's then each mask's, of 64 gains for each channel of
+/// linear ProPhoto RGB, sample by sample. Written when a render has a
+/// Lightroom block.
+@group(0) @binding(15) var<storage, read> ag_grade_curves: array<f32>;
+
+// from RAWmakase crates/rawmakase-engine/src/develop/gpu/develop.wgsl @ 5a2414b4
+// (v0.4.1, MIT), `grade`, with its curves in slot `slot`. Each channel of
+// linear ProPhoto RGB is scaled by its gain at its own value, sampled at
+// x^(1/2.2). The engine's rm_color_grade.rs `apply` is its CPU twin.
+fn rm_grade(rgb: vec3<f32>, slot: u32) -> vec3<f32> {
+    let bins = 64u;
+    let base = slot * bins * 3u;
+    let q = AG_SRGB_TO_PROPHOTO * rgb;
+    var out: vec3<f32>;
+    for (var c = 0u; c < 3u; c++) {
+        let f = pow(clamp(q[c], 0.0, 1.0), 1.0 / 2.2) * f32(bins - 1u);
+        let i = min(u32(f), bins - 2u);
+        let t = f - f32(i);
+        let g = ag_grade_curves[base + i * 3u + c] * (1.0 - t)
+            + ag_grade_curves[base + (i + 1u) * 3u + c] * t;
+        out[c] = q[c] * g;
+    }
+    return AG_PROPHOTO_TO_SRGB * out;
+}
+
+/// Grading stage: `srgb` is display-encoded, as the Curves panel leaves it.
+/// The photo's block grades it, then each marked mask's block is mixed in by
+/// the mask's influence, as their grading does.
+fn ag_stage_grade(srgb: vec3<f32>, coord: vec2<u32>) -> vec3<f32> {
+    let marked = adjustments.global.ag_grade;
+    if (marked.global == 0u && marked.masks == 0u) {
+        return srgb;
+    }
+    var linear = srgb_to_linear(srgb);
+    if (marked.global != 0u) {
+        linear = rm_grade(linear, 0u);
+    }
+    for (var i = 0u; i < adjustments.mask_count; i = i + 1u) {
+        if (((marked.masks >> i) & 1u) == 0u) {
+            continue;
+        }
+        let influence = get_mask_influence(i, coord);
+        if (influence > 0.001) {
+            linear = mix(linear, rm_grade(linear, i + 1u), influence);
+        }
+    }
+    return linear_to_srgb_extended(linear);
+}
+
 
 /// The clipping view, in whichever mode the button has been cycled to.
 ///

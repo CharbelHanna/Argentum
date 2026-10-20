@@ -622,6 +622,9 @@ pub struct GpuProcessor {
     main_bgl: wgpu::BindGroupLayout,
     main_pipeline: wgpu::ComputePipeline,
     adjustments_buffer: wgpu::Buffer,
+    // Argentum: Lightroom's grading curves, written when a render has a block
+    // of it (mods/color_grade.rs).
+    ag_grade_curves_buffer: wgpu::Buffer,
     // Argentum: B&W's grid, written when a render asks for B&W (mods/black_white.rs).
     ag_gray_grid_buffer: wgpu::Buffer,
     dummy_blur_view: wgpu::TextureView,
@@ -1086,6 +1089,17 @@ impl GpuProcessor {
             },
             count: None,
         });
+        // Argentum: Lightroom's grading curves, ag_grade_curves in modules.wgsl.
+        bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
+            binding: 14 + MAX_MASK_BINDINGS,
+            visibility: wgpu::ShaderStages::COMPUTE,
+            ty: wgpu::BindingType::Buffer {
+                ty: wgpu::BufferBindingType::Storage { read_only: true },
+                has_dynamic_offset: false,
+                min_binding_size: None,
+            },
+            count: None,
+        });
         // Argentum: B&W's grid, ag_gray_grid in modules.wgsl.
         bind_group_layout_entries.push(wgpu::BindGroupLayoutEntry {
             binding: 13 + MAX_MASK_BINDINGS,
@@ -1124,6 +1138,14 @@ impl GpuProcessor {
         let adjustments_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("Adjustments Buffer"),
             size: std::mem::size_of::<AllAdjustments>() as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let ag_grade_curves_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Grading Curves Buffer"),
+            size: (crate::mods::color_grade::SLOTS
+                * crate::mods::color_grade::SLOT_LEN
+                * std::mem::size_of::<f32>()) as u64,
             usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -1285,6 +1307,7 @@ impl GpuProcessor {
             main_bgl,
             main_pipeline,
             adjustments_buffer,
+            ag_grade_curves_buffer,
             ag_gray_grid_buffer,
             dummy_blur_view,
             dummy_lut_view,
@@ -1606,7 +1629,11 @@ impl GpuProcessor {
             (self.dummy_lut_view.clone(), self.dummy_lut_sampler.clone())
         };
 
-        let adjustments = request.adjustments;
+        let mut adjustments = request.adjustments;
+        // Argentum: Lightroom's grading for the blocks marked so, theirs for the rest.
+        if let Some(curves) = crate::mods::color_grade::move_to_curves(&mut adjustments) {
+            queue.write_buffer(&self.ag_grade_curves_buffer, 0, bytemuck::cast_slice(&curves));
+        }
         let black_white = adjustments.global.ag_black_white; // Argentum: B&W's grid for this render
         if black_white.is_on() {
             let grid = crate::mods::black_white::gray_grid(black_white.mix);
@@ -1957,6 +1984,10 @@ impl GpuProcessor {
                 bind_group_entries.push(wgpu::BindGroupEntry {
                     binding: 12 + MAX_MASK_BINDINGS,
                     resource: wgpu::BindingResource::TextureView(gf_dehaze_view),
+                });
+                bind_group_entries.push(wgpu::BindGroupEntry {
+                    binding: 14 + MAX_MASK_BINDINGS,
+                    resource: self.ag_grade_curves_buffer.as_entire_binding(),
                 });
                 bind_group_entries.push(wgpu::BindGroupEntry {
                     binding: 13 + MAX_MASK_BINDINGS,

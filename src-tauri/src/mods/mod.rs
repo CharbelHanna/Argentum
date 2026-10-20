@@ -19,6 +19,7 @@ pub mod canon_makernote;
 pub mod canon_old_wb;
 pub mod capture_bake;
 pub mod clipping;
+pub mod color_grade;
 pub mod colour_compare;
 pub mod commands;
 pub mod copy_keys;

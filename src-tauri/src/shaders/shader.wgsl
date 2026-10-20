@@ -127,6 +127,7 @@ struct GlobalAdjustments {
     _pad_raw_tone2: u32,
     raw_tone_curve: array<Point, 16>,
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
+    ag_grade: AgGrade,           // Argentum: Lightroom's colour grading, see modules.wgsl
     ag_black_white: AgBlackWhite, // Argentum: B&W, see modules.wgsl
 }
 
@@ -2067,6 +2068,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         let lut_color = sample_lut_tetrahedral(final_rgb);
         final_rgb = mix(final_rgb, lut_color, adjustments.global.lut_intensity);
     }
+    final_rgb = ag_stage_grade(final_rgb, absolute_coord);  // Argentum: the grading anchor, see modules.wgsl
 
     if (adjustments.global.grain_amount > 0.0) {
         let coord = vec2<f32>(absolute_coord_i);

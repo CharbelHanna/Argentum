@@ -9,7 +9,7 @@
     "start": "node scripts/check-identity.mjs && tauri dev",
     "check:merge": "node scripts/check-mergeability.mjs",
     "review:upstream": "node scripts/upstream-review.mjs",
-    "test:checks": "node scripts/test-upstream-checks.mjs && node scripts/test-upstream-e2e.mjs && node scripts/test-rawmakase-cameras.mjs && node scripts/test-rawmakase-gray-chart.mjs",
+    "test:checks": "node scripts/test-upstream-checks.mjs && node scripts/test-upstream-e2e.mjs && node scripts/test-rawmakase-cameras.mjs && node scripts/test-rawmakase-gray-chart.mjs && node scripts/test-rawmakase-grade-curves.mjs",
     "test:shell": "vitest run src/shell",
     "start:tethering": "node scripts/check-identity.mjs && tauri dev -- --features tethering",
     "start:shell": "node scripts/check-identity.mjs && node scripts/start-shell.mjs",

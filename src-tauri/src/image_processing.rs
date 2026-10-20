@@ -1777,6 +1777,9 @@ pub struct GlobalAdjustments {
     // Argentum: sharpening, read by the input stage before the shader runs.
     pub ag_sharpen: sharpen::Params,
 
+    // Argentum: which Color Grading blocks are Lightroom's, read by
+    // ag_stage_grade in modules.wgsl (mods/color_grade.rs).
+    pub ag_grade: crate::mods::color_grade::Params,
     // Argentum: B&W, read by ag_stage_color in modules.wgsl (mods/black_white.rs).
     pub ag_black_white: crate::mods::black_white::Params,
 }
@@ -1983,6 +1986,27 @@ fn parse_color_grade_settings(js_cg: &serde_json::Value) -> ColorGradeSettings {
         luminance: js_cg["luminance"].as_f64().unwrap_or(0.0) as f32
             / SCALES.color_grading_luminance,
         _pad: 0.0,
+    }
+}
+
+/// Argentum: one block's grading, as their uniforms hold it, back in
+/// Lightroom's units for RAWmakase's measured grading (mods/color_grade.rs).
+pub(crate) fn lightroom_grading(
+    regions: [ColorGradeSettings; 4],
+    blending: f32,
+    balance: f32,
+) -> argentum_engine::rm_color_grade::Grading {
+    let region = |s: ColorGradeSettings| {
+        [
+            s.hue / 360.0,
+            s.saturation * SCALES.color_grading_saturation / 100.0,
+            s.luminance * SCALES.color_grading_luminance / 100.0,
+        ]
+    };
+    argentum_engine::rm_color_grade::Grading {
+        regions: regions.map(region),
+        blending: blending * SCALES.color_grading_blending / 100.0,
+        balance: balance * SCALES.color_grading_balance / 100.0,
     }
 }
 
@@ -2689,6 +2713,7 @@ fn get_global_adjustments_from_json(
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 
         ag_sharpen: sharpen::from_json(js_adjustments, is_raw, photo),
+        ag_grade: crate::mods::color_grade::Params::of(js_adjustments),
         ag_black_white: crate::mods::black_white::Params::from_json(
             js_adjustments,
             is_visible("color"),
@@ -2858,7 +2883,7 @@ pub fn get_all_adjustments_from_json(
     } else {
         as_shot.white_balance
     };
-    let global = get_global_adjustments_from_json(
+    let mut global = get_global_adjustments_from_json(
         js_adjustments,
         is_raw,
         white_balance::adaptation_log_gains(as_shot.white_balance, target_white_balance),
@@ -2882,6 +2907,7 @@ pub fn get_all_adjustments_from_json(
     {
         mask_adjustments[i] =
             get_mask_adjustments_from_json(&mask_def.adjustments, target_white_balance);
+        global.ag_grade.mark_mask(i, &mask_def.adjustments); // Argentum: Lightroom's grading
         mask_count += 1;
     }
 

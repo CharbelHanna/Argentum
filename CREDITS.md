@@ -94,6 +94,14 @@ contributors on a colour chart at a zero mix and with each of the eight bands at
 four positions, kept in Argentum as `src-tauri/engine/src/rm_black_white_chart.tsv`
 and regenerated from each RAWmakase release, which the chart names.
 
+**Color Grading**, for new edits and Looks, is RAWmakase's
+(`color_grade_curves.rs` and its tables @ `5a2414b4`, v0.4.1, unchanged since
+v0.4.0): Camera Raw 18.7's grading, measured by its contributors on a colour
+chart under about 740 grading settings and fitted as a curve per channel of
+linear ProPhoto RGB, kept in Argentum as
+`src-tauri/engine/src/rm_color_grade_curves.tsv` and regenerated from each
+RAWmakase release, which the table names.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

@@ -106,7 +106,9 @@ export const CREDITS: CreditGroup[] = [
           'measured against Camera Raw (230 bodies across 10 makes); Adobe’s default tone curve, ' +
           'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
           'output. B&W’s black and white mix is RAWmakase’s too: the grey Camera Raw makes of each ' +
-          'colour, measured on a colour chart. RAWmakase is also where the comparison started. MIT.',
+          'colour, measured on a colour chart; and Color Grading for new edits and Looks is ' +
+          'RAWmakase’s measured copy of Lightroom’s. RAWmakase is also where the comparison ' +
+          'started. MIT.',
       },
       {
         name: 'RawTherapee',

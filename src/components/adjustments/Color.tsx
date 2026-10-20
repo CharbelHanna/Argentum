@@ -10,6 +10,7 @@ import { AppSettings } from '../ui/AppProperties';
 import Text from '../ui/Text';
 import AdjustmentSubSection from './AdjustmentSubSection';
 import { TextColors, TextWeights } from '../../types/typography';
+import { markedGrading } from '../../argentum/colorGrading';
 import { useAgTranslation } from '../../argentum/locales';
 import { BlackWhiteMix, BlackWhiteMixReset, NO_EFFECT_IN_BLACK_WHITE, isBlackWhite } from '../../argentum/BlackWhite';
 
@@ -118,20 +119,21 @@ const ColorGradingPanel = ({ adjustments, setAdjustments, onDragStateChange }: C
   const handleChange = (grading: ColorGrading, newValue: HueSatLum) => {
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
-      colorGrading: {
+      // Argentum: a new grading is Lightroom's (argentum/colorGrading.ts).
+      colorGrading: markedGrading(prev.colorGrading || INITIAL_ADJUSTMENTS.colorGrading, {
         ...(prev.colorGrading || INITIAL_ADJUSTMENTS.colorGrading),
         [grading]: newValue,
-      },
+      }),
     }));
   };
 
   const handleColorGradingSliderChange = (grading: ColorGrading, value: string) => {
     setAdjustments((prev: Partial<Adjustments>) => ({
       ...prev,
-      colorGrading: {
+      colorGrading: markedGrading(prev.colorGrading || INITIAL_ADJUSTMENTS.colorGrading, {
         ...(prev.colorGrading || INITIAL_ADJUSTMENTS.colorGrading),
         [grading]: parseFloat(value),
-      },
+      }),
     }));
   };
 
