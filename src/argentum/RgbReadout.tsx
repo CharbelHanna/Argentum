@@ -12,7 +12,7 @@
  * carrying the live result. Three frontend attempts failed on that, the last
  * one silently: it sampled the only large image present, which is the cached
  * `_medium.jpg` thumbnail, regenerated on save and never while a slider moves.
- * AK caught it — the same spot on a nose read 207/177/179 at correct white
+ * Caught in use — the same spot on a nose read 207/177/179 at correct white
  * balance and 214/189/192 at temperature -100, on a picture that had gone
  * completely blue.
  *

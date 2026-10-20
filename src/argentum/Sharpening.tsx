@@ -8,8 +8,8 @@
  * The same marker in a mask's Details (flagged `data-mask`) takes
  * LocalSharpening.tsx instead.
  *
- * Three things on screen, the rest folded away, because AK's first look at
- * every knob at once was "confusing AF":
+ * Three things on screen, the rest folded away, because every knob at once
+ * was confusing at first look:
  *
  *   the switch   all of it on or off - the before and after
  *   Capture      RawTherapee's, RAW only, automatic: undoes the softness

@@ -120,8 +120,8 @@ export const ANCHORS = [
     ],
   },
   {
-    // Taken 2026-10-09, from a budget of zero, by AK's decision (DEC in the
-    // brain). Their AI sessions keep ONNX Runtime's CPU memory arena, so a model
+    // Taken 2026-10-09, from a budget of zero, as a deliberate exception.
+    // Their AI sessions keep ONNX Runtime's CPU memory arena, so a model
     // keeps the most working memory it ever needed for as long as it is loaded:
     // the five mask models held 6.1 GB after one selection on a 32 MP raw. The
     // arena can only be turned off where a session is built, and every session
@@ -171,7 +171,7 @@ export const ANCHORS = [
         pattern: /\[[^\]]*\btiffDepth\b[^\]]*\]\s*\)/,
         why:
           'and list it as a dependency. Without this the size estimate froze on '
-          + 'the depth you had before — found by AK on 2026-09-13, after four '
+          + 'the depth you had before — found in use on 2026-09-13, after four '
           + 'review passes and a full green suite missed it',
         // The trailing `\s*\)` is load-bearing: without it any future bracketed
         // mention of the name — an index, a tuple, `// see [tiffDepth]` in a

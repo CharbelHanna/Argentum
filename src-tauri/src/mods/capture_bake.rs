@@ -1,7 +1,7 @@
 //! Capture sharpening applied to a picture Argentum is about to enlarge.
 //!
 //! Capture sharpening undoes the camera's own blur, so it belongs at the
-//! camera's size: on AK's R6 Mark III frames, 2026-10-11, capture after a 2x
+//! camera's size: on R6 Mark III frames, 2026-10-11, capture after a 2x
 //! enlargement doubled whiskers and outlined them, while capture before it
 //! added detail the enlarging model kept (DEC-25, order A: Restore, then
 //! Capture, then Enlarge). An enlargement is saved as an ordinary image, which

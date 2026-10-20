@@ -14,7 +14,7 @@
  *   which keeps the rest of the sidecar and redraws the thumbnail, so the grid
  *   and any batch export see the converted edit. One at a time, each waiting for
  *   its thumbnail: the first version fired every save at once, each redraw
- *   decoded a whole RAW on a thread of its own, and on AK's first start the
+ *   decoded a whole RAW on a thread of its own, and on a real first start the
  *   preview worker died under it. See wb_legacy::save_in_turn.
  * - **The open photo.** The editor may have loaded an old edit before the sweep
  *   reached it — session restore at launch, or a quick click. Their loader

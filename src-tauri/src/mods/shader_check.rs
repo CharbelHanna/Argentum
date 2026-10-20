@@ -4,8 +4,8 @@
 //!
 //! WGSL is compiled when the app runs, not when it is built. So a mistake in it
 //! passes `cargo build`, passes `cargo test`, passes the production build, and
-//! then every photo opens black — which is exactly what happened, in front of
-//! AK, twice in one evening. There was nothing between writing a bad line and
+//! then every photo opens black — which is exactly what happened,
+//! twice in one evening. There was nothing between writing a bad line and
 //! seeing a black picture with "Validation Error" in the log and no detail.
 //!
 //! naga is the compiler wgpu already uses, and it is reachable through wgpu, so

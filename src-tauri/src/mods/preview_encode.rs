@@ -15,7 +15,7 @@
 //! is clamped to exactly black before the GPU ever sees the image, and no
 //! exposure, white balance or curve can bring it back.
 //!
-//! Measured on one of AK's backlit frames:
+//! Measured on a backlit frame:
 //!
 //! ```text
 //! pure black before the encode   40.5%
@@ -31,7 +31,7 @@
 //! argentum         62.6%       9.4%
 //! ```
 //!
-//! It also explains why some photos look fine and others are ruined, which AK
+//! It also explains why some photos look fine and others are ruined, which was
 //! noticed long before any of this was measured: a bright evenly-lit frame has
 //! little data down there, a backlit one loses half of itself.
 //!
