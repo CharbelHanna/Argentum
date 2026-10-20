@@ -14,6 +14,7 @@ pub mod colour;
 pub mod contract;
 mod develop;
 pub mod dng_gain_map;
+mod dng_opcodes;
 pub mod engine;
 mod error;
 mod frame;

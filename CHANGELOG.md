@@ -8,6 +8,17 @@ Newest first.
 
 ### Added
 
+- **DNGs get the lens correction they carry.** A DNG records the corrections Lightroom applies
+  as opcodes: FixVignetteRadial (corner shading) and WarpRectilinear (distortion, and colour
+  fringing when it has a plane per colour). Leica, DJI's drones, phones and Lightroom's own DNGs
+  write them. The same switch in Crop > Lens Correction applies them, on by default as Lightroom
+  does. FixVignetteRadial is read from OpcodeList2 and, when that has none, from OpcodeList3,
+  where DJI writes it. Against each file's own camera preview, the edges of three raw.pixls.us
+  files (Leica Q, DJI Mini 2, DJI Phantom 4 Pro) correlate at 0.61 / 0.58 / 0.73 corrected,
+  against 0.34 / 0.41 / 0.29 uncorrected. A GainMap in OpcodeList3 (DJI's colour shading: red
+  +16% at the corners) is still not applied. The opcode lists are read by one new module,
+  `dng_opcodes.rs`, which the phone gain maps now share. From RAWmakase @ `a8c5d6d7` (v0.4.0,
+  MIT): `vignette` and `warp` in `crates/rawmakase-model/src/dng.rs`.
 - **Sony photos can use the camera's own lens correction too.** An ARW stores the lens's
   distortion, colour fringing and corner shading for the shot in its raw SubIFD (0x7032,
   0x7035, 0x7037). The same switch in Crop > Lens Correction applies it; it starts off, as
@@ -33,7 +44,6 @@ Newest first.
   @ `a8c5d6d7` (v0.4.0, MIT): `crates/rawmakase-model/src/optics/mod.rs` (the correction model
   and its fill scale), `crates/rawmakase-model/src/lens/embedded.rs` (the Fujifilm reader) and
   `crates/rawmakase-engine/src/develop/image_space.rs` (the position map and its inverse).
-  A DNG's lens opcodes come next.
 - **Relight and Fog, from RapidRAW 1.6.6.** Edit > Effects has two new parts after Lens blur.
   Relight places Lamp, Spot or Sun lights on the photo, dragged and aimed on the photo, lit
   along each surface's direction, with cast shadows. Fog thickens with distance and lies low

@@ -14,6 +14,12 @@
 //! (a ZV-1's distortion is 1.077 at the centre), so they are filled only as
 //! far as the photo's edge needs, which keeps the camera's crop.
 //!
+//! A DNG records the corrections Lightroom applies as opcodes:
+//! FixVignetteRadial (a gain over radius) and WarpRectilinear (a radial
+//! remap per colour plane). Cameras that write DNGs (Leica, DJI's drones,
+//! phones) and Lightroom's own DNGs carry them. On, as Lightroom applies
+//! them.
+//!
 //! FROM RAWMAKASE
 //!
 //! RAWmakase `v0.4.0` @ a8c5d6d7 (MIT):
@@ -23,6 +29,9 @@
 //! - `crates/rawmakase-model/src/lens/embedded.rs`: the Fujifilm and Sony
 //!   readers, their units, the 0.85 Fujifilm vignetting strength, and their
 //!   tests.
+//! - `crates/rawmakase-model/src/dng.rs`: the FixVignetteRadial and
+//!   WarpRectilinear readers (radial terms only, centred within 0.02,
+//!   sampled at 33 radii), and their test.
 //! - `crates/rawmakase-engine/src/develop/image_space.rs`: `LensMap`'s
 //!   position map, its Newton inverse, and which fill each source takes
 //!   (RAWmakase #533).
@@ -45,11 +54,20 @@
 //!   crops an ARW to its DefaultCrop, which is the camera's aspect-ratio crop
 //!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
 //!   `camera_crop` describes; the sensor beyond it is not there to sample.
-//! - A DNG's opcodes come with that format.
+//! - FixVignetteRadial is read from OpcodeList2 and, when that has none,
+//!   from OpcodeList3: DJI's drones write it there, where RAWmakase does not
+//!   look. Both lists apply before the warp, and a gain is the same in
+//!   either. The lists come through `dng_opcodes.rs`, shared with the gain
+//!   maps.
+//! - A DNG's `source` is "DNG", the word the switch shows, where RAWmakase
+//!   writes "DNG opcodes".
+//! - A DNG's radius is over its raw image; the developed image here is its
+//!   DefaultCrop, a few pixels smaller on the files seen.
 
 use std::io::Cursor;
 
 use rawler::formats::tiff::IFD;
+use rawler::tags::DngTag;
 use serde::{Deserialize, Serialize};
 
 /// FujiIFD, in the TIFF a RAF's header points to.
@@ -69,6 +87,10 @@ const SONY_DISTORTION: u16 = 0x7037;
 /// gain: corners of three X100F photos match Camera Raw at this exponent
 /// (+0.08 EV at the corner at full strength). RAWmakase's measurement.
 const FUJI_VIGNETTE_STRENGTH: f32 = 0.85;
+
+/// DNG opcode IDs (DNG Specification 1.7.1.0, chapter 7).
+const WARP_RECTILINEAR: u32 = 1;
+const FIX_VIGNETTE_RADIAL: u32 = 3;
 
 /// A radial function sampled at increasing radii. Radius 0 is the image
 /// centre and 1 is half of the image diagonal. Values are linearly
@@ -333,7 +355,7 @@ pub fn read(file: &[u8]) -> Option<LensCorrection> {
     let c = if file.starts_with(b"FUJIFILMCCD-RAW") {
         fuji(file)
     } else if file.starts_with(b"II*\0") || file.starts_with(b"MM\0*") {
-        sony(file)
+        dng(file).or_else(|| sony(file))
     } else {
         None
     }?;
@@ -459,6 +481,106 @@ fn sony(file: &[u8]) -> Option<LensCorrection> {
         distortion,
         chromatic,
     })
+}
+
+/// A DNG's FixVignetteRadial and WarpRectilinear; `None` for a file that is
+/// not a DNG or has neither.
+fn dng(file: &[u8]) -> Option<LensCorrection> {
+    let first = |tag: DngTag, id: u32| -> Option<Vec<u8>> {
+        let list = crate::dng_opcodes::list(file, tag)?;
+        let ops = crate::dng_opcodes::opcodes(&list)?;
+        ops.into_iter()
+            .find(|op| op.id == id)
+            .map(|op| op.params.to_vec())
+    };
+    let vignetting = [DngTag::OpcodeList2, DngTag::OpcodeList3]
+        .into_iter()
+        .find_map(|tag| first(tag, FIX_VIGNETTE_RADIAL))
+        .and_then(|p| vignette(&p));
+    let (distortion, chromatic) = first(DngTag::OpcodeList3, WARP_RECTILINEAR)
+        .and_then(|p| warp(&p))
+        .unwrap_or((None, None));
+    let lens = LensCorrection {
+        source: "DNG".into(),
+        default_on: true,
+        vignetting,
+        distortion,
+        chromatic,
+    };
+    (!lens.is_empty()).then_some(lens)
+}
+
+fn doubles(p: &[u8]) -> Vec<f64> {
+    p.as_chunks::<8>()
+        .0
+        .iter()
+        .map(|c| f64::from_be_bytes(*c))
+        .collect()
+}
+
+/// Radius samples; the opcode radius, like ours, is 1 at the farthest corner
+/// from the optical centre, which must be near the image centre.
+fn dng_knots() -> Vec<f32> {
+    (0..=32).map(|i| i as f32 / 32.).collect()
+}
+
+fn centred(cx: f64, cy: f64) -> bool {
+    (cx - 0.5).abs() < 0.02 && (cy - 0.5).abs() < 0.02
+}
+
+/// FixVignetteRadial: gain 1 + k0 r^2 + k1 r^4 + k2 r^6 + k3 r^8 + k4 r^10.
+fn vignette(p: &[u8]) -> Option<Radial> {
+    let v = doubles(p);
+    if v.len() != 7 || !centred(v[5], v[6]) {
+        return None;
+    }
+    let values = dng_knots()
+        .iter()
+        .map(|r| {
+            let r2 = f64::from(*r * *r);
+            (1. + (0..5).map(|i| v[i] * r2.powi(i as i32 + 1)).sum::<f64>()) as f32
+        })
+        .collect();
+    let r = Radial {
+        knots: dng_knots(),
+        values,
+    };
+    r.values.iter().any(|g| (g - 1.).abs() > 1e-4).then_some(r)
+}
+
+/// WarpRectilinear: source radius ratio kr0 + kr1 r^2 + kr2 r^4 + kr3 r^6 per
+/// plane. Tangential terms are ignored.
+fn warp(p: &[u8]) -> Option<(Option<Radial>, Option<[Radial; 2]>)> {
+    let planes = u32::from_be_bytes(p.get(..4)?.try_into().ok()?) as usize;
+    let v = doubles(p.get(4..)?);
+    if !matches!(planes, 1 | 3)
+        || v.len() != planes * 6 + 2
+        || !centred(v[planes * 6], v[planes * 6 + 1])
+    {
+        return None;
+    }
+    let ratio = |plane: usize, r: f32| {
+        let k = &v[plane * 6..plane * 6 + 4];
+        let r2 = f64::from(r * r);
+        (k[0] + k[1] * r2 + k[2] * r2 * r2 + k[3] * r2 * r2 * r2) as f32
+    };
+    let green = if planes == 3 { 1 } else { 0 };
+    let curve = |f: &dyn Fn(f32) -> f32| Radial {
+        knots: dng_knots(),
+        values: dng_knots().into_iter().map(f).collect(),
+    };
+    let distortion = curve(&|r| ratio(green, r));
+    let chromatic = (planes == 3).then(|| {
+        [
+            curve(&|r| ratio(0, r) / ratio(1, r)),
+            curve(&|r| ratio(2, r) / ratio(1, r)),
+        ]
+    });
+    let changes = |r: &Radial| r.values.iter().any(|v| (v - 1.).abs() > 1e-6);
+    Some((
+        Some(distortion).filter(changes),
+        chromatic.filter(|[a, b]| changes(a) || changes(b)),
+    ))
 }
 
 #[cfg(test)]
@@ -633,6 +755,79 @@ mod tests {
 
     /// A real RAF (AG_RAW): its tables at a few radii, and the zoom that
     /// keeps the corners inside. Prints; asserts only that one was read.
+    /// An opcode list holding `ops` (id, parameters), big-endian.
+    fn opcode_list(ops: &[(u32, Vec<u8>)]) -> Vec<u8> {
+        let mut b = (ops.len() as u32).to_be_bytes().to_vec();
+        for (id, params) in ops {
+            for v in [*id, 0x0103_0000, 0, params.len() as u32] {
+                b.extend(v.to_be_bytes());
+            }
+            b.extend(params);
+        }
+        b
+    }
+
+    fn be(v: &[f64]) -> Vec<u8> {
+        v.iter().flat_map(|x| x.to_be_bytes()).collect()
+    }
+
+    #[test]
+    fn decodes_vignette_and_warp_opcodes() {
+        // DSCF7853's FixVignetteRadial from Lightroom's DNG (RAWmakase's test).
+        let p = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
+        let v = vignette(&p).unwrap();
+        assert!((v.eval(1.) - 1.67).abs() < 0.01);
+        assert!((v.eval(0.5) - 1.087).abs() < 0.002);
+        let mut w = 3u32.to_be_bytes().to_vec();
+        w.extend(be(&[1.0002, 0.0005, 0., 0., 0., 0.]));
+        w.extend(be(&[1., 0., 0., 0., 0., 0.]));
+        w.extend(be(&[1., 0., 0., 0., 0., 0.]));
+        w.extend(be(&[0.5, 0.5]));
+        let (distortion, chromatic) = warp(&w).unwrap();
+        assert!(distortion.is_none());
+        let [red, blue] = chromatic.unwrap();
+        assert!((red.eval(1.) - 1.0007).abs() < 1e-5);
+        assert_eq!(blue.eval(1.), 1.);
+        // Off-centre corrections are not representable and are skipped.
+        assert!(vignette(&be(&[0.2, 0., 0., 0., 0., 0.3, 0.5])).is_none());
+    }
+
+    #[test]
+    fn reads_a_dngs_opcodes_with_the_vignetting_in_either_list() {
+        let vig = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
+        let mut w = 1u32.to_be_bytes().to_vec();
+        w.extend(be(&[1., -0.06, 0., 0., 0., 0., 0.5, 0.5]));
+        // As DJI writes it: both in OpcodeList3, a gain map after them.
+        let list3 = opcode_list(&[(3, vig.clone()), (1, w.clone()), (9, vec![0; 8])]);
+        let dng = tiff(&[
+            vec![
+                (SUB_IFDS, 4, 1, vec![0; 4]),
+                (50706, 1, 4, vec![1, 4, 0, 0]),
+            ],
+            vec![
+                (254, 4, 1, vec![0; 4]),
+                (51022, 7, list3.len() as u32, list3),
+            ],
+        ]);
+        let c = read(&dng).unwrap();
+        assert_eq!(c.source, "DNG");
+        assert!(c.default_on);
+        assert!((c.vignetting.as_ref().unwrap().eval(1.) - 1.67).abs() < 0.01);
+        assert!((c.distortion.as_ref().unwrap().eval(1.) - 0.94).abs() < 1e-5);
+        assert!(c.chromatic.is_none(), "one plane has no CA");
+        // The whole frame's corners, not Sony's camera frame.
+        assert_eq!(
+            LensMap::new(&c, 300., 200., Amounts::FULL).fill,
+            c.fill_scale_with(Amounts::FULL)
+        );
+        // Without its DNGVersion it is not a DNG, and has no Sony tables either.
+        let not_dng = tiff(&[
+            vec![(SUB_IFDS, 4, 1, vec![0; 4])],
+            vec![(51022, 7, 4, vec![0; 4])],
+        ]);
+        assert!(read(&not_dng).is_none());
+    }
+
     fn shorts(v: &[i16]) -> Vec<u8> {
         v.iter().flat_map(|x| x.to_le_bytes()).collect()
     }
@@ -804,7 +999,7 @@ mod tests {
         );
         // The same tables from anywhere else keep the whole frame's corners inside.
         let other = LensCorrection {
-            source: "DNG opcodes".into(),
+            source: "DNG".into(),
             ..sony.clone()
         };
         assert_eq!(

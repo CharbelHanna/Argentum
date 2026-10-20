@@ -22,6 +22,8 @@
 //! for a photo with no edit yet. A photo edited before this existed keeps the
 //! look it was edited with until the switch is turned on. Sony's is not known
 //! to be applied by Lightroom, so it starts off: the switch is there, off.
+//! A DNG's opcodes are what Lightroom applies, so they start on, as
+//! Fujifilm's do.
 
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;

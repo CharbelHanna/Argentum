@@ -1960,7 +1960,7 @@
         "negpy": "Für die Inspiration hinter der Negativumwandlungslogik.",
         "nind": "Für die Bereitstellung von KI-Modellen für die Rauschreduzierung.",
         "rawler": "Für die hervorragende Rust-Crate zur RAW-Bildverarbeitung.",
-        "rawmakase": "Für DNG Standard, den Look, mit dem jedes RAW beginnt: den Belichtungsversatz jeder Kamera aus seiner Kameratabelle sowie die Standarddarstellung und -schärfung, an denen Argentum seine eigenen misst. Außerdem die Vorgaben, die Argentum mitbringt (Color, Creative, Curve, Grain, Vignetting). Außerdem die Masken Motiv, Himmel und Hintergrund: sein Auswahlcode mit SAM 2.1 und DETR. Außerdem die Objektivkorrektur, die die Kamera in jedem Foto speichert, bei Fujifilm und Sony.",
+        "rawmakase": "Für DNG Standard, den Look, mit dem jedes RAW beginnt: den Belichtungsversatz jeder Kamera aus seiner Kameratabelle sowie die Standarddarstellung und -schärfung, an denen Argentum seine eigenen misst. Außerdem die Vorgaben, die Argentum mitbringt (Color, Creative, Curve, Grain, Vignetting). Außerdem die Masken Motiv, Himmel und Hintergrund: sein Auswahlcode mit SAM 2.1 und DETR. Außerdem die Objektivkorrektur, die die Kamera in jedem Foto speichert, bei Fujifilm, Sony und in DNG-Dateien.",
         "sam2": "Für das grundlegende Modell der KI-Motiverkennung.",
         "spektrafilm": "Für die spektralbasierten Filmemulations-LUTs von Andrea Volpato, die RapidRAWs integrierte Filmemulationen ermöglichen. Lizenziert unter CC BY-SA 4.0.",
         "u2net": "Für die Architektur zur Erkennung von Himmel und Vordergrund.",
