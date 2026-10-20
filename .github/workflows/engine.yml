@@ -8,7 +8,8 @@ name: Engine
 #
 # The runner has no GPU and no test photos: the GPU tests and the real-photo
 # tests say they skipped and pass. What runs here is the build, every test
-# that needs neither, and the reference crate against today's app files.
+# that needs neither, and the reference crate against today's app files; then
+# the memory budget on a software GPU.
 on:
   push:
     branches:
@@ -33,3 +34,14 @@ jobs:
       - name: Test
         working-directory: src-tauri/engine
         run: cargo test
+
+      # The memory budget counts what the engine allocates, so it holds on any
+      # GPU, a software one included: Mesa's Vulkan driver for the CPU
+      # (lavapipe), as wgpu's own CI runs its GPU tests. Installed after the
+      # step above, so the other GPU tests still skip there.
+      - name: Install a software GPU
+        run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+
+      - name: Memory budget, on the software GPU
+        working-directory: src-tauri/engine
+        run: cargo test --test memory -- --nocapture

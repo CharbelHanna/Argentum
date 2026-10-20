@@ -45,11 +45,21 @@ impl Gpu {
             adapter: adapter.get_info(),
         })
     }
+
+    /// The GPU memory wgpu holds for this device now, in bytes: every
+    /// texture and buffer, and wgpu's own staging copies. `None` on a backend
+    /// that does not say (OpenGL).
+    pub fn allocated_bytes(&self) -> Option<usize> {
+        self.device
+            .generate_allocator_report()
+            .map(|r| r.total_allocated_bytes as usize)
+    }
 }
 
-/// A device opened on first use, or the reason there is none.
-#[derive(Default)]
-pub struct GpuSlot(OnceLock<std::result::Result<Arc<Gpu>, String>>);
+/// A device opened on first use, or the reason there is none. A clone
+/// shares it.
+#[derive(Default, Clone)]
+pub struct GpuSlot(Arc<OnceLock<std::result::Result<Arc<Gpu>, String>>>);
 
 impl GpuSlot {
     /// Opens `Gpu::new()` the first time it is asked.
@@ -69,5 +79,10 @@ impl GpuSlot {
             .get_or_init(|| Gpu::new().map(Arc::new).map_err(|e| e.to_string()))
             .clone()
             .map_err(Error::NoGpu)
+    }
+
+    /// The device, if it has been opened; never opens it.
+    pub fn opened(&self) -> Option<Arc<Gpu>> {
+        self.0.get()?.as_ref().ok().cloned()
     }
 }
