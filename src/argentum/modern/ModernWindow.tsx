@@ -175,6 +175,9 @@ export default function ModernWindow(props: ModernWindowProps) {
                     transformWrapperRef={props.transformWrapperRef}
                   />
                   {navigatorFloats && <FloatingNavigator {...navigator} />}
+                  {/* Never shown: bench/replay.js leaves the photo by clicking this, as it did their
+                      toolbar's back button. People press Esc, which runs the same handler. */}
+                  <button className="hidden" data-bench-id="back-to-library" onClick={props.onBackToLibrary} />
                 </>
               )}
             </div>
