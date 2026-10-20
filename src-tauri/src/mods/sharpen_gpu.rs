@@ -2084,6 +2084,9 @@ mod tests {
             started.elapsed().as_secs_f32() * 1000.0
         };
         for (name, backends) in [
+            // What Settings > Processing Backend = Auto asks for on Windows
+            // (gpu_processing.rs); the adapter line says which one it got.
+            ("Auto", wgpu::Backends::PRIMARY),
             ("DirectX 12", wgpu::Backends::DX12),
             ("OpenGL", wgpu::Backends::GL),
             ("Vulkan", wgpu::Backends::VULKAN),
