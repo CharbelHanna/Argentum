@@ -122,8 +122,9 @@ mod tests {
     /// (image_processing.rs, `shader_curve`), and this is what passes it through.
     #[test]
     fn identity_rgb_curves_bypass_curve_interpolation() {
-        assert!(compact_shader(SOURCE)
-            .contains("fnapply_curve(val:f32,src:u32,ch:u32,count:u32)->f32{if(count<2u){returnval;}"));
+        assert!(compact_shader(SOURCE).contains(
+            "fnapply_curve(val:f32,src:u32,ch:u32,count:u32)->f32{if(count<2u){returnval;}"
+        ));
     }
 
     /// No function in the render shader takes an array, or a struct holding
