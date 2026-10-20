@@ -83,11 +83,12 @@ fn a_photos_offset_is_its_bodys() {
         let app_full = app::baseline(&facts).ev;
         let name = path.file_name().unwrap().to_string_lossy();
         eprintln!(
-            "  {name:<52} {} {}, ISO {:?}: ours {ours:+.2} EV, the app's {app_full:+.2} EV",
-            facts.make, facts.model, facts.iso
+            "  {name:<52} {} {}, ISO {:?}: ours {ours:+.2} EV, the app's {app_full:+.2} EV, held back {:?}",
+            facts.make, facts.model, facts.iso, facts.held_back
         );
-        // By make, model and the photo's levels, the app's; ISO and a DNG's
-        // own offset are not read by the engine yet.
+        // By make, model and the photo's levels, the app's; ISO, a DNG's own
+        // offset and what a highlight-protecting camera mode held back
+        // (mods/highlight_protection.rs) are not read by the engine yet.
         assert_eq!(
             ours,
             app_offset(&facts.make, &facts.model, facts.levels),
@@ -133,28 +134,24 @@ fn the_picture_is_the_apps_within_its_spline() {
     let Some(gpu) = common::gpu("the_picture_is_the_apps_within_its_spline") else {
         return;
     };
+    // The app's shader reads the curve's points from its adjustments, point
+    // by point, as the app hands them over.
     let shader = AppShader::new(
         gpu.clone(),
-        r#"
-        var points: array<Point, 16>;
-        for (var k = 0u; k < 16u; k = k + 1u) {
-            let q = ag_test_params[k];
-            points[k] = Point(q.x, q.y, 0.0, 0.0);
-        }
-        return vec4<f32>(ag_dng_standard(v.xyz, points, 16u), 0.0);
-        "#,
+        "return vec4<f32>(ag_dng_standard(v.xyz, 16u), 0.0);",
     );
     let rgb = common::colours();
     let inputs = common::elements(&rgb);
     eprintln!();
     for ev in [-0.5, 0.0, 0.3, 0.85] {
-        let params: Vec<[f32; 4]> = app::curve_points(ev)
+        let points: Vec<u8> = app::curve_points(ev)
             .iter()
-            .map(|p| [p.x, p.y, 0.0, 0.0])
+            .flat_map(|p| [p.x, p.y, 0.0, 0.0])
+            .flat_map(f32::to_le_bytes)
             .collect();
         let theirs = shader.run(&Job {
             inputs: &inputs,
-            params: &params,
+            adjustments: &[(&["global", "raw_tone_curve"][..], points)],
             ..Default::default()
         });
         let ours = ours(&gpu, ev, &rgb);
