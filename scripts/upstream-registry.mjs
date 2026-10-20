@@ -2260,6 +2260,10 @@ export const REGISTRY = [
           + 'and home buttons) and its start screen (splash, continue, open folder, settings, version '
           + 'and update check) are deleted; the top bar, the folder column and Settings hold what the '
           + 'window uses. ModernEmpty until a folder is picked.' },
+      { file: 'src/components/panel/library/LibraryHeader.tsx', how: 'replaces',
+        note: 'Deleted: the search box and view options of that header. The top bar\'s Sort and View '
+          + 'menus set the same sortCriteria and filterCriteria; the search has no home in the Modern '
+          + 'window, and Ctrl+F still focuses the Community page\'s own search.' },
       { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',
         note: 'Optional prop: no toolbar (its tools are in the top bar) and a square frame with 20 px '
           + 'round the photo. The transform handle on transformWrapperRef is what the Navigator reads.' },
