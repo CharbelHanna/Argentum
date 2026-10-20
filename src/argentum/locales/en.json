@@ -354,5 +354,7 @@
   "bwBlackWhite": "B&W",
   "bwSwitchTip": "Color or black and white (V)",
   "bwMix": "B&W Mix",
-  "bwMixReset": "Reset"
+  "bwMixReset": "Reset",
+  "bwMixAuto": "Auto",
+  "bwMixAutoTip": "This photo's own mix, as Lightroom's Auto"
 }

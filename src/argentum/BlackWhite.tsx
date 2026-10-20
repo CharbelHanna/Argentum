@@ -9,14 +9,23 @@
  * leaves the Color Mixer, Hue, Saturation and Vibrance out while B&W is on
  * (mods/black_white.rs); they are kept for when the photo goes back to Color.
  * V switches, as in Lightroom and RAWmakase.
+ *
+ * Auto: a photo going B&W whose mix is all zero starts at its Auto mix, as
+ * Lightroom's "Apply auto mix when first converting to black and white" does,
+ * and the B&W Mix's Auto button sets it again; it is greyed while the mix is
+ * Auto's. A mix set by hand or by a look is kept. The mix is RAWmakase's
+ * measured copy of Lightroom's Auto, for the open photo with the edit's white
+ * balance and camera profile (mods/black_white.rs `auto`).
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import Slider from '../components/ui/Slider';
 import type { Adjustments } from '../utils/adjustments';
+import { useEditorStore } from '../store/useEditorStore';
+import { ag as agCommand } from './ag';
 import { useAgTranslation } from './locales';
 import './blackWhite.css';
 
@@ -30,8 +39,34 @@ export const BLACK_WHITE_KEY = 'agBlackWhite';
 const BANDS = ['reds', 'oranges', 'yellows', 'greens', 'aquas', 'blues', 'purples', 'magentas'] as const;
 
 type Band = (typeof BANDS)[number];
-type BlackWhite = { enabled: boolean } & Partial<Record<Band, number>>;
+type Mix = Partial<Record<Band, number>>;
+type BlackWhite = { enabled: boolean } & Mix;
 type Edit = Partial<Adjustments> & { [BLACK_WHITE_KEY]?: BlackWhite };
+
+const sameMix = (a: Mix | undefined, b: Mix | undefined) =>
+  BANDS.every((band) => (a?.[band] ?? 0) === (b?.[band] ?? 0));
+
+/** A mix never set, or reset: Auto may take its place. */
+const isMixZero = (edit: Edit | null | undefined) => sameMix(edit?.[BLACK_WHITE_KEY], {});
+
+/**
+ * The open photo's Auto mix for `edit`, and the photo it is for. Null when
+ * the photo is still decoding or cannot be measured; `stale` when another
+ * photo was opened before the answer came.
+ */
+async function measureAuto(edit: unknown): Promise<{ mix: Mix | null; stale: boolean }> {
+  const photo = useEditorStore.getState().selectedImage;
+  if (!photo?.isReady) {
+    return { mix: null, stale: false };
+  }
+  let mix: Mix | null = null;
+  try {
+    mix = await agCommand<Mix>('black_white_auto', { path: photo.path, jsAdjustments: edit });
+  } catch (err) {
+    console.error('Auto B&W mix failed:', err);
+  }
+  return { mix, stale: useEditorStore.getState().selectedImage?.path !== photo.path };
+}
 
 /** A control greyed out while B&W is on, as Lightroom greys them: it has no effect. */
 export const NO_EFFECT_IN_BLACK_WHITE = 'opacity-40 grayscale pointer-events-none';
@@ -57,7 +92,27 @@ interface Props {
 export function TreatmentSwitch({ adjustments, setAdjustments }: Props) {
   const ag = useAgTranslation();
   const blackWhite = isBlackWhite(adjustments);
-  const choose = (enabled: boolean) => setAdjustments((prev: Edit) => withBlackWhite(prev, { enabled }));
+  const latest = useRef(adjustments);
+  latest.current = adjustments;
+  // Each press is numbered, so an Auto answer that arrives after a later press is dropped.
+  const presses = useRef(0);
+
+  /** Color or B&W; the first conversion of a photo whose mix is all zero brings its Auto mix, in the same step. */
+  const choose = async (enabled: boolean) => {
+    const press = ++presses.current;
+    const first = (edit: Edit) => enabled && !isBlackWhite(edit) && isMixZero(edit);
+    let auto: Mix | null = null;
+    if (first(latest.current)) {
+      const measured = await measureAuto(latest.current);
+      if (measured.stale || press !== presses.current) {
+        return;
+      }
+      auto = measured.mix;
+    }
+    setAdjustments((prev: Edit) => withBlackWhite(prev, auto && first(prev) ? { enabled, ...auto } : { enabled }));
+  };
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -65,11 +120,11 @@ export function TreatmentSwitch({ adjustments, setAdjustments }: Props) {
         return;
       }
       e.preventDefault();
-      setAdjustments((prev: Edit) => withBlackWhite(prev, { enabled: !isBlackWhite(prev) }));
+      chooseRef.current(!isBlackWhite(latest.current));
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setAdjustments]);
+  }, []);
 
   const option = (enabled: boolean, label: string) => (
     <button
@@ -104,15 +159,69 @@ interface MixProps extends Props {
   onDragStateChange?(isDragging: boolean): void;
 }
 
-/** B&W Mix's Reset, in its heading: every band back to 0, B&W left on. */
-export function BlackWhiteMixReset({ setAdjustments }: Pick<Props, 'setAdjustments'>) {
+/** What the Auto mix depends on: the photo, its white balance and its camera profile. */
+const autoKey = (path: string | null, edit: Record<string, unknown>) =>
+  JSON.stringify([
+    path,
+    edit.temperature,
+    edit.tint,
+    edit.whiteBalance,
+    edit.cameraProfile,
+    (edit.sectionVisibility as Record<string, unknown> | undefined)?.basic,
+  ]);
+
+const HEADING_BUTTON =
+  'text-xs text-text-secondary hover:text-text-primary px-1 disabled:opacity-40 disabled:pointer-events-none';
+
+/**
+ * B&W Mix's heading: Auto, which sets the photo's Auto mix and is greyed while
+ * the mix is already that, and Reset, every band back to 0. B&W stays on.
+ */
+export function BlackWhiteMixActions({ adjustments, setAdjustments }: Props) {
   const ag = useAgTranslation();
+  const path = useEditorStore((s) => (s.selectedImage?.isReady ? s.selectedImage.path : null));
+  const key = autoKey(path, adjustments as unknown as Record<string, unknown>);
+  const [auto, setAuto] = useState<{ key: string; mix: Mix } | null>(null);
+  const latest = useRef(adjustments);
+  latest.current = adjustments;
+
+  // Measured again, after a pause, when the photo, its white balance or its profile changes.
+  useEffect(() => {
+    if (!path) {
+      return;
+    }
+    let live = true;
+    const timer = setTimeout(async () => {
+      const { mix, stale } = await measureAuto(latest.current);
+      if (live && mix && !stale) {
+        setAuto({ key, mix });
+      }
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [key, path]);
+
+  const isAuto = auto?.key === key && sameMix((adjustments as Edit)[BLACK_WHITE_KEY], auto.mix);
+  const applyAuto = async () => {
+    const { mix, stale } = await measureAuto(latest.current);
+    if (mix && !stale) {
+      setAdjustments((prev: Edit) => withBlackWhite(prev, mix));
+    }
+  };
   const reset = () =>
     setAdjustments((prev: Edit) => withBlackWhite(prev, Object.fromEntries(BANDS.map((band) => [band, 0]))));
+
   return (
-    <button className="text-xs text-text-secondary hover:text-text-primary px-1" onClick={reset}>
-      {ag('bwMixReset')}
-    </button>
+    <div className="flex items-center gap-1">
+      <button className={HEADING_BUTTON} onClick={applyAuto} disabled={isAuto} data-tooltip={ag('bwMixAutoTip')}>
+        {ag('bwMixAuto')}
+      </button>
+      <button className={HEADING_BUTTON} onClick={reset}>
+        {ag('bwMixReset')}
+      </button>
+    </div>
   );
 }
 

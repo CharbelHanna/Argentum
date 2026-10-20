@@ -12,7 +12,7 @@ import AdjustmentSubSection from './AdjustmentSubSection';
 import { TextColors, TextWeights } from '../../types/typography';
 import { markedGrading } from '../../argentum/colorGrading';
 import { useAgTranslation } from '../../argentum/locales';
-import { BlackWhiteMix, BlackWhiteMixReset, NO_EFFECT_IN_BLACK_WHITE, isBlackWhite } from '../../argentum/BlackWhite';
+import { BlackWhiteMix, BlackWhiteMixActions, NO_EFFECT_IN_BLACK_WHITE, isBlackWhite } from '../../argentum/BlackWhite';
 
 interface ColorProps {
   color: string;
@@ -514,7 +514,7 @@ export default function ColorPanel({
           id="colorMixer"
           order={toolOrder.indexOf('colorMixer')}
           title={ag('bwMix')}
-          actions={<BlackWhiteMixReset setAdjustments={setAdjustments} />}
+          actions={<BlackWhiteMixActions adjustments={adjustments} setAdjustments={setAdjustments} />}
         >
           <BlackWhiteMix
             adjustments={adjustments}

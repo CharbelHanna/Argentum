@@ -11,6 +11,10 @@
 //! (`rm_gray` in src-tauri/src/shaders/modules.wgsl), from the grid this makes
 //! (src-tauri/src/mods/black_white.rs).
 //!
+//! Auto: `auto_mix` is Lightroom's Auto mix as RAWmakase measured it, a
+//! linear function of the direction in which a photo's colours spread most
+//! (`ColorSpread`, in linear ProPhoto as the photo renders).
+//!
 //! FROM RAWMAKASE
 //!
 //! RAWmakase `v0.4.0` @ a8c5d6d7 (MIT):
@@ -20,6 +24,11 @@
 //! - `crates/rawmakase-engine/src/develop/gpu/develop.wgsl`: `mixer`, whose
 //!   lookup `gray` follows, and `hue_of`.
 //!
+//! RAWmakase `v0.4.1` @ 5a2414b4 (MIT; the file is unchanged since v0.4.0):
+//! - the same black_white.rs: `ColorSpread`, `principal_axis`, `AutoMix`'s
+//!   fit (`AUTO_MIX_AXIS`, `AUTO_MIX_OFFSET`) and its test,
+//!   `auto_mix_follows_the_axis_the_colors_spread_along`.
+//!
 //! WHAT CHANGED IN THE COPY
 //!
 //! - Only the value change: RAWmakase's grid is the colour mixer's, with a
@@ -27,6 +36,11 @@
 //!   at zero, so the grid here is one number per cell and `gray` scales the
 //!   luminance by it directly.
 //! - The chart is read from text, as the repository keeps no binaries.
+//! - `ColorSpread::measure` reads any linear image through a closure, and
+//!   counts a pixel as clipped by its own values: the app's photo is already
+//!   white balanced as shot, where RAWmakase's camera values are not.
+//!   `transformed` is the map half of RAWmakase's `in_prophoto`; the app
+//!   builds the map from the edit (mods/black_white.rs).
 
 use std::sync::OnceLock;
 
@@ -46,9 +60,9 @@ const TABLES: usize = 1 + BANDS * POSITIONS.len();
 /// A chart cell's unit: log2 of a luminance ratio, in steps of 1/4000.
 const STEP: f32 = 1.0 / 4000.0;
 
-// Linear sRGB to linear ProPhoto, Bradford-adapted; modules.wgsl's
-// AG_SRGB_TO_PROPHOTO, row by row.
-const SRGB_TO_PROPHOTO: [[f32; 3]; 3] = [
+/// Linear sRGB to linear ProPhoto, Bradford-adapted; modules.wgsl's
+/// AG_SRGB_TO_PROPHOTO, row by row.
+pub const SRGB_TO_PROPHOTO: [[f32; 3]; 3] = [
     [0.5293458, 0.3300728, 0.1405813],
     [0.0983744, 0.873461, 0.0281647],
     [0.0168832, 0.1176725, 0.8654443],
@@ -165,6 +179,158 @@ pub fn gray(grid: &[f32], rgb: [f32; 3]) -> f32 {
     (luminance * dv.exp2()).max(0.0)
 }
 
+// from RAWmakase crates/rawmakase-engine/src/develop/black_white.rs @ 5a2414b4
+// (v0.4.1, unchanged since v0.4.0), `ColorSpread`, `AutoMix` and
+// `principal_axis`.
+/// How a photo's colours spread, as Auto measures them: the mean and
+/// covariance of its linear values, without pixels near clipping.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ColorSpread {
+    pub mean: [f64; 3],
+    pub covariance: [[f64; 3]; 3],
+}
+
+/// Linear values above this count as clipped.
+pub const CLIPPED: f32 = 0.94;
+
+impl ColorSpread {
+    /// Measures every `step`-th pixel in each direction of a photo up to about
+    /// 1024 pixels on its long edge. `pixel(x, y)` is its linear value.
+    pub fn measure(width: usize, height: usize, pixel: impl Fn(usize, usize) -> [f32; 3]) -> Self {
+        let step = (width.max(height) / 1024).max(1);
+        let (mut n, mut sum, mut products) = (0f64, [0f64; 3], [[0f64; 3]; 3]);
+        for y in (0..height).step_by(step) {
+            for x in (0..width).step_by(step) {
+                let p = pixel(x, y);
+                if p.iter().fold(0f32, |peak, &v| peak.max(v)) > CLIPPED
+                    || !p.iter().all(|v| v.is_finite())
+                {
+                    continue;
+                }
+                let p = p.map(f64::from);
+                n += 1.0;
+                for i in 0..3 {
+                    sum[i] += p[i];
+                    for j in 0..3 {
+                        products[i][j] += p[i] * p[j];
+                    }
+                }
+            }
+        }
+        let n = n.max(1.0);
+        let mean = sum.map(|s| s / n);
+        let covariance = std::array::from_fn(|i| {
+            std::array::from_fn(|j| products[i][j] / n - mean[i] * mean[j])
+        });
+        Self { mean, covariance }
+    }
+
+    /// The spread of the colours after the linear map `a` (rows), as a white
+    /// balance, a profile or a change of primaries renders them.
+    pub fn transformed(&self, a: [[f64; 3]; 3]) -> Self {
+        let mean = std::array::from_fn(|i| (0..3).map(|k| a[i][k] * self.mean[k]).sum());
+        let covariance = std::array::from_fn(|i| {
+            std::array::from_fn(|j| {
+                (0..3)
+                    .flat_map(|k| (0..3).map(move |l| (k, l)))
+                    .map(|(k, l)| a[i][k] * self.covariance[k][l] * a[j][l])
+                    .sum()
+            })
+        });
+        Self { mean, covariance }
+    }
+
+    /// The unit direction of greatest variance, signed towards brighter. A
+    /// photo without variance (one flat colour) has the neutral axis.
+    fn principal_axis(&self) -> [f64; 3] {
+        let c = &self.covariance;
+        let neutral = [1.0 / 3f64.sqrt(); 3];
+        let trace = c[0][0] + c[1][1] + c[2][2];
+        if trace.is_nan() || trace <= 1e-12 {
+            return neutral;
+        }
+        // Cyclic Jacobi rotations diagonalise the symmetric 3x3 covariance;
+        // the eigenvector of the largest eigenvalue is the axis.
+        let mut a = *c;
+        let mut vectors = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        for _ in 0..50 {
+            let off = a[0][1].powi(2) + a[0][2].powi(2) + a[1][2].powi(2);
+            if off.is_nan() || off <= 1e-30 * trace * trace {
+                break;
+            }
+            for (p, q) in [(0, 1), (0, 2), (1, 2)] {
+                if a[p][q] == 0.0 {
+                    continue;
+                }
+                let theta = (a[q][q] - a[p][p]) / (2.0 * a[p][q]);
+                let t = theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt());
+                let t = if theta == 0.0 { 1.0 } else { t };
+                let (cos, sin) = (1.0 / (t * t + 1.0).sqrt(), t / (t * t + 1.0).sqrt());
+                // Column j of m J, for the rotation J in the (p, q) plane.
+                let column = |m: &[[f64; 3]; 3], k: usize, j: usize| -> f64 {
+                    if j == p {
+                        cos * m[k][p] - sin * m[k][q]
+                    } else if j == q {
+                        sin * m[k][p] + cos * m[k][q]
+                    } else {
+                        m[k][j]
+                    }
+                };
+                // (J^T m J)[i][j].
+                let rotated = |m: &[[f64; 3]; 3], i: usize, j: usize| -> f64 {
+                    if i == p {
+                        cos * column(m, p, j) - sin * column(m, q, j)
+                    } else if i == q {
+                        sin * column(m, p, j) + cos * column(m, q, j)
+                    } else {
+                        column(m, i, j)
+                    }
+                };
+                a = std::array::from_fn(|i| std::array::from_fn(|j| rotated(&a, i, j)));
+                vectors = std::array::from_fn(|k| std::array::from_fn(|j| column(&vectors, k, j)));
+            }
+        }
+        let largest = (0..3).fold(0, |best, i| if a[i][i] > a[best][best] { i } else { best });
+        let mut v: [f64; 3] = std::array::from_fn(|k| vectors[k][largest]);
+        if v.iter().any(|x| x.is_nan()) {
+            return neutral;
+        }
+        if v.iter().sum::<f64>() < 0.0 {
+            v = v.map(|x| -x);
+        }
+        v
+    }
+}
+
+/// A photo's Auto mix, in slider units (-1..1) and whole slider steps, as
+/// Lightroom stores it, from its colours' `spread` in linear ProPhoto RGB as
+/// the photo renders them (white balanced and profiled). Camera Raw's Auto,
+/// measured on synthetic scenes, behaves as a fixed linear function of the
+/// direction in which the colours spread most. A photo that varies mostly in
+/// brightness gets the neutral mix (for a grey ramp Camera Raw gives Red -9,
+/// Orange -19, Yellow -22, Green -27, Aqua -19, Blue +9, Purple +15,
+/// Magenta +4); one spread along a colour axis moves that axis's bands.
+pub fn auto_mix(spread: &ColorSpread) -> [f32; BANDS] {
+    let axis = spread.principal_axis();
+    std::array::from_fn(|band| {
+        let value = AUTO_MIX_OFFSET[band]
+            + (0..3)
+                .map(|c| axis[c] * AUTO_MIX_AXIS[c][band])
+                .sum::<f64>();
+        (value.round().clamp(-100.0, 100.0) / 100.0) as f32
+    })
+}
+
+/// The Auto mix's fit, in slider steps per unit of the principal axis's red,
+/// green and blue, and its offset: least squares over Camera Raw 18.7's Auto
+/// on 122 synthetic scenes (RAWmakase docs/color-mixer.md, "Auto mix").
+const AUTO_MIX_AXIS: [[f64; BANDS]; 3] = [
+    [26.96, 17.88, 13.31, 3.65, -14.04, -8.61, 8.10, 26.27],
+    [-20.48, -5.86, 4.09, 10.99, 10.16, -11.82, -29.83, -31.56],
+    [-24.99, -27.05, -24.71, -12.52, 15.47, 43.57, 27.02, 2.93],
+];
+const AUTO_MIX_OFFSET: [f64; BANDS] = [3.48, -8.34, -17.09, -27.00, -24.55, -3.27, 13.51, 6.84];
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,5 +391,87 @@ mod tests {
         assert_eq!(gray(&grid, [0.0; 3]), 0.0);
         assert_eq!(gray(&grid, [-0.1, 0.0, -0.2]), 0.0);
         assert_eq!(gray_grid([2.0; BANDS]), gray_grid([1.0; BANDS]));
+    }
+
+    /// Colours spread along `axis` around a mid grey.
+    fn spread(axis: [f64; 3]) -> ColorSpread {
+        ColorSpread {
+            mean: [0.2; 3],
+            covariance: std::array::from_fn(|i| std::array::from_fn(|j| 0.01 * axis[i] * axis[j])),
+        }
+    }
+
+    fn percent(mix: [f32; BANDS]) -> [i32; BANDS] {
+        mix.map(|v| (v * 100.0).round() as i32)
+    }
+
+    // RAWmakase's own test, black_white.rs
+    // `auto_mix_follows_the_axis_the_colors_spread_along` @ 5a2414b4, on this
+    // copy: the photo's white balance is a map of its spread here.
+    #[test]
+    fn auto_mix_follows_the_axis_the_colours_spread_along() {
+        // Brightness alone: Camera Raw's mix for a grey ramp, within 2.
+        let neutral = spread([1.0; 3]);
+        let mix = percent(auto_mix(&neutral));
+        let camera_raw = [-9, -19, -22, -27, -19, 9, 15, 4];
+        assert!(
+            mix.iter().zip(camera_raw).all(|(a, b)| (a - b).abs() <= 2),
+            "{mix:?}"
+        );
+        // A flat photo has no axis and gets the same.
+        let flat = ColorSpread {
+            mean: [0.2; 3],
+            covariance: [[0.0; 3]; 3],
+        };
+        assert_eq!(percent(auto_mix(&flat)), mix);
+        // Colours that vary more in blue: Blue and Purple brighter than for grey.
+        let blue = percent(auto_mix(&spread([0.8, 0.8, 1.6])));
+        assert!(blue[5] > mix[5] + 5 && blue[6] > mix[6] + 5, "{blue:?}");
+        // A dominant axis away from the largest channel's variance is found too.
+        let correlated = ColorSpread {
+            mean: [0.2; 3],
+            covariance: [[1.0, 1.0, 0.0], [1.0, 1.0, 0.0], [0.0, 0.0, 1.5]],
+        };
+        let axis = correlated.principal_axis();
+        assert!(
+            (axis[0] - 0.5f64.sqrt()).abs() < 1e-9 && axis[2].abs() < 1e-9,
+            "{axis:?}"
+        );
+        // Two equally bright colours: an axis with no brightness component is found too.
+        let opposed = spread([1.0, -1.0, 0.0]).principal_axis();
+        assert!((opposed[0].abs() - 0.5f64.sqrt()).abs() < 1e-6, "{opposed:?}");
+        // White balance is part of what Auto measures: cooling the same photo does the same.
+        let cooler = neutral.transformed([[0.8, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.6]]);
+        let cooled = percent(auto_mix(&cooler));
+        assert!(cooled[5] > mix[5] + 5, "{cooled:?}");
+    }
+
+    /// The spread of a photo's pixels, without the clipped ones, and carried
+    /// through a map as its colours would be.
+    #[test]
+    fn a_photo_is_measured_without_its_clipped_pixels() {
+        // Two colours, half the photo each, with a blown-out band across it.
+        let (w, h) = (300, 200);
+        let (warm, cool) = ([0.6, 0.3, 0.1], [0.1, 0.2, 0.5]);
+        let pixel = |x: usize, y: usize| match (y, x < w / 2) {
+            (0..20, _) => [1.0, 0.97, 0.9],
+            (_, true) => warm,
+            _ => cool,
+        };
+        let s = ColorSpread::measure(w, h, pixel);
+        for c in 0..3 {
+            assert!((s.mean[c] - (warm[c] + cool[c]) / 2.0).abs() < 1e-6, "{s:?}");
+        }
+        // The axis runs from one colour to the other.
+        let axis = s.principal_axis();
+        let d = [0, 1, 2].map(|c| (warm[c] - cool[c]) as f64);
+        let norm = d.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let cos: f64 = (0..3).map(|c| axis[c] * d[c] / norm).sum();
+        assert!((cos.abs() - 1.0).abs() < 1e-6, "{axis:?}");
+        // A map moves the mean as it moves each colour.
+        let doubled = s.transformed([[2.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
+        assert!((doubled.mean[0] - 2.0 * s.mean[0]).abs() < 1e-12);
+        assert!((doubled.covariance[0][0] - 4.0 * s.covariance[0][0]).abs() < 1e-12);
+        assert!((doubled.covariance[0][1] - 2.0 * s.covariance[0][1]).abs() < 1e-12);
     }
 }
