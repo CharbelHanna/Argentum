@@ -162,15 +162,14 @@ fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.is_raw_image != 1u || mode == 0u || count < 2u) {
         return theirs;
     }
-    let points = adjustments.global.raw_tone_curve;
     if (mode == 3u) {
-        return ag_dng_standard(linear, points, count);
+        return ag_dng_standard(linear, count);
     }
     let encoded = linear_to_srgb(linear);
     return vec3<f32>(
-        apply_curve(encoded.r, points, count),
-        apply_curve(encoded.g, points, count),
-        apply_curve(encoded.b, points, count),
+        apply_curve(encoded.r, CURVE_SRC_RAW_TONE, 0u, count),
+        apply_curve(encoded.g, CURVE_SRC_RAW_TONE, 0u, count),
+        apply_curve(encoded.b, CURVE_SRC_RAW_TONE, 0u, count),
     );
 }
 
@@ -199,8 +198,8 @@ fn ag_srgb_decode(e: f32) -> f32 {
 
 /// One channel through the photo's curve, linear light in and out. The points
 /// are on sRGB-encoded values, as every RAW tone curve is stored.
-fn ag_dng_tone(v: f32, points: array<Point, 16>, count: u32) -> f32 {
-    return ag_srgb_decode(apply_curve(ag_srgb_encode(v), points, count));
+fn ag_dng_tone(v: f32, count: u32) -> f32 {
+    return ag_srgb_decode(apply_curve(ag_srgb_encode(v), CURVE_SRC_RAW_TONE, 0u, count));
 }
 
 // from RawTherapee rtengine/curves.h @ 46b92d8e, AdobeToneCurve::Apply and
@@ -211,23 +210,23 @@ fn ag_dng_tone(v: f32, points: array<Point, 16>, count: u32) -> f32 {
 // does all of them, because c - lo, scaled by how much the span grew, sends the
 // largest to its toned value, the smallest to its own, and the middle where
 // RGBTone puts it. Equal channels are a grey and take the curve directly.
-fn rt_rgb_tone(c: vec3<f32>, points: array<Point, 16>, count: u32) -> vec3<f32> {
+fn rt_rgb_tone(c: vec3<f32>, count: u32) -> vec3<f32> {
     let hi = max(c.r, max(c.g, c.b));
     let lo = min(c.r, min(c.g, c.b));
-    let hi_toned = ag_dng_tone(hi, points, count);
+    let hi_toned = ag_dng_tone(hi, count);
     if (hi - lo <= 1.0e-6) {
         return vec3<f32>(hi_toned);
     }
-    let lo_toned = ag_dng_tone(lo, points, count);
+    let lo_toned = ag_dng_tone(lo, count);
     return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
 }
 
 /// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
 /// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
-fn ag_dng_standard(linear: vec3<f32>, points: array<Point, 16>, count: u32) -> vec3<f32> {
+fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
     let prophoto = clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
-    let toned = rt_rgb_tone(prophoto, points, count);
+    let toned = rt_rgb_tone(prophoto, count);
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
 

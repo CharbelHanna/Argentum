@@ -1998,6 +1998,24 @@ fn convert_points_to_aligned(frontend_points: Vec<serde_json::Value>) -> [Point;
     aligned_points
 }
 
+/// Argentum: a curve as the shader takes it - its points, and how many of them
+/// to use. A straight line (the test their shader's `is_default_curve` ran on
+/// every pixel: each point within half a level of x = y, from 0,0 to 255,255) is
+/// sent with no points, which `apply_curve` leaves as it is. See
+/// `apply_all_curves` in shader.wgsl for why the test moved here.
+fn shader_curve(frontend_points: Vec<serde_json::Value>) -> ([Point; 16], u32) {
+    let len = frontend_points.len();
+    let points = convert_points_to_aligned(frontend_points);
+    let at = |i: usize| points[i.min(15)];
+    let straight = len >= 2
+        && (0..len).all(|i| (at(i).x - at(i).y).abs() <= 0.5)
+        && at(0).x.abs() < 0.1
+        && at(0).y.abs() < 0.1
+        && (at(len - 1).x - 255.0).abs() < 0.1
+        && (at(len - 1).y - 255.0).abs() < 0.1;
+    (points, if straight { 0 } else { len as u32 })
+}
+
 pub(crate) const WP_D65: Vec2 = Vec2::new(0.3127, 0.3290);
 pub(crate) const PRIMARIES_SRGB: [Vec2; 3] = [
     Vec2::new(0.64, 0.33),
@@ -2417,6 +2435,11 @@ fn get_global_adjustments_from_json(
     } else {
         Vec::new()
     };
+    // Argentum: a straight-line curve goes to the shader with no points (shader_curve).
+    let (luma_curve, luma_curve_count) = shader_curve(luma_points);
+    let (red_curve, red_curve_count) = shader_curve(red_points);
+    let (green_curve, green_curve_count) = shader_curve(green_points);
+    let (blue_curve, blue_curve_count) = shader_curve(blue_points);
 
     let cg_obj = js_adjustments
         .get("colorGrading")
@@ -2624,14 +2647,14 @@ fn get_global_adjustments_from_json(
         } else {
             [HslColor::default(); 8]
         },
-        luma_curve: convert_points_to_aligned(luma_points.clone()),
-        red_curve: convert_points_to_aligned(red_points.clone()),
-        green_curve: convert_points_to_aligned(green_points.clone()),
-        blue_curve: convert_points_to_aligned(blue_points.clone()),
-        luma_curve_count: luma_points.len() as u32,
-        red_curve_count: red_points.len() as u32,
-        green_curve_count: green_points.len() as u32,
-        blue_curve_count: blue_points.len() as u32,
+        luma_curve,
+        red_curve,
+        green_curve,
+        blue_curve,
+        luma_curve_count,
+        red_curve_count,
+        green_curve_count,
+        blue_curve_count,
         _pad_end1: 0.0,
         _pad_end2: 0.0,
         _pad_end3: 0.0,
@@ -2705,6 +2728,11 @@ fn get_mask_adjustments_from_json(
     } else {
         Vec::new()
     };
+    // Argentum: a straight-line curve goes to the shader with no points (shader_curve).
+    let (luma_curve, luma_curve_count) = shader_curve(luma_points);
+    let (red_curve, red_curve_count) = shader_curve(red_points);
+    let (green_curve, green_curve_count) = shader_curve(green_points);
+    let (blue_curve, blue_curve_count) = shader_curve(blue_points);
     let cg_obj = adj.get("colorGrading").cloned().unwrap_or_default();
     let [wb_log_gain_l, wb_log_gain_m, wb_log_gain_s] = if is_visible("basic") {
         white_balance::adaptation_log_gains(
@@ -2790,14 +2818,14 @@ fn get_mask_adjustments_from_json(
         } else {
             [HslColor::default(); 8]
         },
-        luma_curve: convert_points_to_aligned(luma_points.clone()),
-        red_curve: convert_points_to_aligned(red_points.clone()),
-        green_curve: convert_points_to_aligned(green_points.clone()),
-        blue_curve: convert_points_to_aligned(blue_points.clone()),
-        luma_curve_count: luma_points.len() as u32,
-        red_curve_count: red_points.len() as u32,
-        green_curve_count: green_points.len() as u32,
-        blue_curve_count: blue_points.len() as u32,
+        luma_curve,
+        red_curve,
+        green_curve,
+        blue_curve,
+        luma_curve_count,
+        red_curve_count,
+        green_curve_count,
+        blue_curve_count,
         _pad_end4: 0.0,
         _pad_end5: 0.0,
         _pad_end6: 0.0,
@@ -3864,6 +3892,24 @@ pub fn calculate_auto_adjustments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Argentum: the straight-line test their shader ran per pixel, now run once.
+    #[test]
+    fn a_straight_curve_goes_to_the_shader_with_no_points() {
+        let pts = |p: &[(f64, f64)]| -> Vec<serde_json::Value> {
+            p.iter().map(|&(x, y)| serde_json::json!({ "x": x, "y": y })).collect()
+        };
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (255.0, 255.0)])).1, 0);
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (128.0, 128.4), (255.0, 255.0)])).1, 0);
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (128.0, 129.0), (255.0, 255.0)])).1, 3);
+        assert_eq!(shader_curve(pts(&[(0.0, 12.0), (255.0, 255.0)])).1, 2);
+        assert_eq!(shader_curve(pts(&[(0.0, 0.0), (255.0, 250.0)])).1, 2);
+        assert_eq!(shader_curve(pts(&[(128.0, 128.0)])).1, 1);
+        assert_eq!(shader_curve(Vec::new()).1, 0);
+        let (points, count) = shader_curve(pts(&[(0.0, 12.0), (64.0, 58.0), (255.0, 250.0)]));
+        assert_eq!(count, 3);
+        assert_eq!((points[1].x, points[1].y), (64.0, 58.0));
+    }
     use image::{ImageBuffer, Rgb};
 
     #[test]

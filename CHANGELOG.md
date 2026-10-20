@@ -168,6 +168,20 @@ Newest first.
 
 ### Changed
 
+- **The editor renders 20-45x faster on Vulkan and DirectX 12, so Processing Backend = Auto is
+  fast again.** The main shader passed the tone curves (the RGB curves and the RAW tone curve of
+  DNG Standard and Base Curve) and the eight HSL bands to its functions as arrays. wgpu copies
+  such an array to the stack for every pixel, and on Intel's Vulkan and DirectX 12 drivers that
+  copy was most of the render: on an Intel Arc 140T a 3328x2219 slider move took about 690 ms on
+  Vulkan (what Auto picks) and 160 ms on OpenGL; it now takes 16 ms on Vulkan, 17 on DirectX 12
+  and 24 on OpenGL, and 64 ms instead of 3.1 s at 6960x4640. The curves are now read point by point
+  from the adjustments buffer, from RapidRAW `src-tauri/src/shaders/shader.wgsl` @ `cc8200a9`
+  (after 1.6.6), with its unrolled noise-reduction taps from the same commit; the HSL bands travel
+  as vectors (ours). A straight-line curve is now recognised once per render instead of on every
+  pixel, and the curve passes share one call site, which DirectX 12's software renderer (WARP)
+  needs to compile the shader. Renders match the old ones: bit for bit on OpenGL and DirectX 12
+  for an untouched edit, and otherwise within one level in 8 bits, on a few hundred of 7.4
+  million pixels with curves and HSL in use. A test now refuses any shader function that takes an array.
 - **A photo you open and leave unedited no longer gets a sidecar file**, and one reset back to
   its starting values loses it, unless it holds Snapshots, a rating, a label or tags (RapidRAW
   `8f41c5ec`).

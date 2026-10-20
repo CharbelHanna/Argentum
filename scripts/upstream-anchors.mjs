@@ -38,16 +38,26 @@ export const ANCHORS = [
     instead: 'add your tool inside ag_stage_present in shaders/ag_display.wgsl',
   },
   {
+    // On the render path since 2026-10-20 (RENDER_PATH in upstream-registry.mjs),
+    // so no hook count. Until then it allowed three hooks (DEC-27): one call to
+    // ag_stage_scene_linear, one to ag_stage_tone, one to ag_stage_display. New
+    // tools still go inside those stages in shaders/modules.wgsl; the wiring
+    // check is what notices a stage that stopped being called.
     file: 'src-tauri/src/shaders/shader.wgsl',
-    // Three since 2026-10-17, by a recorded decision (DEC-27): the tone
-    // stage, one call right after their tone-mapper chain. Until then the RAW
-    // tone rendering was two blocks of logic inside their main() - a condition
-    // on their chain and a per-channel curve after it - which mentioned nothing
-    // of ours and so counted against no anchor. DNG Standard needed more than a
-    // per-channel curve; the blocks came out and their chain is theirs again.
-    hooks: 3,
-    what: 'one call to ag_stage_scene_linear, one to ag_stage_tone, one to ag_stage_display',
-    instead: 'add your tool inside one of those three stages in shaders/modules.wgsl',
+    requires: [
+      {
+        pattern: /= ag_stage_scene_linear\(/,
+        why: 'the camera profile and highlight recovery run in the scene-linear stage',
+      },
+      {
+        pattern: /= ag_stage_tone\(/,
+        why: 'the RAW tone rendering (DNG Standard, Base Curve) runs in the tone stage',
+      },
+      {
+        pattern: /= ag_stage_display\(/,
+        why: 'the clipping and sharpening mask views run in the display stage',
+      },
+    ],
   },
   {
     file: 'src-tauri/src/raw_processing.rs',
