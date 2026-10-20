@@ -8,15 +8,24 @@
 //! photo keeps the darker corners and the colour fringes the camera's JPEG
 //! has already corrected.
 //!
+//! Sony writes the same three into an ARW's raw SubIFD (0x7032 vignetting,
+//! 0x7035 CA, 0x7037 distortion). Lightroom has not been shown to apply
+//! them, so they start off. Sony's tables carry the camera's own framing
+//! (a ZV-1's distortion is 1.077 at the centre), so they are filled only as
+//! far as the photo's edge needs, which keeps the camera's crop.
+//!
 //! FROM RAWMAKASE
 //!
 //! RAWmakase `v0.4.0` @ a8c5d6d7 (MIT):
 //! - `crates/rawmakase-model/src/optics/mod.rs`: `Radial`, `LensCorrection`,
-//!   `radial_scale_with` and `fill_scale_with`, as written.
-//! - `crates/rawmakase-model/src/lens/embedded.rs`: the Fujifilm reader, its
-//!   units and the 0.85 vignetting strength, and its test.
+//!   `radial_scale_with`, `fill_scale_with` and `fill_scale_within`, as
+//!   written.
+//! - `crates/rawmakase-model/src/lens/embedded.rs`: the Fujifilm and Sony
+//!   readers, their units, the 0.85 Fujifilm vignetting strength, and their
+//!   tests.
 //! - `crates/rawmakase-engine/src/develop/image_space.rs`: `LensMap`'s
-//!   position map and its Newton inverse.
+//!   position map, its Newton inverse, and which fill each source takes
+//!   (RAWmakase #533).
 //! - `docs/lens-corrections.md`: the order (vignetting gain in linear light
 //!   at the source pixel, then distortion and CA as one radial remap while
 //!   sampling, scaled so corrected corners stay inside the sensor).
@@ -32,8 +41,11 @@
 //!   distortion, where RAWmakase has no amount for it.
 //! - `LensMap` works on offsets from the image centre in pixels, as the app's
 //!   warp does, rather than on RAWmakase's image positions.
-//! - Only what Fujifilm needs. Sony's tables and their framing
-//!   (`fill_scale_within`) and a DNG's opcodes come with those formats.
+//! - Sony's fill keeps the developed image's edge inside it. rawler already
+//!   crops an ARW to its DefaultCrop, which is the camera's aspect-ratio crop
+//!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
+//!   `camera_crop` describes; the sensor beyond it is not there to sample.
+//! - A DNG's opcodes come with that format.
 
 use std::io::Cursor;
 
@@ -47,6 +59,11 @@ const FUJI_CHROMATIC: u16 = 0xf00f;
 const FUJI_VIGNETTING: u16 = 0xf010;
 /// Where a RAF's header holds the offset of that TIFF, big-endian.
 const RAF_TIFF_POINTER: usize = 100;
+/// SubIFDs: an ARW's raw image directory is the first.
+const SUB_IFDS: u16 = 0x14a;
+const SONY_VIGNETTING: u16 = 0x7032;
+const SONY_CHROMATIC: u16 = 0x7035;
+const SONY_DISTORTION: u16 = 0x7037;
 
 /// Lightroom renders Fujifilm's vignetting table about 15% weaker in log
 /// gain: corners of three X100F photos match Camera Raw at this exponent
@@ -129,6 +146,9 @@ impl Amounts {
 }
 
 impl LensCorrection {
+    /// The `source` of the correction read from a Sony file's own tables.
+    pub const SONY_BUILTIN: &'static str = "Sony built-in";
+
     pub fn is_empty(&self) -> bool {
         self.vignetting.is_none() && self.distortion.is_none() && self.chromatic.is_none()
     }
@@ -165,6 +185,55 @@ impl LensCorrection {
         1. / widest
     }
 
+    /// As `fill_scale_with`, for a photo that is only the rectangle `crop`
+    /// (`[left, top, right, bottom]`, in pixels) of the decoded image of
+    /// `size`: the scale keeps every corrected sample of the crop's edge inside
+    /// the decoded image, which can reach beyond the crop (a camera's
+    /// aspect-ratio crop of a wider sensor). Never below the scale for the
+    /// whole image.
+    pub fn fill_scale_within(&self, amounts: Amounts, size: [f32; 2], crop: [f32; 4]) -> f32 {
+        let whole = self.fill_scale_with(amounts);
+        if whole >= 1. {
+            return whole;
+        }
+        let [w, h] = size;
+        let half = w.hypot(h) * 0.5;
+        let [left, top, right, bottom] = crop.map(|v| v.max(0.));
+        let (x0, x1) = (left - w * 0.5, right.min(w) - w * 0.5);
+        let (y0, y1) = (top - h * 0.5, bottom.min(h) - h * 0.5);
+        let inside = |dx: f32, dy: f32, fill: f32| {
+            let s = self
+                .radial_scale_with(dx.hypot(dy) * fill / half, amounts)
+                .into_iter()
+                .fold(0f32, f32::max);
+            dx.abs() * fill * s <= w * 0.5 && dy.abs() * fill * s <= h * 0.5
+        };
+        // About one sample per pixel along the edge, so no extremum between
+        // samples leaves the image by more than a fraction of a pixel.
+        let steps = (w.max(h).ceil() as usize).clamp(64, 8192);
+        let mut fill = 1f32;
+        for i in 0..=steps {
+            let t = i as f32 / steps as f32;
+            let (x, y) = (x0 + (x1 - x0) * t, y0 + (y1 - y0) * t);
+            for (dx, dy) in [(x, y0), (x, y1), (x0, y), (x1, y)] {
+                if inside(dx, dy, fill) {
+                    continue;
+                }
+                let (mut lo, mut hi) = (whole, fill);
+                for _ in 0..24 {
+                    let mid = (lo + hi) * 0.5;
+                    if inside(dx, dy, mid) {
+                        lo = mid;
+                    } else {
+                        hi = mid;
+                    }
+                }
+                fill = lo;
+            }
+        }
+        fill
+    }
+
     /// The gain that restores the light at radius `r` of the decoded image.
     pub fn vignetting_gain(&self, r: f32, amount: f32) -> f32 {
         match &self.vignetting {
@@ -194,7 +263,20 @@ impl<'a> LensMap<'a> {
             lens,
             amounts,
             half: width.hypot(height) * 0.5,
-            fill: lens.fill_scale_with(amounts),
+            fill: Self::fill(lens, width, height, amounts),
+        }
+    }
+
+    /// The scale that keeps corrected samples inside the image. Sony's
+    /// built-in correction is the camera's own, which zooms by no more than
+    /// its table does, so only the photo's edge has to stay inside. Any other
+    /// correction keeps the whole frame's corners inside, as Lightroom's
+    /// profiles do.
+    fn fill(lens: &LensCorrection, width: f32, height: f32, amounts: Amounts) -> f32 {
+        if lens.source == LensCorrection::SONY_BUILTIN {
+            lens.fill_scale_within(amounts, [width, height], [0., 0., width, height])
+        } else {
+            lens.fill_scale_with(amounts)
         }
     }
 
@@ -250,6 +332,8 @@ impl<'a> LensMap<'a> {
 pub fn read(file: &[u8]) -> Option<LensCorrection> {
     let c = if file.starts_with(b"FUJIFILMCCD-RAW") {
         fuji(file)
+    } else if file.starts_with(b"II*\0") || file.starts_with(b"MM\0*") {
+        sony(file)
     } else {
         None
     }?;
@@ -312,6 +396,65 @@ fn fuji(file: &[u8]) -> Option<LensCorrection> {
     Some(LensCorrection {
         source: "Fujifilm built-in".into(),
         default_on: true,
+        vignetting,
+        distortion,
+        chromatic,
+    })
+}
+
+/// Sony's tables are signed shorts led by the number of values and padded
+/// with zeros to a fixed length (ZV-1: 11 distortion knots in 16 slots).
+/// Knots are spread evenly from the centre to the corner. Distortion is in
+/// 2^-14, CA in 2^-21 units; vignetting v restores 2^(2^(v/8192 - 1) - 0.5).
+fn sony(file: &[u8]) -> Option<LensCorrection> {
+    let root =
+        IFD::new_root_with_correction(&mut Cursor::new(file), 0, 0, 0, 1, &[SUB_IFDS]).ok()?;
+    let sub = root.get_sub_ifd_all(SUB_IFDS)?.first()?;
+    let numbers = |tag: u16| -> Option<Vec<f32>> {
+        let v = &sub.get_entry(tag)?.value;
+        (0..v.count())
+            .map(|i| v.get_f32(i).ok().flatten())
+            .collect()
+    };
+    let knots = |n: usize| {
+        (0..n)
+            .map(|i| i as f32 / (n - 1) as f32)
+            .collect::<Vec<_>>()
+    };
+    // The count's values, from storage that may be longer: a ZV-1 stores 11
+    // distortion knots in 16 slots. Anything stored past the count must be
+    // zero padding.
+    let counted = |v: Option<Vec<f32>>, per_count: usize| {
+        let v = v?;
+        let count = *v.first()? as usize;
+        let values = v.get(1..=count)?;
+        (count >= 2 * per_count
+            && count.is_multiple_of(per_count)
+            && v[count + 1..].iter().all(|x| *x == 0.))
+        .then(|| values.to_vec())
+    };
+    let single = |v: Option<Vec<f32>>, f: &dyn Fn(f32) -> f32| {
+        let v = counted(v, 1)?;
+        Radial::new(knots(v.len()), v.iter().map(|x| f(*x)).collect())
+    };
+    let vignetting = single(numbers(SONY_VIGNETTING), &|v| {
+        (2f32.powf(v / 8192. - 1.) - 0.5).exp2()
+    })
+    .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-4));
+    let distortion = single(numbers(SONY_DISTORTION), &|d| 1. + d / 16384.)
+        .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-6));
+    let chromatic = counted(numbers(SONY_CHROMATIC), 2).and_then(|v| {
+        let n = v.len() / 2;
+        let scale = |s: &[f32]| s.iter().map(|x| 1. + x / 2_097_152.).collect();
+        Some([
+            Radial::new(knots(n), scale(&v[..n]))?,
+            Radial::new(knots(n), scale(&v[n..]))?,
+        ])
+    });
+    Some(LensCorrection {
+        source: LensCorrection::SONY_BUILTIN.into(),
+        // Not yet compared with Lightroom, which may apply its own profile instead.
+        default_on: false,
         vignetting,
         distortion,
         chromatic,
@@ -490,22 +633,205 @@ mod tests {
 
     /// A real RAF (AG_RAW): its tables at a few radii, and the zoom that
     /// keeps the corners inside. Prints; asserts only that one was read.
+    fn shorts(v: &[i16]) -> Vec<u8> {
+        v.iter().flat_map(|x| x.to_le_bytes()).collect()
+    }
+
+    /// An ARW-like TIFF whose first SubIFD holds Sony's three tables.
+    fn sony_file(vig: &[i16], ca: &[i16], dist: &[i16]) -> Vec<u8> {
+        let entry = |tag, v: &[i16]| (tag, 8, v.len() as u32, shorts(v));
+        tiff(&[
+            vec![(SUB_IFDS, 4, 1, vec![0; 4])],
+            vec![
+                entry(SONY_VIGNETTING, vig),
+                entry(SONY_CHROMATIC, ca),
+                entry(SONY_DISTORTION, dist),
+            ],
+        ])
+    }
+
+    /// A ZV-1 stores fewer knots than its fixed 16 (CA: 32) slots, padded
+    /// with zeros (RAWmakase #403).
+    const ZV1_VIG: [i16; 17] = [
+        16, 0, 0, 0, 15, 63, 193, 413, 715, 1107, 1576, 2126, 2749, 3443, 4523, 5509, 6639,
+    ];
+    const ZV1_CA: [i16; 33] = [
+        22, 0, 256, 384, 128, 128, 256, 384, 640, 896, 1152, 1408, 0, 1280, 1664, 1664, 1280, 896,
+        512, 256, 128, 0, 256, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    const ZV1_DIST: [i16; 17] = [
+        11, 1265, 1218, 1083, 860, 562, 209, -179, -580, -972, -1353, -1725, 0, 0, 0, 0, 0,
+    ];
+
     #[test]
-    #[ignore = "reads a local RAF named by AG_RAW; run by hand"]
-    fn a_real_rafs_tables() {
+    fn reads_sony_subifd_tables() {
+        let mut vig = vec![16i16];
+        vig.extend((0..16).map(|i| i * 800));
+        let mut dist = vec![16i16];
+        dist.extend((0..16).map(|i| i * 10));
+        let mut ca = vec![32i16];
+        ca.extend(std::iter::repeat_n(-384, 16));
+        ca.extend(std::iter::repeat_n(0, 16));
+        let c = read(&sony_file(&vig, &ca, &dist)).unwrap();
+        assert!(!c.default_on);
+        assert_eq!(c.source, LensCorrection::SONY_BUILTIN);
+        let v = c.vignetting.as_ref().unwrap();
+        assert!((v.eval(0.) - 1.).abs() < 1e-6);
+        let corner = 2f32.powf(2f32.powf(12000. / 8192. - 1.) - 0.5);
+        assert!((v.eval(1.) - corner).abs() < 1e-5);
+        assert!((c.distortion.as_ref().unwrap().eval(1.) - (1. + 150. / 16384.)).abs() < 1e-6);
+        let [red, blue] = c.chromatic.as_ref().unwrap();
+        assert!((red.eval(0.5) - (1. - 384. / 2_097_152.)).abs() < 1e-7);
+        assert_eq!(blue.eval(0.5), 1.);
+    }
+
+    #[test]
+    fn reads_sony_tables_padded_to_fixed_slots() {
+        let c = read(&sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST)).unwrap();
+        let dist = c.distortion.as_ref().unwrap();
+        assert_eq!(dist.knots.len(), 11);
+        assert_eq!(dist.knots[1], 0.1);
+        assert!((dist.eval(0.) - (1. + 1265. / 16384.)).abs() < 1e-6);
+        assert!((dist.eval(1.) - (1. - 1725. / 16384.)).abs() < 1e-6);
+        let [red, blue] = c.chromatic.as_ref().unwrap();
+        assert_eq!(red.knots.len(), 11);
+        assert!((red.eval(1.) - (1. + 1408. / 2_097_152.)).abs() < 1e-7);
+        assert!((blue.eval(0.1) - (1. + 1280. / 2_097_152.)).abs() < 1e-7);
+        assert!((blue.eval(1.) - (1. + 256. / 2_097_152.)).abs() < 1e-7);
+        assert_eq!(c.vignetting.as_ref().unwrap().knots.len(), 16);
+    }
+
+    #[test]
+    fn rejects_malformed_sony_tables() {
+        fn with<const N: usize>(mut v: [i16; N], i: usize, x: i16) -> [i16; N] {
+            v[i] = x;
+            v
+        }
+        for (name, dist, ca) in [
+            (
+                "data past the count",
+                with(ZV1_DIST, 16, 1),
+                with(ZV1_CA, 32, 1),
+            ),
+            (
+                "count past the stored values",
+                with(ZV1_DIST, 0, 17),
+                with(ZV1_CA, 0, 34),
+            ),
+            ("a single knot", with(ZV1_DIST, 0, 1), with(ZV1_CA, 0, 2)),
+        ] {
+            let c = read(&sony_file(&ZV1_VIG, &ca, &dist)).unwrap();
+            assert!(c.distortion.is_none() && c.chromatic.is_none(), "{name}");
+        }
+        let odd = with(ZV1_CA, 0, 21);
+        let c = read(&sony_file(&ZV1_VIG, &odd, &ZV1_DIST)).unwrap();
+        assert!(c.chromatic.is_none(), "odd CA count");
+    }
+
+    #[test]
+    fn fill_within_a_crop_of_a_wider_sensor_is_looser_and_still_inside() {
+        let c = LensCorrection {
+            distortion: Radial::new(vec![0., 1.], vec![1., 1.08]),
+            ..Default::default()
+        };
+        let size = [6000., 4000.];
+        // A 16:9 crop of the 3:2 image.
+        let crop = [0., 437.5, 6000., 3812.5];
+        let whole = c.fill_scale_with(Amounts::FULL);
+        let within = c.fill_scale_within(Amounts::FULL, size, crop);
+        assert!(within > whole + 0.005 && within <= 1., "{whole} {within}");
+        let half = 6000f32.hypot(4000.) * 0.5;
+        for (x, y) in [
+            (3000f32, 1562.5f32),
+            (3000., 0.),
+            (0., 1562.5),
+            (1500., 1562.5),
+        ] {
+            let s = c.radial_scale_with(x.hypot(y) * within / half, Amounts::FULL)[1];
+            assert!(
+                x * within * s <= 3000.01 && y * within * s <= 2000.01,
+                "{x} {y}"
+            );
+        }
+        // The whole image is never tighter than its own scale; no distortion needs none.
+        let all = c.fill_scale_within(Amounts::FULL, size, [0., 0., 6000., 4000.]);
+        assert!(all >= whole && all < whole + 0.01, "{whole} {all}");
+        assert_eq!(
+            LensCorrection::default().fill_scale_within(Amounts::FULL, size, crop),
+            1.
+        );
+    }
+
+    #[test]
+    fn fill_within_leaves_no_edge_pixel_outside_between_samples() {
+        // A table with bumps, the kind Sony's signed values give.
+        let c = LensCorrection {
+            distortion: Radial::new(
+                (0..11).map(|i| i as f32 / 10.).collect(),
+                vec![
+                    1.08, 1.06, 1.04, 1.02, 1.02, 1.02, 1.02, 1.02, 1.02, 1.03, 0.99,
+                ],
+            ),
+            ..Default::default()
+        };
+        let (w, h) = (6000f32, 4000f32);
+        let fill = c.fill_scale_within(Amounts::FULL, [w, h], [0., 0., w, h]);
+        let half = w.hypot(h) * 0.5;
+        let mut worst = 0f32;
+        for i in 0..6000 {
+            for (px, py) in [(i as f32 + 0.5, 0.5), (i as f32 + 0.5, h - 0.5)] {
+                let (dx, dy) = (px - w * 0.5, py - h * 0.5);
+                let s = c.radial_scale_with(dx.hypot(dy) * fill / half, Amounts::FULL)[1];
+                worst = worst.max((dx * fill * s).abs() - w * 0.5);
+                worst = worst.max((dy * fill * s).abs() - h * 0.5);
+            }
+        }
+        assert!(worst < 0.5, "{worst}");
+    }
+
+    #[test]
+    fn sonys_tables_keep_the_photos_frame_others_its_corners() {
+        // The ZV-1's distortion: 1.077 at the centre, 0.895 at the corner.
+        let sony = read(&sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST)).unwrap();
+        let (w, h) = (5472f32, 3648f32);
+        let map = LensMap::new(&sony, w, h, Amounts::FULL);
+        let within = sony.fill_scale_within(Amounts::FULL, [w, h], [0., 0., w, h]);
+        assert_eq!(map.fill, within);
+        assert!(
+            map.fill > sony.fill_scale_with(Amounts::FULL) + 0.01,
+            "{}",
+            map.fill
+        );
+        // The same tables from anywhere else keep the whole frame's corners inside.
+        let other = LensCorrection {
+            source: "DNG opcodes".into(),
+            ..sony.clone()
+        };
+        assert_eq!(
+            LensMap::new(&other, w, h, Amounts::FULL).fill,
+            other.fill_scale_with(Amounts::FULL)
+        );
+    }
+
+    /// A real RAF or ARW (AG_RAW): its tables at a few radii, and the zoom
+    /// that keeps the corners inside on a 3:2 frame. Prints; asserts only
+    /// that one was read.
+    #[test]
+    #[ignore = "reads a local RAF or ARW named by AG_RAW; run by hand"]
+    fn a_real_files_tables() {
         let path = std::env::var("AG_RAW").expect("AG_RAW");
         let c = read(&std::fs::read(&path).expect("read")).expect("a correction");
         let at = |r: &Option<Radial>| -> Vec<f32> {
             r.as_ref()
-                .map_or(vec![], |r| [0.5, 0.8, 1.].map(|x| r.eval(x)).to_vec())
+                .map_or(vec![], |r| [0., 0.5, 0.8, 1.].map(|x| r.eval(x)).to_vec())
         };
         eprintln!();
         eprintln!("{path}: {}", c.source);
         eprintln!(
-            "  vignetting gain at r 0.5/0.8/1: {:.3?}",
+            "  vignetting gain at r 0/0.5/0.8/1: {:.3?}",
             at(&c.vignetting)
         );
-        eprintln!("  distortion at r 0.5/0.8/1: {:.4?}", at(&c.distortion));
+        eprintln!("  distortion at r 0/0.5/0.8/1: {:.4?}", at(&c.distortion));
         if let Some([red, blue]) = &c.chromatic {
             eprintln!(
                 "  CA red/blue at r 1: {:.5} {:.5}",
@@ -513,6 +839,11 @@ mod tests {
                 blue.eval(1.)
             );
         }
-        eprintln!("  fill {:.4}", c.fill_scale_with(Amounts::FULL));
+        let map = LensMap::new(&c, 6000., 4000., Amounts::FULL);
+        eprintln!(
+            "  fill on a 3:2 frame {:.4} (whole-frame corners {:.4})",
+            map.fill,
+            c.fill_scale_with(Amounts::FULL)
+        );
     }
 }

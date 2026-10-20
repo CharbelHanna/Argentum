@@ -1997,7 +1997,7 @@
         "negpy": "Pela inspiração por trás da lógica de conversão de negativo.",
         "nind": "Por fornecer modelos de IA que alimentam os recursos de redução de ruído por IA no RapidRAW.",
         "rawler": "Pelo excelente crate Rust que fornece a base para o processamento de arquivos RAW neste projeto.",
-        "rawmakase": "Pelo DNG Standard, o aspecto com que cada RAW começa: o desvio de exposição de cada câmera a partir da sua tabela de câmeras, e a renderização e a nitidez padrão com que as do Argentum são comparadas. Também as predefinições que vêm com o Argentum (Color, Creative, Curve, Grain, Vignetting). Também as máscaras Assunto, Céu e Fundo: o seu código de seleção, com SAM 2.1 e DETR. Também a correção de objetiva que a câmara guarda em cada foto, começando pela da Fujifilm.",
+        "rawmakase": "Pelo DNG Standard, o aspecto com que cada RAW começa: o desvio de exposição de cada câmera a partir da sua tabela de câmeras, e a renderização e a nitidez padrão com que as do Argentum são comparadas. Também as predefinições que vêm com o Argentum (Color, Creative, Curve, Grain, Vignetting). Também as máscaras Assunto, Céu e Fundo: o seu código de seleção, com SAM 2.1 e DETR. Também a correção de objetiva que a câmara guarda em cada foto, a da Fujifilm e a da Sony.",
         "sam2": "Por fornecer o modelo base usado para os recursos de detecção de motivos por IA.",
         "spektrafilm": "Pelas LUTs de emulação de filme com base espectral, de Andrea Volpato, que alimentam as emulações integradas do RapidRAW. Licenciadas sob CC BY-SA 4.0.",
         "u2net": "Por fornecer a arquitetura robusta usada para as capacidades de detecção de céu e primeiro plano por IA.",

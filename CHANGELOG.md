@@ -8,6 +8,17 @@ Newest first.
 
 ### Added
 
+- **Sony photos can use the camera's own lens correction too.** An ARW stores the lens's
+  distortion, colour fringing and corner shading for the shot in its raw SubIFD (0x7032,
+  0x7035, 0x7037). The same switch in Crop > Lens Correction applies it; it starts off, as
+  Lightroom is not known to apply Sony's tables by default. Sony's tables carry the camera's own
+  framing (a ZV-1's distortion is 1.077 at the centre), so the correction zooms only as far as the
+  photo's edge needs, not to the whole frame's corners: against the camera's own JPEG in three
+  raw.pixls.us files (ZV-1, RX100 VII, A6400) the edges correlate at 0.83 / 0.82 / 0.68 this way,
+  0.15 / 0.60 / 0.54 with the whole-frame zoom, and 0.29 / 0.71 / 0.24 uncorrected. From RAWmakase
+  @ `a8c5d6d7` (v0.4.0, MIT): the Sony reader in `crates/rawmakase-model/src/lens/embedded.rs`,
+  `fill_scale_within` in `crates/rawmakase-model/src/optics/mod.rs`, and which fill each source
+  takes in `crates/rawmakase-engine/src/develop/image_space.rs` (RAWmakase #533).
 - **Fujifilm photos get the camera's own lens correction.** Every RAF carries the lens's
   distortion, colour fringing (lateral chromatic aberration) and corner shading for the focal
   length and aperture of the shot, and Lightroom applies them by default; Argentum read none of
@@ -22,7 +33,7 @@ Newest first.
   @ `a8c5d6d7` (v0.4.0, MIT): `crates/rawmakase-model/src/optics/mod.rs` (the correction model
   and its fill scale), `crates/rawmakase-model/src/lens/embedded.rs` (the Fujifilm reader) and
   `crates/rawmakase-engine/src/develop/image_space.rs` (the position map and its inverse).
-  Sony's tables and a DNG's lens opcodes come next, each on its own.
+  A DNG's lens opcodes come next.
 - **Relight and Fog, from RapidRAW 1.6.6.** Edit > Effects has two new parts after Lens blur.
   Relight places Lamp, Spot or Sun lights on the photo, dragged and aimed on the photo, lit
   along each surface's direction, with cast shadows. Fog thickens with distance and lies low

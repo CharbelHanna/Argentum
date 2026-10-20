@@ -3,7 +3,8 @@
  *
  * Fujifilm stores its lens's distortion, colour fringing and corner shading
  * in every RAF, for the focal length and aperture used, and Lightroom applies
- * it by default. `lens_builtin` (mods/lens_builtin.rs) reads it from the file;
+ * it by default; Sony stores the same in an ARW, where it starts off.
+ * `lens_builtin` (mods/lens_builtin.rs) reads it from the file;
  * this puts it into the edit as `lensBuiltinParams`, with the switch,
  * `lensBuiltin`, at the photo's own default when the edit has none yet. From
  * there it travels like lensfun's numbers: preview, export, masks and the
