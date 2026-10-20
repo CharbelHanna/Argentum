@@ -6,8 +6,7 @@
 //! corner where the ramp meets full strength and another where it meets none,
 //! and the eye reads a corner in a smooth gradient as a faint line (a Mach
 //! band). A graduated sky showed two edges, one at each outer handle, so the
-//! mask looked like a band with sides rather than a fade. AK's words: no fall
-//! off.
+//! mask looked like a band with sides rather than a fade.
 //!
 //! LINEAR: smoothstep between the two lines
 //!

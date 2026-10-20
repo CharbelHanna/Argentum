@@ -442,81 +442,28 @@ best-in-class, and it's clean C++.
 
 ## Where things live
 
-Two locations, deliberately. **Nothing heavy goes in OneDrive.**
+Everything lives in the checkout: source, `node_modules`, Rust's build output
+and the app's data. Git never tracks a binary, so pushing is the only backup
+the source needs.
 
-| | Path | Rule |
-|---|---|---|
-| Source, docs, config | `...\OneDrive\...\Personal\Argentum` | Git-tracked. Text only |
-| Build output, runtimes, models, app data | the checkout | Never tracked, never synced |
+**Keep the checkout out of cloud-synced folders.** A sync client such as
+OneDrive does not tolerate directory junctions inside a synced folder: it
+replaced a `node_modules` junction with a real directory (reparse tag
+`0x9000e01a`, its own cloud-files tag), began syncing 182 npm packages
+(239MB), and held them locked while uploading, so they could not be removed
+until the sync client was stopped. A bare repository in a synced folder works
+as a backup remote; it needs `receive.shallowUpdate true`, because this repo
+is shallow at RapidRAW's root (see the upstream section).
 
-A Rust `target/` directory reaches several GB and `node_modules` tens of
-thousands of files. Syncing either would be miserable. So they are redirected
-at the tool level, not merely gitignored:
+**Leave Rust's `target/` where Tauri puts it.** A `.cargo/config.toml` once
+redirected `target-dir`, and the redirect put `target/` at the repository
+root. Vite watches the project directory and only ignores `**/src-tauri/**`,
+so it tried to watch 819 crates worth of build artifacts, hit a build script
+`.exe` that cargo had open, and crashed with `EBUSY` - which killed the whole
+dev command. Tauri's default `src-tauri/target` is already inside Vite's
+ignore list and already covered by `.gitignore`.
 
-- ~~**Rust** - `.cargo/config.toml` sets `target-dir` into NoCloudZone~~
-- ~~**Node** - `node_modules` is a directory junction pointing into NoCloudZone~~
-- **App runtime data** - catalog, thumbnails, AI models: the app's own
-  configurable data folder, defaulting into NoCloudZone
-
-**Both redirects above are gone.** See the correction at the end of this file -
-OneDrive destroyed the junction, and the `target-dir` override later broke the
-dev build. Neither is needed now that the whole working tree sits outside
-OneDrive.
-
-`setup.ps1` creates all of it and verifies the toolchain.
-
-`.gitignore` covers the same ground as a safety net. **It is the net, not the
-mechanism** - if something large slips past a redirect it should still never be
-committed, but the redirect is what actually keeps it out of OneDrive.
-
-If you add a dependency that writes something large, redirect it before
+Default tool behaviour is correct; adding a redirect back is how both of these
+breakages happened. `.gitignore` is the safety net: if you add a dependency
+that writes something large, make sure it lands in an ignored folder before
 committing.
-
----
-
-## Correction: the working tree is not in OneDrive
-
-The section above described a split where source lived in OneDrive and only heavy
-output went to NoCloudZone, joined by a `node_modules` junction. **That does not
-work and was abandoned the same day.**
-
-OneDrive does not tolerate directory junctions inside a synced folder. It
-replaced the junction with a real directory - reparse tag `0x9000e01a`, its own
-cloud-files tag - and began syncing 182 npm packages (239MB). It also holds those
-files locked while uploading, so they cannot be removed until the sync client is
-stopped.
-
-**Current layout:**
-
-| | Path | What |
-|---|---|---|
-| Work | the checkout | Everything - source, node_modules, target, app data |
-| Backup | `...\OneDrive\...\Personal\Argentum.git` | Bare git repo, ~7MB, source history only |
-
-The split moved up a level. Instead of separating files *within* one folder, the
-working tree sits entirely outside OneDrive and OneDrive holds the git history.
-Every version of every source file is still backed up, in far less space, and a
-binary can never arrive because git never tracks one.
-
-`git push` is the backup. `.gitignore` still keeps build output out of history.
-
-Note: the bare repo needs `receive.shallowUpdate true`, because this repo is
-shallow at RapidRAW's root (see the upstream section).
-
-### And the target-dir redirect had to go too
-
-The same cleanup missed one thing. `.cargo/config.toml` still pointed Rust's
-`target-dir` at `NoCloudZone\Argentum\target`. That was correct while the source was
-in OneDrive - but once the project itself moved to NoCloudZone, that path became
-the **repo root**, so `target/` landed inside the source tree.
-
-Vite watches the project directory and only ignores `**/src-tauri/**`. It tried
-to watch 819 crates worth of build artifacts, hit a build script `.exe` that
-cargo had open, and crashed with `EBUSY` - which killed the whole dev command.
-
-Removed. Tauri's default `src-tauri/target` is already inside Vite's ignore list
-and already covered by `.gitignore`.
-
-**General lesson:** with the working tree outside OneDrive, no redirect is needed
-for anything. Default tool behaviour is correct now. Adding one back is how both
-of these breakages happened.

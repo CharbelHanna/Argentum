@@ -1,12 +1,12 @@
-# ── Nothing heavy in OneDrive ────────────────────────────────────────────
+# ── Build output ────────────────────────────────────────────
 # Build output and runtimes stay out of git entirely.
 # See docs/ARCHITECTURE.md → "Where things live"
 
-# Rust build output — redirected by .cargo/config.toml, ignored as a safety net
+# Rust build output
 target/
 **/target/
 
-# Node — redirected by a junction, ignored as a safety net
+# Node
 node_modules/
 **/node_modules/
 
@@ -52,7 +52,7 @@ Thumbs.db
 desktop.ini
 .DS_Store
 
-# ── OneDrive junk ────────────────────────────────────────────────────────
+# ── Temporary files ────────────────────────────────────────────────────────
 *.tmp
 ~$*
 
@@ -102,10 +102,10 @@ src-tauri/libs/
 bench/out/
 .compare/
 
- Private to this machine - working rules and one-time setup.
+# Local, per-machine files
 CLAUDE.md
 setup.ps1
- Editor directories and files
+# Editor directories and files
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json

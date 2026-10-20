@@ -22,7 +22,7 @@ interface SuperResolutionModalProps {
   onImageSelect: (path: string) => void;
 }
 
-/** Restore's Mask slider: 60 is the tight end AK chose (restore.rs). */
+/** Restore's Mask slider: 60 is the tight end, the default (restore.rs). */
 const DEFAULT_MASK = 60;
 
 /**
@@ -358,7 +358,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
                 // Show what it will touch straight away: that is the decision.
                 setShowMask(event.target.checked);
                 // Restore on its own is the usual job, and keeps Capture
-                // sharpening live on the file; AK saved a 2x by accident when
+                // sharpening live on the file; a 2x got saved by accident when
                 // Enlarge stayed at its default. 2x and 4x are a click away.
                 if (event.target.checked) setScale(1);
                 // Nothing left to do: enlarging is what the window did before.

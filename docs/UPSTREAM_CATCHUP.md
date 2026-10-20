@@ -104,7 +104,7 @@ anchor after `recover`, on the CFA before demosaic:
 
 It is not behind the Highlight Recovery switch. The first attempt at this fix
 was gated on that switch and verified on a test harness that always had it on;
-AK had it off, and in the app the fix did nothing. The end-to-end test
+with it off, the fix did nothing in the app. The end-to-end test
 `highlights::end_to_end` now checks the app's own entry point
 (`image_loader::load_base_image_from_bytes`), both quality paths, with recovery
 on and off.
