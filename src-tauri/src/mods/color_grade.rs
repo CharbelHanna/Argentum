@@ -29,7 +29,7 @@
 //! uniforms, so their grading adds nothing for it, and turns them into the
 //! 64 gains per channel the GPU looks up.
 
-use argentum_engine::rm_color_grade::{self, Gains, Grading, SAMPLES};
+use argentum_engine::rm_color_grade::{self, Gains, SAMPLES};
 use bytemuck::{Pod, Zeroable};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -175,6 +175,7 @@ pub fn move_to_curves(adjustments: &mut AllAdjustments) -> Option<Vec<f32>> {
 mod tests {
     use super::*;
     use crate::image_processing::{RenderOptions, get_all_adjustments_from_json};
+    use argentum_engine::rm_color_grade::Grading;
     use serde_json::json;
 
     fn render(adjustments: &Value) -> AllAdjustments {
