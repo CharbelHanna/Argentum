@@ -24,8 +24,7 @@ Newest first.
   `adjust`), `crates/rawmakase-interop/src/xmp/apply.rs` (`ConvertToGrayscale`, `GrayMixer`) and
   `assets/presets/BandW`. Unlike RAWmakase, which grades before its grey step and so renders Sepia
   untinted, Color Grading tints the grey; today's Color Grading is gentler than Lightroom's split
-  toning, so Sepia's tint shows mostly in the light tones. No Auto mix yet. Argentum's keys that Copy
-  settings carries are listed once, in `mods/copy_keys.rs`, and added to RapidRAW's list from there.
+  toning, so Sepia's tint shows mostly in the light tones. No Auto mix yet.
 - **Sony photos can use the camera's own lens correction too.** An ARW stores the lens's
   distortion, colour fringing and corner shading for the shot in its raw SubIFD (0x7032,
   0x7035, 0x7037). The same switch in Crop > Lens Correction applies it; it starts off, as

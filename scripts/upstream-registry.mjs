@@ -393,8 +393,8 @@ export const REGISTRY = [
           + 'defaults; our own checks of them there were removed to stay under the line cap. If the '
           + 'loader starts picking keys, the camera profile and RAW rendering are lost on reload.' },
       { file: 'src-tauri/src/app_settings.rs', symbol: 'all_available_adjustments', how: 'extends',
-        note: 'Our keys chained onto their list from mods/copy_keys.rs OURS, one line; a redundant serde '
-          + 'default on last_import_settings (an Option) went to make room. Their load switches a key new to '
+        note: 'Our five keys written into their list, four lines (agBlackWhite on the whiteBalanceAuto line); '
+          + 'a redundant serde default on last_import_settings (an Option) went to make room. Their load switches a key new to '
           + 'the list on in includedAdjustments, which is what makes Paste carry ours for existing users.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handlePasteAdjustments', how: 'calls',
         note: 'Paste applies the keys in copyPasteSettings.includedAdjustments and nothing else. '
