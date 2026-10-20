@@ -17,7 +17,6 @@ import {
   zoomCrop,
   normalizeCropChange,
 } from '../../utils/cropUtils';
-import EditorToolbar from './editor/EditorToolbar';
 import ImageCanvas from './editor/ImageCanvas';
 import { Mask, SubMask } from './right/Masks';
 import { Panel, TransformState, Invokes } from '../ui/AppProperties';
@@ -79,24 +78,14 @@ interface WgpuRenderState {
   bgSecondary: [number, number, number, number];
 }
 
+/** Argentum: drawn in the Modern window, whose top bar has the tools their toolbar had. */
 interface EditorProps {
-  onBackToLibrary(): void;
   onContextMenu(event: any): void;
-  onImageSelect?(path: string, event?: any): void;
   transformWrapperRef: any;
-  /** Argentum: the Modern window, which has the toolbar's tools in its top bar and frames the photo itself. */
-  frameless?: boolean;
 }
 
-export default function Editor({
-  onBackToLibrary,
-  onContextMenu,
-  onImageSelect,
-  transformWrapperRef,
-  frameless = false,
-}: EditorProps) {
+export default function Editor({ onContextMenu, transformWrapperRef }: EditorProps) {
   const appSettings = useSettingsStore((s) => s.appSettings);
-  const osPlatform = useSettingsStore((s) => s.osPlatform);
   const isFullScreen = useUIStore((s) => s.isFullScreen);
   const activePanel = useUIStore((s) => s.activePanel);
   const isInstantTransition = useUIStore((s) => s.isInstantTransition);
@@ -104,8 +93,6 @@ export default function Editor({
   const isLoading = useLibraryStore((s) => s.isViewLoading);
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
-  const adjustmentsHistory = useEditorStore((s) => s.history);
-  const adjustmentsHistoryIndex = useEditorStore((s) => s.historyIndex);
   const finalPreviewUrl = useEditorStore((s) => s.finalPreviewUrl);
   const uncroppedAdjustedPreviewUrl = useEditorStore((s) => s.uncroppedAdjustedPreviewUrl);
   const interactivePatch = useEditorStore((s) => s.interactivePatch);
@@ -129,17 +116,9 @@ export default function Editor({
   const hasRenderedFirstFrame = useEditorStore((s) => s.hasRenderedFirstFrame);
 
   const setEditor = useEditorStore((s) => s.setEditor);
-  const toggleFullScreen = useUIStore((s) => s.toggleFullScreen);
-  const undo = useEditorStore((s) => s.undo);
-  const redo = useEditorStore((s) => s.redo);
-  const goToHistoryIndex = useEditorStore((s) => s.goToHistoryIndex);
-  const canUndo = adjustmentsHistoryIndex > 0;
-  const canRedo = adjustmentsHistoryIndex < adjustmentsHistory.length - 1;
-
-  const isAndroid = osPlatform === 'android';
 
   const { handleGenerateAiMask, handleQuickErase, handleDirectPatch } = useAiMasking();
-  const { setAdjustments, toggleShowOriginal } = useEditorActions();
+  const { setAdjustments } = useEditorActions();
 
   const [crop, setCrop] = useState<Crop | null>(null);
   const prevCropParams = useRef<any>(null);
@@ -149,7 +128,6 @@ export default function Editor({
   const [isMaskHovered, setIsMaskHovered] = useState(false);
   const [isMaskTouchInteracting, setIsMaskTouchInteracting] = useState(false);
   const [isLoaderVisible, setIsLoaderVisible] = useState(false);
-  const [showExifDateView, setShowExifDateView] = useState(false);
   const [maskOverlayUrl, setMaskOverlayUrl] = useState<string | null>(null);
   const [transformState, setTransformState] = useState<TransformState>({ scale: 1, positionX: 0, positionY: 0 });
 
@@ -174,7 +152,6 @@ export default function Editor({
   const savedZoomState = useRef<{ scale: number; positionX: number; positionY: number } | null>(null);
   const focalPointRef = useRef({ x: 0.5, y: 0.5 });
   const isTransitioningRef = useRef(false);
-  const [toolbarOverflowVisible, setToolbarOverflowVisible] = useState(!isFullScreen);
   const isGeneratingOverlayRef = useRef(false);
   const pendingOverlayRequestRef = useRef<any>(null);
   const animationFrameId = useRef<number | null>(null);
@@ -362,17 +339,6 @@ export default function Editor({
   );
 
   const handleWbPicked = useCallback(() => {}, []);
-
-  useEffect(() => {
-    if (isFullScreen) {
-      setToolbarOverflowVisible(false);
-    } else {
-      const timer = setTimeout(() => {
-        setToolbarOverflowVisible(true);
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-  }, [isFullScreen]);
 
   const isCropping = activePanel === Panel.Crop;
   const isMasking = activePanel === Panel.Masks;
@@ -2278,51 +2244,13 @@ export default function Editor({
       className={clsx(
         'flex-1 flex flex-col relative overflow-hidden min-h-0',
         !isInstantTransition && 'transition-all duration-300 ease-in-out',
-        isFullScreen
-          ? 'rounded-none p-0 gap-0'
-          : frameless
-            ? 'agm-photo-frame'
-            : clsx(
-                'rounded-lg p-2 gap-2',
-                appSettings?.useWgpuRenderer !== false ? 'bg-transparent' : 'bg-bg-secondary',
-              ),
+        isFullScreen ? 'rounded-none p-0 gap-0' : 'agm-photo-frame',
       )}
     >
       {hasRenderedAnyPreview && <div className="hidden" data-bench-id="editor-first-frame" />}
       <div
         className={clsx(
-          'shrink-0 relative z-10',
-          frameless && 'hidden',
-          !isInstantTransition && 'transition-all duration-300 ease-in-out',
-          isFullScreen ? 'max-h-0 opacity-0 m-0' : 'max-h-25 opacity-100',
-          toolbarOverflowVisible ? 'overflow-visible' : 'overflow-hidden',
-        )}
-      >
-        <EditorToolbar
-          canRedo={canRedo}
-          canUndo={canUndo}
-          isAndroid={isAndroid}
-          isLoading={isLoading}
-          onBackToLibrary={onBackToLibrary}
-          onImageSelect={onImageSelect}
-          onRedo={redo}
-          onToggleFullScreen={toggleFullScreen}
-          onToggleShowOriginal={toggleShowOriginal}
-          onUndo={undo}
-          selectedImage={selectedImage}
-          showOriginal={showOriginal}
-          showDateView={showExifDateView}
-          onToggleDateView={() => setShowExifDateView((prev) => !prev)}
-          adjustmentsHistory={adjustmentsHistory}
-          adjustmentsHistoryIndex={adjustmentsHistoryIndex}
-          goToAdjustmentsHistoryIndex={goToHistoryIndex}
-        />
-      </div>
-
-      <div
-        className={clsx(
-          'flex-1 relative overflow-hidden touch-none',
-          isFullScreen || frameless ? 'rounded-none' : 'rounded-lg',
+          'flex-1 relative overflow-hidden touch-none rounded-none',
           appSettings?.useWgpuRenderer !== false && !isFullScreen && 'ring-[9999px] ring-bg-secondary',
           !isWgpuActive && (appSettings?.editorNeutralGreyBg ? 'bg-[#808080]' : 'bg-bg-secondary'),
         )}

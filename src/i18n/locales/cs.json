@@ -1961,7 +1961,7 @@
         "negpy": "Pro inspiraci negativní konverzní logiky.",
         "nind": "Za poskytování modelů AI, které pohánějí funkce redukce šumu AI v RapidRAW.",
         "rawler": "Za vynikající přepravku Rust, která poskytuje základ pro zpracování souborů RAW v tomto projektu.",
-        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, B&W, Curve, Grain, Vignetting). Také masky Subjekt, Obloha a Pozadí: jeho kód výběru se SAM 2.1 a DETR. Také korekci objektivu, kterou fotoaparát ukládá do každé fotografie, u Fujifilm a Sony. Také černobílý mix režimu B&W, změřený podle Camera Raw.",
+        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, B&W, Curve, Grain, Vignetting). Také masky Subjekt, Obloha a Pozadí: jeho kód výběru se SAM 2.1 a DETR. Také korekci objektivu, kterou fotoaparát ukládá do každé fotografie, u Fujifilm, Sony a souborů DNG. Také černobílý mix režimu B&W, změřený podle Camera Raw.",
         "sam2": "Za poskytnutí základního modelu používaného pro schopnosti detekce předmětů AI.",
         "spektrafilm": "Pro spektrálně založené filmové emulační LUT od Andrey Volpata, použité pro vestavěné filmové emulace v RapidRAW. Licence CC BY-SA 4.0.",
         "u2net": "Pro zajištění robustní architektury používané pro schopnosti detekce oblohy a popředí AI.",
