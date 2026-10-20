@@ -454,6 +454,14 @@ async fn json(
             let r = crate::mods::lens_name::recover_lens_name(a.path).await?;
             serde_json::to_value(r).map_err(|e| e.to_string())
         }
+        "lens_builtin" => {
+            // The camera's own lens correction, when the photo opens.
+            let a: PathArgs = args_for(&name, args)?;
+            let r = tokio::task::spawn_blocking(move || crate::mods::lens_builtin::lens_builtin(&a.path))
+                .await
+                .map_err(|e| e.to_string())??;
+            serde_json::to_value(r).map_err(|e| e.to_string())
+        }
         "raw_tone_curve" => {
             let a: RawToneArgs = args_for(&name, args)?;
             serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)

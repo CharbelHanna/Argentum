@@ -141,6 +141,10 @@ pub struct GeometryParams {
     pub guided_lines: Vec<GuideLine>,
     #[serde(default)]
     pub guided_perspective_enabled: bool,
+    /// Argentum: the camera's built-in lens correction, in place of lensfun's
+    /// numbers while it is on. See mods/lens_builtin.rs.
+    #[serde(skip)]
+    pub lens_builtin: Option<crate::mods::lens_builtin::Builtin>,
 }
 
 impl Default for GeometryParams {
@@ -171,14 +175,19 @@ impl Default for GeometryParams {
             vig_k3: 0.0,
             guided_lines: Vec::new(),
             guided_perspective_enabled: false,
+            lens_builtin: None,
         }
     }
 }
 
 pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> GeometryParams {
+    // Argentum: the camera's own correction replaces the lensfun profile, so
+    // nothing is corrected twice.
+    let lens_builtin = crate::mods::lens_builtin::Builtin::from_adjustments(adjustments);
     let lens_params = adjustments
         .get("lensDistortionParams")
-        .and_then(|v| v.as_object());
+        .and_then(|v| v.as_object())
+        .filter(|_| lens_builtin.is_none());
 
     let guided = adjustments.get("guidedPerspective");
     let guided_perspective_enabled = guided
@@ -242,6 +251,7 @@ pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> Geometr
             .unwrap_or(0.0) as f32,
         guided_lines,
         guided_perspective_enabled,
+        lens_builtin,
     }
 }
 
@@ -773,6 +783,17 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
         && (vk1.abs() > 1e-6 || vk2.abs() > 1e-6 || vk3.abs() > 1e-6)
         && lens_vig_amt > 0.01;
 
+    // Argentum: the camera's built-in correction (mods/lens_builtin.rs), where
+    // lensfun's would be: distortion, then red and blue against green while
+    // sampling, then the vignetting gain at the pixel sampled.
+    let builtin = params
+        .lens_builtin
+        .as_ref()
+        .map(|b| b.map(width as f32, height as f32));
+    let builtin_ca = builtin
+        .as_ref()
+        .is_some_and(|m| m.lens.chromatic.is_some() && m.amounts.chromatic != 0.0);
+
     let src_raw = src_img.as_raw();
     let width_usize = width as usize;
     let height_usize = height as usize;
@@ -833,6 +854,15 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                         }
                     }
 
+                    // Argentum: built-in distortion, and red and blue's scale against green.
+                    let mut builtin_vr_vb = (1.0, 1.0);
+                    if let Some(map) = &builtin {
+                        let ([dx, dy], s) = map.scales(src_x - cx, src_y - cy);
+                        src_x = cx + dx * s[1];
+                        src_y = cy + dy * s[1];
+                        builtin_vr_vb = (s[0] / s[1], s[2] / s[1]);
+                    }
+
                     if k_distortion.abs() > 1e-5 {
                         let dx = (src_x - cx) as f64;
                         let dy = (src_y - cy) as f64;
@@ -843,10 +873,20 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                         src_y = cy + (dy * f) as f32;
                     }
 
-                    if has_tca {
+                    if builtin_ca {
+                        let (bvr, bvb) = builtin_vr_vb;
+                        interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, bvr, bvb, pixel);
+                    } else if has_tca {
                         interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, vr, vb, pixel);
                     } else {
                         interpolate_pixel(src_raw, width_usize, height_usize, src_x, src_y, pixel);
+                    }
+
+                    if let Some(map) = &builtin {
+                        let gain = map.gain(src_x - cx, src_y - cy);
+                        pixel[0] *= gain;
+                        pixel[1] *= gain;
+                        pixel[2] *= gain;
                     }
 
                     if has_vignetting {
@@ -904,6 +944,12 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
     } else {
         1.0
     };
+
+    // Argentum: the camera's built-in correction, undone (mods/lens_builtin.rs).
+    let builtin = params
+        .lens_builtin
+        .as_ref()
+        .map(|b| b.map(width as f32, height as f32));
 
     let src_raw = src_img.as_raw();
     let width_usize = width as usize;
@@ -990,6 +1036,12 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
                         current_x = cx + (dx * scale) as f32;
                         current_y = cy + (dy * scale) as f32;
                     }
+                }
+
+                if let Some(map) = &builtin {
+                    let [dx, dy] = map.inverse(current_x - cx, current_y - cy);
+                    current_x = cx + dx;
+                    current_y = cy + dy;
                 }
 
                 if auto_crop_scale > 1.0 {
@@ -1171,6 +1223,15 @@ pub fn inverse_transform_point(
                 src_x = cx + (dx * scale);
                 src_y = cy + (dy * scale);
             }
+        }
+
+        // Argentum: the camera's built-in correction (mods/lens_builtin.rs).
+        if let Some(b) = &params.lens_builtin {
+            let [dx, dy] = b
+                .map(width, height)
+                .forward((src_x - cx) as f32, (src_y - cy) as f32);
+            src_x = cx + dx as f64;
+            src_y = cy + dy as f64;
         }
 
         if k_distortion.abs() > 1e-5 {
@@ -1425,6 +1486,7 @@ pub fn is_geometry_identity(params: &GeometryParams) -> bool {
         && dist_identity
         && tca_identity
         && vig_identity
+        && params.lens_builtin.is_none() // Argentum: mods/lens_builtin.rs
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

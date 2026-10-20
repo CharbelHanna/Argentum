@@ -37,6 +37,7 @@ pub mod folder_counts;
 pub mod gpu_runtime;
 pub mod highlights;
 pub mod input_stage;
+pub mod lens_builtin;
 pub mod lens_crop;
 pub mod lens_name;
 pub mod looks;

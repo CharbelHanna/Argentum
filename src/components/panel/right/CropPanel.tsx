@@ -1,4 +1,6 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
+import LensBuiltinSwitch from '../../../argentum/LensBuiltinSwitch'; // Argentum: the camera's own lens correction
+import { LENS_BUILTIN_RESET, LENSFUN_UNUSED, builtinInUse } from '../../../argentum/lensBuiltin';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlipHorizontal,
@@ -526,6 +528,7 @@ export default function CropPanel() {
       lensVignetteEnabled: INITIAL_ADJUSTMENTS.lensVignetteEnabled,
       lensDistortionParams: INITIAL_ADJUSTMENTS.lensDistortionParams,
       lensCorrectionMode: INITIAL_ADJUSTMENTS.lensCorrectionMode,
+      ...LENS_BUILTIN_RESET,
     }));
   };
 
@@ -704,17 +707,22 @@ export default function CropPanel() {
     [myLenses, fetchDistortionParams, setAdjustments],
   );
 
-  const hasDistortion =
-    Math.abs(adjustments.lensDistortionParams?.k1 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.k2 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.k3 || 0) > 1e-6;
-  const hasTca =
-    Math.abs((adjustments.lensDistortionParams?.tca_vr || 1) - 1) > 1e-5 ||
-    Math.abs((adjustments.lensDistortionParams?.tca_vb || 1) - 1) > 1e-5;
-  const hasVignetting =
-    Math.abs(adjustments.lensDistortionParams?.vig_k1 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.vig_k2 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.vig_k3 || 0) > 1e-6;
+  // Argentum: while the camera's own correction is on, the rows act on it.
+  const builtin = builtinInUse(adjustments);
+  const hasDistortion = builtin
+    ? builtin.distortion != null
+    : Math.abs(adjustments.lensDistortionParams?.k1 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.k2 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.k3 || 0) > 1e-6;
+  const hasTca = builtin
+    ? builtin.chromatic != null
+    : Math.abs((adjustments.lensDistortionParams?.tca_vr || 1) - 1) > 1e-5 ||
+      Math.abs((adjustments.lensDistortionParams?.tca_vb || 1) - 1) > 1e-5;
+  const hasVignetting = builtin
+    ? builtin.vignetting != null
+    : Math.abs(adjustments.lensDistortionParams?.vig_k1 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.vig_k2 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.vig_k3 || 0) > 1e-6;
 
   const myLensOptions = useMemo(() => {
     if (myLenses.length === 0) {
@@ -808,6 +816,7 @@ export default function CropPanel() {
         lensCorrectionMode: INITIAL_ADJUSTMENTS.lensCorrectionMode,
         chromaticAberrationRedCyan: INITIAL_ADJUSTMENTS.chromaticAberrationRedCyan,
         chromaticAberrationBlueYellow: INITIAL_ADJUSTMENTS.chromaticAberrationBlueYellow,
+        ...LENS_BUILTIN_RESET,
       }));
     };
 
@@ -1349,7 +1358,8 @@ export default function CropPanel() {
                       className="overflow-hidden"
                     >
                       <div className="px-4 pb-4 pt-4 flex flex-col gap-4">
-                        <div className="w-full p-1 bg-card-active rounded-md">
+                        <LensBuiltinSwitch adjustments={adjustments} setAdjustments={setAdjustments} />
+                        <div className={clsx('w-full p-1 bg-card-active rounded-md', builtin && LENSFUN_UNUSED)}>
                           <div className="relative flex w-full">
                             <motion.div
                               className="absolute top-0 bottom-0 z-0 bg-accent"
@@ -1388,6 +1398,7 @@ export default function CropPanel() {
                           <div
                             className={clsx(
                               'w-full flex items-center justify-center gap-2 p-3 text-sm rounded-md border transition-colors',
+                              builtin && LENSFUN_UNUSED,
                               detectionStatus === 'not_found'
                                 ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                 : adjustments.lensMaker
@@ -1412,7 +1423,7 @@ export default function CropPanel() {
                             )}
                           </div>
                         ) : (
-                          <>
+                          <div className={clsx('flex flex-col gap-4', builtin && LENSFUN_UNUSED)}>
                             <Dropdown
                               options={myLensOptions}
                               value=""
@@ -1433,7 +1444,10 @@ export default function CropPanel() {
                                 placeholder={t('modals.lensCorrection.selectLensModel')}
                               />
                             )}
-                          </>
+                          </div>
+                        )}
+                        {builtin && (
+                          <p className="text-xs text-text-secondary text-center -mt-2">{agT('lensBuiltinUnused')}</p>
                         )}
 
                         <div className="flex flex-col gap-3 mt-2">

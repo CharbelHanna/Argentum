@@ -175,7 +175,7 @@ pub fn generate_transformed_preview(
     adjustments: &serde_json::Value,
     preview_dim: u32,
 ) -> Result<(DynamicImage, f32, (f32, f32)), String> {
-    let transform_hash = calculate_transform_hash(adjustments);
+    let transform_hash = crate::mods::lens_builtin::fold(calculate_transform_hash(adjustments), adjustments); // Argentum
 
     let (transformed_full_res, unscaled_crop_offset) = {
         let mut cache_lock = state
@@ -220,7 +220,7 @@ fn compute_full_transformed_res(
     loaded_image: &LoadedImage,
     adjustments: &serde_json::Value,
 ) -> Result<(Arc<DynamicImage>, (f32, f32)), String> {
-    let geo_hash = crate::cache_utils::calculate_patched_warped_hash(adjustments);
+    let geo_hash = crate::mods::lens_builtin::fold(crate::cache_utils::calculate_patched_warped_hash(adjustments), adjustments); // Argentum
 
     let warped_arc = {
         let mut cache_lock = state
@@ -332,6 +332,7 @@ pub fn get_cached_full_warped_image_for_path(
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_geometry_hash(js_adjustments).hash(&mut hasher);
+    crate::mods::lens_builtin::fold(0, js_adjustments).hash(&mut hasher); // Argentum
     let cache_key = hasher.finish();
 
     {
@@ -431,7 +432,7 @@ fn process_preview_job(
         .clone();
     drop(loaded_image_guard);
 
-    let new_transform_hash = calculate_transform_hash(&adjustments_clone);
+    let new_transform_hash = crate::mods::lens_builtin::fold(calculate_transform_hash(&adjustments_clone), &adjustments_clone); // Argentum
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let live_quality = settings.live_preview_quality.as_deref().unwrap_or("high");
 
