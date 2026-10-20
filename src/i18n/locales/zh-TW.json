@@ -1958,7 +1958,7 @@
         "negpy": "為負片轉換邏輯提供了靈感。",
         "nind": "為 AI 模型提供支援，驅動了 RapidRAW 中的 AI 降噪功能。",
         "rawler": "為優秀的 Rust 庫提供支援，構成了本專案 RAW 檔案處理的基礎。",
-        "rawmakase": "感謝其為 DNG Standard（每張 RAW 的初始外觀）提供的幫助：其相機表中每台相機的曝光偏移，以及 Argentum 用來比對自身結果的預設算繪與銳利化。以及 Argentum 內建的預設（Color、Creative、Curve、Grain、Vignetting）。 以及主體、天空和背景遮罩：其選取程式碼，搭配 SAM 2.1 與 DETR。 以及相機寫入每張照片的鏡頭校正（富士、索尼和 DNG 檔案）。",
+        "rawmakase": "感謝其為 DNG Standard（每張 RAW 的初始外觀）提供的幫助：其相機表中每台相機的曝光偏移，以及 Argentum 用來比對自身結果的預設算繪與銳利化。以及 Argentum 內建的預設（Color、Creative、B&W、Curve、Grain、Vignetting）。 以及主體、天空和背景遮罩：其選取程式碼，搭配 SAM 2.1 與 DETR。 以及相機寫入每張照片的鏡頭校正（富士、索尼和 DNG 檔案）。 以及 B&W 模式的黑白混合（依照 Camera Raw 測量）。",
         "sam2": "為提供基礎模型，用於 AI 主體檢測功能。",
         "spektrafilm": "感謝 Andrea Volpato 提供基於光譜的底片模擬 LUT，為 RapidRAW 的內建底片模擬提供支援。採用 CC BY-SA 4.0 授權。",
         "u2net": "為提供穩健的架構，用於 AI 天空和前景檢測功能。",

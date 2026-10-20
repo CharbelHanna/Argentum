@@ -772,7 +772,7 @@ export interface AdjustmentGroup {
 
 export const ADJUSTMENT_GROUPS: Record<string, AdjustmentGroup[]> = {
   basic: [
-    { label: 'modals.copyPaste.groups.cameraProfile', keys: ['cameraProfile', 'rawToneRendering'] }, // Argentum
+    { label: 'modals.copyPaste.groups.cameraProfile', keys: ['cameraProfile', 'rawToneRendering', 'agBlackWhite'] }, // Argentum
     {
       label: 'modals.copyPaste.groups.exposureToneMapper',
       keys: [BasicAdjustment.Exposure, 'toneMapper'],

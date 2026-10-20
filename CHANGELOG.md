@@ -8,6 +8,23 @@ Newest first.
 
 ### Added
 
+- **B&W.** A Color | B&W switch at the top of Edit > Basic, as Lightroom's Treatment (V switches
+  too). In B&W the photo turns grey after Saturation and before Color Grading, so grading tints
+  the grey, and Edit > Color's Color Mixer gives way to the B&W Mix: eight sliders for how light
+  each colour turns. The Color Mixer, Hue, Saturation and Vibrance are kept in the edit and left
+  out while B&W is on. The grey is RAWmakase's measured mix: Camera Raw 18.7's own renders of a
+  colour chart at a zero mix and with each band at four positions, kept as text in
+  `src-tauri/engine/src/rm_black_white_chart.tsv`, generated from RAWmakase v0.4.1 by
+  `scripts/rawmakase-gray-chart.mjs` (check:merge warns when a newer release is out). Through the
+  shader, each colour comes out within 0.3/255 of the chart's grey. Looks ships RAWmakase's six B&W
+  presets (Green Filter, High Contrast, Neutral, Red Filter, Sepia, Soft) in a B&W group, and Copy
+  settings carries B&W in the Camera Profile group. From RAWmakase @ `a8c5d6d7` (v0.4.0, MIT):
+  `crates/rawmakase-engine/src/develop/black_white.rs` (`gray_grid`, `gray`, the chart test) and
+  its `black_white_chart.bin`, `crates/rawmakase-engine/src/develop/gpu/develop.wgsl` (`mixer`,
+  `adjust`), `crates/rawmakase-interop/src/xmp/apply.rs` (`ConvertToGrayscale`, `GrayMixer`) and
+  `assets/presets/BandW`. Unlike RAWmakase, which grades before its grey step and so renders Sepia
+  untinted, Color Grading tints the grey, with Lightroom's measured grading for the Looks (see
+  "Color Grading renders as Lightroom's" under Changed). No Auto mix yet.
 - **DNGs get the lens correction they carry.** A DNG records the corrections Lightroom applies
   as opcodes: FixVignetteRadial (corner shading) and WarpRectilinear (distortion, and colour
   fringing when it has a plane per colour). Leica, DJI's drones, phones and Lightroom's own DNGs
@@ -204,8 +221,8 @@ Newest first.
   renders with RapidRAW's grading as before. On an 18% grey, Sepia's warmth (red minus blue) goes
   from 0.0002 to 0.057. Through the shader, each test colour is within 0.001/255 of the engine's
   grading, and the engine's copy gives RAWmakase's own gains bit for bit on 4,000 random gradings.
-  Looks it changes: Color > Cool, Matte and Warm, Creative > Faded Gold, and B&W > Sepia once
-  B&W is in; Creative > Concrete Haze has no grading. From RAWmakase @ `5a2414b4` (v0.4.1, MIT;
+  Looks it changes: Color > Cool, Matte and Warm, Creative > Faded Gold and B&W > Sepia;
+  Creative > Concrete Haze has no grading. From RAWmakase @ `5a2414b4` (v0.4.1, MIT;
   these files are unchanged since v0.4.0): `crates/rawmakase-engine/src/develop/color_grade_curves.rs`
   and its `color_grade_curves.bin`, a test from `color_grade.rs`, `bracket` from `parametric.rs`,
   and `grade` from `gpu/develop.wgsl`.

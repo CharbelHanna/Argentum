@@ -198,6 +198,7 @@ function upstreamAndFork() {
   for (const f of [
     'check-mergeability.mjs',
     'rawmakase-cameras.mjs',
+    'rawmakase-gray-chart.mjs',
     'rawmakase-grade-curves.mjs',
     'upstream-anchors.mjs',
     'upstream-borrows.mjs',

@@ -579,7 +579,7 @@ const lineThatCarries = (text, pattern) => {
 
 test('the interface is today\'s app shell, editor and panels, and nothing beside them', () => {
   for (const f of ['src/App.tsx', 'src/components/panel/Editor.tsx', 'src/components/panel/right/ExportPanel.tsx',
-    'src/components/adjustments/Color.tsx', 'src/components/views/EditorView.tsx']) {
+    'src/components/adjustments/Color.tsx', 'src/components/views/LibraryView.tsx']) {
     assert.equal(isInterface(f), true, f);
   }
   for (const f of ['src/AppX.tsx', 'src/components/ui/Slider.tsx', 'src/components/modals/ImportSettingsModal.tsx',

@@ -925,6 +925,7 @@ mod tests {
 }
 
 /// Through the real shader, on a GPU: `cargo test --lib dng_standard::gpu -- --ignored`.
+/// B&W's GPU tests (black_white.rs) render through the same helpers.
 #[cfg(test)]
 pub(crate) mod gpu {
     use super::*;

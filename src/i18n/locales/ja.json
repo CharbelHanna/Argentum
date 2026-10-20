@@ -1958,7 +1958,7 @@
         "negpy": "ネガ反転アルゴリズムのヒントとなりました。",
         "nind": "AIノイズ低減機能を支えるAIモデルを提供しています。",
         "rawler": "RAWファイル処理の基盤となる優れたRustライブラリを提供しています。",
-        "rawmakase": "DNG Standard（すべての RAW の初期の見た目）のために：カメラ表による各カメラの露出オフセット、そして Argentum が自らの結果を比較している既定の描画とシャープネスに感謝します。 Argentum に付属するプリセット（Color、Creative、Curve、Grain、Vignetting）も。 また、被写体・空・背景のマスク（SAM 2.1 と DETR を使う選択コード）も。 また、カメラが各写真に記録するレンズ補正（Fujifilm、Sony、DNG ファイル）も。",
+        "rawmakase": "DNG Standard（すべての RAW の初期の見た目）のために：カメラ表による各カメラの露出オフセット、そして Argentum が自らの結果を比較している既定の描画とシャープネスに感謝します。 Argentum に付属するプリセット（Color、Creative、B&W、Curve、Grain、Vignetting）も。 また、被写体・空・背景のマスク（SAM 2.1 と DETR を使う選択コード）も。 また、カメラが各写真に記録するレンズ補正（Fujifilm、Sony、DNG ファイル）も。 また、B&W モードの白黒ミックス（Camera Raw に合わせて測定）も。",
         "sam2": "AI被写体検出機能の基盤となるモデルを提供しています。",
         "spektrafilm": "RapidRAW の内蔵フィルムエミュレーションを支える、Andrea Volpato 氏によるスペクトルベースのフィルムエミュレーション LUT を提供してくださったことに。ライセンスは CC BY-SA 4.0 です。",
         "u2net": "AIによる空や手前の自動検出に用いる、堅牢なアーキテクチャを提供しています。",

@@ -218,13 +218,18 @@ mod tests {
             1,
             "the grading stage should be called exactly once"
         );
+        assert_eq!(
+            SOURCE.matches("= ag_stage_color(").count(),
+            1,
+            "the colour stage (B&W) should be called exactly once"
+        );
     }
 
     /// The adjustments buffer is written from Rust and read by WGSL, and the
     /// two sides are kept in step by hand. A field added to one and not the
     /// other - or added with a different size - shifts everything after it,
     /// and the shader reads garbage with no error anywhere. Argentum adds
-    /// fields to their struct (the camera profile, RAW tone, sharpening, grading), so
+    /// fields to their struct (the camera profile, RAW tone, sharpening, grading, B&W), so
     /// this compares the sizes naga computes with the sizes Rust lays out.
     #[test]
     fn the_adjustments_have_the_same_layout_on_both_sides() {
@@ -246,6 +251,10 @@ mod tests {
         assert_eq!(
             size_of("AgGrade"),
             std::mem::size_of::<crate::mods::color_grade::Params>()
+        );
+        assert_eq!(
+            size_of("AgBlackWhite"),
+            std::mem::size_of::<crate::mods::black_white::Params>()
         );
         assert_eq!(
             size_of("GlobalAdjustments"),

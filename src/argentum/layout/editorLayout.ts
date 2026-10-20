@@ -126,8 +126,8 @@ export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
 
 /**
  * Whether the Modern window is in charge: always, now that it is the only
- * arrangement. Kept while Classic's code is still in the app (App.tsx still
- * draws it for a narrow portrait window), so the places that ask stay
- * findable for its removal.
+ * arrangement. Kept while FolderTree.tsx still holds Classic's branches, which
+ * carry the albums section and go with the album decision (build order slice
+ * 8), so the places that ask stay findable for that removal.
  */
 export const useModernLayout = () => true;
