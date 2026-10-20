@@ -34,7 +34,8 @@ export default function HistoryPanel({ bare = false }: { bare?: boolean }) {
       <div className={clsx('p-3 flex items-center shrink-0 border-b border-surface', bare && 'hidden')}>
         <Text variant={TextVariants.title}>{agT('layoutHistory')}</Text>
       </div>
-      <div ref={listRef} className="grow overflow-y-auto custom-scrollbar p-2 flex flex-col gap-0.5">
+      {/* agm-scroll, not custom-scrollbar: the UI benchmark scrolls the first of those, the grid (modern.css). */}
+      <div ref={listRef} className="grow overflow-y-auto agm-scroll p-2 flex flex-col gap-0.5">
         {names.length === 0 ? (
           <Text color={TextColors.secondary} className="p-2">
             {agT('layoutHistoryEmpty')}
