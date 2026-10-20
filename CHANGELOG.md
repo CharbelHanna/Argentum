@@ -189,6 +189,27 @@ Newest first.
 
 ### Changed
 
+- **Color Grading renders as Lightroom's, for new edits and Looks.** Today's Color Grading
+  (RapidRAW's) adds a fixed tint, cut to a tenth in the shadows, so it showed only in the darkest
+  tones: Lightroom's split toning at Saturation 25 left a mid-grey untinted. A new grading, the
+  photo's or a mask's, and every Look now render with RAWmakase's measured copy of Lightroom's:
+  Camera Raw 18.7's own renders of a colour chart under about 740 grading settings, fitted as a
+  curve per channel of linear ProPhoto RGB, kept as text in
+  `src-tauri/engine/src/rm_color_grade_curves.tsv` and generated from RAWmakase v0.4.1 by
+  `scripts/rawmakase-grade-curves.mjs` (check:merge warns when a newer release is out). It runs
+  where Lightroom grades, after the tone curve, the Curves panel and a LUT, with the same wheels and
+  sliders in the same units. A grading saved before this keeps its look: the panel marks a Color
+  Grading block (`agLightroom: 1` inside `colorGrading`) the first time one that grades nothing is
+  changed, the Looks are marked as they are read, and an unmarked block that grades something
+  renders with RapidRAW's grading as before. On an 18% grey, Sepia's warmth (red minus blue) goes
+  from 0.0002 to 0.057. Through the shader, each test colour is within 0.001/255 of the engine's
+  grading, and the engine's copy gives RAWmakase's own gains bit for bit on 4,000 random gradings.
+  Looks it changes: Color > Cool, Matte and Warm, Creative > Faded Gold, and B&W > Sepia once
+  B&W is in; Creative > Concrete Haze has no grading. From RAWmakase @ `5a2414b4` (v0.4.1, MIT;
+  these files are unchanged since v0.4.0): `crates/rawmakase-engine/src/develop/color_grade_curves.rs`
+  and its `color_grade_curves.bin`, a test from `color_grade.rs`, `bracket` from `parametric.rs`,
+  and `grade` from `gpu/develop.wgsl`.
+
 - **The editor renders 20-45x faster on Vulkan and DirectX 12, so Processing Backend = Auto is
   fast again.** The main shader passed the tone curves (the RGB curves and the RAW tone curve of
   DNG Standard and Base Curve) and the eight HSL bands to its functions as arrays. wgpu copies

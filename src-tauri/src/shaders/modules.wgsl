@@ -53,7 +53,7 @@
 //
 // STAGES
 //
-// Three of them, because tools genuinely belong at different points and pretending
+// Four of them, because tools genuinely belong at different points and pretending
 // otherwise would be worse than the line it saves:
 //
 //   ag_stage_scene_linear  before the tone curve, on linear data. Colour work
@@ -61,6 +61,8 @@
 //                          involving a matrix.
 //   ag_stage_tone          right after their tone mapper, which it can replace
 //                          for a RAW: the RAW tone renderings (see below).
+//   ag_stage_grade         after the Curves panel and a LUT, before grain:
+//                          Lightroom's colour grading (see below).
 //   ag_stage_display       after tone mapping, on display-referred data.
 //
 // A tool joins the stage it belongs to here, so adding it never touches their
