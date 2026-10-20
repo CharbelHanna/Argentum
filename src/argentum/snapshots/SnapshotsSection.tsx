@@ -180,7 +180,8 @@ export default function SnapshotsSection({ editing, height }: { editing: boolean
         </span>
       </div>
       {!folded && (
-        <div className="agm-snapshots-body custom-scrollbar" style={{ height }}>
+        // agm-scroll, not custom-scrollbar: the UI benchmark scrolls the first of those, the grid (modern.css).
+        <div className="agm-snapshots-body agm-scroll" style={{ height }}>
           {shown.length === 0 && editing && <div className="agm-hint px-2.5 py-1">{t('snapEmpty')}</div>}
           {shown.map((snapshot) => (
             <div

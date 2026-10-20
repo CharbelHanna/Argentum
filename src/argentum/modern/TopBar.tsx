@@ -425,7 +425,14 @@ function PhotoTools({ onZoom }: { onZoom(zoom: number, fitToWindow?: boolean): v
 
   return (
     <div className="agm-context">
-      <button className="agm-btn" disabled={historyIndex <= 0} onClick={undo} data-tooltip={t('mwUndo')}>
+      {/* data-bench-id: bench/replay.js clicks undo here, as it did on their toolbar's button. */}
+      <button
+        className="agm-btn"
+        disabled={historyIndex <= 0}
+        onClick={undo}
+        data-tooltip={t('mwUndo')}
+        data-bench-id="undo"
+      >
         <Undo2 size={16} />
       </button>
       <button

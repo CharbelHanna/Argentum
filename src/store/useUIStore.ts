@@ -229,13 +229,9 @@ export interface UIState {
   panelLayout: Record<PanelRegion, Panel[]>;
   activePanels: Record<PanelRegion, Panel | null>;
   activeLayoutDragItem: Panel | null;
-  setLayoutDragItem: (panel: Panel | null) => void;
-  movePanel: (panel: Panel, toRegion: PanelRegion) => void;
-  movePanelToIndex: (panel: Panel, toRegion: PanelRegion, index: number) => void;
   setActivePanel: (region: PanelRegion, panel: Panel | null) => void;
 
   panelSwitcherPlacement: Record<PanelRegion, SwitcherPlacement>;
-  setPanelSwitcherPlacement: (region: PanelRegion, placement: SwitcherPlacement) => void;
 
   activePanel: Panel | null;
   renderedPanel: Panel | null;
@@ -316,10 +312,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     rightTop: 'right',
     rightBottom: 'right',
   },
-  setPanelSwitcherPlacement: (region, placement) =>
-    set((state) => ({
-      panelSwitcherPlacement: { ...state.panelSwitcherPlacement, [region]: placement },
-    })),
 
   activePanel: Panel.Adjustments,
   renderedPanel: Panel.Adjustments,
@@ -381,78 +373,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   collageModalState: { isOpen: false, sourceImages: [] },
 
   setUI: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
-
-  setLayoutDragItem: (panel) => set({ activeLayoutDragItem: panel }),
-
-  movePanel: (panel, toRegion) =>
-    set((state) => {
-      const layout = {
-        leftTop: [...state.panelLayout.leftTop],
-        leftBottom: [...state.panelLayout.leftBottom],
-        rightTop: [...state.panelLayout.rightTop],
-        rightBottom: [...state.panelLayout.rightBottom],
-      };
-      const active = { ...state.activePanels };
-
-      let fromRegion: PanelRegion | null = null;
-      (Object.keys(layout) as PanelRegion[]).forEach((r) => {
-        if (layout[r].includes(panel)) {
-          fromRegion = r;
-          layout[r] = layout[r].filter((p) => p !== panel);
-        }
-      });
-
-      if (!layout[toRegion].includes(panel)) layout[toRegion].push(panel);
-
-      if (fromRegion && active[fromRegion] === panel) {
-        active[fromRegion] = layout[fromRegion].length > 0 ? layout[fromRegion][0] : null;
-      }
-
-      active[toRegion] = panel;
-
-      return {
-        panelLayout: layout,
-        activePanels: active,
-        activeLayoutDragItem: null,
-        activePanel: panel,
-        renderedPanel: panel,
-      };
-    }),
-
-  movePanelToIndex: (panel, toRegion, index) =>
-    set((state) => {
-      const layout = {
-        leftTop: [...state.panelLayout.leftTop],
-        leftBottom: [...state.panelLayout.leftBottom],
-        rightTop: [...state.panelLayout.rightTop],
-        rightBottom: [...state.panelLayout.rightBottom],
-      };
-      const active = { ...state.activePanels };
-
-      let fromRegion: PanelRegion | null = null;
-      (Object.keys(layout) as PanelRegion[]).forEach((r) => {
-        if (layout[r].includes(panel)) {
-          fromRegion = r;
-          layout[r] = layout[r].filter((p) => p !== panel);
-        }
-      });
-
-      const clampedIndex = Math.max(0, Math.min(index, layout[toRegion].length));
-      layout[toRegion].splice(clampedIndex, 0, panel);
-
-      if (fromRegion && active[fromRegion] === panel) {
-        active[fromRegion] = layout[fromRegion].length > 0 ? layout[fromRegion][0] : null;
-      }
-      active[toRegion] = panel;
-
-      return {
-        panelLayout: layout,
-        activePanels: active,
-        activeLayoutDragItem: null,
-        activePanel: panel,
-        renderedPanel: panel,
-      };
-    }),
 
   setActivePanel: (region, panel) =>
     set((state) => {

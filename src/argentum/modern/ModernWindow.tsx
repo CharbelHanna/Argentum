@@ -1,5 +1,5 @@
 /**
- * The Modern window: the whole app while the Modern layout is chosen. Ours.
+ * The Modern window: the whole app, at every window size. Ours.
  *
  * One bar per edge. The top bar is also the title bar; the left column holds the
  * folders and the history; the centre shows the folder's grid or the open photo
@@ -10,8 +10,8 @@
  *
  * Every part inside is today's: their folder tree, library grid, editor,
  * filmstrip and panels, arranged here and drawn in the Modern look
- * (modern.css). App.tsx passes its handlers through and renders this in place
- * of its own title bar, side panels and views; Classic is untouched.
+ * (modern.css). App.tsx passes its handlers through and renders only this;
+ * Classic's title bar, side panels and views are gone.
  */
 
 import {
@@ -27,7 +27,12 @@ import { useShallow } from 'zustand/react/shallow';
 import clsx from 'clsx';
 import Editor from '../../components/panel/Editor';
 import LibraryView from '../../components/views/LibraryView';
-import { type ImageFile, Panel, type ThumbnailAspectRatio } from '../../components/ui/AppProperties';
+import {
+  type ImageFile,
+  type LibraryViewMode,
+  Panel,
+  type ThumbnailAspectRatio,
+} from '../../components/ui/AppProperties';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
@@ -54,6 +59,12 @@ const RIGHT = { start: 330, min: 300, max: 480 };
 const widthOf = (stored: number, c: typeof LEFT) =>
   stored === DEFAULT_PANEL_WIDTH ? c.start : Math.min(c.max, Math.max(c.min, stored));
 
+/** The grid's props, with the view tools the top bar sets. */
+type LibraryProps = ComponentProps<typeof LibraryView> & {
+  setThumbnailAspectRatio(ratio: ThumbnailAspectRatio): void;
+  setLibraryViewMode(mode: LibraryViewMode): void;
+};
+
 /** Under this much room for the centre, the left column folds by itself; the tools never do. */
 const CENTRE_MIN_PX = 480;
 
@@ -76,7 +87,7 @@ export interface ModernWindowProps {
   onOpenPhoto(path: string): void;
   onZoom(zoom: number, fitToWindow?: boolean): void;
   // The grid and the filmstrip.
-  libraryProps: ComponentProps<typeof LibraryView>;
+  libraryProps: LibraryProps;
   sortedImageList: ImageFile[];
   thumbnailAspectRatio: ThumbnailAspectRatio;
   onSelectInGrid(path: string, event: MouseEvent): void;
@@ -116,8 +127,8 @@ export default function ModernWindow(props: ModernWindowProps) {
   const windowWidth = useWindowWidth();
   const roomForLeft = windowWidth - left - (uiVisibility.rightPanel ? right : 0) >= CENTRE_MIN_PX;
 
-  // No start screen: with no folders yet (the app has just opened, or the
-  // layout was just chosen), the column is filled at once.
+  // No start screen: with no folders yet (the app has just opened, or Esc left
+  // the folder), the column is filled at once.
   const { onStart } = props;
   useEffect(() => {
     if (noFolders && !unavailable && settingsRead) onStart();
@@ -156,19 +167,16 @@ export default function ModernWindow(props: ModernWindowProps) {
             <div className={clsx('flex-1 flex flex-col min-h-0 relative', !editing && 'hidden')}>
               {selectedImage && (
                 <>
-                  <Editor
-                    frameless
-                    onBackToLibrary={props.onBackToLibrary}
-                    onContextMenu={props.onEditorContextMenu}
-                    onImageSelect={props.onOpenInEditor}
-                    transformWrapperRef={props.transformWrapperRef}
-                  />
+                  <Editor onContextMenu={props.onEditorContextMenu} transformWrapperRef={props.transformWrapperRef} />
                   {navigatorFloats && <FloatingNavigator {...navigator} />}
+                  {/* Never shown: bench/replay.js leaves the photo by clicking this, as it did their
+                      toolbar's back button. People press Esc, which runs the same handler. */}
+                  <button className="hidden" data-bench-id="back-to-library" onClick={props.onBackToLibrary} />
                 </>
               )}
             </div>
             <div className={clsx('flex-1 flex flex-col min-h-0', editing && 'hidden')}>
-              <LibraryView {...props.libraryProps} modern />
+              <LibraryView {...props.libraryProps} />
             </div>
             {isSettingsOpen && (
               <div className="absolute inset-0 z-30 flex">

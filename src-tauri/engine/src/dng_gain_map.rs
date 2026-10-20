@@ -26,11 +26,11 @@
 //! subtracts the black and divides by the range, that is the same value.
 //! Positions are the active area's, as OpcodeList2's are.
 
-use rawler::formats::tiff::reader::TiffReader;
-use rawler::formats::tiff::{GenericTiffReader, Value};
 use rawler::rawimage::{RawImage, RawImageData};
-use rawler::tags::{DngTag, TiffCommonTag};
+use rawler::tags::DngTag;
 use rayon::prelude::*;
+
+use crate::dng_opcodes::{self, Params};
 
 /// The latest DNG version whose opcodes are understood (1.7.1.0).
 const VERSION: u32 = 0x0107_0100;
@@ -64,7 +64,8 @@ pub fn apply(raw: &mut RawImage, file: &[u8]) -> usize {
     if raw.cpp != 1 {
         return 0;
     }
-    let Some(maps) = opcode_list_2(file).and_then(|list| parse(&list)) else {
+    let Some(maps) = dng_opcodes::list(file, DngTag::OpcodeList2).and_then(|list| parse(&list))
+    else {
         return 0;
     };
     if maps.is_empty() {
@@ -183,73 +184,13 @@ impl GainMap {
     }
 }
 
-/// OpcodeList2 of a DNG's raw image, as stored. None for anything else.
-fn opcode_list_2(file: &[u8]) -> Option<Vec<u8>> {
-    if file.len() < 8 || !(file.starts_with(b"II") || file.starts_with(b"MM")) {
-        return None;
-    }
-    let tiff = GenericTiffReader::new_with_buffer(file, 0, 0, None).ok()?;
-    tiff.root_ifd().get_entry(DngTag::DNGVersion)?;
-    let raw_ifd = tiff
-        .find_ifds_with_tag(DngTag::OpcodeList2)
-        .into_iter()
-        .find(|ifd| {
-            ifd.get_entry(TiffCommonTag::NewSubFileType)
-                .is_none_or(|e| e.force_u32(0) & 1 == 0)
-        })?;
-    match &raw_ifd.get_entry(DngTag::OpcodeList2)?.value {
-        Value::Undefined(bytes) | Value::Byte(bytes) => Some(bytes.clone()),
-        _ => None,
-    }
-}
-
-/// Big-endian reads of an opcode list.
-struct Params<'a> {
-    data: &'a [u8],
-    at: usize,
-}
-
-impl Params<'_> {
-    fn take(&mut self, n: usize) -> Option<&[u8]> {
-        let end = self.at.checked_add(n)?;
-        let bytes = self.data.get(self.at..end)?;
-        self.at = end;
-        Some(bytes)
-    }
-    fn u32(&mut self) -> Option<u32> {
-        let b = self.take(4)?;
-        Some(u32::from_be_bytes([b[0], b[1], b[2], b[3]]))
-    }
-    fn f32(&mut self) -> Option<f32> {
-        self.u32().map(f32::from_bits)
-    }
-    fn f64(&mut self) -> Option<f64> {
-        let mut v = [0u8; 8];
-        v.copy_from_slice(self.take(8)?);
-        Some(f64::from_be_bytes(v))
-    }
-    fn usize(&mut self) -> Option<usize> {
-        usize::try_from(self.u32()?).ok()
-    }
-}
-
 /// The list's gain maps, the opcodes skipped left out; `None` when the list
 /// does not parse (it is then not applied at all).
 fn parse(list: &[u8]) -> Option<Vec<GainMap>> {
-    if list.is_empty() {
-        return Some(Vec::new());
-    }
-    let mut p = Params { data: list, at: 0 };
-    let count = p.u32()?;
     let mut out = Vec::new();
-    for _ in 0..count {
-        let id = p.u32()?;
-        let version = p.u32()?;
-        let _flags = p.u32()?;
-        let size = p.usize()?;
-        let data = p.take(size)?;
-        if id == GAIN_MAP && version <= VERSION {
-            out.extend(gain_map(data)?);
+    for op in dng_opcodes::opcodes(list)? {
+        if op.id == GAIN_MAP && op.version <= VERSION {
+            out.extend(gain_map(op.params)?);
         }
     }
     Some(out)
@@ -462,11 +403,5 @@ mod tests {
             after.iter().zip(&before).all(|(a, b)| a > b),
             "corners came up"
         );
-    }
-
-    #[test]
-    fn a_file_that_is_not_a_dng_has_no_list() {
-        assert_eq!(opcode_list_2(b"not a tiff"), None);
-        assert_eq!(opcode_list_2(&[]), None);
     }
 }
