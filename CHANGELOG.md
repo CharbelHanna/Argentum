@@ -14,7 +14,7 @@ Newest first.
   each colour turns. The Color Mixer, Hue, Saturation and Vibrance are kept in the edit and left
   out while B&W is on. The grey is RAWmakase's measured mix: Camera Raw 18.7's own renders of a
   colour chart at a zero mix and with each band at four positions, kept as text in
-  `src-tauri/engine/src/rm_black_white_chart.tsv`, generated from a RAWmakase release by
+  `src-tauri/engine/src/rm_black_white_chart.tsv`, generated from RAWmakase v0.4.1 by
   `scripts/rawmakase-gray-chart.mjs` (check:merge warns when a newer release is out). Through the
   shader, each colour comes out within 0.3/255 of the chart's grey. Looks ships RAWmakase's six B&W
   presets (Green Filter, High Contrast, Neutral, Red Filter, Sepia, Soft) in a B&W group, and Copy

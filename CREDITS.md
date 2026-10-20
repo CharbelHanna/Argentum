@@ -88,8 +88,8 @@ Grain and Vignetting, 26 Lightroom XMP files shipped unchanged in
 Argentum's own XMP import. The Amount slider for a preset follows its rule: it
 starts from the photo as it was and moves only what the preset changes.
 
-**B&W's black and white mix** is RAWmakase's (`black_white.rs` and its chart @
-`a8c5d6d7`): the grey Camera Raw 18.7 makes of each colour, measured by its
+**B&W's black and white mix** is RAWmakase's (`black_white.rs` @ `a8c5d6d7`, its
+chart at v0.4.1, unchanged since): the grey Camera Raw 18.7 makes of each colour, measured by its
 contributors on a colour chart at a zero mix and with each of the eight bands at
 four positions, kept in Argentum as `src-tauri/engine/src/rm_black_white_chart.tsv`
 and regenerated from each RAWmakase release, which the chart names.
