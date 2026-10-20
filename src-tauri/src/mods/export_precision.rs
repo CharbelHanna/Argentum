@@ -273,19 +273,45 @@ pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
 /// kills a fork. Here the depth is already in the image: an 8-bit export renders
 /// to `ImageRgba8` and a 16-bit one to `ImageRgba32F`, so the encoder reads what
 /// it was handed and their file keeps one call.
+///
+/// `dpi`, when set, is written as the TIFF resolution in pixels per inch, for
+/// print. The tag writing is RapidRAW's `write_tiff` (src-tauri/src/export_processing.rs
+/// @ 66bbcb95, "feat(export): add DPI setting for print exports").
 pub fn encode_tiff<W: std::io::Write + std::io::Seek>(
     image: &DynamicImage,
     into: &mut W,
+    dpi: Option<u16>,
 ) -> Result<(), String> {
-    let to_encode = match image {
+    use tiff::encoder::{Rational, TiffEncoder, colortype};
+    use tiff::tags::ResolutionUnit;
+
+    let (width, height) = (image.width(), image.height());
+    let mut encoder = TiffEncoder::new(into).map_err(|e| e.to_string())?;
+    let resolution = dpi.map(|dpi| Rational {
+        n: dpi.into(),
+        d: 1,
+    });
+    match image {
         DynamicImage::ImageRgb8(_) | DynamicImage::ImageRgba8(_) => {
-            DynamicImage::ImageRgb8(image.to_rgb8())
+            let mut tiff = encoder
+                .new_image::<colortype::RGB8>(width, height)
+                .map_err(|e| e.to_string())?;
+            if let Some(resolution) = resolution {
+                tiff.resolution(ResolutionUnit::Inch, resolution);
+            }
+            tiff.write_data(image.to_rgb8().as_raw())
         }
-        _ => DynamicImage::ImageRgb16(image.to_rgb16()),
-    };
-    to_encode
-        .write_to(into, image::ImageFormat::Tiff)
-        .map_err(|e| e.to_string())
+        _ => {
+            let mut tiff = encoder
+                .new_image::<colortype::RGB16>(width, height)
+                .map_err(|e| e.to_string())?;
+            if let Some(resolution) = resolution {
+                tiff.resolution(ResolutionUnit::Inch, resolution);
+            }
+            tiff.write_data(image.to_rgb16().as_raw())
+        }
+    }
+    .map_err(|e| e.to_string())
 }
 
 /// Which render target a pipeline is built for.
@@ -936,7 +962,7 @@ mod tests {
             image::Rgba([(x * 60) as u8, (y * 90) as u8, 20, 255])
         }));
         let mut bytes = Vec::new();
-        encode_tiff(&eight, &mut std::io::Cursor::new(&mut bytes)).expect("encode 8-bit");
+        encode_tiff(&eight, &mut std::io::Cursor::new(&mut bytes), None).expect("encode 8-bit");
         let back = image::load_from_memory_with_format(&bytes, image::ImageFormat::Tiff)
             .expect("decode 8-bit");
         assert!(
@@ -947,7 +973,7 @@ mod tests {
 
         let deep = ramp(4);
         let mut bytes16 = Vec::new();
-        encode_tiff(&deep, &mut std::io::Cursor::new(&mut bytes16)).expect("encode 16-bit");
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut bytes16), None).expect("encode 16-bit");
         let back16 = image::load_from_memory_with_format(&bytes16, image::ImageFormat::Tiff)
             .expect("decode 16-bit");
         assert!(
@@ -973,7 +999,7 @@ mod tests {
         let widened = DynamicImage::ImageRgba8(real.to_rgba8());
 
         let mut deep = Vec::new();
-        encode_tiff(&real, &mut std::io::Cursor::new(&mut deep)).expect("16-bit");
+        encode_tiff(&real, &mut std::io::Cursor::new(&mut deep), None).expect("16-bit");
         let mut shallow_widened = Vec::new();
         DynamicImage::ImageRgb16(widened.to_rgb16())
             .write_to(
@@ -1004,9 +1030,9 @@ mod tests {
         let flat = DynamicImage::ImageRgba8(deep.to_rgba8());
 
         let mut small = Vec::new();
-        encode_tiff(&flat, &mut std::io::Cursor::new(&mut small)).expect("8-bit");
+        encode_tiff(&flat, &mut std::io::Cursor::new(&mut small), None).expect("8-bit");
         let mut large = Vec::new();
-        encode_tiff(&deep, &mut std::io::Cursor::new(&mut large)).expect("16-bit");
+        encode_tiff(&deep, &mut std::io::Cursor::new(&mut large), None).expect("16-bit");
 
         assert!(
             small.len() < large.len(),
@@ -1143,8 +1169,8 @@ mod gpu_tests {
         get_all_adjustments_from_json(
             &serde_json::json!({}),
             false,
-            crate::white_balance::WhiteBalance::reference(),
-            None,
+            crate::as_shot::AsShot::reference(),
+            Default::default(),
             None,
         )
     }

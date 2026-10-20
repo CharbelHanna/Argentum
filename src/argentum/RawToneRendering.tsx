@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
+import { rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
 
 type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
@@ -31,6 +32,57 @@ interface ToneCurvePoint {
 
 const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard'];
 
+/** What a highlight-protecting camera mode held back (mods/highlight_protection.rs). */
+interface HeldBack {
+  mode:
+    | 'fujifilmDr200'
+    | 'fujifilmDr400'
+    | 'canonHighlightTonePriority'
+    | 'nikonHlg'
+    | 'nikonActiveDLighting'
+    | 'olympusGradation'
+    | 'pentaxDynamicRange';
+  ev: number;
+}
+
+const HELD_BACK_NAMES = {
+  fujifilmDr200: 'heldBackFujifilmDr200',
+  fujifilmDr400: 'heldBackFujifilmDr400',
+  canonHighlightTonePriority: 'heldBackCanonHighlightTonePriority',
+  nikonHlg: 'heldBackNikonHlg',
+  nikonActiveDLighting: 'heldBackNikonActiveDLighting',
+  olympusGradation: 'heldBackOlympusGradation',
+  pentaxDynamicRange: 'heldBackPentaxDynamicRange',
+} as const;
+
+/**
+ * Under DNG Standard, the note that says a camera mode recorded this photo
+ * darker and how much DNG Standard gives back, so a brighter start has a reason
+ * where the rendering is chosen.
+ */
+function HeldBackNote({ path }: { path: string }) {
+  const t = useAgTranslation();
+  const [heldBack, setHeldBack] = useState<HeldBack | null>(null);
+  useEffect(() => {
+    let current = true;
+    setHeldBack(null);
+    ag<HeldBack | null>('dng_standard_held_back', { path })
+      .then((found) => current && setHeldBack(found))
+      .catch((error) => console.warn('Could not read what the camera held back', error));
+    return () => {
+      current = false;
+    };
+  }, [path]);
+  if (!heldBack) return null;
+  const ev = heldBack.ev.toFixed(1);
+  const fill = (text: string) => text.replace('{mode}', t(HELD_BACK_NAMES[heldBack.mode])).replaceAll('{ev}', ev);
+  return (
+    <p className="mt-1 text-xs text-text-secondary" data-tooltip={fill(t('heldBackTip'))}>
+      ⓘ {fill(t('heldBackNote'))}
+    </p>
+  );
+}
+
 export default function RawToneRendering() {
   const t = useAgTranslation();
   const selectedImage = useEditorStore((s: any) => s.selectedImage);
@@ -38,8 +90,9 @@ export default function RawToneRendering() {
   const { setAdjustments } = useEditorActions();
   const path: string | undefined = selectedImage?.path;
   const isRaw = selectedImage?.isRaw === true;
-  const current: RawToneRenderingMode = MODES.includes(adjustments?.rawToneRendering)
-    ? adjustments.rawToneRendering
+  const asked = rawToneRenderingOf(adjustments);
+  const current: RawToneRenderingMode = MODES.includes(asked as RawToneRenderingMode)
+    ? (asked as RawToneRenderingMode)
     : 'default';
   const [busy, setBusy] = useState(false);
 
@@ -111,6 +164,7 @@ export default function RawToneRendering() {
         </select>
       </div>
       {busy && <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>}
+      {current === 'dngStandard' && path && <HeldBackNote path={path} />}
     </div>
   );
 }

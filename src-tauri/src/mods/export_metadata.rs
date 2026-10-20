@@ -103,6 +103,8 @@ pub fn write_export_metadata(
     output_format: &str,
     keep_metadata: bool,
     strip_gps: bool,
+    xmp: &crate::exif_processing::ExportXmp,
+    dpi: Option<u16>,
 ) -> Result<(), String> {
     let format = output_format.to_lowercase();
 
@@ -113,13 +115,15 @@ pub fn write_export_metadata(
             output_format,
             keep_metadata,
             strip_gps,
+            xmp,
+            dpi,
         );
     }
 
     // A failure here means a TIFF without metadata, which is what a TIFF got
     // before this module existed. It is never a reason to fail the export and
     // lose the photograph, so every path below warns and returns Ok.
-    match merge_into_tiff(image_bytes, original_path_str, strip_gps) {
+    match merge_into_tiff(image_bytes, original_path_str, strip_gps, dpi.is_some()) {
         Ok(()) => Ok(()),
         Err(e) => {
             log::warn!("Could not write metadata into the exported TIFF: {e}");
@@ -128,11 +132,14 @@ pub fn write_export_metadata(
     }
 }
 
-/// Upstream's gathered tags, merged into the TIFF we encoded.
+/// Upstream's gathered tags, merged into the TIFF we encoded. With
+/// `own_resolution`, the export chose a DPI and `encode_tiff` already wrote it,
+/// so the source photo's resolution is not copied over it.
 fn merge_into_tiff(
     image_bytes: &mut Vec<u8>,
     original_path_str: &str,
     strip_gps: bool,
+    own_resolution: bool,
 ) -> Result<(), String> {
     let carrier = gather_via_carrier(original_path_str, strip_gps)?;
 
@@ -154,7 +161,7 @@ fn merge_into_tiff(
         .iter()
         .filter_map(|wanted| (&carrier).into_iter().find(|tag| tag.as_u16() == *wanted))
         .collect();
-    if resolution.len() == RESOLUTION.len() {
+    if resolution.len() == RESOLUTION.len() && !own_resolution {
         for tag in resolution {
             metadata.set_tag(tag.clone());
         }
@@ -202,6 +209,10 @@ fn gather_via_carrier(original_path_str: &str, strip_gps: bool) -> Result<Metada
         "jpeg",
         true,
         strip_gps,
+        &crate::exif_processing::ExportXmp::from_metadata(
+            &crate::image_processing::ImageMetadata::default(),
+        ),
+        None,
     )?;
 
     Metadata::new_from_vec(&carrier, FileExtension::JPEG)
@@ -233,9 +244,16 @@ mod tests {
         }))
     }
 
+    fn no_xmp() -> crate::exif_processing::ExportXmp {
+        crate::exif_processing::ExportXmp::from_metadata(
+            &crate::image_processing::ImageMetadata::default(),
+        )
+    }
+
     fn encode(image: &DynamicImage) -> Vec<u8> {
         let mut bytes = Vec::new();
-        crate::mods::export_precision::encode_tiff(image, &mut Cursor::new(&mut bytes)).unwrap();
+        crate::mods::export_precision::encode_tiff(image, &mut Cursor::new(&mut bytes), None)
+            .unwrap();
         bytes
     }
 
@@ -301,7 +319,16 @@ mod tests {
         let original = rgb16_image(64, 48);
         let mut bytes = encode(&original);
 
-        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         assert_image_unchanged(&original, &bytes, "rgb16");
         let exif = read_back(&bytes);
@@ -318,7 +345,16 @@ mod tests {
         let original = rgb8_image(64, 48);
         let mut bytes = encode(&original);
 
-        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         assert_image_unchanged(&original, &bytes, "rgb8");
         assert_eq!(
@@ -345,7 +381,16 @@ mod tests {
         let original = rgb16_image(64, 48);
         let mut bytes = encode(&original);
 
-        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         assert_image_unchanged(&original, &bytes, "structural guard");
 
@@ -375,8 +420,16 @@ mod tests {
 
         for format in ["tif", "tiff", "TIFF", "Tif"] {
             let mut bytes = encode(&original);
-            write_export_metadata(&mut bytes, source.to_str().unwrap(), format, true, true)
-                .unwrap();
+            write_export_metadata(
+                &mut bytes,
+                source.to_str().unwrap(),
+                format,
+                true,
+                true,
+                &no_xmp(),
+                None,
+            )
+            .unwrap();
             assert_image_unchanged(&original, &bytes, format);
             assert_eq!(
                 field(&read_back(&bytes), exif::Tag::Make).as_deref(),
@@ -394,7 +447,16 @@ mod tests {
         let encoded = encode(&original);
 
         let mut bytes = encoded.clone();
-        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", false, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            source.to_str().unwrap(),
+            "tiff",
+            false,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         assert_eq!(bytes, encoded, "a TIFF was rewritten with the toggle off");
     }
@@ -407,7 +469,16 @@ mod tests {
         let missing = scratch("does-not-exist.jpg");
         assert!(!Path::new(&missing).exists());
 
-        write_export_metadata(&mut bytes, missing.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            missing.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         assert_image_unchanged(&original, &bytes, "missing source");
     }
@@ -435,8 +506,16 @@ mod tests {
             let mut bytes = encode(&original);
             let label = format!("{:?}", original.color());
 
-            write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true)
-                .unwrap();
+            write_export_metadata(
+                &mut bytes,
+                source.to_str().unwrap(),
+                "tiff",
+                true,
+                true,
+                &no_xmp(),
+                None,
+            )
+            .unwrap();
 
             assert_image_unchanged(&original, &bytes, &label);
             assert_eq!(
@@ -489,7 +568,16 @@ mod tests {
         let original = rgb8_image(32, 24);
 
         let mut kept = encode(&original);
-        write_export_metadata(&mut kept, source.to_str().unwrap(), "tiff", true, false).unwrap();
+        write_export_metadata(
+            &mut kept,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            false,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
         let exif = read_back(&kept);
         assert!(
             exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY)
@@ -498,7 +586,16 @@ mod tests {
         );
 
         let mut stripped = encode(&original);
-        write_export_metadata(&mut stripped, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut stripped,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
         let exif = read_back(&stripped);
         assert!(
             exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY)
@@ -523,7 +620,16 @@ mod tests {
         let original = rgb16_image(64, 48);
         let mut bytes = encode(&original);
 
-        write_export_metadata(&mut bytes, source.to_str().unwrap(), "tiff", true, true).unwrap();
+        write_export_metadata(
+            &mut bytes,
+            source.to_str().unwrap(),
+            "tiff",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
 
         let exif = read_back(&bytes);
         assert_eq!(
@@ -562,13 +668,24 @@ mod tests {
             .unwrap();
         let mut theirs = ours.clone();
 
-        write_export_metadata(&mut ours, source.to_str().unwrap(), "jpeg", true, true).unwrap();
+        write_export_metadata(
+            &mut ours,
+            source.to_str().unwrap(),
+            "jpeg",
+            true,
+            true,
+            &no_xmp(),
+            None,
+        )
+        .unwrap();
         crate::exif_processing::write_image_with_metadata(
             &mut theirs,
             source.to_str().unwrap(),
             "jpeg",
             true,
             true,
+            &no_xmp(),
+            None,
         )
         .unwrap();
 

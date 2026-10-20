@@ -35,6 +35,7 @@ pub mod export_metadata;
 pub mod export_precision;
 pub mod folder_counts;
 pub mod gpu_runtime;
+pub mod highlight_protection;
 pub mod highlights;
 pub mod input_stage;
 pub mod lens_builtin;

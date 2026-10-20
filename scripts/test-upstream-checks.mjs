@@ -521,6 +521,16 @@ test('ratchet: up fails, down is lowered, a new file counts from zero', () => {
   assert.deepEqual(raised, [], 'with nothing on main to compare with, there is nothing raised');
 });
 
+test('ratchet: a raise decided by name is not raised, and only to its number', () => {
+  const previous = new Map([['a.rs', 3]]);
+  const raises = [{ file: 'a.rs', to: 4, on: '2026-10-20', why: 'test' }];
+  assert.deepEqual(compareRatchet(new Map(), new Map([['a.rs', 4]]), previous, raises).raised, []);
+  assert.deepEqual(
+    compareRatchet(new Map(), new Map([['a.rs', 5]]), previous, raises).raised,
+    [{ file: 'a.rs', from: 3, to: 5 }],
+  );
+});
+
 test('ratchet: a number higher than on main is raised, a file new to it too', () => {
   const previous = new Map([['a.rs', 5]]);
   const { raised } = compareRatchet(new Map(), new Map([['a.rs', 7], ['b.rs', 1]]), previous);

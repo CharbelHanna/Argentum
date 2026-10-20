@@ -2,7 +2,7 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
 ## 26.41.13 — 2026-10-17
 
@@ -23,6 +23,33 @@ Newest first.
   and its fill scale), `crates/rawmakase-model/src/lens/embedded.rs` (the Fujifilm reader) and
   `crates/rawmakase-engine/src/develop/image_space.rs` (the position map and its inverse).
   Sony's tables and a DNG's lens opcodes come next, each on its own.
+- **Relight and Fog, from RapidRAW 1.6.6.** Edit > Effects has two new parts after Lens blur.
+  Relight places Lamp, Spot or Sun lights on the photo, dragged and aimed on the photo, lit
+  along each surface's direction, with cast shadows. Fog thickens with distance and lies low
+  on the ground. Relight's surface-direction model (MoGe-2 ViT-S, 141 MB) is fetched only
+  after asking; Fog uses the depth model Lens blur already uses. `relight.rs`, `fog.rs` and
+  `effect_maps.rs` are RapidRAW's as of `52138689`; the panel and handles are ported into
+  Argentum's Effects panel and canvas.
+- **Auto straighten.** Crop > Rotation has an Auto button beside Level, also Shift+S in the
+  photo view and the right-click menus, for one photo or a selection. It levels the photo from
+  its straight lines and refits the crop, as one undo step. RapidRAW's `auto_straighten.rs`
+  (`52138689`), with the `lsdetect` crate.
+- **Movable centre for Vignette and Centre.** Touch one of their sliders and a pin appears on
+  the photo; drag it to move the effect's centre, double-click to put it back.
+- **Print resolution in Export > Size**, for JPEG, PNG and TIFF, with the print size it gives.
+  Argentum's TIFF writer stores it (`mods/export_precision.rs`).
+- **Exports carry the rating, colour label and keywords** as XMP in JPEG, PNG and WebP when
+  Keep metadata is on, with complete EXIF and the capture time zone for RAW sources (RapidRAW
+  `44f77264`, `f090c3f9`, `0baaae42`).
+- **Highlight-protecting camera modes are given back in DNG Standard.** Photos shot with
+  Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active D-Lighting or HLG, Olympus
+  gradation or Pentax D-Range were recorded darker on purpose; DNG Standard now adds those stops
+  back on top of its per-camera offset, and a note under Rendering says which mode and how
+  much. Canon's Auto Lighting Optimizer is not counted, as Adobe does not count it. The reading
+  is RapidRAW's (`baseline_exposure.rs` @ `bc7791a4`); `mods/highlight_protection.rs`.
+- **{original_filename_number}** in file names: the camera's frame number (DSC08408 gives
+  08408). A name pattern that could repeat now warns instead of silently adding a number.
+
 - **Subject, Sky and Background masks, from RAWmakase.** One click: Subject finds the photo's
   people and animals, Background is everything else, and Sky finds the sky and stops where it
   ends, leaving white-washed and blurred backgrounds alone. They take the old Sky's place in
@@ -141,6 +168,23 @@ Newest first.
 
 ### Changed
 
+- **A photo you open and leave unedited no longer gets a sidecar file**, and one reset back to
+  its starting values loses it, unless it holds Snapshots, a rating, a label or tags (RapidRAW
+  `8f41c5ec`).
+- **The crop starts locked to the photo's own shape** as a value of its own, so an untouched
+  photo matches the defaults (RapidRAW `2fb1ce0d`, `a39f3302`).
+- **Batch Auto adjust runs on RapidRAW's new batch code** and still turns on automatic lens
+  correction.
+- **Copying a section never carries a photo's depth or surface maps** (Lens blur, Relight, Fog):
+  another photo works out its own.
+- **Faster RAW opening**: post-processing and pixel conversions run in parallel (RapidRAW
+  `61169527`).
+- **Shortcuts follow the keyboard layout**, and newly dropped masks land on their target row
+  (RapidRAW `bb98416d`, `5ccc9dab`).
+- **Denoise Image blends its tiles seamlessly** (RapidRAW `f3dd79ae`; their live AI denoise is
+  not taken).
+- Lensfun database, Italian and Russian translations updated from RapidRAW 1.6.6.
+
 - **Nikon High Efficiency and High Efficiency★ RAWs open.** These NEFs (Z 8, Z 9, Z f, Z 6III and
   other recent bodies) hold a JPEG XS codestream, which rawler refused. The rawler fork now
   decodes it with RAWmakase's decoder (`crates/rawmakase-raw/src/codec/nikon_he.rs` @ `a8c5d6d7`,
@@ -247,6 +291,15 @@ Registered as `dng-standard` and `raw-starting-look`, with 29 and 38 decisions
 against the 1.6.5 review.
 
 ### Internal
+
+- **Merged RapidRAW 1.6.6** (`79c2a46b..52138689`), the first release reviewed per release: one
+  verdict per feature in `scripts/upstream-decisions.mjs`. Their files are taken as written; the
+  render path and today's interface keep ours, with what was wanted copied in. Their staged
+  preview pipeline replaces ours; capture sharpening keeps its full-resolution reference in
+  `mods/input_stage.rs`. Argentum's starting values live in `src/argentum/defaultAdjustments.json`,
+  over their `defaultAdjustments.json`.
+- **The ratchet has one way up, by name** (`RAISES` in `scripts/upstream-ratchet.mjs`): the
+  line in their `exif_processing.rs` that keeps a sidecar holding Snapshots.
 
 - **The engine library, first step.** `src-tauri/engine/`, crate
   `argentum-engine`: a registry of tools, each one file in `src/tools/` and

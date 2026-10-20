@@ -10,6 +10,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorStore } from '../store/useEditorStore';
+import { rawToneRenderingOf } from './editSections';
 
 export interface AgSharpen {
   /** The card's own switch: everything on or off. */
@@ -115,7 +116,7 @@ export function sharpenDefaults(
   adjustments: { rawToneRendering?: string } | null | undefined,
   isRaw: boolean,
 ): AgSharpen {
-  return isRaw && adjustments?.rawToneRendering === 'dngStandard'
+  return isRaw && rawToneRenderingOf(adjustments) === 'dngStandard'
     ? { ...SHARPEN_DEFAULTS, ...DNG_STANDARD_SHARPEN }
     : SHARPEN_DEFAULTS;
 }

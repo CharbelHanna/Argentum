@@ -55,7 +55,7 @@ pub fn measure(
     let is_raw = crate::formats::is_raw_file(&source_path);
     let picture = crate::mask_generation::build_full_warped_image(&patched, is_raw, &adjustments);
 
-    let as_shot = crate::white_balance::as_shot_white_balance(path);
+    let as_shot = crate::as_shot::as_shot(path).white_balance;
     let found = auto_white_balance(&picture, DetectMode::Surfaces, true, as_shot)
         .ok_or_else(|| format!("Could not detect an illuminant in {source}"))?;
     Ok(Measured {

@@ -156,14 +156,8 @@ pub async fn open_photo(
         .full_warped_cache
         .lock()
         .unwrap_or_else(|e| e.into_inner()) = None;
-    *state
-        .full_transformed_cache
-        .lock()
-        .unwrap_or_else(|e| e.into_inner()) = None;
-    *state
-        .patched_warped_cache
-        .lock()
-        .unwrap_or_else(|e| e.into_inner()) = None;
+    crate::cache_utils::clear_preview_stage_caches(&state);
+    super::input_stage::forget_full_picture();
 
     Ok(true)
 }
