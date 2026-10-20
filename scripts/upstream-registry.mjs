@@ -2259,9 +2259,10 @@ export const REGISTRY = [
         note: 'Deleted: the search box and view options of that header. The top bar\'s Sort and View '
           + 'menus set the same sortCriteria and filterCriteria; the search has no home in the Modern '
           + 'window, and Ctrl+F still focuses the Community page\'s own search.' },
-      { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',
-        note: 'Optional prop: no toolbar (its tools are in the top bar) and a square frame with 20 px '
-          + 'round the photo. The transform handle on transformWrapperRef is what the Navigator reads.' },
+      { file: 'src/components/panel/Editor.tsx', how: 'extends',
+        note: 'Drawn as the Modern window wants it, always: no toolbar (its tools are in the top bar) and '
+          + 'a square frame with 20 px round the photo, where the frameless prop used to choose. The '
+          + 'transform handle on transformWrapperRef is what the Navigator reads.' },
       { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
         note: 'Under Modern: a slim FOLDERS header with search and the options menu, Favourites (the '
           + 'pinned folders, starred), Recent, This computer with each disk\'s name and free space; no '
@@ -2289,10 +2290,12 @@ export const REGISTRY = [
           + 'image count switch is hidden in Modern, which counts its own way.' },
       { file: 'src/components/panel/Filmstrip.tsx', how: 'calls',
         note: 'Drawn as it is under the centre, in both views.' },
-      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'calls',
-        note: 'The naming of history steps moved out of this file into layout/historyNames.ts, which '
-          + 'History and this toolbar\'s undo menu both use. A release that changes their naming '
-          + 'is copied there by hand.' },
+      { file: 'src/components/panel/editor/EditorToolbar.tsx', how: 'replaces',
+        note: 'Deleted: the toolbar over the photo, which the Modern window kept mounted but hidden. '
+          + 'Its undo, redo and Before are in the top bar, History lists the steps and Esc goes back '
+          + 'to the grid. Its step names live in layout/historyNames.ts; a release that changes their '
+          + 'naming is copied there by hand. bench/replay.js clicks the data-bench-id hooks that the '
+          + 'top bar and ModernWindow.tsx now carry.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
         note: 'The top bar\'s Zoom menu and the Navigator, in the units today\'s zoom control uses; '
           + 'toggleShowOriginal for Before.' },

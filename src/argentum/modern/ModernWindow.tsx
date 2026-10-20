@@ -167,13 +167,7 @@ export default function ModernWindow(props: ModernWindowProps) {
             <div className={clsx('flex-1 flex flex-col min-h-0 relative', !editing && 'hidden')}>
               {selectedImage && (
                 <>
-                  <Editor
-                    frameless
-                    onBackToLibrary={props.onBackToLibrary}
-                    onContextMenu={props.onEditorContextMenu}
-                    onImageSelect={props.onOpenInEditor}
-                    transformWrapperRef={props.transformWrapperRef}
-                  />
+                  <Editor onContextMenu={props.onEditorContextMenu} transformWrapperRef={props.transformWrapperRef} />
                   {navigatorFloats && <FloatingNavigator {...navigator} />}
                   {/* Never shown: bench/replay.js leaves the photo by clicking this, as it did their
                       toolbar's back button. People press Esc, which runs the same handler. */}
