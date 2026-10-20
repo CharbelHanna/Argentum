@@ -2195,8 +2195,8 @@ export const REGISTRY = [
       + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) that opens the metadata at full height, and six tabs over today\'s panels '
       + '(Edit, Crop, Looks, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
-      + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
-      + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',
+      + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone, and so is '
+      + 'Classic\'s arrangement: the Modern window draws at every window size.',
     ours: [
       'src/argentum/modern/ModernWindow.tsx',
       'src/argentum/modern/TopBar.tsx',
@@ -2235,6 +2235,9 @@ export const REGISTRY = [
           + 'size and on every platform, passing its own handlers on; Classic\'s title bar, side panels, '
           + 'views and narrow-window arrangement are gone. Its tree refresh is refreshModernTrees and '
           + 'unfolding a folder counts no photos, since the roots are whole disks.' },
+      { file: 'src/components/views/EditorView.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s editor view (the photo over its bottom bar, or the compact panel '
+          + 'for a narrow window). The Modern window draws Editor.tsx itself.' },
       { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
         note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
       { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
