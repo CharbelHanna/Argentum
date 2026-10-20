@@ -132,7 +132,36 @@
       "roughness": "거칠기",
       "roundness": "둥글기",
       "size": "크기",
-      "vignette": "자르기 후 비네트"
+      "vignette": "자르기 후 비네트",
+      "spatial": "공간",
+      "fog": "안개",
+      "fogDensity": "밀도",
+      "fogHeight": "지면 안개",
+      "fogStart": "시작 거리",
+      "fogVariation": "변화",
+      "relight": "리라이팅",
+      "relightAddLight": "조명 추가",
+      "relightAmbient": "주변광",
+      "relightAngle": "각도",
+      "relightColor": "조명 색상",
+      "relightCone": "원뿔",
+      "relightDepth": "깊이",
+      "relightDuplicateLight": "조명 복제",
+      "relightElevation": "고도",
+      "relightFalloff": "감쇠",
+      "relightIntensity": "강도",
+      "relightLight": "조명 {{index}}",
+      "relightRemoveLight": "조명 제거",
+      "relightShadowSoftness": "그림자 부드러움",
+      "relightShadows": "그림자",
+      "relightShine": "광택",
+      "relightSoftness": "부드러움",
+      "relightType": "조명 유형",
+      "relightTypes": {
+        "directional": "방향광",
+        "point": "점광원",
+        "spot": "스포트라이트"
+      }
     }
   },
   "contextMenus": {
@@ -207,7 +236,8 @@
       "stitchPanorama": "파노라마 스티칭",
       "tagging": "태그 지정",
       "undo": "실행 취소",
-      "unflagged": "플래그 없음"
+      "unflagged": "플래그 없음",
+      "autoStraighten": "자동 수평 맞추기"
     },
     "folders": {
       "changeIcon": "아이콘 변경",
@@ -280,7 +310,9 @@
       "resetAdjustments_one": "조정값 초기화",
       "resetAdjustments_other": "이미지 {{count}}개의 조정값 초기화",
       "showExplorer": "파일 탐색기에서 표시",
-      "virtualCopy": "가상 복사본"
+      "virtualCopy": "가상 복사본",
+      "autoStraighten_one": "이미지 자동 수평 맞추기",
+      "autoStraighten_other": "이미지 자동 수평 맞추기"
     },
     "toasts": {
       "couldNotShowExplorer": "탐색기에서 파일을 표시할 수 없습니다: {{err}}",
@@ -435,7 +467,8 @@
         "selectionPropertiesTitle": "선택 영역 속성",
         "useBasicInpaint": "기본 인페인팅 사용"
       },
-      "touchUpTitle": "터치업"
+      "touchUpTitle": "터치업",
+      "generatingNormalMap": "AI 노멀 맵 계산 중..."
     },
     "crop": {
       "aspectRatioHeading": "종횡비",
@@ -552,7 +585,9 @@
         "switchToLandscape": "가로로 전환",
         "switchToPortrait": "세로로 전환",
         "transform": "원근 및 키스톤 보정"
-      }
+      },
+      "autoStraightenFailed": "자동 수평 맞추기 실패: {{error}}",
+      "autoStraightenNoLines": "수평을 맞출 직선을 찾을 수 없습니다"
     },
     "externalEdit": {
       "done": "완료",
@@ -1398,7 +1433,8 @@
       "presetNone": "없음",
       "sourceFiles": "원본 파일",
       "startImport": "가져오기 시작",
-      "title": "가져오기 설정"
+      "title": "가져오기 설정",
+      "notUniqueWarning": "{original_filename}, {original_filename_number}, {sequence} 중 하나도 없으면 파일 이름이 중복될 수 있습니다. 중복된 파일은 가져오지 않습니다."
     },
     "lensCorrection": {
       "amount": "양",
@@ -1486,7 +1522,8 @@
       "titleMultiple": "이미지 {{count}}개 이름 변경",
       "titleMultiple_one": "이미지 {{count}}개 이름 변경",
       "titleMultiple_other": "이미지 {{count}}개 이름 변경",
-      "titleSingle": "이미지 이름 변경"
+      "titleSingle": "이미지 이름 변경",
+      "notUniqueWarning": "{original_filename}, {original_filename_number}, {sequence} 중 하나도 없으면 파일 이름이 중복될 수 있습니다. 이 경우 아무 파일도 이름이 변경되지 않습니다."
     },
     "renameFolder": {
       "cancel": "취소",
@@ -1696,7 +1733,8 @@
         "zoom_in": "확대",
         "zoom_in_step": "확대 (단계별)",
         "zoom_out": "축소",
-        "zoom_out_step": "축소 (단계별)"
+        "zoom_out_step": "축소 (단계별)",
+        "auto_straighten": "자동 수평 맞추기"
       },
       "sections": {
         "editing": "편집",
@@ -1920,7 +1958,7 @@
         "negpy": "네거티브 변환 로직에 영감을 주었습니다.",
         "nind": "RapidRAW의 AI 노이즈 감소 기능을 구동하는 AI 모델을 제공해 주었습니다.",
         "rawler": "이 프로젝트의 RAW 파일 처리 기반이 되는 훌륭한 Rust 크레이트를 제공해 주었습니다.",
-        "rawmakase": "DNG Standard(모든 RAW가 시작하는 기본 모습)를 위해: 카메라 표에서 가져온 카메라별 노출 오프셋, 그리고 Argentum이 자신의 결과와 비교하는 기본 렌더링과 샤프닝에 감사드립니다. Argentum에 포함된 프리셋(Color, Creative, Curve, Grain, Vignetting)도 있습니다. 또한 피사체·하늘·배경 마스크(SAM 2.1과 DETR을 쓰는 선택 코드).",
+        "rawmakase": "DNG Standard(모든 RAW가 시작하는 기본 모습)를 위해: 카메라 표에서 가져온 카메라별 노출 오프셋, 그리고 Argentum이 자신의 결과와 비교하는 기본 렌더링과 샤프닝에 감사드립니다. Argentum에 포함된 프리셋(Color, Creative, Curve, Grain, Vignetting)도 있습니다. 또한 피사체·하늘·배경 마스크(SAM 2.1과 DETR을 쓰는 선택 코드). 또한 카메라가 사진마다 저장하는 렌즈 보정(먼저 Fujifilm).",
         "sam2": "AI 피사체 감지 기능에 사용되는 파운데이션 모델을 제공해 주었습니다.",
         "spektrafilm": "RapidRAW의 내장 필름 에뮬레이션을 구동하는, Andrea Volpato의 스펙트럼 기반 필름 에뮬레이션 LUT를 제공해 주셔서. CC BY-SA 4.0 라이선스입니다.",
         "u2net": "AI 하늘 및 전경 감지 기능에 사용되는 견고한 아키텍처를 제공해 주었습니다.",

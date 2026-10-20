@@ -26,7 +26,7 @@ import { useUIStore } from '../store/useUIStore';
 import CameraProfile from './CameraProfile';
 import HighlightRecovery from './HighlightRecovery';
 import RawToneRendering from './RawToneRendering';
-import { initialValues, PROFILE_KEYS } from './editSections';
+import { initialValues, PROFILE_KEYS, rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
 
 /** Its key in their open sections. */
@@ -54,7 +54,7 @@ export default function ProfileSection({
   const isRaw = useEditorStore((s) => s.selectedImage?.isRaw === true);
   // On a RAW, every rendering but Default replaces the tone mapper's result
   // (ag_stage_tone in shaders/modules.wgsl), so it is shown greyed then.
-  const toneMapperApplies = !isRaw || adjustments.rawToneRendering === 'default';
+  const toneMapperApplies = !isRaw || rawToneRenderingOf(adjustments) === 'default';
 
   // Open until folded: their open sections start without this one, and their
   // toggle opens a section it finds missing.

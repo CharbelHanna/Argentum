@@ -23,6 +23,7 @@ tauri-plugin-dialog = "2.7.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 image = "0.25.10"
+tiff = "0.11.3"
 base64 = "0.23"
 tauri-plugin-fs = "2.5.1"
 rayon = "1.12.0"
@@ -32,11 +33,12 @@ pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 anyhow = "1.0.104"
 kamadak-exif = "0.6.1"
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "b83a9e0743198b45e04ccbe0473406769f73c180" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d" }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.25", features = ["v4", "serde"] }
 walkdir = "2.5.0"
 imageproc = "0.27.0"
+lsdetect = "0.3.0"
 ort = { version = "=2.0.0-rc.10", features = ["ndarray", "load-dynamic"] }
 ndarray = "0.16"
 tauri-plugin-process = "2.3.1"
@@ -44,6 +46,7 @@ tauri-plugin-os = "2.3.2"
 log = "0.4"
 fern = "0.7"
 little_exif = "0.6.23"
+crc32fast = "1.5.0"
 chrono = "0.4"
 tokenizers = { version = "0.23.1", default-features = false, features = ["onig"] }
 once_cell = "1.21"
@@ -54,7 +57,8 @@ hex = "0.4"
 rand = "0.10"
 tauri-plugin-shell = "2.3.5"
 tempfile = "3.27.0"
-mimalloc = "0.1.52"
+# no_thp: MADV_HUGEPAGE causes multi-second compaction stalls on fragmented Linux systems.
+mimalloc = { version = "0.1.52", features = ["no_thp"] }
 # Argentum: mods/memory.rs asks the allocator for the process's memory and to
 # hand freed pages back. Same crate mimalloc already builds, with its extended API.
 libmimalloc-sys = { version = "0.1.49", features = ["extended"] }

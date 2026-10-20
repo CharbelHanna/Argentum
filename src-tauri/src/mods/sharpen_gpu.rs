@@ -34,7 +34,7 @@
 //!
 //! RapidRAW offers OpenGL as a processing backend, and falls back to it on
 //! its own after a crash during start-up. Two things differ there, both found
-//! on AK's machine on 2026-10-10:
+//! on a test machine on 2026-10-10:
 //!
 //! - A texture with one layer cannot be viewed as an array, so every layered
 //!   texture here has at least two (their mask array does the same).
@@ -1843,8 +1843,8 @@ mod tests {
         let mut all = crate::image_processing::get_all_adjustments_from_json(
             &js,
             true,
-            crate::white_balance::WhiteBalance::reference(),
-            None,
+            crate::as_shot::AsShot::reference(),
+            Default::default(),
             None,
         );
         all.global.show_clipping = show;
@@ -1945,7 +1945,7 @@ mod tests {
         assert!(!ran.is_empty());
     }
 
-    /// AK's 100% view of an R6 Mark III photo with three masks, through their
+    /// A 100% view of an R6 Mark III photo with three masks, through their
     /// own processor the way their preview builds it, with and without
     /// sharpening: every GPU error, and how much is allocated.
     #[test]
@@ -2014,8 +2014,8 @@ mod tests {
                 let adjustments = crate::image_processing::get_all_adjustments_from_json(
                     &serde_json::json!({}),
                     true,
-                    crate::white_balance::WhiteBalance::reference(),
-                    None,
+                    crate::as_shot::AsShot::reference(),
+                    Default::default(),
                     None,
                 );
                 let staged = sharpen.then(|| {
@@ -2141,8 +2141,8 @@ mod tests {
                     crate::image_processing::get_all_adjustments_from_json(
                         &serde_json::json!({ "agSharpen": { "amount": 50 } }),
                         true,
-                        crate::white_balance::WhiteBalance::reference(),
-                        None,
+                        crate::as_shot::AsShot::reference(),
+                        Default::default(),
                         None,
                     )
                 };
@@ -2409,7 +2409,7 @@ mod tests {
         assert!(row[20] < 0.02 && row[128] > 0.9, "the mask view on GL");
     }
 
-    /// What crashed the app on AK's machine: another thread wanting the GL
+    /// What crashed the app on a test machine: another thread wanting the GL
     /// context while sharpening ran. Their readback polls and waits, which
     /// holds the context until the GPU is done; behind a whole photo's
     /// deconvolution that was seconds, and wgpu panics after one.

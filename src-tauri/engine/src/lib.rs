@@ -13,6 +13,7 @@ mod cache;
 pub mod colour;
 pub mod contract;
 mod develop;
+pub mod dng_gain_map;
 pub mod engine;
 mod error;
 mod frame;
@@ -21,6 +22,7 @@ mod image;
 pub mod pipeline;
 mod pixels;
 pub mod registry;
+pub mod rm_lens_builtin;
 mod source;
 pub mod tool;
 

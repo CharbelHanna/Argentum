@@ -40,7 +40,7 @@ pub async fn detect_auto_white_balance(
         .lock()
         .unwrap()
         .as_ref()
-        .map(|loaded| loaded.as_shot_white_balance)
+        .map(|loaded| loaded.as_shot.white_balance)
         .ok_or("No image loaded")?;
 
     // That image has already been through `apply_cpu_default_raw_processing`,
@@ -112,15 +112,13 @@ pub async fn sample_processed_pixel(
         .clone()
         .ok_or("No original image loaded")?;
 
-    let tonemapper = crate::image_processing::resolve_tonemapper_override_from_handle(
-        &app_handle,
-        loaded.is_raw,
-    );
+    let render =
+        crate::image_processing::resolve_render_options_from_handle(&app_handle, loaded.is_raw);
     let mut all = crate::image_processing::get_all_adjustments_from_json(
         &adjustments,
         loaded.is_raw,
-        loaded.as_shot_white_balance,
-        tonemapper,
+        loaded.as_shot,
+        render,
         // The photo this readout took out of the state a moment ago, not
         // "whatever is open now" — those are the same until somebody opens
         // another photo while the numbers are being computed, and then the

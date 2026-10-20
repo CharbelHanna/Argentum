@@ -2,11 +2,53 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.5` @ `79c2a46b`** — updated whenever upstream is merged.
+**Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
 ## 26.41.13 — 2026-10-17
 
 ### Added
+
+- **Fujifilm photos get the camera's own lens correction.** Every RAF carries the lens's
+  distortion, colour fringing (lateral chromatic aberration) and corner shading for the focal
+  length and aperture of the shot, and Lightroom applies them by default; Argentum read none of
+  it. A new switch at the top of Crop > Lens Correction, "Camera's built-in correction", applies
+  it in the lens warp, in place of the lensfun profile while it is on, with the Distortion,
+  Chromatic Aberration and Vignetting switches and amounts acting on it. It starts on for a
+  Fujifilm photo with no edit yet; an edit saved earlier keeps its look until the switch is
+  turned on. The vignetting gain is raised to the power 0.85, which RAWmakase measured as
+  matching Lightroom's corners. Distortion that pushes the corners outward zooms in just enough
+  to keep them inside the sensor (5% on an X-S10 zoom sample). One module in the engine
+  (`rm_lens_builtin.rs`), `mods/lens_builtin.rs` and `argentum/lensBuiltin.ts`. From RAWmakase
+  @ `a8c5d6d7` (v0.4.0, MIT): `crates/rawmakase-model/src/optics/mod.rs` (the correction model
+  and its fill scale), `crates/rawmakase-model/src/lens/embedded.rs` (the Fujifilm reader) and
+  `crates/rawmakase-engine/src/develop/image_space.rs` (the position map and its inverse).
+  Sony's tables and a DNG's lens opcodes come next, each on its own.
+- **Relight and Fog, from RapidRAW 1.6.6.** Edit > Effects has two new parts after Lens blur.
+  Relight places Lamp, Spot or Sun lights on the photo, dragged and aimed on the photo, lit
+  along each surface's direction, with cast shadows. Fog thickens with distance and lies low
+  on the ground. Relight's surface-direction model (MoGe-2 ViT-S, 141 MB) is fetched only
+  after asking; Fog uses the depth model Lens blur already uses. `relight.rs`, `fog.rs` and
+  `effect_maps.rs` are RapidRAW's as of `52138689`; the panel and handles are ported into
+  Argentum's Effects panel and canvas.
+- **Auto straighten.** Crop > Rotation has an Auto button beside Level, also Shift+S in the
+  photo view and the right-click menus, for one photo or a selection. It levels the photo from
+  its straight lines and refits the crop, as one undo step. RapidRAW's `auto_straighten.rs`
+  (`52138689`), with the `lsdetect` crate.
+- **Movable centre for Vignette and Centre.** Touch one of their sliders and a pin appears on
+  the photo; drag it to move the effect's centre, double-click to put it back.
+- **Print resolution in Export > Size**, for JPEG, PNG and TIFF, with the print size it gives.
+  Argentum's TIFF writer stores it (`mods/export_precision.rs`).
+- **Exports carry the rating, colour label and keywords** as XMP in JPEG, PNG and WebP when
+  Keep metadata is on, with complete EXIF and the capture time zone for RAW sources (RapidRAW
+  `44f77264`, `f090c3f9`, `0baaae42`).
+- **Highlight-protecting camera modes are given back in DNG Standard.** Photos shot with
+  Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active D-Lighting or HLG, Olympus
+  gradation or Pentax D-Range were recorded darker on purpose; DNG Standard now adds those stops
+  back on top of its per-camera offset, and a note under Rendering says which mode and how
+  much. Canon's Auto Lighting Optimizer is not counted, as Adobe does not count it. The reading
+  is RapidRAW's (`baseline_exposure.rs` @ `bc7791a4`); `mods/highlight_protection.rs`.
+- **{original_filename_number}** in file names: the camera's frame number (DSC08408 gives
+  08408). A name pattern that could repeat now warns instead of silently adding a number.
 
 - **Subject, Sky and Background masks, from RAWmakase.** One click: Subject finds the photo's
   people and animals, Background is everything else, and Sky finds the sky and stops where it
@@ -140,6 +182,40 @@ Newest first.
   needs to compile the shader. Renders match the old ones: bit for bit on OpenGL and DirectX 12
   for an untouched edit, and otherwise within one level in 8 bits, on a few hundred of 7.4
   million pixels with curves and HSL in use. A test now refuses any shader function that takes an array.
+- **A photo you open and leave unedited no longer gets a sidecar file**, and one reset back to
+  its starting values loses it, unless it holds Snapshots, a rating, a label or tags (RapidRAW
+  `8f41c5ec`).
+- **The crop starts locked to the photo's own shape** as a value of its own, so an untouched
+  photo matches the defaults (RapidRAW `2fb1ce0d`, `a39f3302`).
+- **Batch Auto adjust runs on RapidRAW's new batch code** and still turns on automatic lens
+  correction.
+- **Copying a section never carries a photo's depth or surface maps** (Lens blur, Relight, Fog):
+  another photo works out its own.
+- **Faster RAW opening**: post-processing and pixel conversions run in parallel (RapidRAW
+  `61169527`).
+- **Shortcuts follow the keyboard layout**, and newly dropped masks land on their target row
+  (RapidRAW `bb98416d`, `5ccc9dab`).
+- **Denoise Image blends its tiles seamlessly** (RapidRAW `f3dd79ae`; their live AI denoise is
+  not taken).
+- Lensfun database, Italian and Russian translations updated from RapidRAW 1.6.6.
+
+- **Nikon High Efficiency and High Efficiency★ RAWs open.** These NEFs (Z 8, Z 9, Z f, Z 6III and
+  other recent bodies) hold a JPEG XS codestream, which rawler refused. The rawler fork now
+  decodes it with RAWmakase's decoder (`crates/rawmakase-raw/src/codec/nikon_he.rs` @ `a8c5d6d7`,
+  v0.4.0, MIT), added to the fork as `decompressors/nikon_he.rs` with only its error type
+  adapted; rawler is pinned to the fork commit `df7f3aec` (branch `feat/nikon-high-efficiency`,
+  on `b83a9e07`). Checked on raw.pixls.us's Z 9 samples of both kinds: 8280×5520, black 1008,
+  white 15892, the camera JPEG's picture.
+- **Phone DNGs get their lens-shading correction.** Phones record the darkening and colour cast
+  toward the corners as GainMap opcodes in the DNG and leave them to the renderer; Lightroom
+  applies them, rawler did not. Argentum now applies OpcodeList2's gain maps to the decoded
+  samples, around their black and clipped at white, before anything reads them. On a Pixel 6
+  Pro DNG all four maps apply and the corner's four mosaic colours, from 0.39-0.48 of the
+  centre's and uneven, come out within 0.06 of each other. One module in the engine
+  (`dng_gain_map.rs`), called from the engine's decode and the app's (`mods/decode.rs`). From
+  RAWmakase `crates/rawmakase-raw/src/container/dng/opcodes.rs` @ `a8c5d6d7` (v0.4.0, MIT):
+  the list's layout, the GainMap's parameters and its bilinear gain; the other opcodes in that
+  file wait for a file that needs them.
 - **DNG Standard follows a Canon photo's levels, as Camera Raw does by ISO.** Adobe takes a
   Canon's white level by ISO speed and moves its exposure offset with it; RAWmakase 0.4.0
   records each body's sample levels and shifts the offset by the difference. Argentum now
@@ -229,6 +305,15 @@ Registered as `dng-standard` and `raw-starting-look`, with 29 and 38 decisions
 against the 1.6.5 review.
 
 ### Internal
+
+- **Merged RapidRAW 1.6.6** (`79c2a46b..52138689`), the first release reviewed per release: one
+  verdict per feature in `scripts/upstream-decisions.mjs`. Their files are taken as written; the
+  render path and today's interface keep ours, with what was wanted copied in. Their staged
+  preview pipeline replaces ours; capture sharpening keeps its full-resolution reference in
+  `mods/input_stage.rs`. Argentum's starting values live in `src/argentum/defaultAdjustments.json`,
+  over their `defaultAdjustments.json`.
+- **The ratchet has one way up, by name** (`RAISES` in `scripts/upstream-ratchet.mjs`): the
+  line in their `exif_processing.rs` that keeps a sidecar holding Snapshots.
 
 - **The engine library, first step.** `src-tauri/engine/`, crate
   `argentum-engine`: a registry of tools, each one file in `src/tools/` and
@@ -398,13 +483,21 @@ against the 1.6.5 review.
     theirs are recorded in `scripts/upstream-ratchet.json` and may only go
     down.
   - One git process per question instead of about 390: 45-76 s to about 1 s.
+- **DNG Standard's camera table is generated.** `scripts/rawmakase-cameras.mjs
+  <release>` writes `mods/dng_baseline.tsv` from RAWmakase `data/cameras.toml`
+  at one release, named on the table's `# Source:` line; a value of ours that
+  differs from RAWmakase's is one entry in the script's `EXCEPTIONS`, with its
+  reason and what removes it (none today). A test proves the table is exactly
+  what the script makes from the commit it names (v0.4.0 @ `a8c5d6d7`: all 230
+  rows unchanged), and `npm run check:merge` warns when RAWmakase has a newer
+  release.
 
 ## 26.41.12 — 2026-10-11
 
 ### Added
 
 - **Restore: undo lens softness at the photo's own size.** For a lens that
-  is soft wide open - AK's 100-400 L at 400 mm on the R6 Mark III - rather
+  is soft wide open - a 100-400 L at 400 mm on an R6 Mark III - rather
   than missed focus. The model is OmniLens (Jiang et al., Zhejiang
   University): SwinIR pretrained on a library of simulated lens designs, so
   it corrects a lens it has never seen. Code `basicsr/archs/swinir_arch.py`
@@ -417,7 +510,7 @@ against the 1.6.5 review.
   PyTorch original on random tiles. `mods/restore.rs`.
   - It runs through a **detail mask** (the shape of RawTherapee's contrast
     mask): trained on clean renders, it turns grain in a soft background to
-    grit. Tight by default, AK's choice; a Mask slider loosens it, and an
+    grit. Tight by default; a Mask slider loosens it, and an
     eye shows it, white where Restore applies, live as the slider moves -
     the mask comes from the photo, so it shows before Enhance. With Restore
     on its own, a new Mask re-blends the kept model output without running
@@ -427,8 +520,8 @@ against the 1.6.5 review.
     `agRestore.captureRadius` - the radius measured on the RAW's mosaic,
     which the TIFF no longer has - and `sharpen::from_json` and the
     Sharpening card treat it as a RAW for Capture. Live and adjustable.
-  - Chosen by side-by-side on AK's RAWs: over enlarging models shrunk back
-    to size (their detail is under a pixel at 1x - "0 diff"), GRL and
+  - Chosen by side-by-side on real RAWs: over enlarging models shrunk back
+    to size (their detail is under a pixel at 1x - no visible difference), GRL and
     Restormer defocus models (smears, or no change), and HAT (lab tests by a
     hair, 14 min on the GPU for a 700 mm crop). 2.9 s/MP on an Arc 140T with
     DirectML, about 1.5 min for 32 MP, measured through this code.
@@ -520,8 +613,8 @@ against the 1.6.5 review.
 
 - **RapidRAW's Base Pre-Sharpening goes to 0, once.** It sharpened every RAW
   as it loaded, at 0.35, and capture sharpening would stack on top of it. Set
-  on the first start of this version (`retire_presharpening_once`, AK's
-  decision); turn it back up and it stays.
+  on the first start of this version (`retire_presharpening_once`);
+  turn it back up and it stays.
 - A photo edited with their old sharpening keeps it, and the card says so,
   with a button to remove it.
 ### Fixed
@@ -570,7 +663,7 @@ against the 1.6.5 review.
   its sessions until the app quits. Two changes:
   - Every model session is built without the arena (`mods/ai_session.rs`), so
     a run's working memory goes back when the run ends. Their
-    `ai_processing.rs` imports it, on an anchor taken by AK's decision today,
+    `ai_processing.rs` imports it, on an anchor taken deliberately,
     and its eight `Session::builder()` calls became `session_builder()`, one
     line for one. The same test now settles at 3-4.5 GB with the models loaded,
     peaking at 7.2 GB for a few seconds while they run.
@@ -902,7 +995,7 @@ reasoning and the open ends are in `docs/UPSTREAM_CATCHUP.md`.
     of its box's edge — a line drawn across a mug, a stroke down a lawn — the
     box grows by half the paint's size on every side. The unbounded answer is
     used only for a single dab, which is a click: unbounded, a line along an
-    eye on AK's close-up became the whole face.
+    eye on a close-up became the whole face.
   - Parts of the answer the paint does not touch are dropped, and Alt-painted
     exclusions put the boxed answer in doubt.
 
@@ -1727,8 +1820,8 @@ came from — without it there's no way to tell later whether upstream moved on.
   a budget of 8, and the budget is not raised. One line of vanity is not worth
   the room a real change will need.
 
-- **README rewritten for a reader who is not AK.** The machine-layout and
-  backup sections described one person's disk and meant nothing to anyone else.
+- **README rewritten for a new reader.** The machine-layout and
+  backup sections described one disk and meant nothing to anyone else.
   In their place a `Known limitations` section says plainly that the screen
   conversion is Windows-only and that the macOS and Linux builds are untested —
   the same wording as `knownIssues.ts`, so the app and the repository do not
@@ -1855,7 +1948,7 @@ came from — without it there's no way to tell later whether upstream moved on.
 ### Measured
 - **Three apps, one file, three different pictures — and now three answers.**
 
-  AK's export looked faded in Windows Photos, richer in GIMP, and different
+  An export looked faded in Windows Photos, richer in GIMP, and different
   again in Argentum. Embedding an sRGB profile in a copy changed nothing in
   either viewer, so the missing tag was not the cause.
 
@@ -2028,7 +2121,7 @@ screen, since before any of the colour work started.
   and 255 is nothing to look at on a photograph.
 
 ### Measured
-- Highlight recovery does almost nothing on AK's photos, and that is the honest
+- Highlight recovery does almost nothing on the test photos, and that is the honest
   result. sRAW cannot be recovered at all: the format keeps one brightness for
   all three channels, so when it saturates they all go. On full RAW there is too
   little clipped — 0.05% of a frame on average — and what does clip is blown in
@@ -2053,10 +2146,10 @@ screen, since before any of the colour work started.
   them apart.
 
   The first version colour-coded all three channels into one view. It answered
-  the same question in one look, and AK misread it within seconds — because red
+  the same question in one look, and it was misread within seconds — because red
   already means *blown highlight*, and there it would also have meant *the red
-  channel*. Two meanings on one button. Stepping through the channels was AK's
-  suggestion and is what shipped.
+  channel*. Two meanings on one button. Stepping through the channels was the
+  alternative, and is what shipped.
 
   The mode rides in their existing `showClipping` field. Their button only asks
   whether it is truthy, so a number works without their code knowing modes
@@ -2087,7 +2180,7 @@ screen, since before any of the colour work started.
     2026-06-06  126 photos    mean 2.03%   worst 45.5%
   ```
 
-  AK found the third folder. It is 25x the others and is what any recovery has
+  The third folder turned up later. It is 25x the others and is what any recovery has
   to be judged on.
 
 - **Highlight recovery cannot work on Canon sRAW.** Not a limit of the method —

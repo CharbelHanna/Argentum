@@ -131,7 +131,36 @@
       "roughness": "Drsnost",
       "roundness": "Kulatost",
       "size": "Velikost",
-      "vignette": "Viněta po oříznutí"
+      "vignette": "Viněta po oříznutí",
+      "spatial": "Prostorové",
+      "fog": "Mlha",
+      "fogDensity": "Hustota",
+      "fogHeight": "Přízemní mlha",
+      "fogStart": "Začátek",
+      "fogVariation": "Variabilita",
+      "relight": "Přesvětlení",
+      "relightAddLight": "Přidat světlo",
+      "relightAmbient": "Okolní světlo",
+      "relightAngle": "Úhel",
+      "relightColor": "Barva světla",
+      "relightCone": "Kužel",
+      "relightDepth": "Hloubka",
+      "relightDuplicateLight": "Duplikovat světlo",
+      "relightElevation": "Výška",
+      "relightFalloff": "Útlum",
+      "relightIntensity": "Intenzita",
+      "relightLight": "Světlo {{index}}",
+      "relightRemoveLight": "Odebrat světlo",
+      "relightShadowSoftness": "Měkkost stínů",
+      "relightShadows": "Stíny",
+      "relightShine": "Lesk",
+      "relightSoftness": "Měkkost",
+      "relightType": "Typ světla",
+      "relightTypes": {
+        "directional": "Směrové",
+        "point": "Bodové",
+        "spot": "Reflektor"
+      }
     }
   },
   "contextMenus": {
@@ -206,7 +235,8 @@
       "stitchPanorama": "Složit panorama",
       "tagging": "Otagování",
       "undo": "Zpět",
-      "unflagged": "Bez vlajky"
+      "unflagged": "Bez vlajky",
+      "autoStraighten": "Automaticky vyrovnat"
     },
     "folders": {
       "changeIcon": "Změnit ikonu",
@@ -279,7 +309,11 @@
       "resetAdjustments_one": "Obnovit úpravy",
       "resetAdjustments_other": "Obnovit úpravy u {{count}} snímků",
       "showExplorer": "Zobrazit v Průzkumníku souborů",
-      "virtualCopy": "Virtuální kopie"
+      "virtualCopy": "Virtuální kopie",
+      "autoStraighten_few": "Automaticky vyrovnat snímky",
+      "autoStraighten_many": "Automaticky vyrovnat snímky",
+      "autoStraighten_one": "Automaticky vyrovnat snímek",
+      "autoStraighten_other": "Automaticky vyrovnat snímky"
     },
     "toasts": {
       "couldNotShowExplorer": "Nelze zobrazit soubor v průzkumníku: {{err}}",
@@ -436,7 +470,8 @@
         "selectionPropertiesTitle": "Vlastnosti výběru",
         "useBasicInpaint": "Použijte základní retuš"
       },
-      "touchUpTitle": "Retuše"
+      "touchUpTitle": "Retuše",
+      "generatingNormalMap": "Výpočet AI mapy normál..."
     },
     "crop": {
       "aspectRatioHeading": "Poměr stran",
@@ -553,7 +588,9 @@
         "switchToLandscape": "Přepnout na šířku",
         "switchToPortrait": "Přepnout na výšku",
         "transform": "Korekce perspektivy a lichoběžníkového zkreslení"
-      }
+      },
+      "autoStraightenFailed": "Automatické vyrovnání selhalo: {{error}}",
+      "autoStraightenNoLines": "Nenalezeny žádné rovné čáry k vyrovnání"
     },
     "externalEdit": {
       "done": "Hotovo",
@@ -1399,7 +1436,8 @@
       "applyPreset": "Použít předvolbu na každý snímek",
       "editsOnImport": "Úpravy při importu",
       "editsOnImportHint": "Automatické úpravy zahrnují korekci objektivu, pokud jej lze určit z EXIF; snímky bez shody zůstanou bez korekce.",
-      "presetNone": "Žádná"
+      "presetNone": "Žádná",
+      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} nebo {sequence} mohou soubory dostat stejný název. Takové soubory se neimportují."
     },
     "lensCorrection": {
       "amount": "Míra",
@@ -1487,7 +1525,8 @@
       "titleMultiple": "Přejmenovat {{count}} snímky",
       "titleMultiple_one": "Přejmenovat {{count}} snímek",
       "titleMultiple_other": "Přejmenovat {{count}} snímků",
-      "titleSingle": "Přejmenovat snímek"
+      "titleSingle": "Přejmenovat snímek",
+      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} nebo {sequence} mohou soubory dostat stejný název. Pak se nic nepřejmenuje."
     },
     "renameFolder": {
       "cancel": "Zrušit",
@@ -1697,7 +1736,8 @@
         "zoom_in": "Přiblížit",
         "zoom_in_step": "Přiblížit (po kroku)",
         "zoom_out": "Oddálit",
-        "zoom_out_step": "Oddálit (po krocích)"
+        "zoom_out_step": "Oddálit (po krocích)",
+        "auto_straighten": "Automatické vyrovnání"
       },
       "sections": {
         "editing": "Editace",
@@ -1921,7 +1961,7 @@
         "negpy": "Pro inspiraci negativní konverzní logiky.",
         "nind": "Za poskytování modelů AI, které pohánějí funkce redukce šumu AI v RapidRAW.",
         "rawler": "Za vynikající přepravku Rust, která poskytuje základ pro zpracování souborů RAW v tomto projektu.",
-        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, Curve, Grain, Vignetting). Také masky Subjekt, Obloha a Pozadí: jeho kód výběru se SAM 2.1 a DETR.",
+        "rawmakase": "Za DNG Standard, vzhled, se kterým začíná každý RAW: posun expozice každého fotoaparátu z jeho tabulky fotoaparátů a výchozí vykreslení a doostření, se kterými se porovnávají ta v Argentum. Také přednastavení, která Argentum obsahuje (Color, Creative, Curve, Grain, Vignetting). Také masky Subjekt, Obloha a Pozadí: jeho kód výběru se SAM 2.1 a DETR. Také korekci objektivu, kterou fotoaparát ukládá do každé fotografie, počínaje Fujifilm.",
         "sam2": "Za poskytnutí základního modelu používaného pro schopnosti detekce předmětů AI.",
         "spektrafilm": "Pro spektrálně založené filmové emulační LUT od Andrey Volpata, použité pro vestavěné filmové emulace v RapidRAW. Licence CC BY-SA 4.0.",
         "u2net": "Pro zajištění robustní architektury používané pro schopnosti detekce oblohy a popředí AI.",

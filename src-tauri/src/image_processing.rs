@@ -1,3 +1,5 @@
+use crate::as_shot::AsShot;
+use crate::baseline_exposure::BaselineOptions;
 use crate::gpu_processing::WgpuDisplay;
 use crate::guided_perspective::{GuideLine, compute_guided_homography, count_valid_lines};
 use crate::white_balance::{self, WhiteBalance};
@@ -13,7 +15,7 @@ use serde_json::Value;
 use serde_json::json;
 use std::borrow::Cow;
 use std::f32::consts::PI;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 pub use crate::gpu_processing::{
     RenderRequest, get_or_init_gpu_context, process_and_get_dynamic_image,
@@ -104,6 +106,112 @@ impl Default for ImageMetadata {
     }
 }
 
+// RapidRAW 1.6.6 (bc7791a4, 8f41c5ec): edits made since it carry `baselineExposure`,
+// which gives back the exposure a camera held back to protect highlights.
+// Edits saved before it keep their rendering.
+const BASELINE_EXPOSURE_KEY: &str = "baselineExposure";
+
+pub fn mark_baseline_exposure(adjustments: &mut Value) {
+    if let Some(object) = adjustments.as_object_mut() {
+        object.insert(BASELINE_EXPOSURE_KEY.to_string(), Value::Bool(true));
+    }
+}
+
+pub fn default_adjustments() -> Value {
+    let mut adjustments = json!({});
+    mark_baseline_exposure(&mut adjustments);
+    adjustments
+}
+
+/// The editor's starting values: RapidRAW's `defaultAdjustments.json` with
+/// Argentum's own on top (`src/argentum/defaultAdjustments.json`), the same two
+/// files `INITIAL_ADJUSTMENTS` is built from in adjustments.ts.
+fn default_adjustment_values() -> Option<&'static serde_json::Map<String, Value>> {
+    static DEFAULTS: OnceLock<Option<serde_json::Map<String, Value>>> = OnceLock::new();
+    DEFAULTS
+        .get_or_init(|| {
+            let parse = |name: &str, text: &str| {
+                serde_json::from_str::<serde_json::Map<String, Value>>(text)
+                    .map_err(|e| log::error!("Failed to parse {}: {}", name, e))
+                    .ok()
+            };
+            let mut defaults = parse(
+                "defaultAdjustments.json",
+                include_str!("../../src/utils/defaultAdjustments.json"),
+            )?;
+            defaults.extend(parse(
+                "argentum/defaultAdjustments.json",
+                include_str!("../../src/argentum/defaultAdjustments.json"),
+            )?);
+            Some(defaults)
+        })
+        .as_ref()
+}
+
+fn json_values_equal(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Number(x), Value::Number(y)) => x.as_f64() == y.as_f64(),
+        (Value::Array(x), Value::Array(y)) => {
+            x.len() == y.len() && x.iter().zip(y).all(|(x, y)| json_values_equal(x, y))
+        }
+        (Value::Object(x), Value::Object(y)) => {
+            x.len() == y.len()
+                && x.iter()
+                    .all(|(key, x)| y.get(key).is_some_and(|y| json_values_equal(x, y)))
+        }
+        _ => a == b,
+    }
+}
+
+fn is_null_or_all_true(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::Object(map) => map.values().all(|v| v.as_bool() == Some(true)),
+        _ => false,
+    }
+}
+
+/// Does this edit hold nothing but the editor's starting values? A sidecar that
+/// holds only those is not written (exif_processing.rs `write_sidecar`).
+/// RapidRAW's (image_processing.rs @ 8f41c5ec), against Argentum's starting
+/// values, and with Argentum's section eyes all open counting as untouched.
+pub fn is_default_adjustments(adjustments: &Value) -> bool {
+    let map = match adjustments {
+        Value::Null => return true,
+        Value::Object(map) => map,
+        _ => return false,
+    };
+    let Some(defaults) = default_adjustment_values() else {
+        return false;
+    };
+
+    if map.get(BASELINE_EXPOSURE_KEY).and_then(Value::as_bool) != Some(true) {
+        return false;
+    }
+
+    map.iter().all(|(key, value)| match key.as_str() {
+        BASELINE_EXPOSURE_KEY => true,
+        "activeTools" | "sectionVisibility" => is_null_or_all_true(value),
+        _ => defaults
+            .get(key)
+            .is_some_and(|default| json_values_equal(value, default)),
+    })
+}
+
+/// The stops RapidRAW 1.6.6 adds to the Exposure slider (image_processing.rs @
+/// bc7791a4): a RAW's baseline exposure and what its camera held back to
+/// protect highlights. Argentum adds none here. DNG Standard puts both in its
+/// own curve, through its highlight knee (mods/dng_standard.rs,
+/// mods/highlight_protection.rs), and the other renderings take a RAW as they
+/// did before. Kept because their auto-adjust and thumbnail code ask it.
+pub fn effective_baseline_exposure(
+    _adjustments: &Value,
+    _as_shot: AsShot,
+    _options: BaselineOptions,
+) -> f32 {
+    0.0
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Crop {
     pub x: f64,
@@ -141,6 +249,10 @@ pub struct GeometryParams {
     pub guided_lines: Vec<GuideLine>,
     #[serde(default)]
     pub guided_perspective_enabled: bool,
+    /// Argentum: the camera's built-in lens correction, in place of lensfun's
+    /// numbers while it is on. See mods/lens_builtin.rs.
+    #[serde(skip)]
+    pub lens_builtin: Option<crate::mods::lens_builtin::Builtin>,
 }
 
 impl Default for GeometryParams {
@@ -171,14 +283,19 @@ impl Default for GeometryParams {
             vig_k3: 0.0,
             guided_lines: Vec::new(),
             guided_perspective_enabled: false,
+            lens_builtin: None,
         }
     }
 }
 
 pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> GeometryParams {
+    // Argentum: the camera's own correction replaces the lensfun profile, so
+    // nothing is corrected twice.
+    let lens_builtin = crate::mods::lens_builtin::Builtin::from_adjustments(adjustments);
     let lens_params = adjustments
         .get("lensDistortionParams")
-        .and_then(|v| v.as_object());
+        .and_then(|v| v.as_object())
+        .filter(|_| lens_builtin.is_none());
 
     let guided = adjustments.get("guidedPerspective");
     let guided_perspective_enabled = guided
@@ -242,6 +359,7 @@ pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> Geometr
             .unwrap_or(0.0) as f32,
         guided_lines,
         guided_perspective_enabled,
+        lens_builtin,
     }
 }
 
@@ -773,6 +891,17 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
         && (vk1.abs() > 1e-6 || vk2.abs() > 1e-6 || vk3.abs() > 1e-6)
         && lens_vig_amt > 0.01;
 
+    // Argentum: the camera's built-in correction (mods/lens_builtin.rs), where
+    // lensfun's would be: distortion, then red and blue against green while
+    // sampling, then the vignetting gain at the pixel sampled.
+    let builtin = params
+        .lens_builtin
+        .as_ref()
+        .map(|b| b.map(width as f32, height as f32));
+    let builtin_ca = builtin
+        .as_ref()
+        .is_some_and(|m| m.lens.chromatic.is_some() && m.amounts.chromatic != 0.0);
+
     let src_raw = src_img.as_raw();
     let width_usize = width as usize;
     let height_usize = height as usize;
@@ -833,6 +962,15 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                         }
                     }
 
+                    // Argentum: built-in distortion, and red and blue's scale against green.
+                    let mut builtin_vr_vb = (1.0, 1.0);
+                    if let Some(map) = &builtin {
+                        let ([dx, dy], s) = map.scales(src_x - cx, src_y - cy);
+                        src_x = cx + dx * s[1];
+                        src_y = cy + dy * s[1];
+                        builtin_vr_vb = (s[0] / s[1], s[2] / s[1]);
+                    }
+
                     if k_distortion.abs() > 1e-5 {
                         let dx = (src_x - cx) as f64;
                         let dy = (src_y - cy) as f64;
@@ -843,10 +981,20 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                         src_y = cy + (dy * f) as f32;
                     }
 
-                    if has_tca {
+                    if builtin_ca {
+                        let (bvr, bvb) = builtin_vr_vb;
+                        interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, bvr, bvb, pixel);
+                    } else if has_tca {
                         interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, vr, vb, pixel);
                     } else {
                         interpolate_pixel(src_raw, width_usize, height_usize, src_x, src_y, pixel);
+                    }
+
+                    if let Some(map) = &builtin {
+                        let gain = map.gain(src_x - cx, src_y - cy);
+                        pixel[0] *= gain;
+                        pixel[1] *= gain;
+                        pixel[2] *= gain;
                     }
 
                     if has_vignetting {
@@ -904,6 +1052,12 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
     } else {
         1.0
     };
+
+    // Argentum: the camera's built-in correction, undone (mods/lens_builtin.rs).
+    let builtin = params
+        .lens_builtin
+        .as_ref()
+        .map(|b| b.map(width as f32, height as f32));
 
     let src_raw = src_img.as_raw();
     let width_usize = width as usize;
@@ -990,6 +1144,12 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
                         current_x = cx + (dx * scale) as f32;
                         current_y = cy + (dy * scale) as f32;
                     }
+                }
+
+                if let Some(map) = &builtin {
+                    let [dx, dy] = map.inverse(current_x - cx, current_y - cy);
+                    current_x = cx + dx;
+                    current_y = cy + dy;
                 }
 
                 if auto_crop_scale > 1.0 {
@@ -1173,6 +1333,15 @@ pub fn inverse_transform_point(
             }
         }
 
+        // Argentum: the camera's built-in correction (mods/lens_builtin.rs).
+        if let Some(b) = &params.lens_builtin {
+            let [dx, dy] = b
+                .map(width, height)
+                .forward((src_x - cx) as f32, (src_y - cy) as f32);
+            src_x = cx + dx as f64;
+            src_y = cy + dy as f64;
+        }
+
         if k_distortion.abs() > 1e-5 {
             let max_radius_sq_inv = 1.0 / (cx * cx + cy * cy);
             let dx = src_x - cx;
@@ -1225,18 +1394,19 @@ fn srgb_channel_to_linear(c: f32) -> f32 {
     }
 }
 
-pub fn apply_srgb_to_linear(mut image: DynamicImage) -> DynamicImage {
-    let to_linear = |x: f32| -> f32 { srgb_channel_to_linear(x.max(0.0)) };
-
+fn map_color_channels(
+    mut image: DynamicImage,
+    map: impl Fn(f32) -> f32 + Send + Sync,
+) -> DynamicImage {
     match &mut image {
         DynamicImage::ImageRgb32F(img) => {
-            img.as_mut().par_iter_mut().for_each(|c| *c = to_linear(*c));
+            img.as_mut().par_iter_mut().for_each(|c| *c = map(*c));
         }
         DynamicImage::ImageRgba32F(img) => {
             img.par_chunks_mut(4).for_each(|p| {
-                p[0] = to_linear(p[0]);
-                p[1] = to_linear(p[1]);
-                p[2] = to_linear(p[2]);
+                p[0] = map(p[0]);
+                p[1] = map(p[1]);
+                p[2] = map(p[2]);
             });
         }
         _ => {}
@@ -1244,30 +1414,27 @@ pub fn apply_srgb_to_linear(mut image: DynamicImage) -> DynamicImage {
     image
 }
 
-pub fn apply_linear_to_srgb(mut image: DynamicImage) -> DynamicImage {
-    let to_srgb = |x: f32| -> f32 {
+pub fn apply_exposure(image: DynamicImage, exposure: f32) -> DynamicImage {
+    if exposure == 0.0 {
+        return image;
+    }
+    let gain = exposure.exp2();
+    map_color_channels(image, |x| x * gain)
+}
+
+pub fn apply_srgb_to_linear(image: DynamicImage) -> DynamicImage {
+    map_color_channels(image, |x| srgb_channel_to_linear(x.max(0.0)))
+}
+
+pub fn apply_linear_to_srgb(image: DynamicImage) -> DynamicImage {
+    map_color_channels(image, |x| {
         let x = x.max(0.0);
         if x <= 0.0031308 {
             x * 12.92
         } else {
             1.055 * x.powf(1.0 / 2.4) - 0.055
         }
-    };
-
-    match &mut image {
-        DynamicImage::ImageRgb32F(img) => {
-            img.as_mut().par_iter_mut().for_each(|c| *c = to_srgb(*c));
-        }
-        DynamicImage::ImageRgba32F(img) => {
-            img.par_chunks_mut(4).for_each(|p| {
-                p[0] = to_srgb(p[0]);
-                p[1] = to_srgb(p[1]);
-                p[2] = to_srgb(p[2]);
-            });
-        }
-        _ => {}
-    }
-    image
+    })
 }
 
 pub fn apply_orientation(image: DynamicImage, orientation: Orientation) -> DynamicImage {
@@ -1425,6 +1592,7 @@ pub fn is_geometry_identity(params: &GeometryParams) -> bool {
         && dist_identity
         && tca_identity
         && vig_identity
+        && params.lens_builtin.is_none() // Argentum: mods/lens_builtin.rs
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1519,8 +1687,8 @@ pub struct GlobalAdjustments {
     pub wb_log_gain_l: f32,
     pub wb_log_gain_m: f32,
     pub wb_log_gain_s: f32,
-    _pad_color1: f32,
-    _pad_color2: f32,
+    pub centre_x: f32,
+    pub centre_y: f32,
 
     pub sharpness: f32,
     pub luma_noise_reduction: f32,
@@ -1547,8 +1715,8 @@ pub struct GlobalAdjustments {
     pub lut_intensity: f32,
     pub tonemapper_mode: u32,
     pub lut_is_scene_referred: u32,
-    _pad_lut3: f32,
-    _pad_lut4: f32,
+    pub vignette_center_x: f32,
+    pub vignette_center_y: f32,
     _pad_lut5: f32,
 
     _pad_agx1: f32,
@@ -1960,12 +2128,27 @@ pub fn resolve_tonemapper_override(settings: &crate::AppSettings, is_raw: bool) 
     Some(if tm == "agx" { 1 } else { 0 })
 }
 
-pub fn resolve_tonemapper_override_from_handle(
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RenderOptions {
+    pub tonemapper_override: Option<u32>,
+    pub baseline: BaselineOptions,
+}
+
+/// RapidRAW's (image_processing.rs @ bc7791a4). Its baseline options are left
+/// at their defaults: see `effective_baseline_exposure`.
+pub fn resolve_render_options(settings: &crate::AppSettings, is_raw: bool) -> RenderOptions {
+    RenderOptions {
+        tonemapper_override: resolve_tonemapper_override(settings, is_raw),
+        baseline: BaselineOptions::default(),
+    }
+}
+
+pub fn resolve_render_options_from_handle(
     app_handle: &tauri::AppHandle,
     is_raw: bool,
-) -> Option<u32> {
+) -> RenderOptions {
     let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
-    resolve_tonemapper_override(&settings, is_raw)
+    resolve_render_options(&settings, is_raw)
 }
 
 pub fn apply_cpu_agx_tonemap(image: &mut DynamicImage) {
@@ -2152,15 +2335,14 @@ pub fn is_image_edited(
         return true;
     }
 
-    let reference = WhiteBalance::reference();
-    let current_adj = get_all_adjustments_from_json(adj, is_raw, reference, tonemapper_override, None);
-    let default_adj = get_all_adjustments_from_json(
-        &serde_json::json!({}),
-        is_raw,
-        reference,
+    let reference = AsShot::reference();
+    let render = RenderOptions {
         tonemapper_override,
-        None,
-    );
+        baseline: BaselineOptions::default(),
+    };
+    let current_adj = get_all_adjustments_from_json(adj, is_raw, reference, render, None);
+    let default_adj =
+        get_all_adjustments_from_json(&serde_json::json!({}), is_raw, reference, render, None);
 
     bytemuck::bytes_of(&current_adj) != bytemuck::bytes_of(&default_adj)
 }
@@ -2176,10 +2358,20 @@ fn is_section_visible(adjustments: &serde_json::Value, section: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Is an effect switched on, and the eye of the section that holds it open?
+/// RapidRAW asks per tool (image_processing.rs @ f941d8ee); Argentum has an eye
+/// per section, so the tool is answered by its section's eye: noise reduction
+/// by Details', the rest (lens blur, relight, fog) by Effects'.
+pub fn is_effect_enabled(adjustments: &serde_json::Value, tool: &str, enabled_key: &str) -> bool {
+    let section = if tool == "noiseReduction" { "details" } else { "effects" };
+    adjustments[enabled_key].as_bool().unwrap_or(false) && is_section_visible(adjustments, section)
+}
+
 fn get_global_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
     white_balance_gains: [f32; 3],
+    baseline_exposure: f32,
     tonemapper_override: Option<u32>,
     photo: Option<&str>,
 ) -> GlobalAdjustments {
@@ -2316,7 +2508,7 @@ fn get_global_adjustments_from_json(
     let raw_tone_points = raw_tone::points_of(js_adjustments, raw_tone_mode, photo);
 
     GlobalAdjustments {
-        exposure: get_val("basic", "exposure", SCALES.exposure, None),
+        exposure: get_val("basic", "exposure", SCALES.exposure, None) + baseline_exposure,
         brightness: get_val("basic", "brightness", SCALES.brightness, None),
         contrast: get_val("basic", "contrast", SCALES.contrast, None),
         highlights: get_val("basic", "highlights", SCALES.highlights, None),
@@ -2330,8 +2522,8 @@ fn get_global_adjustments_from_json(
         wb_log_gain_l: white_balance_gains[0],
         wb_log_gain_m: white_balance_gains[1],
         wb_log_gain_s: white_balance_gains[2],
-        _pad_color1: 0.0,
-        _pad_color2: 0.0,
+        centre_x: get_val("basic", "centréX", 1.0, Some(0.5)),
+        centre_y: get_val("basic", "centréY", 1.0, Some(0.5)),
 
         sharpness: get_val("details", "sharpness", SCALES.sharpness, None),
         luma_noise_reduction: get_val(
@@ -2399,8 +2591,8 @@ fn get_global_adjustments_from_json(
         tonemapper_mode: tonemapper_override
             .unwrap_or_else(|| if tone_mapper == "agx" { 1 } else { 0 }),
         lut_is_scene_referred,
-        _pad_lut3: 0.0,
-        _pad_lut4: 0.0,
+        vignette_center_x: get_val("effects", "vignetteCenterX", 1.0, Some(0.5)),
+        vignette_center_y: get_val("effects", "vignetteCenterY", 1.0, Some(0.5)),
         _pad_lut5: 0.0,
 
         _pad_agx1: 0.0,
@@ -2648,20 +2840,21 @@ fn get_mask_adjustments_from_json(
 pub fn get_all_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
-    as_shot_white_balance: WhiteBalance,
-    tonemapper_override: Option<u32>,
+    as_shot: AsShot,
+    render: RenderOptions,
     photo: Option<&str>,
 ) -> AllAdjustments {
     let target_white_balance = if is_section_visible(js_adjustments, "basic") {
-        white_balance::from_adjustments(js_adjustments, as_shot_white_balance)
+        white_balance::from_adjustments(js_adjustments, as_shot.white_balance)
     } else {
-        as_shot_white_balance
+        as_shot.white_balance
     };
     let global = get_global_adjustments_from_json(
         js_adjustments,
         is_raw,
-        white_balance::adaptation_log_gains(as_shot_white_balance, target_white_balance),
-        tonemapper_override,
+        white_balance::adaptation_log_gains(as_shot.white_balance, target_white_balance),
+        effective_baseline_exposure(js_adjustments, as_shot, render.baseline),
+        render.tonemapper_override,
         photo,
     );
     let mut mask_adjustments = [MaskAdjustments::default(); MAX_MASKS];
@@ -2717,12 +2910,26 @@ fn yc_to_rgb(y: f32, cb: f32, cr: f32) -> (f32, f32, f32) {
     (r, g, b)
 }
 
+fn to_rgb32f_parallel(image: &DynamicImage) -> image::Rgb32FImage {
+    match image {
+        DynamicImage::ImageRgba32F(rgba) => {
+            let (w, h) = rgba.dimensions();
+            let mut rgb = vec![0.0f32; (w as usize) * (h as usize) * 3];
+            rgb.par_chunks_exact_mut(3)
+                .zip(rgba.as_raw().par_chunks_exact(4))
+                .for_each(|(dst, src)| dst.copy_from_slice(&src[..3]));
+            image::ImageBuffer::from_raw(w, h, rgb).expect("RGB buffer matches image dimensions")
+        }
+        other => other.to_rgb32f(),
+    }
+}
+
 pub fn remove_raw_artifacts_and_enhance(
     image: &mut DynamicImage,
     color_nr_inv_sigma: f32,
     sharpening_amount: f32,
 ) {
-    let mut buffer = image.to_rgb32f();
+    let mut buffer = to_rgb32f_parallel(image);
     let w = buffer.width() as usize;
     let h = buffer.height() as usize;
 
@@ -3375,7 +3582,7 @@ pub fn calculate_waveform_from_image(
     })
 }
 
-pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
+pub fn perform_auto_analysis(image: &DynamicImage, exposure: f32) -> AutoAdjustmentResults {
     const ANALYSIS_MAX_DIM: u32 = 1024;
 
     const LUMA_R: f32 = 0.2126;
@@ -3425,7 +3632,10 @@ pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
     const EXPOSURE_OUTPUT_SCALE: f64 = 20.0;
     const BRIGHTNESS_SCALE: f64 = 0.007;
 
-    let analysis_preview = downscale_f32_image(image, ANALYSIS_MAX_DIM, ANALYSIS_MAX_DIM);
+    let analysis_preview = apply_exposure(
+        downscale_f32_image(image, ANALYSIS_MAX_DIM, ANALYSIS_MAX_DIM),
+        exposure,
+    );
     let rgb_image = analysis_preview.to_rgb8();
     let total_pixels = (rgb_image.width() * rgb_image.height()) as f64;
 
@@ -3623,17 +3833,25 @@ pub fn auto_results_to_json(results: &AutoAdjustmentResults) -> serde_json::Valu
 
 #[tauri::command]
 pub fn calculate_auto_adjustments(
+    js_adjustments: Option<serde_json::Value>,
     state: tauri::State<AppState>,
+    app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let (original_image, image_path) = {
-        let guard = state.original_image.lock().unwrap();
-        let loaded = guard
-            .as_ref()
-            .ok_or("No image loaded for auto adjustments")?;
-        (loaded.image.clone(), loaded.path.clone())
-    };
+    let loaded_image = state
+        .original_image
+        .lock()
+        .unwrap()
+        .clone()
+        .ok_or("No image loaded for auto adjustments")?;
+    let image_path = loaded_image.path.clone();
 
-    let results = perform_auto_analysis(&original_image);
+    let render = resolve_render_options_from_handle(&app_handle, loaded_image.is_raw);
+    let exposure = effective_baseline_exposure(
+        &js_adjustments.unwrap_or(Value::Null),
+        loaded_image.as_shot,
+        render.baseline,
+    );
+    let results = perform_auto_analysis(&loaded_image.image, exposure);
     let mut adjustments = auto_results_to_json(&results);
 
     // Fold automatic lens correction into the auto-edit workflow. When the lens cannot be
@@ -3742,7 +3960,7 @@ mod tests {
                 "hue": 25, "sharpness": 35, "chromaticAberrationRedCyan": 20,
                 "sectionVisibility": visibility,
             });
-            get_global_adjustments_from_json(&js, false, [0.0; 3], None, None)
+            get_global_adjustments_from_json(&js, false, [0.0; 3], 0.0, None, None)
         };
         let basic_off = edit(json!({ "basic": false }));
         for (name, value) in [
@@ -3928,7 +4146,7 @@ pub async fn sample_white_balance(
         compute_white_balance_sample(
             &loaded_image.image,
             loaded_image.is_raw,
-            loaded_image.as_shot_white_balance,
+            loaded_image.as_shot.white_balance,
             &corners,
         )
     })

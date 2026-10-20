@@ -29,9 +29,11 @@ impl Source {
     pub fn decode(bytes: &[u8]) -> Result<Source> {
         let source = RawSource::new_from_slice(bytes);
         let decoder = rawler::get_decoder(&source).map_err(|e| Error::Decode(e.to_string()))?;
-        let raw = decoder
+        let mut raw = decoder
             .raw_image(&source, &RawDecodeParams::default(), false)
             .map_err(|e| Error::Decode(e.to_string()))?;
+        // A DNG's lens shading (phones), before anything reads a sample.
+        crate::dng_gain_map::apply(&mut raw, bytes);
         let mut key = DefaultHasher::new();
         bytes.hash(&mut key);
         Ok(Self::new(key.finish(), raw))

@@ -762,7 +762,7 @@ async fn models_for(app_handle: &tauri::AppHandle, recipe: Recipe) -> Result<Mod
 }
 
 /// One framed photo through what the recipe asks for, in the order measured
-/// on AK's frames (DEC-25): Restore at its own size, where lens softness
+/// on test frames (DEC-25): Restore at its own size, where lens softness
 /// lives; then, before an enlargement, capture sharpening at the camera's
 /// size; then the enlargement. Restore on its own leaves capture to the
 /// editor, live (`mark_restored`).
@@ -1127,7 +1127,7 @@ fn write_super_resolution_sidecar(
         let settings = crate::app_settings::load_settings(app_handle.clone()).unwrap_or_default();
         carry_raw_look(
             &mut metadata.adjustments,
-            white_balance::as_shot_white_balance(&source_path.to_string_lossy()),
+            crate::as_shot::as_shot(&source_path.to_string_lossy()).white_balance,
             crate::image_processing::resolve_tonemapper_override(&settings, true),
             crate::image_processing::resolve_tonemapper_override(&settings, false),
             Some(&source_path.to_string_lossy()),
@@ -1706,7 +1706,7 @@ mod tests {
     /// folder; `AG_ORT_DYLIB` the ONNX Runtime library to load (the DirectML
     /// build for the graphics card); `AG_RESTORE_DEVICE` gpu or cpu.
     #[test]
-    #[ignore = "reads AK's photos and a local model; run by hand"]
+    #[ignore = "reads local photos and a local model; run by hand"]
     fn restore_on_a_real_raw() {
         let var = |name: &str| std::env::var(name).unwrap_or_else(|_| panic!("set {name}"));
         let raw = var("AG_RESTORE_RAW");

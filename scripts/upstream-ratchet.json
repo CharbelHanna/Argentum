@@ -12,9 +12,9 @@
     "src-tauri/src/ai_processing.rs": 9,
     "src-tauri/src/app_settings.rs": 6,
     "src-tauri/src/cache_utils.rs": 1,
-    "src-tauri/src/exif_processing.rs": 3,
+    "src-tauri/src/exif_processing.rs": 4,
     "src-tauri/src/export_processing.rs": 46,
-    "src-tauri/src/file_management.rs": 421,
+    "src-tauri/src/file_management.rs": 415,
     "src-tauri/src/formats.rs": 1,
     "src-tauri/src/image_loader.rs": 3,
     "src-tauri/src/launch_request.rs": 54,
@@ -23,15 +23,13 @@
     "src-tauri/src/mask_generation.rs": 3,
     "src-tauri/src/raw_processing.rs": 34,
     "src-tauri/src/shaders/display.wgsl": 5,
-    "src-tauri/src/tagging.rs": 1,
     "src/components/modals/AppModals.tsx": 1,
     "src/components/modals/ImportSettingsModal.tsx": 124,
     "src/components/ui/AppProperties.tsx": 11,
     "src/components/ui/LUTControl.tsx": 187,
-    "src/hooks/useExportSettings.ts": 1,
     "src/hooks/useFileOperations.ts": 9,
     "src/main.tsx": 1,
-    "src/utils/adjustments.ts": 8,
+    "src/utils/adjustments.ts": 3,
     "src/window/TitleBar.tsx": 1
   }
 }

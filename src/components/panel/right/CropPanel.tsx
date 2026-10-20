@@ -1,4 +1,6 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
+import LensBuiltinSwitch from '../../../argentum/LensBuiltinSwitch'; // Argentum: the camera's own lens correction
+import { LENS_BUILTIN_RESET, LENSFUN_UNUSED, builtinInUse } from '../../../argentum/lensBuiltin';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlipHorizontal,
@@ -22,12 +24,13 @@ import {
   Info,
   Ban,
   Save,
+  Wand2,
 } from 'lucide-react';
 import { useTranslation, Trans } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
 import { Adjustments, INITIAL_ADJUSTMENTS } from '../../../utils/adjustments';
 import clsx from 'clsx';
-import { CustomAspectRatio, Orientation } from '../../ui/AppProperties';
+import { CustomAspectRatio, Invokes, Orientation } from '../../ui/AppProperties';
 import { motion, AnimatePresence } from 'framer-motion';
 import Text from '../../ui/Text';
 import FoldingPane from '../../../argentum/FoldingPane'; // Argentum: the panes fold by their headings
@@ -38,15 +41,20 @@ import Dropdown from '../../ui/Dropdown';
 import Button from '../../ui/Button';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
-import { useEditorActions } from '../../../hooks/useEditorActions';
-import { calculateAreaPreservingCrop, calculateCenteredCrop } from '../../../utils/cropUtils';
+import { useEditorActions, withRotation } from '../../../hooks/useEditorActions';
+import {
+  calculateAreaPreservingCrop,
+  calculateCenteredCrop,
+  getOrientedDimensions,
+  ORIGINAL_RATIO,
+  resolveAspectRatio,
+} from '../../../utils/cropUtils';
 import { Crop } from 'react-image-crop';
 import { useShallow } from 'zustand/react/shallow';
 import { useContextMenu } from '../../../context/ContextMenuContext';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 
 const BASE_RATIO = 1.618;
-const ORIGINAL_RATIO = 0;
 const RATIO_TOLERANCE = 0.01;
 
 export type OverlayMode =
@@ -96,6 +104,7 @@ export default function CropPanel() {
   const selectedImage = useEditorStore((s) => s.selectedImage);
   const adjustments = useEditorStore((s) => s.adjustments);
   const isStraightenActive = useEditorStore((s) => s.isStraightenActive);
+  const isAutoStraightening = useEditorStore((s) => s.isAutoStraightening);
   const isGuidedPerspectiveActive = useEditorStore((s) => s.isGuidedPerspectiveActive);
   const activeOverlay = useEditorStore((s) => s.overlayMode);
   const setEditor = useEditorStore((s) => s.setEditor);
@@ -113,6 +122,12 @@ export default function CropPanel() {
   const [detectionStatus, setDetectionStatus] = useState<'idle' | 'detecting' | 'not_found' | 'success'>('idle');
   const [localRotation, setLocalRotation] = useState<number | null>(null);
   const localRotationRef = useRef<number | null>(null);
+  // Argentum: why Auto straighten did nothing, for the photo and angle it ran on.
+  const [autoStraightenNote, setAutoStraightenNote] = useState<{
+    path: string;
+    rotation: number;
+    text: string;
+  } | null>(null);
 
   const lensMode = adjustments.lensCorrectionMode || 'manual';
 
@@ -214,7 +229,13 @@ export default function CropPanel() {
 
   const lastSyncedRatio = useRef<number | null>(null);
 
-  const { aspectRatio, rotation = 0, flipHorizontal = false, flipVertical = false, orientationSteps = 0 } = adjustments;
+  const { rotation = 0, flipHorizontal = false, flipVertical = false, orientationSteps = 0 } = adjustments;
+  const aspectRatio = resolveAspectRatio(adjustments.aspectRatio, selectedImage, orientationSteps);
+  const originalRatio = resolveAspectRatio(ORIGINAL_RATIO, selectedImage, orientationSteps);
+  const originalDimensions =
+    selectedImage?.width && selectedImage?.height
+      ? getOrientedDimensions(selectedImage.width, selectedImage.height, orientationSteps)
+      : null;
 
   useEffect(() => {
     invoke('get_lensfun_makers')
@@ -266,17 +287,11 @@ export default function CropPanel() {
     };
   }, [setEditor]);
 
-  const getEffectiveOriginalRatio = useCallback(() => {
-    if (!selectedImage?.width || !selectedImage?.height) {
-      return null;
-    }
-    const isSwapped = orientationSteps === 1 || orientationSteps === 3;
-    const W = isSwapped ? selectedImage.height : selectedImage.width;
-    const H = isSwapped ? selectedImage.width : selectedImage.height;
-    return W > 0 && H > 0 ? W / H : null;
-  }, [selectedImage, orientationSteps]);
-
   const activePreset = useMemo(() => {
+    if (adjustments.aspectRatio === ORIGINAL_RATIO) {
+      return PRESETS.find((p: CropPreset) => p.value === ORIGINAL_RATIO);
+    }
+
     if (aspectRatio === null) {
       return PRESETS.find((p: CropPreset) => p.value === null);
     }
@@ -292,19 +307,18 @@ export default function CropPanel() {
       return numericPresetMatch;
     }
 
-    const originalRatio = getEffectiveOriginalRatio();
     if (originalRatio && Math.abs(aspectRatio - originalRatio) < RATIO_TOLERANCE) {
       return PRESETS.find((p: CropPreset) => p.value === ORIGINAL_RATIO);
     }
 
     return null;
-  }, [aspectRatio, getEffectiveOriginalRatio, PRESETS, ALL_PRESETS]);
+  }, [adjustments.aspectRatio, aspectRatio, originalRatio, PRESETS, ALL_PRESETS]);
 
   let orientation = Orientation.Horizontal;
   if (activePreset && activePreset.value && activePreset.value !== 1) {
     let baseRatio: number | null = activePreset.value;
     if (activePreset.value === ORIGINAL_RATIO) {
-      baseRatio = getEffectiveOriginalRatio();
+      baseRatio = originalRatio;
     }
     if (baseRatio && aspectRatio && Math.abs(aspectRatio - baseRatio) > RATIO_TOLERANCE) {
       orientation = Orientation.Vertical;
@@ -348,30 +362,21 @@ export default function CropPanel() {
       }
       let newCrop: Crop | null = null;
       if (selectedImage?.width && selectedImage?.height) {
+        const ratio = resolveAspectRatio(newAspectRatio, selectedImage, orientationSteps);
         newCrop =
           calculateAreaPreservingCrop(
             selectedImage.width,
             selectedImage.height,
             orientationSteps,
-            newAspectRatio,
+            ratio,
             rotation,
             adjustments.crop,
-          ) ??
-          calculateCenteredCrop(selectedImage.width, selectedImage.height, orientationSteps, newAspectRatio, rotation);
+          ) ?? calculateCenteredCrop(selectedImage.width, selectedImage.height, orientationSteps, ratio, rotation);
       }
       setAdjustments((prev: Adjustments) => ({ ...prev, aspectRatio: newAspectRatio, crop: newCrop }));
     },
     [selectedImage, orientationSteps, rotation, adjustments.crop, setAdjustments],
   );
-
-  useEffect(() => {
-    if (selectedPreset?.value === ORIGINAL_RATIO) {
-      const newOriginalRatio = getEffectiveOriginalRatio();
-      if (newOriginalRatio !== null && aspectRatio && Math.abs(aspectRatio - newOriginalRatio) > RATIO_TOLERANCE) {
-        applyAspectRatio(newOriginalRatio);
-      }
-    }
-  }, [orientationSteps, selectedPreset, aspectRatio, getEffectiveOriginalRatio, applyAspectRatio]);
 
   const handleCustomInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -455,7 +460,7 @@ export default function CropPanel() {
     setIsCustomMode(false);
 
     if (preset.value === ORIGINAL_RATIO) {
-      applyAspectRatio(getEffectiveOriginalRatio());
+      applyAspectRatio(ORIGINAL_RATIO);
       return;
     }
 
@@ -488,9 +493,6 @@ export default function CropPanel() {
   }, [aspectRatio, applyAspectRatio]);
 
   const handleReset = () => {
-    const originalAspectRatio =
-      selectedImage?.width && selectedImage?.height ? selectedImage.width / selectedImage.height : null;
-
     setPreferPortrait(false);
     setIsEditingCustom(false);
     setIsCustomMode(false);
@@ -501,7 +503,7 @@ export default function CropPanel() {
 
     setAdjustments((prev: Adjustments) => ({
       ...prev,
-      aspectRatio: originalAspectRatio,
+      aspectRatio: INITIAL_ADJUSTMENTS.aspectRatio,
       crop: INITIAL_ADJUSTMENTS.crop,
       flipHorizontal: INITIAL_ADJUSTMENTS.flipHorizontal ?? false,
       flipVertical: INITIAL_ADJUSTMENTS.flipVertical ?? false,
@@ -526,6 +528,7 @@ export default function CropPanel() {
       lensVignetteEnabled: INITIAL_ADJUSTMENTS.lensVignetteEnabled,
       lensDistortionParams: INITIAL_ADJUSTMENTS.lensDistortionParams,
       lensCorrectionMode: INITIAL_ADJUSTMENTS.lensCorrectionMode,
+      ...LENS_BUILTIN_RESET,
     }));
   };
 
@@ -551,6 +554,42 @@ export default function CropPanel() {
     updateLocalRotation(null);
     setAdjustments((prev: Partial<Adjustments>) => ({ ...prev, rotation: 0 }));
   };
+
+  // Argentum: the Auto button. Adapted from RapidRAW's handleAutoStraighten
+  // (src/hooks/useEditorActions.ts, 30c86ccb / d73d291f): the same detection
+  // command, crop refit (withRotation), undo step and busy flag, so Shift+S and
+  // the menus share it. Theirs reports through toasts; here the outcome shows
+  // under the button, which needs its result, and theirs returns none.
+  const handleAutoStraightenButton = async () => {
+    const { selectedImage: image, isAutoStraightening: busy, adjustments: before } = useEditorStore.getState();
+    if (!image?.isReady || busy) return;
+    const note = (text: string) => setAutoStraightenNote({ path: image.path, rotation: before.rotation || 0, text });
+    setAutoStraightenNote(null);
+    setEditor({ isAutoStraightening: true });
+    try {
+      const detected: number | null = await invoke(Invokes.CalculateAutoStraighten, { jsAdjustments: before });
+      const current = useEditorStore.getState().selectedImage;
+      if (current?.path !== image.path) return;
+      if (detected === null) {
+        note(agT('crop166NoLines'));
+        return;
+      }
+      updateLocalRotation(null);
+      setEditor({ isStraightenActive: false });
+      setAdjustments((prev: Adjustments) => withRotation(prev, current, detected));
+    } catch (err) {
+      note(agT('crop166Failed').replace('{error}', String(err)));
+    } finally {
+      setEditor({ isAutoStraightening: false });
+    }
+  };
+  // Gone once the photo or its angle changes (another photo, the slider, Shift+S).
+  const autoStraightenMessage =
+    autoStraightenNote &&
+    autoStraightenNote.path === selectedImage?.path &&
+    autoStraightenNote.rotation === fineRotation
+      ? autoStraightenNote.text
+      : null;
 
   const handleOverlayCycle = () => {
     const currentIndex = OVERLAYS.findIndex((o) => o.id === activeOverlay);
@@ -704,17 +743,22 @@ export default function CropPanel() {
     [myLenses, fetchDistortionParams, setAdjustments],
   );
 
-  const hasDistortion =
-    Math.abs(adjustments.lensDistortionParams?.k1 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.k2 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.k3 || 0) > 1e-6;
-  const hasTca =
-    Math.abs((adjustments.lensDistortionParams?.tca_vr || 1) - 1) > 1e-5 ||
-    Math.abs((adjustments.lensDistortionParams?.tca_vb || 1) - 1) > 1e-5;
-  const hasVignetting =
-    Math.abs(adjustments.lensDistortionParams?.vig_k1 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.vig_k2 || 0) > 1e-6 ||
-    Math.abs(adjustments.lensDistortionParams?.vig_k3 || 0) > 1e-6;
+  // Argentum: while the camera's own correction is on, the rows act on it.
+  const builtin = builtinInUse(adjustments);
+  const hasDistortion = builtin
+    ? builtin.distortion != null
+    : Math.abs(adjustments.lensDistortionParams?.k1 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.k2 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.k3 || 0) > 1e-6;
+  const hasTca = builtin
+    ? builtin.chromatic != null
+    : Math.abs((adjustments.lensDistortionParams?.tca_vr || 1) - 1) > 1e-5 ||
+      Math.abs((adjustments.lensDistortionParams?.tca_vb || 1) - 1) > 1e-5;
+  const hasVignetting = builtin
+    ? builtin.vignetting != null
+    : Math.abs(adjustments.lensDistortionParams?.vig_k1 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.vig_k2 || 0) > 1e-6 ||
+      Math.abs(adjustments.lensDistortionParams?.vig_k3 || 0) > 1e-6;
 
   const myLensOptions = useMemo(() => {
     if (myLenses.length === 0) {
@@ -808,6 +852,7 @@ export default function CropPanel() {
         lensCorrectionMode: INITIAL_ADJUSTMENTS.lensCorrectionMode,
         chromaticAberrationRedCyan: INITIAL_ADJUSTMENTS.chromaticAberrationRedCyan,
         chromaticAberrationBlueYellow: INITIAL_ADJUSTMENTS.chromaticAberrationBlueYellow,
+        ...LENS_BUILTIN_RESET,
       }));
     };
 
@@ -876,7 +921,11 @@ export default function CropPanel() {
                       )}
                       key={savedIndex < 0 ? preset.name : `saved-${savedIndex}`}
                       onClick={() => handlePresetClick(preset)}
-                      data-tooltip={preset.tooltip}
+                      data-tooltip={
+                        preset.value === ORIGINAL_RATIO && originalDimensions
+                          ? `${preset.tooltip} (${formatRatioLabel(originalDimensions.width, originalDimensions.height)})`
+                          : preset.tooltip
+                      }
                       whileTap={{ scale: 0.98 }}
                       transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                     >
@@ -906,9 +955,8 @@ export default function CropPanel() {
                     isCustomActive ? 'bg-accent' : 'bg-surface hover:bg-card-active',
                   )}
                   onClick={() => {
-                    const imageRatio = getEffectiveOriginalRatio();
                     let newAspectRatio = BASE_RATIO;
-                    if (preferPortrait || (imageRatio && imageRatio < 1)) {
+                    if (preferPortrait || (originalRatio && originalRatio < 1)) {
                       newAspectRatio = 1 / BASE_RATIO;
                     }
                     setIsCustomMode(true);
@@ -991,6 +1039,24 @@ export default function CropPanel() {
                         <Ruler size={14} />
                       </button>
                       <button
+                        onClick={handleAutoStraightenButton}
+                        className="flex items-center gap-1 p-1.5 rounded-md text-xs leading-none text-text-secondary transition-colors cursor-pointer hover:bg-card-active hover:text-text-primary disabled:cursor-wait"
+                        data-tooltip={agT('crop166AutoTip')}
+                        disabled={isAutoStraightening || !selectedImage?.isReady}
+                      >
+                        {isAutoStraightening ? (
+                          <>
+                            <Loader size={14} className="animate-spin" />
+                            {agT('crop166Levelling')}
+                          </>
+                        ) : (
+                          <>
+                            <Wand2 size={14} />
+                            {agT('crop166Auto')}
+                          </>
+                        )}
+                      </button>
+                      <button
                         className="p-1.5 rounded-md text-text-secondary transition-colors cursor-pointer hover:bg-card-active hover:text-text-primary"
                         onClick={resetFineRotation}
                         data-tooltip={t('editor.crop.tooltips.resetFineRotation')}
@@ -1009,6 +1075,11 @@ export default function CropPanel() {
                   onChange={handleFineRotationChange}
                   onDragStateChange={handleDragStateChange}
                 />
+                {autoStraightenMessage && (
+                  <Text as="div" variant={TextVariants.small} color={TextColors.secondary}>
+                    {autoStraightenMessage}
+                  </Text>
+                )}
               </div>
             </FoldingPane>
 
@@ -1349,7 +1420,8 @@ export default function CropPanel() {
                       className="overflow-hidden"
                     >
                       <div className="px-4 pb-4 pt-4 flex flex-col gap-4">
-                        <div className="w-full p-1 bg-card-active rounded-md">
+                        <LensBuiltinSwitch adjustments={adjustments} setAdjustments={setAdjustments} />
+                        <div className={clsx('w-full p-1 bg-card-active rounded-md', builtin && LENSFUN_UNUSED)}>
                           <div className="relative flex w-full">
                             <motion.div
                               className="absolute top-0 bottom-0 z-0 bg-accent"
@@ -1388,6 +1460,7 @@ export default function CropPanel() {
                           <div
                             className={clsx(
                               'w-full flex items-center justify-center gap-2 p-3 text-sm rounded-md border transition-colors',
+                              builtin && LENSFUN_UNUSED,
                               detectionStatus === 'not_found'
                                 ? 'bg-red-500/10 text-red-400 border-red-500/20'
                                 : adjustments.lensMaker
@@ -1412,7 +1485,7 @@ export default function CropPanel() {
                             )}
                           </div>
                         ) : (
-                          <>
+                          <div className={clsx('flex flex-col gap-4', builtin && LENSFUN_UNUSED)}>
                             <Dropdown
                               options={myLensOptions}
                               value=""
@@ -1433,7 +1506,10 @@ export default function CropPanel() {
                                 placeholder={t('modals.lensCorrection.selectLensModel')}
                               />
                             )}
-                          </>
+                          </div>
+                        )}
+                        {builtin && (
+                          <p className="text-xs text-text-secondary text-center -mt-2">{agT('lensBuiltinUnused')}</p>
                         )}
 
                         <div className="flex flex-col gap-3 mt-2">

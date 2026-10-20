@@ -106,7 +106,7 @@ pub fn normalise(r: u16, g: u16, b: u16) -> Option<[f32; 4]> {
 mod tests {
     use super::*;
 
-    /// The numbers out of AK's copy of the 1Ds file from issue #1678.
+    /// The numbers out of a copy of the 1Ds file from issue #1678.
     #[test]
     fn the_1ds_table_normalises_to_green() {
         let wb = normalise(842, 512, 633).expect("a white balance");

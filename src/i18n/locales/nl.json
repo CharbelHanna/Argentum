@@ -131,7 +131,36 @@
       "roughness": "Ruwheid",
       "roundness": "Rondheid",
       "size": "Grootte",
-      "vignette": "Vignet na bijsnijden"
+      "vignette": "Vignet na bijsnijden",
+      "spatial": "Ruimtelijk",
+      "fog": "Mist",
+      "fogDensity": "Dichtheid",
+      "fogHeight": "Grondmist",
+      "fogStart": "Begin",
+      "fogVariation": "Variatie",
+      "relight": "Herbelichten",
+      "relightAddLight": "Licht toevoegen",
+      "relightAmbient": "Omgevingslicht",
+      "relightAngle": "Hoek",
+      "relightColor": "Lichtkleur",
+      "relightCone": "Kegel",
+      "relightDepth": "Diepte",
+      "relightDuplicateLight": "Licht dupliceren",
+      "relightElevation": "Elevatie",
+      "relightFalloff": "Afname",
+      "relightIntensity": "Intensiteit",
+      "relightLight": "Licht {{index}}",
+      "relightRemoveLight": "Licht verwijderen",
+      "relightShadowSoftness": "Schaduwzachtheid",
+      "relightShadows": "Schaduwen",
+      "relightShine": "Glans",
+      "relightSoftness": "Zachtheid",
+      "relightType": "Lichttype",
+      "relightTypes": {
+        "directional": "Gericht",
+        "point": "Punt",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -202,7 +231,8 @@
       "resetAdjustments": "Aanpassingen herstellen",
       "stitchPanorama": "Panorama samenvoegen",
       "tagging": "Tags toevoegen",
-      "undo": "Ongedaan maken"
+      "undo": "Ongedaan maken",
+      "autoStraighten": "Automatisch rechtzetten"
     },
     "folders": {
       "changeIcon": "Pictogram wijzigen",
@@ -274,7 +304,9 @@
       "resetAdjustments_one": "Aanpassingen herstellen",
       "resetAdjustments_other": "Aanpassingen herstellen op {{count}} afbeeldingen",
       "showExplorer": "Weergeven in Verkenner",
-      "virtualCopy": "Virtuele kopie"
+      "virtualCopy": "Virtuele kopie",
+      "autoStraighten_one": "Afbeelding automatisch rechtzetten",
+      "autoStraighten_other": "Afbeeldingen automatisch rechtzetten"
     },
     "toasts": {
       "couldNotShowExplorer": "Kon bestand niet weergeven in Verkenner: {{err}}",
@@ -431,7 +463,8 @@
         "selectionPropertiesTitle": "Selectie-eigenschappen",
         "useBasicInpaint": "Basis inpainting gebruiken"
       },
-      "touchUpTitle": "Retoucheren"
+      "touchUpTitle": "Retoucheren",
+      "generatingNormalMap": "AI-normaalkaart berekenen..."
     },
     "crop": {
       "aspectRatioHeading": "Beeldverhouding",
@@ -548,7 +581,9 @@
         "switchToLandscape": "Overschakelen naar liggend",
         "switchToPortrait": "Overschakelen naar staand",
         "transform": "Perspectief en keystonecorrectie"
-      }
+      },
+      "autoStraightenFailed": "Automatisch rechtzetten mislukt: {{error}}",
+      "autoStraightenNoLines": "Geen rechte lijnen gevonden om recht te zetten"
     },
     "externalEdit": {
       "done": "Gereed",
@@ -1377,7 +1412,8 @@
       "applyPreset": "Een voorinstelling op elke foto toepassen",
       "editsOnImport": "Bewerkingen bij importeren",
       "editsOnImportHint": "Automatische bewerkingen omvatten lenscorrectie wanneer de lens uit de EXIF-gegevens kan worden herkend; foto's zonder overeenkomst blijven ongecorrigeerd.",
-      "presetNone": "Geen"
+      "presetNone": "Geen",
+      "notUniqueWarning": "Zonder {original_filename}, {original_filename_number} of {sequence} kunnen bestanden dezelfde naam krijgen. Die bestanden worden niet geïmporteerd."
     },
     "lensCorrection": {
       "amount": "Hoeveelheid",
@@ -1465,7 +1501,8 @@
       "titleMultiple": "{{count}} afbeeldingen hernoemen",
       "titleMultiple_one": "{{count}} afbeelding hernoemen",
       "titleMultiple_other": "{{count}} afbeeldingen hernoemen",
-      "titleSingle": "Afbeelding hernoemen"
+      "titleSingle": "Afbeelding hernoemen",
+      "notUniqueWarning": "Zonder {original_filename}, {original_filename_number} of {sequence} kunnen bestanden dezelfde naam krijgen. Dan wordt er niets hernoemd."
     },
     "renameFolder": {
       "cancel": "Annuleren",
@@ -1671,7 +1708,8 @@
         "zoom_in": "Inzoomen",
         "zoom_in_step": "Inzoomen (stap voor stap)",
         "zoom_out": "Uitzoomen",
-        "zoom_out_step": "Uitzoomen (stap voor stap)"
+        "zoom_out_step": "Uitzoomen (stap voor stap)",
+        "auto_straighten": "Automatisch rechtzetten"
       },
       "sections": {
         "editing": "Bewerken",
@@ -1895,7 +1933,7 @@
         "negpy": "Voor de inspiratie achter de negatief-omzetlogica.",
         "nind": "Voor het leveren van AI-modellen die de AI-ruisonderdrukkingmogelijkheden in RapidRAW aandrijven.",
         "rawler": "Voor de uitstekende Rust-crate die de basis vormt voor RAW-bestandsverwerking in dit project.",
-        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken. Ook de presets die bij Argentum horen (Color, Creative, Curve, Grain, Vignetting). Ook de maskers Onderwerp, Lucht en Achtergrond: de selectiecode, met SAM 2.1 en DETR.",
+        "rawmakase": "Voor DNG Standard, de look waarmee elke RAW begint: de belichtingsverschuiving per camera uit de cameratabel, en de standaardweergave en -verscherping waarmee die van Argentum worden vergeleken. Ook de presets die bij Argentum horen (Color, Creative, Curve, Grain, Vignetting). Ook de maskers Onderwerp, Lucht en Achtergrond: de selectiecode, met SAM 2.1 en DETR. Ook de lenscorrectie die de camera in elke foto opslaat, te beginnen met die van Fujifilm.",
         "sam2": "Voor het leveren van het basismodel dat wordt gebruikt voor de AI-onderwerpdetectiemogelijkheden.",
         "spektrafilm": "Voor de spectraalgebaseerde filmemulatie-LUT's door Andrea Volpato, gebruikt voor de ingebouwde filmemulaties van RapidRAW. Gelicenseerd onder CC BY-SA 4.0.",
         "u2net": "Voor het leveren van de robuuste architectuur die wordt gebruikt voor de AI-lucht- en voorgronddetectiemogelijkheden.",

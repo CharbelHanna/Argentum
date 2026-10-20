@@ -21,7 +21,7 @@
 //! Subtracting the same 1023 from every channel therefore takes about 18% off
 //! red and 8% off green. White balance then scales that gap up, and the camera
 //! matrix, which has large off-diagonal terms for Canon, amplifies it again.
-//! Measured on one of AK's files, linear, against darktable at the same stage:
+//! Measured on one sRAW file, linear, against darktable at the same stage:
 //!
 //! ```text
 //!                    R/G      B/G
@@ -169,7 +169,7 @@ mod tests {
         assert_eq!(shift_up_two_bits(4095), 16383);
     }
 
-    /// The layout AK's files use, and the ones that carry no white level.
+    /// The layout the test files use, and the ones that carry no white level.
     #[test]
     fn knows_the_layouts() {
         assert_eq!(specular_white_index(6, 1250), Some(0x2d0));

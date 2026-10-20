@@ -132,7 +132,36 @@
       "roughness": "Szorstkość",
       "roundness": "Zaokrąglenie",
       "size": "Rozmiar",
-      "vignette": "Winieta po kadrowaniu"
+      "vignette": "Winieta po kadrowaniu",
+      "spatial": "Przestrzenne",
+      "fog": "Mgła",
+      "fogDensity": "Gęstość",
+      "fogHeight": "Mgła przyziemna",
+      "fogStart": "Początek",
+      "fogVariation": "Zmienność",
+      "relight": "Ponowne oświetlenie",
+      "relightAddLight": "Dodaj światło",
+      "relightAmbient": "Światło otoczenia",
+      "relightAngle": "Kąt",
+      "relightColor": "Kolor światła",
+      "relightCone": "Stożek",
+      "relightDepth": "Głębia",
+      "relightDuplicateLight": "Duplikuj światło",
+      "relightElevation": "Wysokość",
+      "relightFalloff": "Spadek",
+      "relightIntensity": "Intensywność",
+      "relightLight": "Światło {{index}}",
+      "relightRemoveLight": "Usuń światło",
+      "relightShadowSoftness": "Miękkość cieni",
+      "relightShadows": "Cienie",
+      "relightShine": "Połysk",
+      "relightSoftness": "Miękkość",
+      "relightType": "Typ światła",
+      "relightTypes": {
+        "directional": "Kierunkowe",
+        "point": "Punktowe",
+        "spot": "Reflektor"
+      }
     }
   },
   "contextMenus": {
@@ -209,7 +238,8 @@
       "stitchPanorama": "Złóż panoramę",
       "tagging": "Tagowanie",
       "undo": "Cofnij",
-      "unflagged": "Bez oznaczenia"
+      "unflagged": "Bez oznaczenia",
+      "autoStraighten": "Automatyczne prostowanie"
     },
     "folders": {
       "changeIcon": "Zmień ikonę",
@@ -312,7 +342,11 @@
       "resetAdjustments_one": "Resetuj ustawienia",
       "resetAdjustments_other": "Resetuj ustawienia w {{count}} obrazach",
       "showExplorer": "Pokaż w eksploratorze plików",
-      "virtualCopy": "Kopia wirtualna"
+      "virtualCopy": "Kopia wirtualna",
+      "autoStraighten_few": "Automatyczne prostowanie obrazów",
+      "autoStraighten_many": "Automatyczne prostowanie obrazów",
+      "autoStraighten_one": "Automatyczne prostowanie obrazu",
+      "autoStraighten_other": "Automatyczne prostowanie obrazów"
     },
     "toasts": {
       "couldNotShowExplorer": "Nie można pokazać pliku w eksploratorze: {{err}}",
@@ -477,7 +511,8 @@
         "selectionPropertiesTitle": "Właściwości zaznaczenia",
         "useBasicInpaint": "Użyj podstawowego inpaintingu"
       },
-      "touchUpTitle": "Poprawki"
+      "touchUpTitle": "Poprawki",
+      "generatingNormalMap": "Obliczanie mapy normalnych AI..."
     },
     "crop": {
       "aspectRatioHeading": "Proporcje",
@@ -594,7 +629,9 @@
         "switchToLandscape": "Zmień na krajobraz",
         "switchToPortrait": "Zmień na portret",
         "transform": "Korekcja perspektywy i keystone"
-      }
+      },
+      "autoStraightenFailed": "Automatyczne prostowanie nie powiodło się: {{error}}",
+      "autoStraightenNoLines": "Nie znaleziono prostych linii do wyprostowania"
     },
     "externalEdit": {
       "done": "Gotowe",
@@ -1460,7 +1497,8 @@
       "presetNone": "Brak",
       "sourceFiles": "Pliki źródłowe",
       "startImport": "Rozpocznij import",
-      "title": "Ustawienia importu"
+      "title": "Ustawienia importu",
+      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} lub {sequence} pliki mogą otrzymać tę samą nazwę. Takie pliki nie zostaną zaimportowane."
     },
     "lensCorrection": {
       "amount": "Ilość",
@@ -1554,7 +1592,8 @@
       "titleMultiple_many": "Zmień nazwy {{count}} obrazów",
       "titleMultiple_one": "Zmień nazwę {{count}} obrazu",
       "titleMultiple_other": "Zmień nazwę {{count}} obrazów",
-      "titleSingle": "Zmień nazwę obrazu"
+      "titleSingle": "Zmień nazwę obrazu",
+      "notUniqueWarning": "Bez {original_filename}, {original_filename_number} lub {sequence} pliki mogą otrzymać tę samą nazwę. Wtedy żaden plik nie zostanie przemianowany."
     },
     "renameFolder": {
       "cancel": "Anuluj",
@@ -1770,7 +1809,8 @@
         "zoom_in": "Przybliż",
         "zoom_in_step": "Przybliż (krokowo)",
         "zoom_out": "Oddal",
-        "zoom_out_step": "Oddal (krokowo)"
+        "zoom_out_step": "Oddal (krokowo)",
+        "auto_straighten": "Automatyczne prostowanie"
       },
       "sections": {
         "editing": "Edycja",
@@ -1994,7 +2034,7 @@
         "negpy": "Za inspirację stojącą za rozwiązaniem do inwersji negatywów.",
         "nind": "Za dostarczenie modeli AI, które stanowią silnik odszumiający RapidRAW.",
         "rawler": "Za świetną bibliotekę w Rust, dostarczającą fundament dla przetwarzania plików RAW w tym projekcie.",
-        "rawmakase": "Za DNG Standard, wygląd, od którego zaczyna każdy plik RAW: przesunięcie ekspozycji każdego aparatu z jego tabeli aparatów oraz domyślne wywołanie i wyostrzanie, z którymi porównywane są te w Argentum. Także presety dołączone do Argentum (Color, Creative, Curve, Grain, Vignetting). Także maski Obiekt główny, Niebo i Tło: jego kod zaznaczania, z SAM 2.1 i DETR.",
+        "rawmakase": "Za DNG Standard, wygląd, od którego zaczyna każdy plik RAW: przesunięcie ekspozycji każdego aparatu z jego tabeli aparatów oraz domyślne wywołanie i wyostrzanie, z którymi porównywane są te w Argentum. Także presety dołączone do Argentum (Color, Creative, Curve, Grain, Vignetting). Także maski Obiekt główny, Niebo i Tło: jego kod zaznaczania, z SAM 2.1 i DETR. Także korekcję obiektywu, którą aparat zapisuje w każdym zdjęciu, zaczynając od Fujifilm.",
         "sam2": "Za dostarczenie bazowego modelu do wykrywania i wycinania obiektów za pomocą AI.",
         "spektrafilm": "Za oparte na danych spektralnych LUT-y emulacji filmu autorstwa Andrei Volpato, napędzające wbudowane emulacje filmowe RapidRAW. Licencja CC BY-SA 4.0.",
         "u2net": "Za świetną architekturę używaną przez nasze modele wykrywania nieba i pierwszego planu.",

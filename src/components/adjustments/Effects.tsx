@@ -7,7 +7,13 @@ import { motion } from 'framer-motion';
 import clsx from 'clsx';
 import Slider from '../ui/Slider';
 import Switch from '../ui/Switch';
-import { Adjustments, Effect, CreativeAdjustment, getAdjustmentToolOrder, getHiddenAdjustmentTools } from '../../utils/adjustments';
+import {
+  Adjustments,
+  Effect,
+  CreativeAdjustment,
+  getAdjustmentToolOrder,
+  getHiddenAdjustmentTools,
+} from '../../utils/adjustments';
 import { AppSettings } from '../ui/AppProperties';
 import Text from '../ui/Text';
 import AdjustmentSubSection from './AdjustmentSubSection';
@@ -15,6 +21,12 @@ import { TextVariants } from '../../types/typography';
 import { DepthRangePicker } from '../ui/DepthRangePicker';
 import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
+import { useEditorStore } from '../../store/useEditorStore';
+// Argentum: Relight and Fog as parts of their own (RapidRAW 1.6.6 has them in "Spatial").
+import RelightPart from '../../argentum/effects/RelightPart';
+import FogPart from '../../argentum/effects/FogPart';
+import { useAgTranslation } from '../../argentum/locales';
+import { useTheirText } from '../../argentum/effects/theirText';
 
 // Argentum: the LUT block moved to the Looks tab (argentum/looks/LooksPanel.tsx).
 interface EffectsPanelProps {
@@ -177,7 +189,20 @@ export default function EffectsPanel({
 
   const isAiFree = useSettingsStore((s) => s.appSettings?.aiProvider === 'ai-free');
   const hiddenTools = getHiddenAdjustmentTools(appSettings?.adjustmentLayout);
-  const toolOrder = getAdjustmentToolOrder('effects', appSettings?.adjustmentLayout?.toolOrder);
+  // Argentum: RapidRAW 1.6.6 lists Lens blur, Relight and Fog as one tool, 'spatial', in the
+  // Customise menu; an order saved before then names 'lensBlur', which stands for it.
+  const savedOrder = appSettings?.adjustmentLayout?.toolOrder?.effects;
+  const toolOrder = getAdjustmentToolOrder(
+    'effects',
+    savedOrder && { effects: savedOrder.map((id) => (id === 'lensBlur' ? 'spatial' : id)) },
+  );
+  const spatialOrder = toolOrder.indexOf('spatial');
+  const isSpatialHidden = hiddenTools.includes('spatial');
+  const ag = useAgTranslation();
+  const theirs = useTheirText();
+  const setEditor = useEditorStore((s) => s.setEditor);
+  const onPart = (enabled: boolean | undefined) =>
+    enabled ? <span className="text-xs text-accent select-none">{ag('fx166On')}</span> : undefined;
 
   return (
     <div className="flex flex-col gap-4">
@@ -223,12 +248,8 @@ export default function EffectsPanel({
 
       {!isForMask && (
         <>
-          {!isAiFree && !hiddenTools.includes('lensBlur') && (
-            <AdjustmentSubSection
-              id="lensBlur"
-              order={toolOrder.indexOf('lensBlur')}
-              title={t('adjustments.effects.lensBlur')}
-            >
+          {!isAiFree && !isSpatialHidden && !hiddenTools.includes('lensBlur') && (
+            <AdjustmentSubSection id="lensBlur" order={spatialOrder} title={t('adjustments.effects.lensBlur')}>
               <Switch
                 label={t('adjustments.effects.lensBlur')}
                 checked={!!adjustments.lensBlurEnabled}
@@ -326,52 +347,91 @@ export default function EffectsPanel({
             </AdjustmentSubSection>
           )}
 
+          {!isAiFree && !isSpatialHidden && (
+            <AdjustmentSubSection
+              id="relight"
+              order={spatialOrder}
+              title={theirs('adjustments.effects.relight')}
+              actions={onPart(adjustments.relightEnabled)}
+            >
+              <RelightPart
+                adjustments={adjustments}
+                setAdjustments={setAdjustments}
+                onDragStateChange={onDragStateChange}
+              />
+            </AdjustmentSubSection>
+          )}
+
+          {!isAiFree && !isSpatialHidden && (
+            <AdjustmentSubSection
+              id="fog"
+              order={spatialOrder}
+              title={theirs('adjustments.effects.fog')}
+              actions={onPart(adjustments.fogEnabled)}
+            >
+              <FogPart
+                adjustments={adjustments}
+                setAdjustments={setAdjustments}
+                onDragStateChange={onDragStateChange}
+              />
+            </AdjustmentSubSection>
+          )}
+
           {!hiddenTools.includes('vignette') && (
             <AdjustmentSubSection
               id="vignette"
               order={toolOrder.indexOf('vignette')}
               title={t('adjustments.effects.vignette')}
             >
-              <Slider
-                label={t('adjustments.effects.amount')}
-                max={100}
-                min={-100}
-                onChange={(e: any) => handleAdjustmentChange(Effect.VignetteAmount, e.target.value)}
-                step={1}
-                value={adjustments.vignetteAmount}
-                onDragStateChange={onDragStateChange}
-              />
-              <Slider
-                defaultValue={50}
-                label={t('adjustments.effects.midpoint')}
-                max={100}
-                min={0}
-                onChange={(e: any) => handleAdjustmentChange(Effect.VignetteMidpoint, e.target.value)}
-                step={1}
-                value={adjustments.vignetteMidpoint}
-                onDragStateChange={onDragStateChange}
-                fillOrigin="min"
-              />
-              <Slider
-                label={t('adjustments.effects.roundness')}
-                max={100}
-                min={-100}
-                onChange={(e: any) => handleAdjustmentChange(Effect.VignetteRoundness, e.target.value)}
-                step={1}
-                value={adjustments.vignetteRoundness}
-                onDragStateChange={onDragStateChange}
-              />
-              <Slider
-                defaultValue={50}
-                label={t('adjustments.effects.feather')}
-                max={100}
-                min={0}
-                onChange={(e: any) => handleAdjustmentChange(Effect.VignetteFeather, e.target.value)}
-                step={1}
-                value={adjustments.vignetteFeather}
-                onDragStateChange={onDragStateChange}
-                fillOrigin="min"
-              />
+              {/* Argentum: touching these shows the pin that moves the vignette's centre (argentum/effects/onPhoto.tsx). */}
+              <div
+                data-center-marker-controls="vignette"
+                data-tooltip={ag('fx166CentreTip')}
+                onPointerDown={() =>
+                  setEditor({ activeCenterMarker: 'vignette', isRelightPickerActive: false, isWbPickerActive: false })
+                }
+              >
+                <Slider
+                  label={t('adjustments.effects.amount')}
+                  max={100}
+                  min={-100}
+                  onChange={(e: any) => handleAdjustmentChange(Effect.VignetteAmount, e.target.value)}
+                  step={1}
+                  value={adjustments.vignetteAmount}
+                  onDragStateChange={onDragStateChange}
+                />
+                <Slider
+                  defaultValue={50}
+                  label={t('adjustments.effects.midpoint')}
+                  max={100}
+                  min={0}
+                  onChange={(e: any) => handleAdjustmentChange(Effect.VignetteMidpoint, e.target.value)}
+                  step={1}
+                  value={adjustments.vignetteMidpoint}
+                  onDragStateChange={onDragStateChange}
+                  fillOrigin="min"
+                />
+                <Slider
+                  label={t('adjustments.effects.roundness')}
+                  max={100}
+                  min={-100}
+                  onChange={(e: any) => handleAdjustmentChange(Effect.VignetteRoundness, e.target.value)}
+                  step={1}
+                  value={adjustments.vignetteRoundness}
+                  onDragStateChange={onDragStateChange}
+                />
+                <Slider
+                  defaultValue={50}
+                  label={t('adjustments.effects.feather')}
+                  max={100}
+                  min={0}
+                  onChange={(e: any) => handleAdjustmentChange(Effect.VignetteFeather, e.target.value)}
+                  step={1}
+                  value={adjustments.vignetteFeather}
+                  onDragStateChange={onDragStateChange}
+                  fillOrigin="min"
+                />
+              </div>
             </AdjustmentSubSection>
           )}
 

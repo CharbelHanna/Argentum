@@ -2,10 +2,10 @@
 //!
 //! WHY
 //!
-//! AK sees a green cast that white balance cannot remove and that darktable does
+//! There is a green cast that white balance cannot remove and that darktable does
 //! not have. Hand-sampling a patch in both apps suggested green was ~13% high —
-//! but he was right to distrust it: you cannot aim at the same pixel twice
-//! across two applications, and his two attempts landed 30% apart in brightness.
+//! but that number deserved distrust: you cannot aim at the same pixel twice
+//! across two applications, and two attempts landed 30% apart in brightness.
 //!
 //! Ratios between channels held steady where absolute values did not, which is
 //! suggestive but still two samples. This settles it over millions of pixels:
@@ -317,13 +317,13 @@ mod matrix_sim {
 
 /// The same comparison across many photos, not one.
 ///
-/// AK's objection, and a fair one: every number so far came from a single
+/// The objection, and a fair one: every number so far came from a single
 /// frame, which is an easy way to tune a fix that only helps that frame. The
 /// colour correction is derived from colour science rather than fitted, so it
 /// should generalise by construction — this is what checks whether it does.
 ///
 /// Renders each RAW through our pipeline and compares it against a darktable
-/// render of the same file, produced beforehand with AK's own settings.
+/// render of the same file, produced beforehand with the photographer's own settings.
 #[cfg(test)]
 mod across_a_set {
     use super::tests_support::*;
@@ -425,7 +425,7 @@ mod across_a_set {
 
 /// How the tones are spread, not just where their average sits.
 ///
-/// AK's observation, looking at the in-app histogram: a spike jammed against
+/// An observation from the in-app histogram: a spike jammed against
 /// black and a separate bump in the mids, rather than a spread. That is a
 /// distribution problem, and no exposure multiplier fixes it — brightening a
 /// crushed image gives a brighter crushed image, which is precisely what the
@@ -458,7 +458,7 @@ mod distribution {
     }
 
     #[test]
-    #[ignore = "reads AK's files; run by hand"]
+    #[ignore = "reads local files; run by hand"]
     fn compare_tone_distribution() {
         let dt = image::open(fixtures::compare(
             "set/2023-06-25_Canon_EOS_5D_Mark_II_104-5897.tif",
@@ -518,7 +518,7 @@ mod crush {
     use super::fixtures;
 
     #[test]
-    #[ignore = "reads AK's file; run by hand"]
+    #[ignore = "reads a local file; run by hand"]
     fn how_much_is_clipped_to_black() {
         let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
             fixtures::raw("2023/2023-06-25/2023-06-25_Canon EOS 5D Mark II_104-5897.CR2")
@@ -669,7 +669,7 @@ mod linear_stage {
     }
 
     #[test]
-    #[ignore = "reads AK's file and a darktable render; run by hand"]
+    #[ignore = "reads a local file and a darktable render; run by hand"]
     fn where_is_the_cast_born() {
         // Point at any pair with AG_RAW / AG_DT; the constants are the default.
         let raw_path = std::env::var("AG_RAW").unwrap_or_else(|_| {
@@ -763,7 +763,7 @@ mod sraw_facts {
     use super::fixtures;
 
     #[test]
-    #[ignore = "reads AK's file; run by hand"]
+    #[ignore = "reads a local file; run by hand"]
     fn what_rawler_reads_from_an_sraw() {
         let path = std::env::var("AG_SRAW").unwrap_or_else(|_| {
             fixtures::raw("2023/2023-06-01/2023-06-01_Canon EOS 5D Mark II_104-5729.CR2")
@@ -897,7 +897,7 @@ mod linear_across_a_set {
     }
 
     #[test]
-    #[ignore = "reads AK's files and darktable renders; run by hand"]
+    #[ignore = "reads local files and darktable renders; run by hand"]
     fn how_close_are_we_across_the_set() {
         // The decode only reaches for a camera profile once startup has told it
         // where the library is, and startup does not run in a test. Point it at

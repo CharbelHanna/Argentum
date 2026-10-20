@@ -15,8 +15,8 @@
 //! ```
 //!
 //! where ours is gamma 2.38 with a 1.28 contrast boost and nothing else. The
-//! missing pieces are an exposure lift and this curve. AK's photos come out
-//! dark and flat as a result — the complaint that started this.
+//! missing pieces are an exposure lift and this curve. Photos come out
+//! dark and flat as a result — the problem that started this.
 //!
 //! WHAT IT IS
 //!
@@ -253,7 +253,7 @@ mod tests {
 ///
 ///
 /// 2.6 lands on darktable's average. Chosen from the whole set rather than one
-/// frame, after AK pointed out that tuning on a single picture is how you get a
+/// frame, because tuning on a single picture is how you get a
 /// fix that only helps that picture.
 pub const DEFAULT_EXPOSURE_EV: f32 = 2.6;
 

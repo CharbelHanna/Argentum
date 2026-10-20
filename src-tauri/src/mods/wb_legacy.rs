@@ -73,7 +73,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
-use crate::white_balance::{self, MIRED_PER_RELATIVE_UNIT, TINT_PER_RELATIVE_UNIT, WhiteBalance};
+use crate::white_balance::{MIRED_PER_RELATIVE_UNIT, TINT_PER_RELATIVE_UNIT, WhiteBalance};
 
 /// What the old sliders were divided by before reaching the shader.
 const OLD_SCALE_TEMPERATURE: f64 = 25.0;
@@ -87,7 +87,10 @@ const RELATIVE_RANGE: f64 = 100.0;
 /// when there is something to convert.
 pub fn upgraded(path: &str, mut adjustments: Value) -> Value {
     if is_old(&adjustments) {
-        upgrade(&mut adjustments, white_balance::as_shot_white_balance(path));
+        upgrade(
+            &mut adjustments,
+            crate::as_shot::as_shot(path).white_balance,
+        );
     }
     adjustments
 }
@@ -148,7 +151,7 @@ pub fn find_old(paths: &[String]) -> (Vec<Found>, Vec<Found>) {
 /// One at a time is the point. Their command returns at once and redraws the
 /// thumbnail on a thread of its own, with nothing limiting how many run, and
 /// each one decodes the whole RAW. The first version of this sweep saved every
-/// old edit in a folder at once; on AK's first start that was dozens of 24 MP
+/// old edit in a folder at once; on a real first start that was dozens of 24 MP
 /// decodes together, and the preview worker died. So each save waits for its
 /// thumbnail before the next starts.
 ///
@@ -458,6 +461,7 @@ fn kelvin_to_xy(kelvin: f64) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::white_balance;
     use glam::{DMat3, DVec3};
 
     const BRADFORD: [f64; 9] = [

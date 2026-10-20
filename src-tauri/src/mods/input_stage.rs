@@ -7,7 +7,7 @@
 //! and the next thing that needs whole-image passes rather than one pixel at a
 //! time (denoise, diffuse or sharpen) goes in here, not in another line of
 //! theirs. See `modules.wgsl` for the per-pixel stages, which are the same
-//! idea one level down. AK's decision, 2026-10-10.
+//! idea one level down. Decided 2026-10-10.
 //!
 //! ORDER IS THE CONTRACT
 //!
@@ -15,7 +15,7 @@
 //! output. Sharpening is first because capture sharpening undoes the lens; a
 //! denoiser would go before it, so it is not sharpening the noise.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use image::DynamicImage;
 
@@ -270,6 +270,58 @@ fn source_key(image: &DynamicImage, transform_hash: u64) -> u64 {
     h.finish().max(1)
 }
 
+/// The full-resolution picture the editor's preview is a smaller copy of: the
+/// open photo, warped, rotated and cropped, under its transform. RapidRAW kept
+/// it in `full_transformed_cache` until 1.6.6, whose staged preview (lib.rs
+/// `compute_transformed_preview`) crops a smaller working copy instead. Kept
+/// here so sharpening still measures the preview on what the export renders.
+static FULL_PICTURE: Mutex<Option<(u64, Arc<DynamicImage>)>> = Mutex::new(None);
+
+fn photo_key(path: &str, transform_hash: u64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    path.hash(&mut h);
+    transform_hash.hash(&mut h);
+    h.finish()
+}
+
+/// The key of the open photo under this transform. `try_lock`, because this
+/// runs under their processor lock: no key, no match, and the render is taken
+/// as 1:1, which is what it is for every render but the editor's.
+fn open_photo_key(state: &tauri::State<AppState>, transform_hash: u64) -> Option<u64> {
+    let open = state.original_image.try_lock().ok()?;
+    Some(photo_key(&open.as_ref()?.path, transform_hash))
+}
+
+/// Keep the full picture of `path` under `transform_hash`, making it with
+/// `make` only when the one kept is for another photo or transform.
+pub fn keep_full_picture(
+    path: &str,
+    transform_hash: u64,
+    make: impl FnOnce() -> Arc<DynamicImage>,
+) {
+    let key = photo_key(path, transform_hash);
+    let mut kept = FULL_PICTURE.lock().unwrap_or_else(|e| e.into_inner());
+    if kept.as_ref().is_none_or(|(hash, _)| *hash != key) {
+        *kept = None;
+        *kept = Some((key, make()));
+    }
+}
+
+/// Drop the kept picture: the photo's pixels changed (mods/redecode.rs).
+pub fn forget_full_picture() {
+    *FULL_PICTURE.lock().unwrap_or_else(|e| e.into_inner()) = None;
+}
+
+/// The kept picture, for the memory count (mods/memory.rs).
+pub fn full_picture() -> Option<Arc<DynamicImage>> {
+    FULL_PICTURE
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .as_ref()
+        .map(|(_, img)| Arc::clone(img))
+}
+
 /// How many render pixels there are per full-resolution pixel, and the
 /// full-resolution picture when there is one to measure on.
 ///
@@ -284,12 +336,12 @@ fn render_scale(
     transform_hash: u64,
     width: u32,
 ) -> (f32, Option<Arc<DynamicImage>>) {
-    let cache = state
-        .full_transformed_cache
-        .lock()
-        .unwrap_or_else(|e| e.into_inner());
-    match cache.as_ref() {
-        Some((hash, full, _)) if *hash == transform_hash && full.width() > 0 => (
+    let Some(key) = open_photo_key(state, transform_hash) else {
+        return (1.0, None);
+    };
+    let kept = FULL_PICTURE.lock().unwrap_or_else(|e| e.into_inner());
+    match kept.as_ref() {
+        Some((hash, full)) if *hash == key && full.width() > 0 => (
             (width as f32 / full.width() as f32).min(1.0),
             Some(Arc::clone(full)),
         ),
