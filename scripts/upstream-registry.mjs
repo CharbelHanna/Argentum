@@ -1441,7 +1441,7 @@ export const REGISTRY = [
   {
     id: 'model-manager',
     kind: 'feature',
-    what: 'Settings > General > AI Models: every model the app downloads, what is on disk, and deleting it.',
+    what: 'Settings > AI and models: every model the app downloads, what is on disk, and deleting it.',
     ours: [
       'src-tauri/src/mods/model_catalog.rs',
       'src-tauri/src/mods/model_manager.rs',
@@ -1451,9 +1451,9 @@ export const REGISTRY = [
     // a missing model again. The card itself is a line in their settings panel.
     dependsOn: [
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'A data-argentum="ai-models" marker straight after their Generative AI card on the '
-          + 'General page, which 1.6.5 moved there from Processing. One line. If they move that card '
-          + 'again, the marker has to follow it.' },
+        note: 'The data-argentum slot their page ends with, on the Modern window\x27s AI and models '
+          + 'section, which shows their Generative AI card (moved to General by 1.6.5) and then this. Under '
+          + 'Classic it was placed under that card on General by AiModelsPlacement.tsx, deleted with Classic.' },
       { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
         note:
           'Their model file names and addresses are private constants here, copied into '
@@ -1466,7 +1466,7 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
       'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
-      'Manual: Settings > General > AI Models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual: Settings > AI and models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
       'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
     ],
     keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
