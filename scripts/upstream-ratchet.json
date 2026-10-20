@@ -30,7 +30,6 @@
     "src/components/ui/LUTControl.tsx": 187,
     "src/hooks/useFileOperations.ts": 9,
     "src/main.tsx": 1,
-    "src/utils/adjustments.ts": 3,
-    "src/window/TitleBar.tsx": 1
+    "src/utils/adjustments.ts": 3
   }
 }

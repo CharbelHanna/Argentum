@@ -923,7 +923,6 @@ export const REGISTRY = [
       { file: 'src-tauri/tauri.conf.json', how: 'rebrands' },
       { file: 'src-tauri/src/main.rs', how: 'rebrands' },
       { file: 'index.html', how: 'rebrands' },
-      { file: 'src/window/TitleBar.tsx', how: 'rebrands' },
     ],
     tests: ['scripts/check-identity.mjs, run by npm start'],
     keywords: /rapidraw|branding|bundle.?identifier|update.?check|ko-?fi|donat/i,
@@ -2244,6 +2243,10 @@ export const REGISTRY = [
       { file: 'src/components/panel/PanelSwitcher.tsx', how: 'replaces',
         note: 'Deleted: the tab strips of those areas and the narrow window\'s panel bar. The tabs '
           + 'are RightPanel.tsx\'s.' },
+      { file: 'src/window/TitleBar.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s title bar (the app name and the window controls). The Modern top bar '
+          + 'is the title bar; its window controls are WindowControls.tsx, adapted from this file. Its '
+          + 'one rebranded line, the name Argentum, went with it.' },
       { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
         note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
       { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
