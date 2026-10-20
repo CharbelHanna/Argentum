@@ -8,6 +8,21 @@ Newest first.
 
 ### Added
 
+- **Fujifilm photos get the camera's own lens correction.** Every RAF carries the lens's
+  distortion, colour fringing (lateral chromatic aberration) and corner shading for the focal
+  length and aperture of the shot, and Lightroom applies them by default; Argentum read none of
+  it. A new switch at the top of Crop > Lens Correction, "Camera's built-in correction", applies
+  it in the lens warp, in place of the lensfun profile while it is on, with the Distortion,
+  Chromatic Aberration and Vignetting switches and amounts acting on it. It starts on for a
+  Fujifilm photo with no edit yet; an edit saved earlier keeps its look until the switch is
+  turned on. The vignetting gain is raised to the power 0.85, which RAWmakase measured as
+  matching Lightroom's corners. Distortion that pushes the corners outward zooms in just enough
+  to keep them inside the sensor (5% on an X-S10 zoom sample). One module in the engine
+  (`rm_lens_builtin.rs`), `mods/lens_builtin.rs` and `argentum/lensBuiltin.ts`. From RAWmakase
+  @ `a8c5d6d7` (v0.4.0, MIT): `crates/rawmakase-model/src/optics/mod.rs` (the correction model
+  and its fill scale), `crates/rawmakase-model/src/lens/embedded.rs` (the Fujifilm reader) and
+  `crates/rawmakase-engine/src/develop/image_space.rs` (the position map and its inverse).
+  Sony's tables and a DNG's lens opcodes come next, each on its own.
 - **Relight and Fog, from RapidRAW 1.6.6.** Edit > Effects has two new parts after Lens blur.
   Relight places Lamp, Spot or Sun lights on the photo, dragged and aimed on the photo, lit
   along each surface's direction, with cast shadows. Fog thickens with distance and lies low
@@ -454,6 +469,14 @@ against the 1.6.5 review.
     theirs are recorded in `scripts/upstream-ratchet.json` and may only go
     down.
   - One git process per question instead of about 390: 45-76 s to about 1 s.
+- **DNG Standard's camera table is generated.** `scripts/rawmakase-cameras.mjs
+  <release>` writes `mods/dng_baseline.tsv` from RAWmakase `data/cameras.toml`
+  at one release, named on the table's `# Source:` line; a value of ours that
+  differs from RAWmakase's is one entry in the script's `EXCEPTIONS`, with its
+  reason and what removes it (none today). A test proves the table is exactly
+  what the script makes from the commit it names (v0.4.0 @ `a8c5d6d7`: all 230
+  rows unchanged), and `npm run check:merge` warns when RAWmakase has a newer
+  release.
 
 ## 26.41.12 — 2026-10-11
 

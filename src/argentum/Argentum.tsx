@@ -53,6 +53,7 @@ import { registerArgentumTranslations, useAgTranslation } from './locales';
 import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
 import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
+import { useLensBuiltinOnOpen } from './lensBuiltin';
 import SuperResolutionModal from './SuperResolutionModal';
 import SuperResolutionButton from './SuperResolutionButton';
 
@@ -123,6 +124,9 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
 
   // Auto white balance measured again on each photo it is pasted onto.
   useAutoWhiteBalanceFollows();
+
+  // The camera's built-in lens correction, filled into each photo's edit as it opens.
+  useLensBuiltinOnOpen();
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.

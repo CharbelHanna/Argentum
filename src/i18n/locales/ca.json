@@ -1963,7 +1963,7 @@
         "negpy": "Per la inspiració que hi ha darrere de la lògica de conversió de negatius.",
         "nind": "Per proporcionar els models d'IA que impulsen les capacitats de reducció de soroll per IA a RapidRAW.",
         "rawler": "Per l'excel·lent component de Rust que proporciona la base per al processament de fitxers RAW en aquest projecte.",
-        "rawmakase": "Per DNG Standard, l'aspecte amb què comença cada RAW: el desplaçament d'exposició de cada càmera de la seva taula de càmeres, i la representació i l'enfocament per defecte amb què es comparen els d'Argentum. També els preajustos que porta Argentum (Color, Creative, Curve, Grain, Vignetting). També les màscares Subjecte, Cel i Fons: el seu codi de selecció, amb SAM 2.1 i DETR.",
+        "rawmakase": "Per DNG Standard, l'aspecte amb què comença cada RAW: el desplaçament d'exposició de cada càmera de la seva taula de càmeres, i la representació i l'enfocament per defecte amb què es comparen els d'Argentum. També els preajustos que porta Argentum (Color, Creative, Curve, Grain, Vignetting). També les màscares Subjecte, Cel i Fons: el seu codi de selecció, amb SAM 2.1 i DETR. També la correcció d'objectiu que la càmera desa a cada foto, començant per Fujifilm.",
         "sam2": "Per proporcionar el model de base utilitzat per a les capacitats de detecció de subjectes per IA.",
         "spektrafilm": "Per les LUTs d'emulació de pel·lícula basades en espectres, d'Andrea Volpato, que impulsen les emulacions integrades de RapidRAW. Amb llicència CC BY-SA 4.0.",
         "u2net": "Per proporcionar la robusta arquitectura utilitzada per a les capacitats de detecció de cel i primer pla per IA.",
