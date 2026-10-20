@@ -1,0 +1,35 @@
+name: Engine
+
+# The engine crate (src-tauri/engine) is a workspace of its own, and nothing
+# else in CI builds it. Its parity tests compile some of the app's files as
+# they are (engine/reference), so a change to one of those files can stop the
+# engine's tests compiling without touching the engine at all. This runs them
+# on every push and pull request.
+#
+# The runner has no GPU and no test photos: the GPU tests and the real-photo
+# tests say they skipped and pass. What runs here is the build, every test
+# that needs neither, and the reference crate against today's app files.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  test:
+    name: Engine tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The toolchain from src-tauri/rust-toolchain.toml; the cache is the
+      # engine's own workspace and target.
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          rust-src-dir: src-tauri
+          cache-workspaces: src-tauri/engine
+
+      - name: Test
+        working-directory: src-tauri/engine
+        run: cargo test

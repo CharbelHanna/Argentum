@@ -40,16 +40,17 @@ pub mod sharpen_gpu;
 pub mod white_balance;
 
 /// `crate::mods`, for the files that live there and name each other by it.
+///
+/// The path names the app's `mods/` folder for the files declared inside.
+/// Paths on those files themselves would start from `reference/src/mods/`,
+/// which does not exist: Windows lets a `..` step out of a missing folder,
+/// Linux does not.
+#[path = "../../../src/mods"]
 pub mod mods {
-    #[path = "../../../../src/mods/dcp.rs"]
     pub mod dcp;
-    #[path = "../../../../src/mods/dng_standard.rs"]
     pub mod dng_standard;
-    #[path = "../../../../src/mods/highlight_protection.rs"]
     pub mod highlight_protection;
-    #[path = "../../../../src/mods/profiles.rs"]
     pub mod profiles;
-    #[path = "../../../../src/mods/raw_tone.rs"]
     pub mod raw_tone;
 
     /// `mods::decode`: the decode hook and the profile's daylight matrix,

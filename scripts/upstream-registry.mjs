@@ -79,6 +79,8 @@ export const OURS = [
   // Ours by creation: upstream has no such workflow. Their three are still
   // theirs, and what we removed from each is claimed in the registry.
   '.github/workflows/upstream.yml',
+  // Ours by creation: upstream has no engine crate, and so no workflow for it.
+  '.github/workflows/engine.yml',
   // Ours by creation too: upstream has no cargo config. It holds the dev
   // linker (registry entry fast-dev-builds).
   '.cargo/config.toml',
