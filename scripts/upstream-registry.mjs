@@ -736,10 +736,6 @@ export const REGISTRY = [
       'src-tauri/src/mods/colour_compare.rs',
     ],
     dependsOn: [
-      { file: 'src/components/panel/editor/EditorToolbar.tsx', how: 'calls',
-        note: 'The readout button sits in the toolbar row, found from their data-bench-id="undo" '
-          + 'button, which they tag for their own benchmarks. It used to share the color-tools '
-          + 'mount in Color.tsx; this note said so long after it moved.' },
       { file: 'src/components/panel/editor/ImageCanvas.tsx', how: 'calls',
         note:
           'photoBox.ts finds the photo on screen as the overlay svg their canvas sizes in px to the '
@@ -1212,7 +1208,6 @@ export const REGISTRY = [
     what: 'Local AI image super-resolution with selectable 2x and 4x scaling.',
     ours: [
       'src-tauri/src/mods/super_resolution.rs',
-      'src/argentum/SuperResolutionButton.tsx',
       'src/argentum/SuperResolutionModal.tsx',
       'src/argentum/superResolution.ts',
     ],

@@ -13,9 +13,8 @@
  * they already have. Their JSX never changes. The cost to upstream is one tag
  * in `App.tsx`, once, no matter how much we build afterwards.
  *
- * Anchors must be things upstream already renders for its own reasons —
- * `data-bench-id="undo"` is theirs, for benchmarking. We do not add anchors;
- * that would just be the same problem with extra steps.
+ * Anchors must be things upstream already renders for its own reasons. We do
+ * not add anchors; that would just be the same problem with extra steps.
  *
  * If an anchor disappears in an upstream update, the portal quietly renders
  * nothing and the app still runs. That is the right failure: a missing button
@@ -33,8 +32,6 @@ import './noCloud';
 import RgbReadout from './RgbReadout';
 import LinearMask from './LinearMask';
 import RadialFeather from './RadialFeather';
-import RgbReadoutButton from './RgbReadoutButton';
-import RenderStatus from './RenderStatus';
 import RefreshMetadataButton from './RefreshMetadataButton';
 import WhiteBalanceMenu from './WhiteBalanceMenu';
 import WhiteBalanceUpgrade from './WhiteBalanceUpgrade';
@@ -55,7 +52,6 @@ import { useThresholdPreview } from './useThresholdPreview';
 import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
 import { useLensBuiltinOnOpen } from './lensBuiltin';
 import SuperResolutionModal from './SuperResolutionModal';
-import SuperResolutionButton from './SuperResolutionButton';
 
 /**
  * Watch for a DOM element of theirs and hand it back once it exists.
@@ -64,13 +60,12 @@ import SuperResolutionButton from './SuperResolutionButton';
  * cannot be a one-shot query. The observer re-resolves on every DOM change,
  * which is cheap next to what the editor is already doing.
  */
-function useAnchor(selector: string, pick: (el: Element) => Element | null = (el) => el) {
+function useAnchor(selector: string) {
   const [anchor, setAnchor] = useState<Element | null>(null);
 
   useEffect(() => {
     const resolve = () => {
-      const found = document.querySelector(selector);
-      const target = found ? pick(found) : null;
+      const target = document.querySelector(selector);
       setAnchor((current) => (current === target ? current : target));
     };
 
@@ -78,8 +73,6 @@ function useAnchor(selector: string, pick: (el: Element) => Element | null = (el
     const observer = new MutationObserver(resolve);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => observer.disconnect();
-    // `pick` is a literal at each call site; re-running on identity would loop.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selector]);
 
   return anchor;
@@ -137,10 +130,6 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
     hint: agT('thresholdHint'),
   });
 
-  // The toolbar's undo button, whose parent is the button row. Upstream tags it
-  // for its own benchmarks, so it is a stable thing to hang from.
-  const toolbar = useAnchor('[data-bench-id="undo"]', (el) => el.parentElement);
-
   // The Camera Details heading in the metadata pane. This is the one anchor we
   // added to a file of theirs — a bare data attribute, one line, because there
   // was nothing stable to hang from and matching on translated heading text
@@ -178,15 +167,6 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
 
   return (
     <>
-      {toolbar &&
-        createPortal(
-          <>
-            <RenderStatus />
-            <RgbReadoutButton />
-            <SuperResolutionButton />
-          </>,
-          toolbar,
-        )}
       {cameraDetails && createPortal(<RefreshMetadataButton />, cameraDetails)}
       {whiteBalance && createPortal(<WhiteBalanceMenu />, whiteBalance)}
       {about && createPortal(<AboutPanel />, about)}
