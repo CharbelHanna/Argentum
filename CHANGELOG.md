@@ -495,6 +495,17 @@ against the 1.6.5 review.
     dispatch: a second copy of the picture, 0.45 GB at 61 MP. The process's
     peak in `tests/memory.rs` for the synthetic 61 MP photo is 2.47 GB with
     it and 2.74 GB without, against a limit of 2.51 GB.
+  - `tests/memory.rs` counts what the engine holds instead of reading the
+    process's memory: every byte its Rust code allocates (a counting
+    allocator in the test) and the GPU memory wgpu holds for its device
+    (`Engine::gpu_bytes`, wgpu's allocator report, staging copies
+    included). The limit is the design's arithmetic: the cache's budget,
+    the mosaic (2 bytes a pixel), the pixel pass's input on the GPU (8) and
+    256 MB of bands. Counted, it holds on any machine, so CI checks it on
+    every pull request on a software GPU (Mesa's lavapipe). Measured: 2.12
+    GB for the synthetic 61 MP photo (limit 2.31) and 1.49 GB for a 32 MP
+    CR3 (limit 2.05); the whole process's peak, driver included, is printed
+    beside it and no longer checked.
   - A tool can start a photo at the photo's own settings
     (`Tool::defaults_for`, after darktable's `reload_defaults`), and `null`
     in a patch puts a setting back to them.

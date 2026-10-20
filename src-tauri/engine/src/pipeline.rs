@@ -68,9 +68,9 @@ enum Op {
 /// The memory the cache may hold until the app sizes it from the machine's:
 /// 1.5 GB, for a 16 GB laptop. A full-size render of a 32 MP photo keeps
 /// about 1.1 GB - the developed picture and each tool's result after it - so
-/// a slider dragged at 100% finds what it needs. With it the engine's peak,
-/// measured by tests/memory.rs, is 1.8 GB for a 32 MP photo and 2.5 GB for a
-/// 61 MP one, and 0.65 and 0.95 GB while they are only fitted.
+/// a slider dragged at 100% finds what it needs. With it the engine holds at
+/// most 1.5 GB for a 32 MP photo and 2.1 GB for a 61 MP one, and 0.56 and
+/// 0.93 GB while they are only fitted, counted by tests/memory.rs.
 pub const DEFAULT_CACHE_BYTES: usize = 3 << 29;
 
 pub struct Pipeline {

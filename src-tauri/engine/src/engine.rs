@@ -31,6 +31,8 @@ pub struct Engine {
     registry: Arc<Registry>,
     shared: Arc<Shared>,
     worker: Option<JoinHandle<()>>,
+    /// The render thread's device, shared: for what it holds.
+    gpu: GpuSlot,
 }
 
 struct Shared {
@@ -93,7 +95,8 @@ impl Engine {
         sink: impl Fn(Event) + Send + Sync + 'static,
     ) -> Result<Engine> {
         let registry = Arc::new(registry);
-        let render = Pipeline::with_gpu(registry.clone(), GpuSlot::new())?;
+        let gpu = GpuSlot::new();
+        let render = Pipeline::with_gpu(registry.clone(), gpu.clone())?;
         let shared = Arc::new(Shared {
             state: Mutex::new(State {
                 photos: HashMap::new(),
@@ -123,6 +126,7 @@ impl Engine {
             registry,
             shared,
             worker: Some(worker),
+            gpu,
         })
     }
 
@@ -267,6 +271,13 @@ impl Engine {
     /// The memory results are kept in now, in bytes, as of the last render.
     pub fn cache_bytes(&self) -> usize {
         self.shared.cache_bytes.load(Ordering::SeqCst)
+    }
+
+    /// The GPU memory the render thread's device holds now, in bytes, as
+    /// wgpu allocated it: `None` before the first GPU step, and on a backend
+    /// that does not say (OpenGL).
+    pub fn gpu_bytes(&self) -> Option<usize> {
+        self.gpu.opened()?.allocated_bytes()
     }
 
     /// The bytes an open photo's decoded sensor data holds.

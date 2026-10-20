@@ -232,8 +232,12 @@ letting go of the step's input, which would free nothing while it is read. The
 input of the tool changed last - where the next tick of the same slider
 starts - and the result just made go last. What a tool needs while it runs
 comes on top, and so does the pixel pass's input and guided filter, kept on
-the GPU; `tests/memory.rs` holds the whole process's peak to the budget plus
-a measured margin.
+the GPU. `tests/memory.rs` counts what the engine holds - every byte its Rust
+code allocates and the GPU memory wgpu holds for it - and holds the peak to
+the budget plus what the design keeps outside the cache: the photo's mosaic
+(2 bytes a pixel), the picture the pixel pass reads on the GPU (8) and 256 MB
+of bands. Counted, the figure is the same on any machine; the whole process's
+peak, the driver's share with it, is printed beside it.
 
 `last_render()` says which steps ran and how long each took; `runs(name)`
 counts them; `render_unless` gives up between steps when asked; `forget`
@@ -333,7 +337,7 @@ and the tests, `src/colour.rs`.
 | Open, apply, view, events, latest-wins, errors; the size `open` reports is the developed size | `tests/engine_api.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
 | A slider tick at preview size, every tool on, stays within its budget (25 ms) | `tests/budgets.rs` | `AG_RAW`, a GPU |
 | A half-size preview is the full develop made small - size, crop, colour (CIEDE2000), detail - and faster, by RAWmakase's gates for its own | `tests/preview.rs` | nothing; real photos with `AG_RAW`/`AG_RAWS` |
-| The process's peak memory, fitted and at 100% with a slider dragged, stays within the cache's budget plus 1.5 full-size pictures, and under 2 pictures while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | a GPU (a synthetic 61 MP photo); a real one with `AG_RAW` |
+| What the engine holds (its heap and its GPU memory, counted), fitted and at 100% with a slider dragged, stays within the cache's budget plus the mosaic, the GPU's input and the bands, and within one full-size picture plus the mosaic and the bands while the photo is only fitted; a closed photo's memory is given back | `tests/memory.rs` | a GPU, a software one included (a synthetic 61 MP photo); a real one with `AG_RAW` |
 | A closed photo is gone, its edit handed back; reopened with it, it renders the same | `tests/open_close.rs` | a GPU for the renders |
 
 `AG_RAW` names one RAW file and `AG_RAWS` several, separated by `;`, as the
