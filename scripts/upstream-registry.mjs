@@ -2238,6 +2238,12 @@ export const REGISTRY = [
       { file: 'src/components/views/EditorView.tsx', how: 'replaces',
         note: 'Deleted: Classic\'s editor view (the photo over its bottom bar, or the compact panel '
           + 'for a narrow window). The Modern window draws Editor.tsx itself.' },
+      { file: 'src/components/panel/SidePanelArea.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s left and right panel areas, split in two, with tabs dragged '
+          + 'between them. The Modern window\'s left column and right panel hold the same panels.' },
+      { file: 'src/components/panel/PanelSwitcher.tsx', how: 'replaces',
+        note: 'Deleted: the tab strips of those areas and the narrow window\'s panel bar. The tabs '
+          + 'are RightPanel.tsx\'s.' },
       { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
         note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
       { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
