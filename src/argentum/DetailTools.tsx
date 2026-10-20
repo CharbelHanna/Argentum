@@ -6,8 +6,8 @@
  *
  * The dialogs are the ones the photo's right-click menu opens
  * (useAppContextMenus.ts, Denoise) and the Classic toolbar's sparkles button
- * did (SuperResolutionButton.tsx). Both act on the open photo only, so in the
- * grid's read-only view they are greyed.
+ * did (Restore & Enlarge, deleted with that toolbar). Both act on the open
+ * photo only, so in the grid's read-only view they are greyed.
  */
 
 import AdjustmentSubSection from '../components/adjustments/AdjustmentSubSection';

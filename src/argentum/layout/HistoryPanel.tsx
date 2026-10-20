@@ -1,17 +1,17 @@
 /**
  * The History tab of the Modern arrangement. Ours.
  *
- * History is a tab beside the adjustments. Today's editor has the same
- * history as the menu under its undo and redo buttons; this lists the same
- * steps, named the same way (useHistoryNames, from that toolbar), and a click
- * goes to one through today's own goToHistoryIndex. Nothing is kept here.
+ * History is a tab beside the adjustments. It lists today's editor history,
+ * each step named as RapidRAW's toolbar named it in the menu under its undo
+ * and redo buttons (historyNames.ts), and a click goes to one through today's
+ * own goToHistoryIndex. Nothing is kept here.
  */
 
 import { useEffect, useRef } from 'react';
 import clsx from 'clsx';
 import Text from '../../components/ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
-import { useHistoryNames } from '../../components/panel/editor/EditorToolbar';
+import { useHistoryNames } from './historyNames';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAgTranslation } from '../locales';
 

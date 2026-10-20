@@ -80,7 +80,6 @@
   "superResolutionApplyBatch": "Apply to selection",
   "superResolutionSave": "Save photo",
   "superResolutionCancel": "Cancel",
-  "superResolutionToolbar": "Restore & Enlarge",
   "restoreLabel": "Restore",
   "restoreHelp": "Undoes lens softness - a lens used wide open - at the photo's own size, before Capture sharpening. Runs once per photo: about a minute on a graphics card for a 32 MP frame.",
   "restoreMask": "Mask",
