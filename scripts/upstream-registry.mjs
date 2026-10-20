@@ -2215,6 +2215,7 @@ export const REGISTRY = [
       'src/argentum/layout/Navigator.tsx',
       'src/argentum/layout/HistogramSection.tsx',
       'src/argentum/layout/HistoryPanel.tsx',
+      'src/argentum/layout/historyNames.ts',
       'src/argentum/layout/editorLayout.ts',
       'src-tauri/src/mods/editor_layout.rs',
       'src-tauri/src/mods/drives.rs',
@@ -2288,8 +2289,10 @@ export const REGISTRY = [
           + 'image count switch is hidden in Modern, which counts its own way.' },
       { file: 'src/components/panel/Filmstrip.tsx', how: 'calls',
         note: 'Drawn as it is under the centre, in both views.' },
-      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'extends',
-        note: 'The naming of history steps, exported as a hook, so History names steps the same way.' },
+      { file: 'src/components/panel/editor/EditorToolbar.tsx', symbol: 'useHistoryNames', how: 'calls',
+        note: 'The naming of history steps moved out of this file into layout/historyNames.ts, which '
+          + 'History and this toolbar\'s undo menu both use. A release that changes their naming '
+          + 'is copied there by hand.' },
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
         note: 'The top bar\'s Zoom menu and the Navigator, in the units today\'s zoom control uses; '
           + 'toggleShowOriginal for Before.' },
