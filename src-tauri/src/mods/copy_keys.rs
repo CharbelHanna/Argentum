@@ -1,14 +1,14 @@
 //! Our keys in a photo's edit that Copy settings, Paste and presets carry:
-//! `cameraProfile`, `rawToneRendering`, `agSharpen` and `whiteBalanceAuto`.
+//! `OURS`.
 //!
 //! RapidRAW's paste goes through a saved list of keys
 //! (`copyPasteSettings.includedAdjustments`), seeded and extended at each start
-//! from their `all_available_adjustments` (app_settings.rs), where ours are
-//! written in. A key new to that list is switched on for everyone at the next
+//! from their `all_available_adjustments` (app_settings.rs), which adds ours
+//! from here. A key new to that list is switched on for everyone at the next
 //! start. On the interface's side they are in their copy groups
-//! (`ADJUSTMENT_GROUPS` in utils/adjustments.ts): the camera profile and the
-//! RAW rendering as one group, `agSharpen` with Sharpness, `whiteBalanceAuto`
-//! with White Balance.
+//! (`ADJUSTMENT_GROUPS` in utils/adjustments.ts): the camera profile, the RAW
+//! rendering and B&W as one group, `agSharpen` with Sharpness,
+//! `whiteBalanceAuto` with White Balance.
 //!
 //! Auto names the photo it was measured on, and every photo it is pasted onto
 //! is measured again for its own light (argentum/autoWhiteBalance.ts,
@@ -16,7 +16,14 @@
 //! (argentum/RawToneRendering.tsx). A profile that reaches a photo from another
 //! camera is left out of its render (profile_correction.rs `fits_this_photo`).
 //!
-//! What is here is the test that holds their list to ours.
+/// Our keys, as their list of what Copy settings carries takes them.
+pub const OURS: &[&str] = &[
+    "cameraProfile",
+    "rawToneRendering",
+    "agSharpen",
+    "whiteBalanceAuto",
+    super::black_white::KEY,
+];
 
 #[cfg(test)]
 mod tests {
@@ -27,12 +34,7 @@ mod tests {
     fn our_keys_are_pasted_by_default() {
         let available = all_available_adjustments();
         let included = default_included_adjustments();
-        for key in [
-            "cameraProfile",
-            "rawToneRendering",
-            "agSharpen",
-            "whiteBalanceAuto",
-        ] {
+        for &key in super::OURS {
             assert!(available.contains(key), "{key} is not offered to paste");
             assert!(included.contains(key), "{key} is not pasted by default");
         }

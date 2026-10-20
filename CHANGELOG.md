@@ -8,6 +8,24 @@ Newest first.
 
 ### Added
 
+- **B&W.** A Color | B&W switch at the top of Edit > Basic, as Lightroom's Treatment (V switches
+  too). In B&W the photo turns grey after Saturation and before Color Grading, so grading tints
+  the grey, and Edit > Color's Color Mixer gives way to the B&W Mix: eight sliders for how light
+  each colour turns. The Color Mixer, Hue, Saturation and Vibrance are kept in the edit and left
+  out while B&W is on. The grey is RAWmakase's measured mix: Camera Raw 18.7's own renders of a
+  colour chart at a zero mix and with each band at four positions, kept as text in
+  `src-tauri/engine/src/rm_black_white_chart.tsv`, generated from a RAWmakase release by
+  `scripts/rawmakase-gray-chart.mjs` (check:merge warns when a newer release is out). Through the
+  shader, each colour comes out within 0.3/255 of the chart's grey. Looks ships RAWmakase's six B&W
+  presets (Green Filter, High Contrast, Neutral, Red Filter, Sepia, Soft) in a B&W group, and Copy
+  settings carries B&W in the Camera Profile group. From RAWmakase @ `a8c5d6d7` (v0.4.0, MIT):
+  `crates/rawmakase-engine/src/develop/black_white.rs` (`gray_grid`, `gray`, the chart test) and
+  its `black_white_chart.bin`, `crates/rawmakase-engine/src/develop/gpu/develop.wgsl` (`mixer`,
+  `adjust`), `crates/rawmakase-interop/src/xmp/apply.rs` (`ConvertToGrayscale`, `GrayMixer`) and
+  `assets/presets/BandW`. Unlike RAWmakase, which grades before its grey step and so renders Sepia
+  untinted, Color Grading tints the grey; today's Color Grading is gentler than Lightroom's split
+  toning, so Sepia's tint shows mostly in the light tones. No Auto mix yet. Argentum's keys that Copy
+  settings carries are listed once, in `mods/copy_keys.rs`, and added to RapidRAW's list from there.
 - **Sony photos can use the camera's own lens correction too.** An ARW stores the lens's
   distortion, colour fringing and corner shading for the shot in its raw SubIFD (0x7032,
   0x7035, 0x7037). The same switch in Crop > Lens Correction applies it; it starts off, as

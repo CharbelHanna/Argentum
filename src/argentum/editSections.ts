@@ -84,7 +84,8 @@ const without = (keys: string[], gone: string[]) => keys.filter((key) => !gone.i
 export const EDIT_SECTION_KEYS: Record<string, string[]> = {
   basic: [...without(ADJUSTMENT_SECTIONS.basic, PROFILE_KEYS), ...INTO_BASIC],
   curves: ADJUSTMENT_SECTIONS.curves,
-  color: without(ADJUSTMENT_SECTIONS.color, INTO_BASIC),
+  // agBlackWhite is ours (BlackWhite.tsx): the B&W switch and its mix, which takes the Color Mixer's place.
+  color: [...without(ADJUSTMENT_SECTIONS.color, INTO_BASIC), 'agBlackWhite'],
   // agSharpen is ours (Sharpening.tsx): Detail's reset, copy and paste take it with their sharpening.
   details: [...without(ADJUSTMENT_SECTIONS.details, [...INTO_BASIC, ...FRINGE_KEYS]), 'agSharpen'],
   effects: without(ADJUSTMENT_SECTIONS.effects, [...LUT_KEYS, ...PER_PHOTO_MAPS]),

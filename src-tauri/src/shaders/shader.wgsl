@@ -127,6 +127,7 @@ struct GlobalAdjustments {
     _pad_raw_tone2: u32,
     raw_tone_curve: array<Point, 16>,
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
+    ag_black_white: AgBlackWhite, // Argentum: B&W, see modules.wgsl
 }
 
 struct MaskAdjustments {
@@ -1981,6 +1982,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     composite_rgb_linear = apply_hsl_panel(composite_rgb_linear, final_hsl, absolute_coord_i);
     composite_rgb_linear = apply_hue_shift(composite_rgb_linear, t_hue);
     composite_rgb_linear = apply_creative_color(composite_rgb_linear, t_saturation, t_vibrance);
+    composite_rgb_linear = ag_stage_color(composite_rgb_linear);  // Argentum: the colour anchor, see modules.wgsl
 
     composite_rgb_linear = apply_color_grading(
         composite_rgb_linear,

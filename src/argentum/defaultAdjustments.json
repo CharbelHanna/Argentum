@@ -2,6 +2,17 @@
   "cameraProfile": null,
   "rawToneRendering": "dngStandard",
   "rawToneCurve": null,
+  "agBlackWhite": {
+    "enabled": false,
+    "reds": 0,
+    "oranges": 0,
+    "yellows": 0,
+    "greens": 0,
+    "aquas": 0,
+    "blues": 0,
+    "purples": 0,
+    "magentas": 0
+  },
   "sectionVisibility": {
     "basic": true,
     "curves": true,

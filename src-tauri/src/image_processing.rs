@@ -1776,6 +1776,9 @@ pub struct GlobalAdjustments {
 
     // Argentum: sharpening, read by the input stage before the shader runs.
     pub ag_sharpen: sharpen::Params,
+
+    // Argentum: B&W, read by ag_stage_color in modules.wgsl (mods/black_white.rs).
+    pub ag_black_white: crate::mods::black_white::Params,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Pod, Zeroable, Default)]
@@ -2507,7 +2510,7 @@ fn get_global_adjustments_from_json(
     };
     let raw_tone_points = raw_tone::points_of(js_adjustments, raw_tone_mode, photo);
 
-    GlobalAdjustments {
+    let mut global = GlobalAdjustments {
         exposure: get_val("basic", "exposure", SCALES.exposure, None) + baseline_exposure,
         brightness: get_val("basic", "brightness", SCALES.brightness, None),
         contrast: get_val("basic", "contrast", SCALES.contrast, None),
@@ -2686,7 +2689,13 @@ fn get_global_adjustments_from_json(
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 
         ag_sharpen: sharpen::from_json(js_adjustments, is_raw, photo),
-    }
+        ag_black_white: crate::mods::black_white::Params::from_json(
+            js_adjustments,
+            is_visible("color"),
+        ),
+    };
+    crate::mods::black_white::leave_out_colour_controls(&mut global); // Argentum: B&W
+    global
 }
 
 fn get_mask_adjustments_from_json(

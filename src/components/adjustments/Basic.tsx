@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import WhiteBalanceControls from './WhiteBalance';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useAgTranslation } from '../../argentum/locales';
+import { NO_EFFECT_IN_BLACK_WHITE, TreatmentSwitch, isBlackWhite } from '../../argentum/BlackWhite';
 
 interface BasicAdjustmentsProps {
   adjustments: Adjustments;
@@ -187,6 +188,8 @@ export default function BasicAdjustments({
 
   return (
     <div>
+      {/* Argentum: Color | B&W, as Lightroom's Treatment (argentum/BlackWhite.tsx). */}
+      {!isForMask && <TreatmentSwitch adjustments={adjustments} setAdjustments={setAdjustments} />}
       <WhiteBalanceControls
         adjustments={adjustments}
         setAdjustments={setAdjustments}
@@ -221,8 +224,10 @@ export default function BasicAdjustments({
           {slider(DetailsAdjustment.Centré, t('adjustments.details.centre'))}
         </div>
       )}
-      {slider(ColorAdjustment.Vibrance, t('adjustments.color.vibrance'))}
-      {slider(ColorAdjustment.Saturation, t('adjustments.color.saturation'))}
+      <div className={clsx(!isForMask && isBlackWhite(adjustments) && NO_EFFECT_IN_BLACK_WHITE)}>
+        {slider(ColorAdjustment.Vibrance, t('adjustments.color.vibrance'))}
+        {slider(ColorAdjustment.Saturation, t('adjustments.color.saturation'))}
+      </div>
     </div>
   );
 }
