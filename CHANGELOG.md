@@ -401,6 +401,14 @@ against the 1.6.5 review.
     theirs are recorded in `scripts/upstream-ratchet.json` and may only go
     down.
   - One git process per question instead of about 390: 45-76 s to about 1 s.
+- **DNG Standard's camera table is generated.** `scripts/rawmakase-cameras.mjs
+  <release>` writes `mods/dng_baseline.tsv` from RAWmakase `data/cameras.toml`
+  at one release, named on the table's `# Source:` line; a value of ours that
+  differs from RAWmakase's is one entry in the script's `EXCEPTIONS`, with its
+  reason and what removes it (none today). A test proves the table is exactly
+  what the script makes from the commit it names (v0.4.0 @ `a8c5d6d7`: all 230
+  rows unchanged), and `npm run check:merge` warns when RAWmakase has a newer
+  release.
 
 ## 26.41.12 — 2026-10-11
 

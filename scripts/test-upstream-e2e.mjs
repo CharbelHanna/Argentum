@@ -197,6 +197,7 @@ function upstreamAndFork() {
   mkdirSync(join(dir, 'scripts'), { recursive: true });
   for (const f of [
     'check-mergeability.mjs',
+    'rawmakase-cameras.mjs',
     'upstream-anchors.mjs',
     'upstream-borrows.mjs',
     'upstream-diff.mjs',
