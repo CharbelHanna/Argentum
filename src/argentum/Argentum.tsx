@@ -43,11 +43,10 @@ import ExportPrecision from './ExportPrecision';
 import Sharpening from './Sharpening';
 import LocalSharpening from './LocalSharpening';
 import MyGear from './MyGear';
-import AiModelsPlacement from './AiModelsPlacement';
 import NoCloudTile from './NoCloudTile';
 import PanelsSetting from './PanelsSetting';
 import { useCompactSliders } from './compactSliders';
-import { useEditorLayout, useModernLayout } from './layout/editorLayout';
+import { useEditorLayout } from './layout/editorLayout';
 import { useModernLook } from './modern/look';
 import AiModels from './AiModels';
 import { registerArgentumTranslations, useAgTranslation } from './locales';
@@ -128,7 +127,6 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
 
   // The camera's built-in lens correction, filled into each photo's edit as it opens.
   useLensBuiltinOnOpen();
-  const modern = useModernLayout();
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.
@@ -160,10 +158,8 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // The My Gear tab in Settings: cameras and lenses, both filling themselves.
   const gear = useAnchor('[data-argentum="gear"]');
 
-  // Settings > General, in the slot About and My Gear use. AI Models goes from
-  // there to straight under their Generative AI card: the models that card's
-  // features download, what is on disk, and deleting them. It was a tab beside
-  // Processing until RapidRAW 1.6.5 moved its AI settings to General.
+  // Settings > General, in the slot About and My Gear use: the No Cloud tile
+  // and the Panels row.
   const general = useAnchor('[data-argentum="general"]');
   // The Modern window's Settings > AI and models: its AI card, then AI Models.
   const aiModels = useAnchor('[data-argentum="ai"]');
@@ -201,7 +197,6 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {aiModels && createPortal(<AiModels />, aiModels)}
       {general && (
         <>
-          {!modern && <AiModelsPlacement slot={general as HTMLElement} />}
           <NoCloudTile slot={general as HTMLElement} />
           <PanelsSetting slot={general as HTMLElement} />
         </>

@@ -915,11 +915,13 @@ export const REGISTRY = [
   {
     id: 'identity',
     kind: 'behaviour-change',
-    what: 'The fork is Argentum: name, bundle id, update URL, no donation link.',
+    what: 'The fork is Argentum: name, bundle id, no donation link.',
     ours: ['src-tauri/.identity', 'scripts/check-identity.mjs'],
     dependsOn: [
       { file: 'src/components/panel/MainLibrary.tsx', how: 'replaces',
-        note: 'Their update check points at our releases, and the Ko-fi link is gone: Argentum must not raise money on its splash in another author’s name. The credit is in Special Thanks and CREDITS.md.' },
+        note: 'Their start screen is gone (editor-layout-modern), and with it the update check that '
+          + 'pointed at our releases and the place their Ko-fi link was: Argentum must not raise money in '
+          + 'another author’s name. The credit is in Special Thanks and CREDITS.md.' },
       { file: 'package.json', how: 'rebrands' },
       { file: 'package-lock.json', how: 'rebrands',
         note: 'Its package name follows package.json, which npm rewrites on every install.' },
@@ -927,7 +929,6 @@ export const REGISTRY = [
       { file: 'src-tauri/tauri.conf.json', how: 'rebrands' },
       { file: 'src-tauri/src/main.rs', how: 'rebrands' },
       { file: 'index.html', how: 'rebrands' },
-      { file: 'src/window/TitleBar.tsx', how: 'rebrands' },
     ],
     tests: ['scripts/check-identity.mjs, run by npm start'],
     keywords: /rapidraw|branding|bundle.?identifier|update.?check|ko-?fi|donat/i,
@@ -999,8 +1000,6 @@ export const REGISTRY = [
         note: 'Keeps Argentum’s high-precision TIFF rendering path and removes the redundant readback boolean.' },
       { file: 'src/components/adjustments/Basic.tsx', how: 'extends',
         note: 'Adopts the final Brightness label and control placement from the reviewed v1.6.4 UI.' },
-      { file: 'src/components/panel/BottomBar.tsx', how: 'extends',
-        note: 'Persists Quick Filter visibility through Argentum’s UI store rather than a component-local flag.' },
       { file: 'src/components/panel/Editor.tsx', how: 'extends',
         note: 'Adds the optional neutral-grey editor canvas without changing the app theme.' },
       { file: 'src/components/panel/right/FolderTree.tsx', how: 'extends',
@@ -1446,7 +1445,7 @@ export const REGISTRY = [
   {
     id: 'model-manager',
     kind: 'feature',
-    what: 'Settings > General > AI Models: every model the app downloads, what is on disk, and deleting it.',
+    what: 'Settings > AI and models: every model the app downloads, what is on disk, and deleting it.',
     ours: [
       'src-tauri/src/mods/model_catalog.rs',
       'src-tauri/src/mods/model_manager.rs',
@@ -1456,9 +1455,9 @@ export const REGISTRY = [
     // a missing model again. The card itself is a line in their settings panel.
     dependsOn: [
       { file: 'src/components/panel/SettingsPanel.tsx', how: 'calls',
-        note: 'A data-argentum="ai-models" marker straight after their Generative AI card on the '
-          + 'General page, which 1.6.5 moved there from Processing. One line. If they move that card '
-          + 'again, the marker has to follow it.' },
+        note: 'The data-argentum slot their page ends with, on the Modern window\x27s AI and models '
+          + 'section, which shows their Generative AI card (moved to General by 1.6.5) and then this. Under '
+          + 'Classic it was placed under that card on General by AiModelsPlacement.tsx, deleted with Classic.' },
       { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
         note:
           'Their model file names and addresses are private constants here, copied into '
@@ -1471,7 +1470,7 @@ export const REGISTRY = [
     tests: [
       'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
       'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
-      'Manual: Settings > General > AI Models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
+      'Manual: Settings > AI and models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
       'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
     ],
     keywords: /models?.?(manag|download|delet|remov|folder|dir\b|size)|(delete|remove|manage|clear).{0,12}models?\b|disk.?(space|usage)/i,
@@ -2199,8 +2198,8 @@ export const REGISTRY = [
       + 'header; one right panel with the histogram, an Info line (ISO, aperture, shutter, focal length) that opens the metadata at full height, and six tabs over today\'s panels '
       + '(Edit, Crop, Looks, Masks, Retouch, Export). No start screen: it opens on the folder last open. '
       + 'Settings opens in the centre with its own section list. Drawn in its own palettes (Grey, Deep, '
-      + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone; App.tsx '
-      + 'still draws Classic\'s arrangement for a narrow portrait window until that code is removed.',
+      + 'Light) and text sizes (Small, Normal, Large) by modern.css. The Layout choice is gone, and so is '
+      + 'Classic\'s arrangement: the Modern window draws at every window size.',
     ours: [
       'src/argentum/modern/ModernWindow.tsx',
       'src/argentum/modern/TopBar.tsx',
@@ -2226,7 +2225,6 @@ export const REGISTRY = [
       'src/argentum/layout/HistogramSection.tsx',
       'src/argentum/layout/HistoryPanel.tsx',
       'src/argentum/layout/editorLayout.ts',
-      'src/argentum/layout/index.ts',
       'src-tauri/src/mods/editor_layout.rs',
       'src-tauri/src/mods/drives.rs',
       'src-tauri/src/mods/recent_folders.rs',
@@ -2235,15 +2233,40 @@ export const REGISTRY = [
     ],
     dependsOn: [
       { file: 'src/App.tsx', how: 'calls',
-        note: 'One import line from src/argentum/modern. While the layout is Modern on a full-width '
-          + 'window, App renders ModernWindow in place of its title bar, side panels and views, passing '
-          + 'its own handlers on; LibraryView takes the same props object in both. Its tree refresh is '
-          + 'swapped for refreshModernTrees and unfolding a folder counts no photos, since the roots are '
-          + 'whole disks.' },
-      { file: 'src/components/views/LibraryView.tsx', symbol: 'modern', how: 'extends',
-        note: 'Optional prop: no bottom bar, and MainLibrary in its modern form.' },
-      { file: 'src/components/panel/MainLibrary.tsx', symbol: 'modern', how: 'extends',
-        note: 'Optional prop: no header and no start screen; ModernEmpty until a folder is picked.' },
+        note: 'One import line from src/argentum/modern. App renders ModernWindow at every window '
+          + 'size and on every platform, passing its own handlers on; Classic\'s title bar, side panels, '
+          + 'views and narrow-window arrangement are gone. Its tree refresh is refreshModernTrees and '
+          + 'unfolding a folder counts no photos, since the roots are whole disks.' },
+      { file: 'src/components/views/EditorView.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s editor view (the photo over its bottom bar, or the compact panel '
+          + 'for a narrow window). The Modern window draws Editor.tsx itself.' },
+      { file: 'src/components/panel/SidePanelArea.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s left and right panel areas, split in two, with tabs dragged '
+          + 'between them. The Modern window\'s left column and right panel hold the same panels.' },
+      { file: 'src/components/panel/PanelSwitcher.tsx', how: 'replaces',
+        note: 'Deleted: the tab strips of those areas and the narrow window\'s panel bar. The tabs '
+          + 'are RightPanel.tsx\'s.' },
+      { file: 'src/window/TitleBar.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s title bar (the app name and the window controls). The Modern top bar '
+          + 'is the title bar; its window controls are WindowControls.tsx, adapted from this file. Its '
+          + 'one rebranded line, the name Argentum, went with it.' },
+      { file: 'src/components/panel/BottomBar.tsx', how: 'replaces',
+        note: 'Deleted: Classic\'s bar under the grid and the photo (stars and flags, copy and paste, '
+          + 'the quick filter, zoom, panel toggles, the filmstrip). The Modern window has the filmstrip '
+          + '(FilmstripArea.tsx), copy and paste in the Edit header\'s menu, zoom and the panel toggles '
+          + 'in the top bar. It carried the 1.6.4 catch-up\'s Quick Filter persistence, which went with it; '
+          + 'uiVisibility.quickFilter is left in their store and types.' },
+      { file: 'src/components/views/LibraryView.tsx', how: 'extends',
+        note: 'No bottom bar (deleted with Classic), and MainLibrary in its modern form.' },
+      { file: 'src/components/panel/MainLibrary.tsx', how: 'replaces',
+        note: 'The grid alone: its header (path, grid/list/cull switch, search, view options, community '
+          + 'and home buttons) and its start screen (splash, continue, open folder, settings, version '
+          + 'and update check) are deleted; the top bar, the folder column and Settings hold what the '
+          + 'window uses. ModernEmpty until a folder is picked.' },
+      { file: 'src/components/panel/library/LibraryHeader.tsx', how: 'replaces',
+        note: 'Deleted: the search box and view options of that header. The top bar\'s Sort and View '
+          + 'menus set the same sortCriteria and filterCriteria; the search has no home in the Modern '
+          + 'window, and Ctrl+F still focuses the Community page\'s own search.' },
       { file: 'src/components/panel/Editor.tsx', symbol: 'frameless', how: 'extends',
         note: 'Optional prop: no toolbar (its tools are in the top bar) and a square frame with 20 px '
           + 'round the photo. The transform handle on transformWrapperRef is what the Navigator reads.' },
@@ -2279,6 +2302,11 @@ export const REGISTRY = [
       { file: 'src/hooks/useEditorActions.ts', symbol: 'handleZoomChange', how: 'calls',
         note: 'The top bar\'s Zoom menu and the Navigator, in the units today\'s zoom control uses; '
           + 'toggleShowOriginal for Before.' },
+      { file: 'src/store/useUIStore.ts', symbol: 'movePanel', how: 'replaces',
+        note: 'Deleted with Classic\'s side panel areas: movePanel, movePanelToIndex, setLayoutDragItem and '
+          + 'setPanelSwitcherPlacement, which moved tabs between areas. panelLayout, panelSwitcherPlacement '
+          + 'and activeLayoutDragItem stay: the saved workspace still carries them, setPanel finds a panel '
+          + 'through panelLayout, and FolderTree.tsx still reads activeLayoutDragItem (now always null).' },
       { file: 'src/store/useUIStore.ts', symbol: 'activePanel', how: 'calls',
         note: 'The tabs read and set activePanel, as today\'s D, P, R, M, K and E keys do; the panel '
           + 'toggles are uiVisibility, the widths leftPanelWidth, rightPanelWidth and bottomPanelHeight.' },

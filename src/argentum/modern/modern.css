@@ -1,8 +1,8 @@
 /*
  * The Modern window's look. Ours.
  *
- * Keyed on data-ag-look="modern" on <html> (look.ts), set while the Modern
- * layout is chosen; Classic never has it and is drawn as before.
+ * Keyed on data-ag-look="modern" on <html> (look.ts), always set: the Modern
+ * window is the only arrangement.
  * data-ag-theme names the palette: grey (the default), deep or light,
  * Lightroom Classic's neutral greys.
  *

@@ -7,7 +7,8 @@
  * where to open (mods/modern_start.rs) and fills the column at once: every
  * disk under This computer in place of folders added one by one, the recent
  * folders, and the folder last open, selected, if it is still there. The
- * folders added in Classic stay saved for Classic; Modern never changes them.
+ * folders added one by one before the Modern window stay in the settings; it
+ * never changes them.
  */
 
 import { invoke } from '@tauri-apps/api/core';
@@ -42,7 +43,7 @@ interface FoldersState {
   drives: Drive[];
   /** Newest first, only folders that are there. */
   recent: string[];
-  /** No disk could be listed, so today's start screen shows instead. */
+  /** No disk could be listed: the centre says so, and a path can still be typed (Alt+D). */
   unavailable: boolean;
 }
 
@@ -50,16 +51,6 @@ export const useModernFolders = create<FoldersState>(() => ({ drives: [], recent
 
 /** How the library writes an album in `currentFolderPath`. */
 const ALBUM_PREFIX = 'Album: ';
-
-/** The Modern window is the only arrangement; see useModernLayout. */
-export const isModern = () => true;
-
-/**
- * Whether unfolding a folder counts its photos the library's way. In Modern
- * the tree's roots are whole disks, and that count reads every folder under
- * them before the tree shows, so no: each row counts its own (folderCounts.ts).
- */
-export const rootImageCounts = (wanted: boolean) => wanted && !isModern();
 
 /** The disks and recent folders, as the backend sees them now. None if they could not be listed. */
 async function listDisks(lastFolder: string | null, expanded: string[]): Promise<ModernStart | null> {
@@ -171,16 +162,14 @@ export async function refreshModernTrees(): Promise<void> {
 let watching = false;
 
 /**
- * While Modern is chosen: every folder opened goes to the top of Recent, and
- * the tree's roots stay the disks. The library still loads the folders added
- * in Classic when its photo-count setting changes; if that or anything else
- * puts them in the tree, the disks are read back.
+ * Every folder opened goes to the top of Recent, and the tree's roots stay the
+ * disks. If the library's own refresh puts the folders added one by one back
+ * in the tree, the disks are read back.
  */
 function watchLibrary() {
   if (watching) return;
   watching = true;
   useLibraryStore.subscribe((state, previous) => {
-    if (!isModern()) return;
     const folder = state.currentFolderPath;
     if (folder && folder !== previous.currentFolderPath && !folder.startsWith(ALBUM_PREFIX)) {
       ag<string[]>('add_recent_folder', { path: folder })
