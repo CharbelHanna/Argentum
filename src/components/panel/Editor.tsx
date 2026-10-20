@@ -3,7 +3,6 @@ import { Crop, PercentCrop } from 'react-image-crop';
 import { Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import { invoke } from '@tauri-apps/api/core';
-import debounce from 'lodash.debounce';
 
 import { ImageDimensions, RenderSize, useImageRenderSize } from '../../hooks/useImageRenderSize';
 import { Adjustments, AiPatch, MaskContainer, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
@@ -16,6 +15,7 @@ import {
   fitCropTowards,
   moveCropInsideBounds,
   zoomCrop,
+  normalizeCropChange,
 } from '../../utils/cropUtils';
 import EditorToolbar from './editor/EditorToolbar';
 import ImageCanvas from './editor/ImageCanvas';
@@ -118,6 +118,7 @@ export default function Editor({
   const overlayRotation = useEditorStore((s) => s.overlayRotation);
   const isStraightenActive = useEditorStore((s) => s.isStraightenActive);
   const isWbPickerActive = useEditorStore((s) => s.isWbPickerActive);
+  const isRelightPickerActive = useEditorStore((s) => s.isRelightPickerActive);
   const liveRotation = useEditorStore((s) => s.liveRotation);
   const brushSettings = useEditorStore((s) => s.brushSettings);
   const activeMaskContainerId = useEditorStore((s) => s.activeMaskContainerId);
@@ -132,31 +133,13 @@ export default function Editor({
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const goToHistoryIndex = useEditorStore((s) => s.goToHistoryIndex);
-  const pushHistory = useEditorStore((s) => s.pushHistory);
   const canUndo = adjustmentsHistoryIndex > 0;
   const canRedo = adjustmentsHistoryIndex < adjustmentsHistory.length - 1;
 
   const isAndroid = osPlatform === 'android';
 
-  const debouncedSetHistory = useMemo(() => debounce((newAdj: Adjustments) => pushHistory(newAdj), 500), [pushHistory]);
-
-  const setAdjustments = useCallback(
-    (value: Partial<Adjustments> | ((prev: Adjustments) => Adjustments)) => {
-      setEditor((state) => {
-        const prevAdjustments = state.adjustments;
-        const newAdjustments = typeof value === 'function' ? value(prevAdjustments) : { ...prevAdjustments, ...value };
-        debouncedSetHistory(newAdjustments);
-        return {
-          adjustments: newAdjustments,
-          ...(state.showOriginal ? { showOriginal: false, previewOverride: null } : {}),
-        };
-      });
-    },
-    [debouncedSetHistory, setEditor],
-  );
-
   const { handleGenerateAiMask, handleQuickErase, handleDirectPatch } = useAiMasking();
-  const { toggleShowOriginal } = useEditorActions();
+  const { setAdjustments, toggleShowOriginal } = useEditorActions();
 
   const [crop, setCrop] = useState<Crop | null>(null);
   const prevCropParams = useRef<any>(null);
@@ -741,7 +724,8 @@ export default function Editor({
         activeSubMask?.type === Mask.Color ||
         activeSubMask?.type === Mask.Luminance ||
         activeSubMask?.parameters?.isInitialDraw)) ||
-    isWbPickerActive;
+    isWbPickerActive ||
+    isRelightPickerActive;
 
   useEffect(() => {
     const container = imageContainerRef.current;
@@ -911,14 +895,11 @@ export default function Editor({
         if (now - lastCtrlClickTimeRef.current < 300) {
           lastCtrlClickTimeRef.current = 0;
 
-          const originalAspectRatio =
-            selectedImage?.width && selectedImage?.height ? selectedImage.width / selectedImage.height : null;
-
           setAdjustments((prev) => ({
             ...prev,
             crop: INITIAL_ADJUSTMENTS.crop,
             rotation: INITIAL_ADJUSTMENTS.rotation ?? 0,
-            aspectRatio: originalAspectRatio,
+            aspectRatio: INITIAL_ADJUSTMENTS.aspectRatio,
           }));
 
           setEditor({ liveRotation: null, isSliderDragging: false });
@@ -1760,7 +1741,7 @@ export default function Editor({
       );
       const A = aspectRatio || (W > 0 && H > 0 ? W / H : 1);
 
-      let nextPixelCrop = currentAdjCrop;
+      let nextPixelCrop: Crop | null;
       const aspectChanged = prevCropParams.current?.aspectRatio !== aspectRatio;
       const orientationChanged = prevCropParams.current?.orientationSteps !== orientationSteps;
       const rotationChanged = prevCropParams.current?.rotation !== rotation || isDraggingRotation;
@@ -1796,7 +1777,7 @@ export default function Editor({
           effectiveRotation,
         );
       } else if (aspectChanged) {
-        if (!aspectRatio) {
+        if (aspectRatio === null) {
           nextPixelCrop = currentAdjCrop;
         } else {
           const curW = currentAdjCrop.width;
@@ -1853,30 +1834,39 @@ export default function Editor({
         );
       }
 
-      if (isDraggingRotation) {
-        if (nextPixelCrop) {
-          const pc: PercentCrop = {
-            unit: '%',
-            x: (nextPixelCrop.x / W) * 100,
-            y: (nextPixelCrop.y / H) * 100,
-            width: (nextPixelCrop.width / W) * 100,
-            height: (nextPixelCrop.height / H) * 100,
-          };
-          setCrop(pc);
-          lastValidCropRef.current = pc;
-        }
-      } else {
+      if (nextPixelCrop) {
+        const pc: PercentCrop = {
+          unit: '%',
+          x: (nextPixelCrop.x / W) * 100,
+          y: (nextPixelCrop.y / H) * 100,
+          width: (nextPixelCrop.width / W) * 100,
+          height: (nextPixelCrop.height / H) * 100,
+        };
+        setCrop(pc);
+        lastValidCropRef.current = pc;
+      }
+      if (!isDraggingRotation) {
         prevCropParams.current = { rotation, aspectRatio, orientationSteps };
 
+        const normalizedCrop = normalizeCropChange(
+          currentAdjCrop,
+          nextPixelCrop,
+          selectedImage.width,
+          selectedImage.height,
+          orientationSteps,
+          rotation,
+        );
+
         if (
-          nextPixelCrop &&
-          (!currentAdjCrop ||
-            Math.abs(currentAdjCrop.x - nextPixelCrop.x) > 1 ||
-            Math.abs(currentAdjCrop.y - nextPixelCrop.y) > 1 ||
-            Math.abs(currentAdjCrop.width - nextPixelCrop.width) > 1 ||
-            Math.abs(currentAdjCrop.height - nextPixelCrop.height) > 1)
+          normalizedCrop !== currentAdjCrop &&
+          (!normalizedCrop ||
+            !currentAdjCrop ||
+            Math.abs(currentAdjCrop.x - normalizedCrop.x) > 1 ||
+            Math.abs(currentAdjCrop.y - normalizedCrop.y) > 1 ||
+            Math.abs(currentAdjCrop.width - normalizedCrop.width) > 1 ||
+            Math.abs(currentAdjCrop.height - normalizedCrop.height) > 1)
         ) {
-          setAdjustments((prev: Adjustments) => ({ ...prev, crop: nextPixelCrop }));
+          setAdjustments((prev: Adjustments) => ({ ...prev, crop: normalizedCrop }));
         }
       }
     }
@@ -2072,7 +2062,7 @@ export default function Editor({
 
       const lastRatio = oldW / oldH;
       const newRatio = newW / newH;
-      const isProportional = adjustments.aspectRatio || Math.abs(lastRatio - newRatio) < 0.005;
+      const isProportional = adjustments.aspectRatio !== null || Math.abs(lastRatio - newRatio) < 0.005;
 
       if (isProportional) {
         const oldCX = oldL + oldW / 2;
@@ -2239,8 +2229,16 @@ export default function Editor({
       };
 
       setAdjustments((prev: Adjustments) => {
-        if (JSON.stringify(newPixelCrop) !== JSON.stringify(prev.crop)) {
-          return { ...prev, crop: newPixelCrop };
+        const nextCrop = normalizeCropChange(
+          prev.crop,
+          newPixelCrop,
+          selectedImage.width,
+          selectedImage.height,
+          orientationSteps,
+          prev.rotation,
+        );
+        if (nextCrop !== prev.crop) {
+          return { ...prev, crop: nextCrop };
         }
         return prev;
       });

@@ -183,6 +183,7 @@ struct Models {
     masks: Idle,
     denoise: Idle,
     tagging: Idle,
+    relight: Idle,
 }
 
 fn in_use<T: ?Sized>(slot: &Option<Arc<T>>) -> bool {
@@ -242,6 +243,16 @@ impl Models {
             taken.models.push(Box::new(m));
             taken.names.push("tagging");
         }
+        if self.relight.due(
+            ai.normal_model.is_some(),
+            in_use(&ai.normal_model),
+            now,
+            IDLE_ONE_SHOT,
+        ) && let Some(m) = ai.normal_model.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("relight");
+        }
         if self
             .masks
             .due(ai.models.is_some(), in_use(&ai.models), now, IDLE_MASKS)
@@ -268,6 +279,9 @@ impl Models {
             }
             if ai.clip_models.is_some() {
                 names.push("tagging");
+            }
+            if ai.normal_model.is_some() {
+                names.push("relight");
             }
         }
         Some(names)
@@ -317,10 +331,24 @@ impl Held {
         {
             add(&mut held, img);
         }
+        for cache in [
+            &state.patched_cache,
+            &state.working_cache,
+            &state.effects_cache,
+        ] {
+            if let Some(g) = peek(cache)
+                && let Some((_, img)) = g.as_ref()
+            {
+                add(&mut held, img);
+            }
+        }
         if let Some(g) = peek(&state.full_transformed_cache)
-            && let Some((_, img, _)) = g.as_ref()
+            && let Some((_, img, _, _)) = g.as_ref()
         {
             add(&mut held, img);
+        }
+        if let Some(img) = super::input_stage::full_picture() {
+            add(&mut held, &img);
         }
         if let Some(g) = peek(&state.thumbnail_geometry_cache) {
             for (_, img, _) in g.values() {

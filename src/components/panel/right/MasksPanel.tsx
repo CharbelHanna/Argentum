@@ -1,3 +1,4 @@
+import { SECTION_EYES_OPEN } from '../../../argentum/editSections';
 import {
   type ChangeEvent,
   type PointerEvent as ReactPointerEvent,
@@ -843,7 +844,7 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
           const container = adjustments.masks.find((m) => m.id === overData.parentId);
           if (container) {
             const targetIndex = container.subMasks.findIndex((sm) => sm.id === over.id);
-            handleAddSubMask(overData.parentId!, dragData.maskType!, targetIndex);
+            handleAddSubMask(overData.parentId!, dragData.maskType!, SubMaskMode.Additive, targetIndex);
           }
         } else {
           handleAddMaskContainer(dragData.maskType!);
@@ -1960,7 +1961,7 @@ function SettingsPanel({
       ...currentAdjustments,
       ...presetAdjustments,
       sectionVisibility: {
-        ...(currentAdjustments.sectionVisibility || INITIAL_MASK_ADJUSTMENTS.sectionVisibility),
+        ...(currentAdjustments.sectionVisibility || SECTION_EYES_OPEN),
         ...(presetAdjustments.sectionVisibility || {}),
       },
     };
@@ -2055,7 +2056,7 @@ function SettingsPanel({
   const handleToggleVisibility = (sectionName: string) => {
     if (!isActive) return;
     const cur = container.adjustments;
-    const vis = cur.sectionVisibility || INITIAL_MASK_ADJUSTMENTS.sectionVisibility;
+    const vis = cur.sectionVisibility || SECTION_EYES_OPEN;
     updateContainer(container.id, {
       adjustments: { ...cur, sectionVisibility: { ...vis, [sectionName]: !vis[sectionName] } },
     });
@@ -2087,7 +2088,7 @@ function SettingsPanel({
         ...prev,
         ...copiedSectionAdjustments.values,
         sectionVisibility: {
-          ...(prev.sectionVisibility || INITIAL_MASK_ADJUSTMENTS.sectionVisibility),
+          ...(prev.sectionVisibility || SECTION_EYES_OPEN),
           [sectionName]: true,
         },
       }));
@@ -2104,7 +2105,7 @@ function SettingsPanel({
         ...prev,
         ...resetValues,
         sectionVisibility: {
-          ...(prev.sectionVisibility || INITIAL_MASK_ADJUSTMENTS.sectionVisibility),
+          ...(prev.sectionVisibility || SECTION_EYES_OPEN),
           [sectionName]: true,
         },
       }));
@@ -2140,7 +2141,7 @@ function SettingsPanel({
   };
 
   const sectionVisibility =
-    displayContainer.adjustments.sectionVisibility || INITIAL_MASK_ADJUSTMENTS.sectionVisibility;
+    displayContainer.adjustments.sectionVisibility || SECTION_EYES_OPEN;
   const visibleSections = getVisibleAdjustmentSections(appSettings?.adjustmentLayout);
 
   return (

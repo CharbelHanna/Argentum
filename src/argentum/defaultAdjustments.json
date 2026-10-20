@@ -1,0 +1,12 @@
+{
+  "cameraProfile": null,
+  "rawToneRendering": "dngStandard",
+  "rawToneCurve": null,
+  "sectionVisibility": {
+    "basic": true,
+    "curves": true,
+    "color": true,
+    "details": true,
+    "effects": true
+  }
+}

@@ -132,7 +132,36 @@
       "roughness": "Rauheit",
       "roundness": "Rundheit",
       "size": "Größe",
-      "vignette": "Vignettierung nach Zuschnitt"
+      "vignette": "Vignettierung nach Zuschnitt",
+      "spatial": "Räumlich",
+      "fog": "Nebel",
+      "fogDensity": "Dichte",
+      "fogHeight": "Bodennebel",
+      "fogStart": "Beginn",
+      "fogVariation": "Variation",
+      "relight": "Neu beleuchten",
+      "relightAddLight": "Licht hinzufügen",
+      "relightAmbient": "Umgebungslicht",
+      "relightAngle": "Winkel",
+      "relightColor": "Lichtfarbe",
+      "relightCone": "Kegel",
+      "relightDepth": "Tiefe",
+      "relightDuplicateLight": "Licht duplizieren",
+      "relightElevation": "Höhe",
+      "relightFalloff": "Abfall",
+      "relightIntensity": "Intensität",
+      "relightLight": "Licht {{index}}",
+      "relightRemoveLight": "Licht entfernen",
+      "relightShadowSoftness": "Schattenweichheit",
+      "relightShadows": "Schatten",
+      "relightShine": "Glanz",
+      "relightSoftness": "Weichheit",
+      "relightType": "Lichttyp",
+      "relightTypes": {
+        "directional": "Gerichtet",
+        "point": "Punkt",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -207,7 +236,8 @@
       "stitchPanorama": "Panorama zusammenfügen",
       "tagging": "Tagging",
       "undo": "Rückgängig",
-      "unflagged": "Nicht markiert"
+      "unflagged": "Nicht markiert",
+      "autoStraighten": "Automatisch ausrichten"
     },
     "folders": {
       "changeIcon": "Symbol ändern",
@@ -280,7 +310,9 @@
       "resetAdjustments_one": "Einstellungen zurücksetzen",
       "resetAdjustments_other": "Einstellungen bei {{count}} Bildern zurücksetzen",
       "showExplorer": "Im Explorer anzeigen",
-      "virtualCopy": "Virtuelle Kopie"
+      "virtualCopy": "Virtuelle Kopie",
+      "autoStraighten_one": "Bild automatisch ausrichten",
+      "autoStraighten_other": "Bilder automatisch ausrichten"
     },
     "toasts": {
       "couldNotShowExplorer": "Datei konnte nicht im Explorer angezeigt werden: {{err}}",
@@ -437,7 +469,8 @@
         "selectionPropertiesTitle": "Auswahleigenschaften",
         "useBasicInpaint": "Einfaches Reparieren verwenden"
       },
-      "touchUpTitle": "Ausbessern"
+      "touchUpTitle": "Ausbessern",
+      "generatingNormalMap": "KI-Normalenkarte wird berechnet..."
     },
     "crop": {
       "aspectRatioHeading": "Seitenverhältnis",
@@ -554,7 +587,9 @@
         "switchToLandscape": "Zum Querformat wechseln",
         "switchToPortrait": "Zum Hochformat wechseln",
         "transform": "Perspektiv- und Trapezkorrektur"
-      }
+      },
+      "autoStraightenFailed": "Automatisches Ausrichten fehlgeschlagen: {{error}}",
+      "autoStraightenNoLines": "Keine geraden Linien zum Ausrichten gefunden"
     },
     "externalEdit": {
       "done": "Fertig",
@@ -1400,7 +1435,8 @@
       "presetNone": "Keins",
       "sourceFiles": "Quelldateien",
       "startImport": "Import starten",
-      "title": "Importeinstellungen"
+      "title": "Importeinstellungen",
+      "notUniqueWarning": "Ohne {original_filename}, {original_filename_number} oder {sequence} können Dateien denselben Namen erhalten. Diese Dateien werden nicht importiert."
     },
     "lensCorrection": {
       "amount": "Betrag",
@@ -1488,7 +1524,8 @@
       "titleMultiple": "{{count}} Bilder umbenennen",
       "titleMultiple_one": "{{count}} Bild umbenennen",
       "titleMultiple_other": "{{count}} Bilder umbenennen",
-      "titleSingle": "Bild umbenennen"
+      "titleSingle": "Bild umbenennen",
+      "notUniqueWarning": "Ohne {original_filename}, {original_filename_number} oder {sequence} können Dateien denselben Namen erhalten. Dann wird nichts umbenannt."
     },
     "renameFolder": {
       "cancel": "Abbrechen",
@@ -1698,7 +1735,8 @@
         "zoom_in": "Vergrößern",
         "zoom_in_step": "Vergrößern (schrittweise)",
         "zoom_out": "Verkleinern",
-        "zoom_out_step": "Verkleinern (schrittweise)"
+        "zoom_out_step": "Verkleinern (schrittweise)",
+        "auto_straighten": "Automatisch ausrichten"
       },
       "sections": {
         "editing": "Bearbeitung",
