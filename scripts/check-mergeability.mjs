@@ -44,6 +44,7 @@ import { REVIEWS, isRelease, reviewedTo } from './upstream-decisions.mjs';
 import { accountDiff } from './upstream-diff.mjs';
 import { commitsIn, gitIn, readBlobs, tags } from './upstream-git.mjs';
 import { tableWarning } from './rawmakase-cameras.mjs';
+import { curvesWarning } from './rawmakase-grade-curves.mjs';
 import { BASELINE, compareRatchet, formatBaseline, parseBaseline } from './upstream-ratchet.mjs';
 import {
   IDENTITY, OURS, REGISTRY, activeFor, borrowsOf, dependencyIndex, historicalIds, isOurs,
@@ -57,6 +58,7 @@ const verbose = process.argv.includes('--verbose');
 
 // Asked first, read last: RAWmakase's releases come over the network while git works.
 const rawmakase = tableWarning(root).catch((error) => `camera table not checked against RAWmakase: ${error.message}`);
+const rawmakaseCurves = curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`);
 
 let gitCalls = 0;
 const gitRaw = gitIn(root);
@@ -483,9 +485,8 @@ if (waiting.length > 0) {
     + `${waiting.length === 1 ? 'is' : 'are'} out and not reviewed - npm run review:upstream`);
 }
 
-// --- Warning: has RAWmakase released past the camera table? ------------------------
-const cameraTable = await rawmakase;
-if (cameraTable) warnings.push(cameraTable);
+// --- Warning: has RAWmakase released past the camera table or the grading curves? --
+for (const table of await Promise.all([rawmakase, rawmakaseCurves])) if (table) warnings.push(table);
 
 // --- Report -----------------------------------------------------------------------
 const seconds = ((Date.now() - started) / 1000).toFixed(1);

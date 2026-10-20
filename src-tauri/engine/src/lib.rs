@@ -23,6 +23,7 @@ mod image;
 pub mod pipeline;
 mod pixels;
 pub mod registry;
+pub mod rm_color_grade;
 pub mod rm_lens_builtin;
 mod source;
 pub mod tool;
