@@ -2310,13 +2310,15 @@ export const REGISTRY = [
     what:
       'The camera\'s built-in lens correction: the distortion, lateral chromatic aberration and '
       + 'vignetting tables a Fujifilm RAF (FujiIFD 0xF00B, 0xF00F, 0xF010) or a Sony ARW (raw SubIFD '
-      + '0x7032, 0x7035, 0x7037) stores per shot, read by the engine (rm_lens_builtin.rs, from '
+      + '0x7032, 0x7035, 0x7037) stores per shot, or a DNG holds as FixVignetteRadial and '
+      + 'WarpRectilinear opcodes (dng_opcodes.rs), read by the engine (rm_lens_builtin.rs, from '
       + 'RAWmakase @ a8c5d6d7) and applied in the lens warp in place of the lensfun profile while its '
       + 'switch, at the top of Crop > Lens Correction, is on. Fujifilm\'s is on for a photo with no '
       + 'edit yet (an edit saved earlier keeps its look until switched on); Sony\'s starts off and '
-      + 'keeps the camera\'s framing (fill_scale_within over the developed image).',
+      + 'keeps the camera\'s framing (fill_scale_within over the developed image); a DNG\'s starts on.',
     ours: [
       'src-tauri/engine/src/rm_lens_builtin.rs',
+      'src-tauri/engine/src/dng_opcodes.rs',
       'src-tauri/src/mods/lens_builtin.rs',
       'src/argentum/lensBuiltin.ts',
       'src/argentum/LensBuiltinSwitch.tsx',
@@ -2339,6 +2341,7 @@ export const REGISTRY = [
     tests: [
       'src-tauri/engine/src/rm_lens_builtin.rs #[cfg(test)]: the Fujifilm reader on a synthetic RAF, '
         + 'the Sony reader on synthetic ARWs (the ZV-1\'s padded tables, malformed counts), '
+        + 'the DNG opcodes (RAWmakase\'s test, and a DNG with its vignetting in OpcodeList3), '
         + 'interpolation, fill scale and Sony\'s camera-frame fill, amounts, the inverse map; '
         + 'a_real_files_tables (ignored) prints a real file\'s tables.',
       'src-tauri/src/mods/lens_builtin.rs #[cfg(test)]: only a switched-on edit with tables applies it, '
