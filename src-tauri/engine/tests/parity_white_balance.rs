@@ -33,19 +33,22 @@ fn the_as_shot_light_is_the_apps() {
     for path in common::raws("the_as_shot_light_is_the_apps") {
         let bytes = std::fs::read(&path).unwrap();
         let source = Source::decode(&bytes).unwrap();
-        let ours = rr_white_balance::as_shot(&source.raw);
-        let app = app_raw::read_as_shot_white_balance(&bytes);
+        // Since RapidRAW 1.6.6 the app reads its light along with the photo's
+        // exposure facts, and puts in D65 itself where there is no reading:
+        // what compares is the light each one starts from.
+        let shot = rr_white_balance::as_shot(&source.raw).unwrap_or_else(WhiteBalance::reference);
+        let app = app_raw::read_as_shot(&bytes)
+            .map_or_else(app::WhiteBalance::reference, |a| a.white_balance);
         let name = path.file_name().unwrap().to_string_lossy();
-        eprintln!("  {name:<52} ours {ours:?}, the app's {app:?}");
+        eprintln!("  {name:<52} ours {shot:?}, the app's {app:?}");
         assert_eq!(
-            ours.map(|w| (w.temperature.to_bits(), w.tint.to_bits())),
-            app.map(|w| (w.temperature.to_bits(), w.tint.to_bits())),
+            (shot.temperature.to_bits(), shot.tint.to_bits()),
+            (app.temperature.to_bits(), app.tint.to_bits()),
             "{name}"
         );
         // And it is where a photo starts.
         let edit = argentum_engine::standard().defaults_for(&source);
         let start = &edit.tools["rr_white_balance"].settings;
-        let shot = ours.unwrap_or_else(WhiteBalance::reference);
         assert_eq!(
             start["temperature_k"].as_f64(),
             Some(shot.temperature.clamp(2000.0, 50000.0))
