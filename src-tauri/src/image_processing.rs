@@ -198,31 +198,18 @@ pub fn is_default_adjustments(adjustments: &Value) -> bool {
     })
 }
 
-fn uses_baseline_exposure(adjustments: &Value) -> bool {
-    adjustments.is_null()
-        || adjustments
-            .get(BASELINE_EXPOSURE_KEY)
-            .and_then(Value::as_bool)
-            .unwrap_or(false)
-}
-
-/// The stops given back to a RAW whose camera held exposure back to protect
-/// highlights (Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active
-/// D-Lighting, ...), read from its maker notes by baseline_exposure.rs.
-/// RapidRAW's (image_processing.rs @ bc7791a4), with one difference: nothing
-/// under Auto-Matched, whose curve is fitted to the camera's own JPEG and so
-/// already carries those stops.
+/// The stops RapidRAW 1.6.6 adds to the Exposure slider (image_processing.rs @
+/// bc7791a4): a RAW's baseline exposure and what its camera held back to
+/// protect highlights. Argentum adds none here. DNG Standard puts both in its
+/// own curve, through its highlight knee (mods/dng_standard.rs,
+/// mods/highlight_protection.rs), and the other renderings take a RAW as they
+/// did before. Kept because their auto-adjust and thumbnail code ask it.
 pub fn effective_baseline_exposure(
-    adjustments: &Value,
-    as_shot: AsShot,
-    options: BaselineOptions,
+    _adjustments: &Value,
+    _as_shot: AsShot,
+    _options: BaselineOptions,
 ) -> f32 {
-    if !uses_baseline_exposure(adjustments)
-        || raw_tone::mode_of(adjustments) == raw_tone::mode_index("autoMatched")
-    {
-        return 0.0;
-    }
-    as_shot.exposure.compensation(options)
+    0.0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -2067,16 +2054,12 @@ pub struct RenderOptions {
     pub baseline: BaselineOptions,
 }
 
-/// RapidRAW's (image_processing.rs @ bc7791a4), less its baseline exposure: DNG
-/// Standard already gives a RAW its camera's baseline (mods/dng_standard.rs), and
-/// RapidRAW's would add a second. The highlight-preservation stops stay.
+/// RapidRAW's (image_processing.rs @ bc7791a4). Its baseline options are left
+/// at their defaults: see `effective_baseline_exposure`.
 pub fn resolve_render_options(settings: &crate::AppSettings, is_raw: bool) -> RenderOptions {
     RenderOptions {
         tonemapper_override: resolve_tonemapper_override(settings, is_raw),
-        baseline: BaselineOptions {
-            baseline_exposure: None,
-            ..BaselineOptions::from_settings(settings)
-        },
+        baseline: BaselineOptions::default(),
     }
 }
 
@@ -2295,13 +2278,13 @@ fn is_section_visible(adjustments: &serde_json::Value, section: &str) -> bool {
         .unwrap_or(true)
 }
 
-/// Is a spatial effect (lens blur, relight, fog) switched on and its section's
-/// eye open? RapidRAW asks per tool (image_processing.rs @ f941d8ee); in
-/// Argentum the three sit under the Effects eye, so `tool` names which one is
-/// asked about and the Effects eye answers for all of them.
+/// Is an effect switched on, and the eye of the section that holds it open?
+/// RapidRAW asks per tool (image_processing.rs @ f941d8ee); Argentum has an eye
+/// per section, so the tool is answered by its section's eye: noise reduction
+/// by Details', the rest (lens blur, relight, fog) by Effects'.
 pub fn is_effect_enabled(adjustments: &serde_json::Value, tool: &str, enabled_key: &str) -> bool {
-    debug_assert!(matches!(tool, "lensBlur" | "relight" | "fog"), "{tool}");
-    adjustments[enabled_key].as_bool().unwrap_or(false) && is_section_visible(adjustments, "effects")
+    let section = if tool == "noiseReduction" { "details" } else { "effects" };
+    adjustments[enabled_key].as_bool().unwrap_or(false) && is_section_visible(adjustments, section)
 }
 
 fn get_global_adjustments_from_json(

@@ -2899,9 +2899,8 @@ pub fn apply_import_edits_to_sidecar(
     }
 
     let mut owned_image: Option<DynamicImage> = None;
-
-    if apply_auto {
-        let image_ref: &DynamicImage = match preloaded_image {
+    let auto_from: Option<&DynamicImage> = if apply_auto {
+        Some(match preloaded_image {
             Some(img) => img,
             None => {
                 let source_path_str = source_path.to_string_lossy().to_string();
@@ -2914,57 +2913,23 @@ pub fn apply_import_edits_to_sidecar(
                     None,
                 )
                 .map_err(|e| e.to_string())?;
-                owned_image = Some(img);
-                owned_image.as_ref().unwrap()
+                owned_image.insert(img)
             }
-        };
+        })
+    } else {
+        None
+    };
 
-        let baseline = crate::image_processing::effective_baseline_exposure(&existing_metadata.adjustments, as_shot(&source_path.to_string_lossy()), resolve_render_options(settings, true).baseline);
-        let auto_json = auto_results_to_json(&perform_auto_analysis(image_ref, baseline));
-        if let (Some(target), Some(incoming)) = (
-            existing_metadata.adjustments.as_object_mut(),
-            auto_json.as_object(),
-        ) {
-            merge_adjustment_values(target, incoming);
-        }
-    }
-
-    if let Some(preset) = preset_adjustments
-        && let (Some(target), Some(incoming)) = (
-            existing_metadata.adjustments.as_object_mut(),
-            preset.as_object(),
-        )
-    {
-        merge_adjustment_values(target, incoming);
-    }
-
-    if apply_auto && let Some(map) = existing_metadata.adjustments.as_object_mut() {
-        map.insert("lensCorrectionMode".to_string(), serde_json::json!("auto"));
-        for key in [
-            "lensDistortionEnabled",
-            "lensTcaEnabled",
-            "lensVignetteEnabled",
-        ] {
-            map.entry(key.to_string())
-                .or_insert(serde_json::json!(true));
-        }
-    }
-
-    let is_auto_lens = existing_metadata
-        .adjustments
-        .get("lensCorrectionMode")
-        .and_then(|v| v.as_str())
-        == Some("auto");
-    if is_auto_lens {
-        let exif_for_lens: Option<HashMap<String, String>> =
-            crate::exif_processing::read_rrexif_sidecar(source_path)
-                .or_else(|| existing_metadata.exif.clone());
-        resolve_lens_params_in_adjustments(
-            &mut existing_metadata.adjustments,
-            &exif_for_lens,
-            lens_db,
-        );
-    }
+    let exif = existing_metadata.exif.clone();
+    fold_import_edits(
+        &mut existing_metadata.adjustments,
+        auto_from,
+        source_path,
+        preset_adjustments,
+        settings,
+        lens_db,
+        exif.as_ref(),
+    );
 
     if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata) {
         let _ = std::fs::write(sidecar_path, json_string);
@@ -2977,76 +2942,43 @@ pub fn apply_import_edits_to_sidecar(
     Ok(owned_image)
 }
 
-#[tauri::command]
-pub async fn apply_auto_adjustments_to_paths(
-    paths: Vec<String>,
-    app_handle: AppHandle,
-) -> Result<(), String> {
-    let state = app_handle.state::<AppState>();
-    add_to_thumbnail_queue(&state, paths.len(), &app_handle);
+/// The edit an import or Auto adjust leaves: the auto analysis of `auto_from` when there is one,
+/// then the preset, then automatic lens correction when auto ran or the preset asks for it.
+fn fold_import_edits(
+    adjustments: &mut Value,
+    auto_from: Option<&DynamicImage>,
+    source_path: &Path,
+    preset_adjustments: Option<&Value>,
+    settings: &AppSettings,
+    lens_db: Option<&crate::lens_correction::LensDatabase>,
+    fallback_exif: Option<&HashMap<String, String>>,
+) {
+    if let Some(image) = auto_from {
+        let shot = as_shot(&source_path.to_string_lossy());
+        let baseline = effective_baseline_exposure(adjustments, shot, resolve_render_options(settings, true).baseline);
+        let auto_json = auto_results_to_json(&perform_auto_analysis(image, baseline));
+        if let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), auto_json.as_object()) {
+            merge_adjustment_values(target, incoming);
+        }
+    }
 
-    tauri::async_runtime::spawn_blocking(move || {
-        let settings = load_settings(app_handle.clone()).unwrap_or_default();
+    if let Some(preset) = preset_adjustments
+        && let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), preset.as_object())
+    {
+        merge_adjustment_values(target, incoming);
+    }
 
-        let state = app_handle.state::<AppState>();
-        let lens_db = state.lens_db.lock().unwrap().clone();
-        let thumb_cache_dir = match resolve_thumbnail_cache_dir(&app_handle) {
-            Ok(dir) => dir,
-            Err(e) => {
-                log::warn!("Unable to initialize thumbnail cache directory: {}", e);
-                for path in &paths {
-                    emit_thumbnail_cache_setup_error(&app_handle, path, &e);
-                }
-                for _ in 0..paths.len() {
-                    increment_thumbnail_progress(&state, &app_handle);
-                }
-                return;
-            }
-        };
+    if auto_from.is_some() && let Some(map) = adjustments.as_object_mut() {
+        map.insert("lensCorrectionMode".to_string(), serde_json::json!("auto"));
+        for key in ["lensDistortionEnabled", "lensTcaEnabled", "lensVignetteEnabled"] {
+            map.entry(key.to_string()).or_insert(serde_json::json!(true));
+        }
+    }
 
-        let gpu_context = gpu_processing::get_or_init_gpu_context(&state, &app_handle).ok();
-
-        paths.par_iter().for_each(|path| {
-            let (source_path, sidecar_path) = parse_virtual_path(path);
-            let loaded_image: Option<DynamicImage> = apply_import_edits_to_sidecar(
-                &source_path,
-                &sidecar_path,
-                true,
-                None,
-                &settings,
-                lens_db.as_deref(),
-                None,
-            )
-            .map_err(|e| eprintln!("Failed to apply auto adjustments to {}: {}", path, e))
-            .ok()
-            .flatten();
-
-            let result = generate_single_thumbnail_and_cache(
-                path,
-                &thumb_cache_dir,
-                gpu_context.as_ref(),
-                loaded_image.as_ref(),
-                true,
-                &app_handle,
-                &settings,
-            );
-
-            if let Some((small_path, medium_path, rating, is_edited)) = result {
-                emit_thumbnail_generated(
-                    &app_handle,
-                    path,
-                    &small_path,
-                    &medium_path,
-                    rating,
-                    is_edited,
-                );
-            }
-
-            increment_thumbnail_progress(&state, &app_handle);
-        });
-    });
-
-    Ok(())
+    if adjustments.get("lensCorrectionMode").and_then(|v| v.as_str()) == Some("auto") {
+        let exif = crate::exif_processing::read_rrexif_sidecar(source_path).or_else(|| fallback_exif.cloned());
+        resolve_lens_params_in_adjustments(adjustments, &exif, lens_db);
+    }
 }
 
 const FULL_DECODE_WORKER_THREADS: usize = 2;
@@ -3162,6 +3094,24 @@ async fn update_sidecars_from_images(
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn apply_auto_adjustments_to_paths(
+    paths: Vec<String>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    let lens_db = app_handle.state::<AppState>().lens_db.lock().unwrap().clone();
+    update_sidecars_from_images(
+        paths,
+        app_handle,
+        "auto adjustments",
+        true,
+        move |image, source_path, settings, adjustments| {
+            fold_import_edits(adjustments, Some(image), Path::new(source_path), None, settings, lens_db.as_deref(), None)
+        },
+    )
+    .await
 }
 
 #[tauri::command]

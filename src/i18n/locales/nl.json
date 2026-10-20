@@ -132,7 +132,35 @@
       "roundness": "Rondheid",
       "size": "Grootte",
       "vignette": "Vignet na bijsnijden",
-      "spatial": "Ruimtelijk"
+      "spatial": "Ruimtelijk",
+      "fog": "Mist",
+      "fogDensity": "Dichtheid",
+      "fogHeight": "Grondmist",
+      "fogStart": "Begin",
+      "fogVariation": "Variatie",
+      "relight": "Herbelichten",
+      "relightAddLight": "Licht toevoegen",
+      "relightAmbient": "Omgevingslicht",
+      "relightAngle": "Hoek",
+      "relightColor": "Lichtkleur",
+      "relightCone": "Kegel",
+      "relightDepth": "Diepte",
+      "relightDuplicateLight": "Licht dupliceren",
+      "relightElevation": "Elevatie",
+      "relightFalloff": "Afname",
+      "relightIntensity": "Intensiteit",
+      "relightLight": "Licht {{index}}",
+      "relightRemoveLight": "Licht verwijderen",
+      "relightShadowSoftness": "Schaduwzachtheid",
+      "relightShadows": "Schaduwen",
+      "relightShine": "Glans",
+      "relightSoftness": "Zachtheid",
+      "relightType": "Lichttype",
+      "relightTypes": {
+        "directional": "Gericht",
+        "point": "Punt",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -435,7 +463,8 @@
         "selectionPropertiesTitle": "Selectie-eigenschappen",
         "useBasicInpaint": "Basis inpainting gebruiken"
       },
-      "touchUpTitle": "Retoucheren"
+      "touchUpTitle": "Retoucheren",
+      "generatingNormalMap": "AI-normaalkaart berekenen..."
     },
     "crop": {
       "aspectRatioHeading": "Beeldverhouding",

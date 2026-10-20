@@ -123,7 +123,7 @@ pub const CATALOGUE: &[Model] = &[
     Model {
         id: "depth",
         label: "Depth estimation",
-        purpose: "Works out how far away each part of the photo is, for the Depth mask.",
+        purpose: "Works out how far away each part of the photo is, for the Depth mask, Lens blur and Fog.",
         stored: Stored::Files(&[(
             "depth_anything_v2_vits.onnx",
             rapidraw_url!("depth_anything_v2_vits.onnx"),
@@ -133,6 +133,18 @@ pub const CATALOGUE: &[Model] = &[
         listed_when_missing: true,
     },
     // --- RapidRAW's: one feature each.
+    Model {
+        id: "relight",
+        label: "Surface directions",
+        purpose: "Works out which way each surface faces, for Relight.",
+        stored: Stored::Files(&[(
+            "moge-2-vits-normal-onnx.onnx",
+            rapidraw_url!("moge-2-vits-normal-onnx.onnx"),
+        )]),
+        download_bytes: Some(140_852_051),
+        upstream: true,
+        listed_when_missing: true,
+    },
     Model {
         id: "inpainting",
         label: "Inpainting",

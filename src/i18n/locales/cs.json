@@ -132,7 +132,35 @@
       "roundness": "Kulatost",
       "size": "Velikost",
       "vignette": "Viněta po oříznutí",
-      "spatial": "Prostorové"
+      "spatial": "Prostorové",
+      "fog": "Mlha",
+      "fogDensity": "Hustota",
+      "fogHeight": "Přízemní mlha",
+      "fogStart": "Začátek",
+      "fogVariation": "Variabilita",
+      "relight": "Přesvětlení",
+      "relightAddLight": "Přidat světlo",
+      "relightAmbient": "Okolní světlo",
+      "relightAngle": "Úhel",
+      "relightColor": "Barva světla",
+      "relightCone": "Kužel",
+      "relightDepth": "Hloubka",
+      "relightDuplicateLight": "Duplikovat světlo",
+      "relightElevation": "Výška",
+      "relightFalloff": "Útlum",
+      "relightIntensity": "Intenzita",
+      "relightLight": "Světlo {{index}}",
+      "relightRemoveLight": "Odebrat světlo",
+      "relightShadowSoftness": "Měkkost stínů",
+      "relightShadows": "Stíny",
+      "relightShine": "Lesk",
+      "relightSoftness": "Měkkost",
+      "relightType": "Typ světla",
+      "relightTypes": {
+        "directional": "Směrové",
+        "point": "Bodové",
+        "spot": "Reflektor"
+      }
     }
   },
   "contextMenus": {
@@ -442,7 +470,8 @@
         "selectionPropertiesTitle": "Vlastnosti výběru",
         "useBasicInpaint": "Použijte základní retuš"
       },
-      "touchUpTitle": "Retuše"
+      "touchUpTitle": "Retuše",
+      "generatingNormalMap": "Výpočet AI mapy normál..."
     },
     "crop": {
       "aspectRatioHeading": "Poměr stran",

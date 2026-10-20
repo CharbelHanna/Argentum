@@ -133,7 +133,35 @@
       "roundness": "Arrondi",
       "size": "Taille",
       "vignette": "Vignettage après recadrage",
-      "spatial": "Spatial"
+      "spatial": "Spatial",
+      "fog": "Brouillard",
+      "fogDensity": "Densité",
+      "fogHeight": "Brouillard au sol",
+      "fogStart": "Début",
+      "fogVariation": "Variation",
+      "relight": "Rééclairage",
+      "relightAddLight": "Ajouter une lumière",
+      "relightAmbient": "Ambiance",
+      "relightAngle": "Angle",
+      "relightColor": "Couleur de la lumière",
+      "relightCone": "Cône",
+      "relightDepth": "Profondeur",
+      "relightDuplicateLight": "Dupliquer la lumière",
+      "relightElevation": "Élévation",
+      "relightFalloff": "Atténuation",
+      "relightIntensity": "Intensité",
+      "relightLight": "Lumière {{index}}",
+      "relightRemoveLight": "Supprimer la lumière",
+      "relightShadowSoftness": "Douceur des ombres",
+      "relightShadows": "Ombres",
+      "relightShine": "Brillance",
+      "relightSoftness": "Douceur",
+      "relightType": "Type de lumière",
+      "relightTypes": {
+        "directional": "Directionnelle",
+        "point": "Ponctuelle",
+        "spot": "Projecteur"
+      }
     }
   },
   "contextMenus": {
@@ -462,7 +490,8 @@
         "selectionPropertiesTitle": "Propriétés de sélection",
         "useBasicInpaint": "Utiliser l'inpainting simple"
       },
-      "touchUpTitle": "Retouches"
+      "touchUpTitle": "Retouches",
+      "generatingNormalMap": "Calcul de la carte des normales IA..."
     },
     "crop": {
       "aspectRatioHeading": "Rapport d'aspect",

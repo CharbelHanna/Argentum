@@ -133,7 +133,35 @@
       "roundness": "Rundheit",
       "size": "Größe",
       "vignette": "Vignettierung nach Zuschnitt",
-      "spatial": "Räumlich"
+      "spatial": "Räumlich",
+      "fog": "Nebel",
+      "fogDensity": "Dichte",
+      "fogHeight": "Bodennebel",
+      "fogStart": "Beginn",
+      "fogVariation": "Variation",
+      "relight": "Neu beleuchten",
+      "relightAddLight": "Licht hinzufügen",
+      "relightAmbient": "Umgebungslicht",
+      "relightAngle": "Winkel",
+      "relightColor": "Lichtfarbe",
+      "relightCone": "Kegel",
+      "relightDepth": "Tiefe",
+      "relightDuplicateLight": "Licht duplizieren",
+      "relightElevation": "Höhe",
+      "relightFalloff": "Abfall",
+      "relightIntensity": "Intensität",
+      "relightLight": "Licht {{index}}",
+      "relightRemoveLight": "Licht entfernen",
+      "relightShadowSoftness": "Schattenweichheit",
+      "relightShadows": "Schatten",
+      "relightShine": "Glanz",
+      "relightSoftness": "Weichheit",
+      "relightType": "Lichttyp",
+      "relightTypes": {
+        "directional": "Gerichtet",
+        "point": "Punkt",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -441,7 +469,8 @@
         "selectionPropertiesTitle": "Auswahleigenschaften",
         "useBasicInpaint": "Einfaches Reparieren verwenden"
       },
-      "touchUpTitle": "Ausbessern"
+      "touchUpTitle": "Ausbessern",
+      "generatingNormalMap": "KI-Normalenkarte wird berechnet..."
     },
     "crop": {
       "aspectRatioHeading": "Seitenverhältnis",

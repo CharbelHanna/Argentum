@@ -133,7 +133,35 @@
       "roundness": "Zaokrąglenie",
       "size": "Rozmiar",
       "vignette": "Winieta po kadrowaniu",
-      "spatial": "Przestrzenne"
+      "spatial": "Przestrzenne",
+      "fog": "Mgła",
+      "fogDensity": "Gęstość",
+      "fogHeight": "Mgła przyziemna",
+      "fogStart": "Początek",
+      "fogVariation": "Zmienność",
+      "relight": "Ponowne oświetlenie",
+      "relightAddLight": "Dodaj światło",
+      "relightAmbient": "Światło otoczenia",
+      "relightAngle": "Kąt",
+      "relightColor": "Kolor światła",
+      "relightCone": "Stożek",
+      "relightDepth": "Głębia",
+      "relightDuplicateLight": "Duplikuj światło",
+      "relightElevation": "Wysokość",
+      "relightFalloff": "Spadek",
+      "relightIntensity": "Intensywność",
+      "relightLight": "Światło {{index}}",
+      "relightRemoveLight": "Usuń światło",
+      "relightShadowSoftness": "Miękkość cieni",
+      "relightShadows": "Cienie",
+      "relightShine": "Połysk",
+      "relightSoftness": "Miękkość",
+      "relightType": "Typ światła",
+      "relightTypes": {
+        "directional": "Kierunkowe",
+        "point": "Punktowe",
+        "spot": "Reflektor"
+      }
     }
   },
   "contextMenus": {
@@ -483,7 +511,8 @@
         "selectionPropertiesTitle": "Właściwości zaznaczenia",
         "useBasicInpaint": "Użyj podstawowego inpaintingu"
       },
-      "touchUpTitle": "Poprawki"
+      "touchUpTitle": "Poprawki",
+      "generatingNormalMap": "Obliczanie mapy normalnych AI..."
     },
     "crop": {
       "aspectRatioHeading": "Proporcje",

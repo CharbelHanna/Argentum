@@ -133,7 +133,35 @@
       "roundness": "둥글기",
       "size": "크기",
       "vignette": "자르기 후 비네트",
-      "spatial": "공간"
+      "spatial": "공간",
+      "fog": "안개",
+      "fogDensity": "밀도",
+      "fogHeight": "지면 안개",
+      "fogStart": "시작 거리",
+      "fogVariation": "변화",
+      "relight": "리라이팅",
+      "relightAddLight": "조명 추가",
+      "relightAmbient": "주변광",
+      "relightAngle": "각도",
+      "relightColor": "조명 색상",
+      "relightCone": "원뿔",
+      "relightDepth": "깊이",
+      "relightDuplicateLight": "조명 복제",
+      "relightElevation": "고도",
+      "relightFalloff": "감쇠",
+      "relightIntensity": "강도",
+      "relightLight": "조명 {{index}}",
+      "relightRemoveLight": "조명 제거",
+      "relightShadowSoftness": "그림자 부드러움",
+      "relightShadows": "그림자",
+      "relightShine": "광택",
+      "relightSoftness": "부드러움",
+      "relightType": "조명 유형",
+      "relightTypes": {
+        "directional": "방향광",
+        "point": "점광원",
+        "spot": "스포트라이트"
+      }
     }
   },
   "contextMenus": {
@@ -439,7 +467,8 @@
         "selectionPropertiesTitle": "선택 영역 속성",
         "useBasicInpaint": "기본 인페인팅 사용"
       },
-      "touchUpTitle": "터치업"
+      "touchUpTitle": "터치업",
+      "generatingNormalMap": "AI 노멀 맵 계산 중..."
     },
     "crop": {
       "aspectRatioHeading": "종횡비",

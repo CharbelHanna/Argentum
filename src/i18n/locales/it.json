@@ -14,7 +14,7 @@
       },
       "reset": "Ripristina",
       "shadows": "Ombre",
-      "toneMapper": "Tone Mapper",
+      "toneMapper": "Mappatura tonale",
       "whites": "Bianchi",
       "brightness": "Luminosità"
     },
@@ -133,7 +133,35 @@
       "roundness": "Rotondità",
       "size": "Dimensione",
       "vignette": "Vignettatura post-ritaglio",
-      "spatial": "Spaziale"
+      "spatial": "Spaziale",
+      "fog": "Nebbia",
+      "fogDensity": "Densità",
+      "fogHeight": "Nebbia bassa",
+      "fogStart": "Inizio",
+      "fogVariation": "Variazione",
+      "relight": "Riilluminazione",
+      "relightAddLight": "Aggiungi luce",
+      "relightAmbient": "Ambiente",
+      "relightAngle": "Angolo",
+      "relightColor": "Colore luce",
+      "relightCone": "Cono",
+      "relightDepth": "Profondità",
+      "relightDuplicateLight": "Duplica luce",
+      "relightElevation": "Elevazione",
+      "relightFalloff": "Attenuazione",
+      "relightIntensity": "Intensità",
+      "relightLight": "Luce {{index}}",
+      "relightRemoveLight": "Rimuovi luce",
+      "relightShadowSoftness": "Morbidezza ombre",
+      "relightShadows": "Ombre",
+      "relightShine": "Lucentezza",
+      "relightSoftness": "Morbidezza",
+      "relightType": "Tipo di luce",
+      "relightTypes": {
+        "directional": "Direzionale",
+        "point": "Puntiforme",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -207,7 +235,7 @@
       "redo": "Ripeti",
       "resetAdjustments": "Ripristina Regolazioni",
       "stitchPanorama": "Unisci Panorama",
-      "tagging": "Tagging",
+      "tagging": "Tag",
       "undo": "Annulla",
       "unflagged": "Senza flag",
       "autoStraighten": "Raddrizza automaticamente"
@@ -301,7 +329,8 @@
       "virtualCopy": "Copia Virtuale",
       "autoStraighten_many": "Raddrizza immagini automaticamente",
       "autoStraighten_one": "Raddrizza immagine automaticamente",
-      "autoStraighten_other": "Raddrizza immagini automaticamente"
+      "autoStraighten_other": "Raddrizza immagini automaticamente",
+      "autoLensCorrection_many": "Correzione automatica obiettivo"
     },
     "toasts": {
       "couldNotShowExplorer": "Impossibile mostrare il file in esplora risorse: {{err}}",
@@ -439,7 +468,8 @@
         "quickErase_many": "Cancellazione Rapida {{count}}",
         "quickErase_one": "Cancellazione Rapida {{count}}",
         "quickErase_other": "Cancellazione Rapida {{count}}",
-        "retouch": "Ritocco {{count}}"
+        "retouch": "Ritocco {{count}}",
+        "liquify_many": "Fluidifica {{count}}"
       },
       "resetInpaintingTooltip": "Ripristina Inpainting",
       "settings": {
@@ -462,7 +492,8 @@
         "selectionPropertiesTitle": "Proprietà Selezione",
         "useBasicInpaint": "Usa inpainting semplice"
       },
-      "touchUpTitle": "Ritocchi"
+      "touchUpTitle": "Ritocchi",
+      "generatingNormalMap": "Calcolo della mappa delle normali IA..."
     },
     "crop": {
       "aspectRatioHeading": "Proporzioni",
@@ -803,7 +834,7 @@
       }
     },
     "toolbar": {
-      "switchToVariant": "Switch to {{label}}",
+      "switchToVariant": "Passa a {{label}}",
       "tooltips": {
         "aperture": "Apertura",
         "backToLibrary": "Torna alla Libreria",
@@ -1090,12 +1121,12 @@
           "gte": "Questa valutazione o superiore",
           "lte": "Questa valutazione o inferiore"
         },
-        "groupEditedFiles": "Include edited files in groups",
-        "groupIgnoreMetadata": "Ignore mismatched EXIF dates",
-        "groupOff": "Off",
-        "groupPreferJpeg": "Prefer JPEG",
-        "groupPreferRaw": "Prefer RAW",
-        "groupRawJpeg": "Group RAW + JPEG",
+        "groupEditedFiles": "Includi i file modificati nei gruppi",
+        "groupIgnoreMetadata": "Ignora le date EXIF non coincidenti",
+        "groupOff": "Disattivato",
+        "groupPreferJpeg": "Preferisci il JPEG",
+        "groupPreferRaw": "Preferisci il RAW",
+        "groupRawJpeg": "Raggruppa RAW + JPEG",
         "metadataAlways": "Sempre",
         "metadataHover": "Al passaggio del mouse",
         "metadataOff": "Spento",
@@ -1399,7 +1430,8 @@
       "savedSuccess": "Focus Stack salvato con successo!",
       "stacking": "Unione messa a fuoco in corso",
       "start": "Avvia",
-      "title": "Focus Stacking"
+      "title": "Focus Stacking",
+      "descriptionWithCount_many": "Combina {{count}} immagini con diverse distanze di messa a fuoco in un'unica immagine perfettamente nitida."
     },
     "hdr": {
       "cancel": "Annulla",
@@ -1953,7 +1985,7 @@
       "removeShortcutTooltip": "Rimuovi scorciatoia \"{{shortcut}}\"",
       "shortcuts": "Scorciatoie Tagging",
       "shortcutsDesc": "Una lista di tag che appariranno come scorciatoie nel menu contestuale del tagging.",
-      "title": "Tagging"
+      "title": "Tag"
     },
     "thanks": {
       "description": "Un enorme grazie ai seguenti progetti che sono stati molto importanti nello sviluppo di RapidRAW:",

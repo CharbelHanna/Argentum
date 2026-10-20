@@ -28,7 +28,13 @@ import {
   INITIAL_ADJUSTMENTS,
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
-import { EDIT_SECTION_KEYS, initialValues, PROFILE_KEYS, type SectionVisibility } from '../../../argentum/editSections';
+import {
+  EDIT_SECTION_KEYS,
+  initialValues,
+  PROFILE_KEYS,
+  SECTION_EYES_OPEN,
+  type SectionVisibility,
+} from '../../../argentum/editSections';
 import ProfileSection, { PROFILE_SECTION } from '../../../argentum/ProfileSection';
 import { useAgTranslation } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';
@@ -143,7 +149,7 @@ export default function Controls({
 
   const handleToggleVisibility = (sectionName: string) => {
     setAdjustments((prev: Adjustments) => {
-      const currentVisibility: SectionVisibility = prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility;
+      const currentVisibility: SectionVisibility = prev.sectionVisibility || SECTION_EYES_OPEN;
       return {
         ...prev,
         sectionVisibility: {
@@ -159,7 +165,7 @@ export default function Controls({
     setAdjustments((prev: Adjustments) => ({
       ...prev,
       ...initialValues([...Object.values(EDIT_SECTION_KEYS).flat(), ...PROFILE_KEYS]),
-      sectionVisibility: { ...INITIAL_ADJUSTMENTS.sectionVisibility },
+      sectionVisibility: { ...SECTION_EYES_OPEN },
     }));
   };
 
@@ -189,7 +195,7 @@ export default function Controls({
       ...prev,
       ...initialValues(sectionKeys),
       sectionVisibility: {
-        ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
+        ...(prev.sectionVisibility || SECTION_EYES_OPEN),
         [sectionName]: true,
       },
     }));
@@ -258,7 +264,7 @@ export default function Controls({
         ...prev,
         ...copiedSectionAdjustments.values,
         sectionVisibility: {
-          ...(prev.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility),
+          ...(prev.sectionVisibility || SECTION_EYES_OPEN),
           [sectionName]: true,
         },
       }));
@@ -393,7 +399,7 @@ export default function Controls({
             }[sectionName];
 
             const title = t(`editor.adjustments.sections.${sectionName}`);
-            const sectionVisibility = adjustments.sectionVisibility || INITIAL_ADJUSTMENTS.sectionVisibility;
+            const sectionVisibility = adjustments.sectionVisibility || SECTION_EYES_OPEN;
 
             return (
               <div className="shrink-0 group relative" key={sectionName}>

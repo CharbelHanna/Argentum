@@ -134,7 +134,35 @@
       "roundness": "Roundness",
       "size": "Size",
       "vignette": "Post-Crop Vignette",
-      "spatial": "Spatial"
+      "spatial": "Spatial",
+      "fog": "Fog",
+      "fogDensity": "Density",
+      "fogHeight": "Ground Fog",
+      "fogStart": "Start",
+      "fogVariation": "Variation",
+      "relight": "Relight",
+      "relightAddLight": "Add Light",
+      "relightAmbient": "Ambient",
+      "relightAngle": "Angle",
+      "relightColor": "Light Color",
+      "relightCone": "Cone",
+      "relightDepth": "Depth",
+      "relightDuplicateLight": "Duplicate Light",
+      "relightElevation": "Elevation",
+      "relightFalloff": "Falloff",
+      "relightIntensity": "Intensity",
+      "relightLight": "Light {{index}}",
+      "relightRemoveLight": "Remove Light",
+      "relightShadowSoftness": "Shadow Softness",
+      "relightShadows": "Shadows",
+      "relightShine": "Shine",
+      "relightSoftness": "Softness",
+      "relightType": "Light Type",
+      "relightTypes": {
+        "directional": "Directional",
+        "point": "Point",
+        "spot": "Spot"
+      }
     }
   },
   "contextMenus": {
@@ -442,7 +470,8 @@
         "selectionPropertiesTitle": "Selection Properties",
         "useBasicInpaint": "Use basic inpainting"
       },
-      "touchUpTitle": "Touch Up"
+      "touchUpTitle": "Touch Up",
+      "generatingNormalMap": "Calculating AI Normal Map..."
     },
     "crop": {
       "aspectRatioHeading": "Aspect Ratio",

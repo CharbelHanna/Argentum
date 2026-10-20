@@ -21,6 +21,7 @@ import {
   Status,
   ExportState,
   FileFormats,
+  MAX_EXPORT_DPI,
   WatermarkAnchor,
 } from '../../ui/ExportImportProperties';
 import { Invokes, SelectedImage, AppSettings, Panel } from '../../ui/AppProperties';
@@ -32,6 +33,8 @@ import { TextColors, TextVariants, TextWeights } from '../../../types/typography
 import { useEditorStore } from '../../../store/useEditorStore';
 import { useUIStore } from '../../../store/useUIStore';
 import { useLooks } from '../../../argentum/looks/looksStore';
+import { useAgTranslation } from '../../../argentum/locales';
+import { cropFrame } from '../../../argentum/linearEdges';
 
 interface ExportPanelProps {
   exportState: ExportState;
@@ -57,6 +60,57 @@ const MAX_BORDER_PERCENT = 100;
 function parsePercent(value: string): number | null {
   const parsed = Number(value.trim().replace(',', '.'));
   return Number.isFinite(parsed) && parsed >= 0 && parsed <= MAX_BORDER_PERCENT ? parsed : null;
+}
+
+// Argentum (RapidRAW 1.6.6): the formats that can store a print resolution.
+// WebP, JPEG XL and AVIF have no field for it, so they get no DPI row and no dpi.
+const DPI_FORMATS: ReadonlyArray<string> = [FileFormats.Jpeg, FileFormats.Png, FileFormats.Tiff];
+
+// The formats Keep metadata writes to. TIFF gets the camera EXIF but not the
+// XMP rating, colour label and keywords, so its note leaves those out.
+const METADATA_FORMATS: ReadonlyArray<string> = [FileFormats.Jpeg, FileFormats.Png, FileFormats.Tiff, FileFormats.Webp];
+
+// From RapidRAW v1.6.6, src/components/panel/right/ExportPanel.tsx (parseDpi).
+function parseDpi(value: string): number | null {
+  const parsed = Number(value.trim());
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= MAX_EXPORT_DPI ? parsed : null;
+}
+
+/**
+ * The exported photo's size after Resize, for the print size beside DPI.
+ * Mirrors `calculate_resize_target` in src-tauri/src/export_processing.rs.
+ */
+function resizedSizePx(
+  widthPx: number,
+  heightPx: number,
+  mode: string,
+  valuePx: number,
+  dontEnlarge: boolean,
+): { widthPx: number; heightPx: number } {
+  if (dontEnlarge) {
+    const edgePx =
+      mode === 'longEdge'
+        ? Math.max(widthPx, heightPx)
+        : mode === 'shortEdge'
+          ? Math.min(widthPx, heightPx)
+          : mode === 'width'
+            ? widthPx
+            : heightPx;
+    if (edgePx <= valuePx) return { widthPx, heightPx };
+  }
+  const fixWidth =
+    mode === 'longEdge' ? widthPx >= heightPx : mode === 'shortEdge' ? widthPx <= heightPx : mode === 'width';
+  return fixWidth
+    ? { widthPx: valuePx, heightPx: Math.round(valuePx * (heightPx / widthPx)) }
+    : { widthPx: Math.round(valuePx * (widthPx / heightPx)), heightPx: valuePx };
+}
+
+const CM_PER_INCH = 2.54;
+
+/** One printed edge in centimetres: a decimal under 10 cm, whole numbers above. */
+function formatPrintCm(px: number, dpi: number): string {
+  const cm = (px / dpi) * CM_PER_INCH;
+  return cm < 10 ? cm.toFixed(1) : String(Math.round(cm));
 }
 
 function normalizeHexColor(value: string): string | null {
@@ -296,6 +350,7 @@ export default function ExportPanel({
   onClose,
 }: ExportPanelProps) {
   const { t } = useTranslation();
+  const agT = useAgTranslation();
 
   const resizeModeOptions = useMemo(
     () => [
@@ -321,6 +376,8 @@ export default function ExportPanel({
     setFileFormat,
     jpegQuality,
     setJpegQuality,
+    dpi,
+    setDpi,
     enableResize,
     setEnableResize,
     resizeMode,
@@ -448,6 +505,9 @@ export default function ExportPanel({
         }
       : null;
 
+  const dpiField = useParsedTextField(dpi, setDpi, parseDpi);
+  const supportsDpi = DPI_FORMATS.includes(fileFormat);
+
   const [estimatedSize, setEstimatedSize] = useState<number | null>(null);
   const tiffDepth = useTiffDepth();
   const [isEstimating, setIsEstimating] = useState<boolean>(false);
@@ -475,6 +535,28 @@ export default function ExportPanel({
   }, [isLibraryContext, multiSelectedPaths, selectedImage?.path]);
 
   const numImages = pathsToExport.length;
+
+  // The open photo's cropped size, which cropFrame reads from the editor store;
+  // these subscriptions re-read it when the crop or a quarter turn changes.
+  const editorCrop = useEditorStore((state) => state.adjustments.crop);
+  const editorOrientationSteps = useEditorStore((state) => state.adjustments.orientationSteps);
+  const exportFrame = useMemo(() => cropFrame(), [selectedImage, editorCrop, editorOrientationSteps]);
+
+  // Shown only when the size is known: one photo, the one open in the editor.
+  // Border and pad change the canvas in ways only Rust works out, so the print
+  // size is left out while either is on rather than shown wrong.
+  const printSize = (() => {
+    if (!supportsDpi || numImages !== 1 || enableBorder || enablePad) return null;
+    if (!exportFrame || pathsToExport[0] !== selectedImage?.path) return null;
+    let size = { widthPx: Math.round(exportFrame.width), heightPx: Math.round(exportFrame.height) };
+    if (enableResize) {
+      if (!(resizeValue > 0)) return null;
+      size = resizedSizePx(size.widthPx, size.heightPx, resizeMode, resizeValue, dontEnlarge);
+    }
+    return agT('export166PrintsAt')
+      .replace('{width}', formatPrintCm(size.widthPx, dpi))
+      .replace('{height}', formatPrintCm(size.heightPx, dpi));
+  })();
 
   useEffect(() => {
     const fetchDims = async () => {
@@ -674,6 +756,7 @@ export default function ExportPanel({
               opacity: watermarkOpacity,
             }
           : null,
+      dpi: supportsDpi ? dpi : undefined,
     };
 
     const lastExportPath = appSettings?.exportPresets?.find((p) => p.id === '__last_used__')?.lastExportPath;
@@ -869,6 +952,9 @@ export default function ExportPanel({
                   {FILENAME_VARIABLES.map((variable: string) => (
                     <button
                       className="px-2 py-1 bg-surface text-text-secondary text-xs rounded-md hover:bg-card-active transition-colors disabled:opacity-50"
+                      data-tooltip={
+                        variable === '{original_filename_number}' ? agT('export166FrameNumberTip') : undefined
+                      }
                       disabled={isExporting}
                       key={variable}
                       onClick={() => handleVariableClick(variable)}
@@ -1017,9 +1103,30 @@ export default function ExportPanel({
                       />
                     </div>
                   )}
+                  {supportsDpi && (
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex flex-col">
+                        <Text
+                          variant={TextVariants.label}
+                          className="cursor-default"
+                          data-tooltip={agT('export166ResolutionTip')}
+                        >
+                          {agT('export166Resolution')}
+                        </Text>
+                        {printSize && <Text variant={TextVariants.small}>{printSize}</Text>}
+                      </div>
+                      <ValidatedNumberInput
+                        ariaLabel={agT('export166Resolution')}
+                        disabled={isExporting}
+                        field={dpiField}
+                        max={MAX_EXPORT_DPI}
+                      />
+                      <Text variant={TextVariants.label}>{agT('export166Dpi')}</Text>
+                    </div>
+                  )}
                 </Section>
 
-                {[FileFormats.Jpeg, FileFormats.Tiff].includes(fileFormat as FileFormats) && (
+                {METADATA_FORMATS.includes(fileFormat) && (
                   <Section title={t('export.sections.metadata')}>
                     <Switch
                       checked={keepMetadata}
@@ -1028,6 +1135,11 @@ export default function ExportPanel({
                       onChange={setKeepMetadata}
                       trackClassName="bg-surface"
                     />
+                    {keepMetadata && (
+                      <Text variant={TextVariants.small}>
+                        {fileFormat === FileFormats.Tiff ? agT('export166MetadataTiff') : agT('export166Metadata')}
+                      </Text>
+                    )}
                     {keepMetadata && (
                       <div className="pl-2 border-l-2 border-surface">
                         <Switch

@@ -46,6 +46,7 @@
 
 use std::sync::OnceLock;
 
+use crate::mods::highlight_protection::{self, HeldBack};
 use crate::mods::profiles::same_model;
 use crate::mods::raw_tone::ToneCurvePoint;
 
@@ -58,12 +59,13 @@ pub fn curve(bytes: &[u8]) -> Result<Vec<ToneCurvePoint>, String> {
     let facts = facts(bytes)?;
     let baseline = baseline(&facts);
     log::info!(
-        "DNG Standard: {} {} at ISO {:?}, exposure offset {:+.2} EV ({:?})",
+        "DNG Standard: {} {} at ISO {:?}, exposure offset {:+.2} EV ({:?}), held back {:?}",
         facts.make,
         facts.model,
         facts.iso,
         baseline.ev,
-        baseline.origin
+        baseline.origin,
+        facts.held_back
     );
     Ok(curve_points(baseline.ev))
 }
@@ -341,6 +343,10 @@ pub struct Facts {
     pub iso: Option<f32>,
     /// A DNG's own BaselineExposure, which outranks any table.
     pub dng_baseline: Option<f32>,
+    /// What a highlight-protecting camera mode held back, given back on top of
+    /// the table's offset (mods/highlight_protection.rs). None for a DNG, whose
+    /// own offset already says what its converter meant.
+    pub held_back: Option<HeldBack>,
 }
 
 /// Where an offset came from, for the log.
@@ -377,12 +383,28 @@ pub fn facts(bytes: &[u8]) -> Result<Facts, String> {
         .or(exif.recommended_exposure_index.map(|v| v as f32))
         .or(exif.iso_speed.map(|v| v as f32))
         .filter(|iso| *iso > 0.0);
+    let dng_baseline = dng_baseline_exposure(bytes);
+    let held_back = dng_baseline
+        .is_none()
+        .then(|| highlight_protection::held_back(decoder.as_ref(), bytes, &metadata.make))
+        .flatten();
     Ok(Facts {
         make: metadata.make,
         model: metadata.model,
         iso,
-        dng_baseline: dng_baseline_exposure(bytes),
+        dng_baseline,
+        held_back,
     })
+}
+
+/// What the camera held back for this photo, for the note under Rendering.
+pub fn held_back_of(path: &str) -> Result<Option<HeldBack>, String> {
+    let (source, _) = crate::file_management::parse_virtual_path(path);
+    if !crate::formats::is_raw_file(&source) {
+        return Ok(None);
+    }
+    let bytes = crate::file_management::read_file_mapped(&source).map_err(|e| e.to_string())?;
+    Ok(facts(&bytes)?.held_back)
 }
 
 /// BaselineExposure from a DNG's first directory. None for anything that is
@@ -416,7 +438,11 @@ pub fn baseline(facts: &Facts) -> Baseline {
             origin: Origin::Dng,
         };
     }
-    baseline_in(rows(), facts)
+    let mut baseline = baseline_in(rows(), facts);
+    if let Some(held_back) = facts.held_back {
+        baseline.ev += held_back.ev;
+    }
+    baseline
 }
 
 /// One body of the table.
@@ -693,6 +719,20 @@ mod tests {
         };
         assert_eq!(at(100.0), 0.35);
         assert_eq!(at(50.0), 0.35 - 1.0);
+    }
+
+    #[test]
+    fn stops_held_back_come_on_top_of_the_table() {
+        let dr400 = Facts {
+            held_back: Some(HeldBack {
+                mode: highlight_protection::Mode::FujifilmDr400,
+                ev: 2.0,
+            }),
+            ..camera("FUJIFILM", "X-T5")
+        };
+        let plain = baseline(&camera("FUJIFILM", "X-T5"));
+        assert_eq!(baseline(&dr400).ev, plain.ev + 2.0);
+        assert_eq!(baseline(&dr400).origin, plain.origin);
     }
 
     #[test]

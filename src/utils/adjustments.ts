@@ -4,7 +4,6 @@ import { SubMask, SubMaskMode } from '../components/panel/right/Masks';
 import type { AdjustmentLayout, AppSettings } from '../components/ui/AppProperties';
 import type { WhiteBalance } from './whiteBalance';
 import defaultAdjustments from './defaultAdjustments.json';
-import agDefaultAdjustments from '../argentum/defaultAdjustments.json';
 
 export enum ActiveChannel {
   Blue = 'blue',
@@ -316,7 +315,6 @@ export interface Adjustments {
   fogTemperature: number;
   fogTint: number;
   lensCorrectionMode: 'auto' | 'manual';
-  cameraProfile: string | null; // Argentum: a .dcp in the profile library, or null for the built-in matrix
   lensDistortionAmount: number;
   lensVignetteAmount: number;
   lensTcaAmount: number;
@@ -337,8 +335,6 @@ export interface Adjustments {
   lensMaker: string | null;
   lensModel: string | null;
   lumaNoiseReduction: number;
-  rawToneRendering: 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
-  rawToneCurve?: Coord[] | null;
   lutData?: string | null;
   lutIntensity?: number;
   lutName?: string | null;
@@ -598,10 +594,10 @@ export const INITIAL_MASK_CONTAINER: MaskContainer = {
 // Adjustments has an index signature, so keyof alone would accept any object.
 type DeclaredKeys<T> = keyof { [K in keyof T as string extends K ? never : K]: T[K] };
 
-export const INITIAL_ADJUSTMENTS: Adjustments = {
-  ...(defaultAdjustments satisfies Record<Exclude<DeclaredKeys<Adjustments>, keyof typeof agDefaultAdjustments>, unknown>),
-  ...agDefaultAdjustments,
-} as unknown as Adjustments;
+export const INITIAL_ADJUSTMENTS: Adjustments = defaultAdjustments satisfies Record<
+  DeclaredKeys<Adjustments>,
+  unknown
+> as unknown as Adjustments;
 
 const deepCloneCurves = (curves: any): Curves => ({
   blue: curves?.blue?.map((p: Coord) => ({ ...p })) || [

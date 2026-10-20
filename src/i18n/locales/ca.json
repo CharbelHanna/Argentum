@@ -133,7 +133,35 @@
       "roundness": "Rodonesa",
       "size": "Mida",
       "vignette": "Vinyetatge post-retall",
-      "spatial": "Espacial"
+      "spatial": "Espacial",
+      "fog": "Boira",
+      "fogDensity": "Densitat",
+      "fogHeight": "Boira baixa",
+      "fogStart": "Inici",
+      "fogVariation": "Variació",
+      "relight": "Reil·luminar",
+      "relightAddLight": "Afegeix llum",
+      "relightAmbient": "Ambient",
+      "relightAngle": "Angle",
+      "relightColor": "Color de la llum",
+      "relightCone": "Con",
+      "relightDepth": "Profunditat",
+      "relightDuplicateLight": "Duplica la llum",
+      "relightElevation": "Elevació",
+      "relightFalloff": "Atenuació",
+      "relightIntensity": "Intensitat",
+      "relightLight": "Llum {{index}}",
+      "relightRemoveLight": "Elimina la llum",
+      "relightShadowSoftness": "Suavitat de les ombres",
+      "relightShadows": "Ombres",
+      "relightShine": "Brillantor",
+      "relightSoftness": "Suavitat",
+      "relightType": "Tipus de llum",
+      "relightTypes": {
+        "directional": "Direccional",
+        "point": "Puntual",
+        "spot": "Focus"
+      }
     }
   },
   "contextMenus": {
@@ -442,7 +470,8 @@
         "selectionPropertiesTitle": "Propietats de selecció",
         "useBasicInpaint": "Utilitzar inpainting bàsic"
       },
-      "touchUpTitle": "Retocs"
+      "touchUpTitle": "Retocs",
+      "generatingNormalMap": "Calculant el mapa de normals IA..."
     },
     "crop": {
       "aspectRatioHeading": "Relació d'aspecte",

@@ -55,6 +55,37 @@ const OBJECT: Record<string, string> = {
 };
 
 /**
+ * RELIGHT AND FOG, SAID OUR WAY
+ *
+ * RapidRAW 1.6.6's Relight and Fog in the words of the 2026-10-20 placement
+ * note (Edit > Effects): a light is a Lamp, a Spot or a Sun, the light already
+ * in the photo is "Existing light", and their "Spatial" group, which only the
+ * Customise menu still shows, says what it holds. English only: in the other
+ * languages their translation of their word stays.
+ */
+const RELIGHT_FOG_EN: Record<string, string> = {
+  'adjustments.effects.relightTypes.point': 'Lamp',
+  'adjustments.effects.relightTypes.directional': 'Sun',
+  'adjustments.effects.relightAmbient': 'Existing light',
+  'adjustments.effects.relightDepth': 'Distance',
+  'adjustments.effects.relightFalloff': 'Reach',
+  'adjustments.effects.relightAngle': 'Direction',
+  'adjustments.effects.relightElevation': 'Height',
+  'adjustments.effects.relightCone': 'Beam width',
+  'adjustments.effects.relightShadows': 'Cast shadows',
+  'adjustments.effects.relightShadowSoftness': 'Shadow blur',
+  'adjustments.effects.relightType': 'Type',
+  'adjustments.effects.relightColor': 'Colour',
+  'adjustments.effects.relightAddLight': 'Add light',
+  'adjustments.effects.relightDuplicateLight': 'Duplicate light',
+  'adjustments.effects.relightRemoveLight': 'Remove light',
+  'adjustments.effects.fogStart': 'Starts at',
+  'adjustments.effects.fogHeight': 'Ground fog',
+  'adjustments.effects.spatial': 'Lens blur, Relight and Fog',
+  'editor.ai.generatingNormalMap': 'Working out which way each surface faces…',
+};
+
+/**
  * Swap their word for ours inside a sentence of theirs, keeping its case.
  *
  * The card's list is "Subject, Sky, Foreground" in English and
@@ -97,5 +128,9 @@ export function applyRenames() {
     if (features !== undefined) {
       i18n.addResource(lng, 'translation', AI_FEATURES, swapWord(features, theirs, word));
     }
+  }
+
+  for (const [key, text] of Object.entries(RELIGHT_FOG_EN)) {
+    i18n.addResource('en', 'translation', key, text);
   }
 }

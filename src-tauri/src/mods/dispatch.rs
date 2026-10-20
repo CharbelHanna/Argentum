@@ -459,6 +459,13 @@ async fn json(
             serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)
                 .map_err(|e| e.to_string())
         }
+        "dng_standard_held_back" => {
+            // What a highlight-protecting camera mode held back, for the note
+            // under Rendering.
+            let a: PathArgs = args_for(&name, args)?;
+            serde_json::to_value(crate::mods::dng_standard::held_back_of(&a.path)?)
+                .map_err(|e| e.to_string())
+        }
         "sharpen_auto" => {
             // What auto picked for this photo, for the Sharpening card to show.
             let a: PathArgs = args_for(&name, args)?;

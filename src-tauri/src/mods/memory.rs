@@ -183,6 +183,7 @@ struct Models {
     masks: Idle,
     denoise: Idle,
     tagging: Idle,
+    relight: Idle,
 }
 
 fn in_use<T: ?Sized>(slot: &Option<Arc<T>>) -> bool {
@@ -242,6 +243,16 @@ impl Models {
             taken.models.push(Box::new(m));
             taken.names.push("tagging");
         }
+        if self.relight.due(
+            ai.normal_model.is_some(),
+            in_use(&ai.normal_model),
+            now,
+            IDLE_ONE_SHOT,
+        ) && let Some(m) = ai.normal_model.take()
+        {
+            taken.models.push(Box::new(m));
+            taken.names.push("relight");
+        }
         if self
             .masks
             .due(ai.models.is_some(), in_use(&ai.models), now, IDLE_MASKS)
@@ -268,6 +279,9 @@ impl Models {
             }
             if ai.clip_models.is_some() {
                 names.push("tagging");
+            }
+            if ai.normal_model.is_some() {
+                names.push("relight");
             }
         }
         Some(names)

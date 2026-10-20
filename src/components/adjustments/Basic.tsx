@@ -6,6 +6,8 @@ import { WhiteBalance } from '../../utils/whiteBalance';
 import { useEffect, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import WhiteBalanceControls from './WhiteBalance';
+import { useEditorStore } from '../../store/useEditorStore';
+import { useAgTranslation } from '../../argentum/locales';
 
 interface BasicAdjustmentsProps {
   adjustments: Adjustments;
@@ -162,6 +164,8 @@ export default function BasicAdjustments({
   toggleWbPicker,
 }: BasicAdjustmentsProps) {
   const { t } = useTranslation();
+  const ag = useAgTranslation();
+  const setEditor = useEditorStore((s) => s.setEditor);
 
   const handleAdjustmentChange = (key: BasicAdjustment | ColorAdjustment | DetailsAdjustment, value: any) => {
     const numericValue = parseFloat(value);
@@ -205,7 +209,18 @@ export default function BasicAdjustments({
       {slider(DetailsAdjustment.Clarity, t('adjustments.details.clarity'))}
       {slider(DetailsAdjustment.Dehaze, t('adjustments.details.dehaze'))}
       {slider(DetailsAdjustment.Structure, t('adjustments.details.structure'))}
-      {!isForMask && slider(DetailsAdjustment.Centré, t('adjustments.details.centre'))}
+      {/* Argentum: touching Centre shows the pin that moves its centre (argentum/effects/onPhoto.tsx). */}
+      {!isForMask && (
+        <div
+          data-center-marker-controls="centre"
+          data-tooltip={ag('fx166CentreTip')}
+          onPointerDown={() =>
+            setEditor({ activeCenterMarker: 'centre', isRelightPickerActive: false, isWbPickerActive: false })
+          }
+        >
+          {slider(DetailsAdjustment.Centré, t('adjustments.details.centre'))}
+        </div>
+      )}
       {slider(ColorAdjustment.Vibrance, t('adjustments.color.vibrance'))}
       {slider(ColorAdjustment.Saturation, t('adjustments.color.saturation'))}
     </div>

@@ -133,7 +133,35 @@
       "roundness": "圆度",
       "size": "大小",
       "vignette": "裁剪后暗角",
-      "spatial": "空间"
+      "spatial": "空间",
+      "fog": "雾",
+      "fogDensity": "密度",
+      "fogHeight": "地面雾",
+      "fogStart": "起始距离",
+      "fogVariation": "变化",
+      "relight": "重新打光",
+      "relightAddLight": "添加灯光",
+      "relightAmbient": "环境光",
+      "relightAngle": "角度",
+      "relightColor": "灯光颜色",
+      "relightCone": "光锥",
+      "relightDepth": "深度",
+      "relightDuplicateLight": "复制灯光",
+      "relightElevation": "仰角",
+      "relightFalloff": "衰减",
+      "relightIntensity": "强度",
+      "relightLight": "灯光 {{index}}",
+      "relightRemoveLight": "移除灯光",
+      "relightShadowSoftness": "阴影柔和度",
+      "relightShadows": "阴影",
+      "relightShine": "光泽",
+      "relightSoftness": "柔和度",
+      "relightType": "灯光类型",
+      "relightTypes": {
+        "directional": "平行光",
+        "point": "点光源",
+        "spot": "聚光灯"
+      }
     }
   },
   "contextMenus": {
@@ -439,7 +467,8 @@
         "selectionPropertiesTitle": "选区属性",
         "useBasicInpaint": "使用基础图像修复"
       },
-      "touchUpTitle": "润色"
+      "touchUpTitle": "润色",
+      "generatingNormalMap": "正在计算 AI 法线贴图..."
     },
     "crop": {
       "aspectRatioHeading": "宽高比",
