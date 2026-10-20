@@ -971,7 +971,7 @@ pub fn auto_values(photo: &str) -> serde_json::Value {
 ///
 /// It sharpens every RAW as it loads, with a 5x5 box blur, at 0.35 unless
 /// changed - and capture sharpening, which is on for every RAW, would stack on
-/// top of it. AK's decision, 2026-10-10: zero it once, on the first start of
+/// top of it. Decided 2026-10-10: zero it once, on the first start of
 /// the version that brings capture sharpening, and leave it a user's setting
 /// from then on. The marker is ours, so a user who turns it back up keeps it.
 pub fn retire_presharpening_once(app: &tauri::AppHandle, library: &std::path::Path) {
@@ -1231,7 +1231,7 @@ mod tests {
     /// What auto radius a real RAW gives, and which two photosites decided it.
     /// `AG_SHARPEN_RAWS` holds paths separated by `;`.
     #[test]
-    #[ignore = "reads AK's photos; run by hand"]
+    #[ignore = "reads local photos; run by hand"]
     fn auto_radius_on_real_raws() {
         let paths = std::env::var("AG_SHARPEN_RAWS").expect("set AG_SHARPEN_RAWS");
         for path in paths.split(';').filter(|p| !p.is_empty()) {
