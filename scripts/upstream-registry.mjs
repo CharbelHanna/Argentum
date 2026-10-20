@@ -2221,7 +2221,6 @@ export const REGISTRY = [
       'src/argentum/layout/HistogramSection.tsx',
       'src/argentum/layout/HistoryPanel.tsx',
       'src/argentum/layout/editorLayout.ts',
-      'src/argentum/layout/index.ts',
       'src-tauri/src/mods/editor_layout.rs',
       'src-tauri/src/mods/drives.rs',
       'src-tauri/src/mods/recent_folders.rs',

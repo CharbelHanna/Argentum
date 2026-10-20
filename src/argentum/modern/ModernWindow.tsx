@@ -1,5 +1,5 @@
 /**
- * The Modern window: the whole app while the Modern layout is chosen. Ours.
+ * The Modern window: the whole app, at every window size. Ours.
  *
  * One bar per edge. The top bar is also the title bar; the left column holds the
  * folders and the history; the centre shows the folder's grid or the open photo
@@ -10,8 +10,8 @@
  *
  * Every part inside is today's: their folder tree, library grid, editor,
  * filmstrip and panels, arranged here and drawn in the Modern look
- * (modern.css). App.tsx passes its handlers through and renders this in place
- * of its own title bar, side panels and views; Classic is untouched.
+ * (modern.css). App.tsx passes its handlers through and renders only this;
+ * Classic's title bar, side panels and views are gone.
  */
 
 import {
@@ -127,8 +127,8 @@ export default function ModernWindow(props: ModernWindowProps) {
   const windowWidth = useWindowWidth();
   const roomForLeft = windowWidth - left - (uiVisibility.rightPanel ? right : 0) >= CENTRE_MIN_PX;
 
-  // No start screen: with no folders yet (the app has just opened, or the
-  // layout was just chosen), the column is filled at once.
+  // No start screen: with no folders yet (the app has just opened, or Esc left
+  // the folder), the column is filled at once.
   const { onStart } = props;
   useEffect(() => {
     if (noFolders && !unavailable && settingsRead) onStart();

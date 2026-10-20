@@ -1,5 +1,5 @@
 import Argentum from './argentum/Argentum';
-import { ModernWindow, refreshModernTrees, rootImageCounts, startModernLibrary } from './argentum/modern';
+import { ModernWindow, refreshModernTrees, startModernLibrary } from './argentum/modern';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -551,10 +551,11 @@ function App() {
       });
       if (!isExpanding) return;
       try {
-        const showCounts = rootImageCounts(appSettings?.enableFolderImageCounts ?? false);
+        // Argentum: no counts here. The roots are whole disks, and this count reads every
+        // folder under them before the tree shows; each row counts its own (folderCounts.ts).
         const newChildren: any[] = await invoke(Invokes.GetFolderChildren, {
           path,
-          showImageCounts: showCounts,
+          showImageCounts: false,
         });
         setLibrary((state) => ({
           folderTrees: state.folderTrees.map((t: any) => insertChildrenIntoTree(t, path, newChildren)),
@@ -566,7 +567,7 @@ function App() {
         toast.error(`Failed to load folder: ${err}`);
       }
     },
-    [expandedFolders, appSettings?.enableFolderImageCounts, setLibrary],
+    [expandedFolders, setLibrary],
   );
 
   const renderAppPanel = useCallback(
