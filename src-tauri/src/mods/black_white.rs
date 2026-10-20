@@ -33,15 +33,32 @@
 //!   it after its tone curve. The chart's value axis is read on the same scale.
 //! - While B&W is on, the Color Mixer, Saturation, Vibrance and Hue are left
 //!   out of the render and kept in the edit, as Lightroom greys them out.
-//! - No Auto mix yet: a mix starts at zero.
+//!
+//! AUTO
+//!
+//! Lightroom's Auto mix, as RAWmakase measured it (`auto_mix` in the engine):
+//! `auto` measures how the open photo's colours spread and answers the eight
+//! bands. The panel (argentum/BlackWhite.tsx) asks for it the first time a
+//! photo whose mix is all zero turns B&W, as Lightroom's "Apply auto mix when
+//! first converting to black and white" does, and from the B&W Mix's Auto
+//! button. RAWmakase (crates/rawmakase-engine/src/develop/black_white.rs
+//! `TreatmentChoice::set_treatment` @ 5a2414b4) measures the camera's values
+//! and carries them through the white balance and profile; here the photo as
+//! the app holds it is already white balanced as shot, so the map is the
+//! edit's camera profile and its change of white balance (`to_prophoto`).
+//! Like RAWmakase's, the measurement leaves the crop out.
 
 use bytemuck::{Pod, Zeroable};
+use glam::{DMat3, DVec3};
+use image::{DynamicImage, GenericImageView};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
+use crate::app_state::LoadedImage;
 use crate::image_processing::{GlobalAdjustments, HslColor};
 
 pub use argentum_engine::rm_black_white::{CELLS, gray_grid};
+use argentum_engine::rm_black_white::{ColorSpread, SRGB_TO_PROPHOTO, auto_mix};
 
 /// The key in an edit.
 pub const KEY: &str = "agBlackWhite";
@@ -131,6 +148,86 @@ pub fn from_xmp(xmp: &str) -> Option<Value> {
     Some(Value::Object(settings))
 }
 
+/// The open photo's Auto mix for this edit: each band as the edit names it,
+/// -100..100.
+pub fn auto(loaded: &LoadedImage, js_adjustments: &Value) -> Map<String, Value> {
+    let global = crate::image_processing::get_all_adjustments_from_json(
+        js_adjustments,
+        loaded.is_raw,
+        loaded.as_shot,
+        Default::default(),
+        Some(&loaded.path),
+    )
+    .global;
+    let spread = spread_of(&loaded.image, loaded.is_raw).transformed(to_prophoto(&global));
+    BANDS
+        .iter()
+        .zip(auto_mix(&spread))
+        .map(|(band, v)| ((*band).into(), Value::from((v * 100.0).round() as i32)))
+        .collect()
+}
+
+/// What the B&W step sees of the photo's colours: its camera profile, then
+/// its white balance (shader.wgsl, `ag_stage_scene_linear` and
+/// `apply_white_balance`), in linear ProPhoto as the chart reads them. The
+/// tone controls between those and the B&W step are left out, as RAWmakase's
+/// Auto leaves its tone curve out; exposure only scales the spread.
+fn to_prophoto(global: &GlobalAdjustments) -> [[f64; 3]; 3] {
+    let rows = |m: [[f64; 3]; 3]| DMat3::from_cols_array_2d(&m).transpose();
+    let profile = rows(
+        [
+            global.ag_profile_row0,
+            global.ag_profile_row1,
+            global.ag_profile_row2,
+        ]
+        .map(|r| [r[0], r[1], r[2]].map(f64::from)),
+    );
+    let rgb_to_lms = crate::white_balance::rgb_to_lms().as_dmat3();
+    let gains = DVec3::new(
+        f64::from(global.wb_log_gain_l).exp(),
+        f64::from(global.wb_log_gain_m).exp(),
+        f64::from(global.wb_log_gain_s).exp(),
+    );
+    let white_balance = rgb_to_lms.inverse() * DMat3::from_diagonal(gains) * rgb_to_lms;
+    let prophoto = rows(SRGB_TO_PROPHOTO.map(|r| r.map(f64::from)));
+    (prophoto * white_balance * profile)
+        .transpose()
+        .to_cols_array_2d()
+}
+
+/// The spread of the photo the app holds, as the shader reads it: a RAW is
+/// linear already, anything else is sRGB.
+fn spread_of(image: &DynamicImage, is_raw: bool) -> ColorSpread {
+    let srgb_to_linear = |v: f32| {
+        if v <= 0.04045 {
+            v / 12.92
+        } else {
+            ((v + 0.055) / 1.055).powf(2.4)
+        }
+    };
+    let pixel = |x: usize, y: usize| -> [f32; 3] {
+        let (x, y) = (x as u32, y as u32);
+        let rgb = match image {
+            DynamicImage::ImageRgb32F(i) => i.get_pixel(x, y).0,
+            DynamicImage::ImageRgba32F(i) => {
+                let p = i.get_pixel(x, y).0;
+                [p[0], p[1], p[2]]
+            }
+            DynamicImage::ImageRgb16(i) => i.get_pixel(x, y).0.map(|v| f32::from(v) / 65535.0),
+            DynamicImage::ImageRgba16(i) => {
+                let p = i.get_pixel(x, y).0;
+                [p[0], p[1], p[2]].map(|v| f32::from(v) / 65535.0)
+            }
+            other => {
+                let p = other.get_pixel(x, y).0;
+                [p[0], p[1], p[2]].map(|v| f32::from(v) / 255.0)
+            }
+        };
+        if is_raw { rgb } else { rgb.map(srgb_to_linear) }
+    };
+    ColorSpread::measure(image.width() as usize, image.height() as usize, pixel)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,6 +289,68 @@ mod tests {
         // Lightroom writes the flag empty in colour presets: nothing changes.
         assert_eq!(from_xmp(r#"crs:ConvertToGrayscale="""#), None);
         assert_eq!(from_xmp(r#"crs:Saturation="10""#), None);
+    }
+
+    /// A photo the app holds: `colour(x, y)`, linear as a RAW is.
+    fn photo(colour: impl Fn(u32, u32) -> [f32; 3]) -> LoadedImage {
+        let image = image::Rgb32FImage::from_fn(96, 64, |x, y| image::Rgb(colour(x, y)));
+        LoadedImage {
+            path: "synthetic.raw".into(),
+            image: std::sync::Arc::new(DynamicImage::ImageRgb32F(image)),
+            is_raw: true,
+            as_shot: crate::as_shot::AsShot::reference(),
+        }
+    }
+
+    fn mix_of(auto: &Map<String, Value>) -> [i64; 8] {
+        BANDS.map(|band| auto[band].as_i64().unwrap())
+    }
+
+    /// Without a profile or a white balance change the B&W step sees the
+    /// photo's own colours, in ProPhoto.
+    #[test]
+    fn an_untouched_edit_maps_the_photo_to_prophoto() {
+        let global = crate::image_processing::get_all_adjustments_from_json(
+            &json!({}),
+            true,
+            crate::as_shot::AsShot::reference(),
+            Default::default(),
+            None,
+        )
+        .global;
+        let m = to_prophoto(&global);
+        for (row, want) in m.iter().zip(SRGB_TO_PROPHOTO) {
+            for (got, want) in row.iter().zip(want) {
+                assert!((got - f64::from(want)).abs() < 1e-6, "{m:?}");
+            }
+        }
+    }
+
+    /// A photo that varies only in brightness gets Camera Raw's grey-ramp mix;
+    /// cooling it in the edit brightens Blue, as it does in Camera Raw.
+    #[test]
+    fn auto_follows_the_photo_and_its_white_balance() {
+        let ramp = photo(|x, y| [0.01 + 0.8 * (x + y) as f32 / 160.0; 3]);
+        let neutral = mix_of(&auto(&ramp, &json!({})));
+        let camera_raw = [-9, -19, -22, -27, -19, 9, 15, 4];
+        assert!(
+            neutral
+                .iter()
+                .zip(camera_raw)
+                .all(|(a, b)| (a - b).abs() <= 2),
+            "{neutral:?}"
+        );
+        let cooled = mix_of(&auto(&ramp, &json!({ "temperature": -40 })));
+        assert!(cooled[5] > neutral[5] + 5, "{neutral:?} -> {cooled:?}");
+        // Blown-out pixels are left out: a clipped band changes nothing.
+        let blown = photo(|x, y| {
+            if y < 8 {
+                [1.4, 1.0, 0.6]
+            } else {
+                [0.01 + 0.8 * (x + y) as f32 / 160.0; 3]
+            }
+        });
+        assert_eq!(mix_of(&auto(&blown, &json!({}))), neutral);
     }
 }
 
@@ -344,10 +503,13 @@ mod sheet {
     /// then with each B&W preset that comes with the app on that same start:
     /// `<n>-<look>.jpg`, `AG_WIDTH` wide (1200 by default), and, where
     /// `AG_CROPS` gives the photo a part `x,y,w,h` (fractions, ';' per RAW),
-    /// `<n>-<look>-crop.jpg` of that part at full size.
+    /// `<n>-<look>-crop.jpg` of that part at full size. With `AG_LOOKS=auto`,
+    /// B&W at a zero mix and at the photo's Auto mix instead of the presets,
+    /// and the Auto mix in `<n>-auto.json`.
     #[test]
     #[ignore = "reads RAW files; run by hand"]
     fn sheet_renders() {
+        let auto_sheet = std::env::var("AG_LOOKS").as_deref() == Ok("auto");
         let raws = std::env::var("AG_RAWS").expect("set AG_RAWS");
         let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("set AG_OUT"));
         let width: u32 = std::env::var("AG_WIDTH")
@@ -366,10 +528,10 @@ mod sheet {
         let ctx = device().expect("no wgpu adapter");
         let shipped =
             std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("resources/presets/rawmakase");
-        let mut looks: Vec<(String, Value)> = vec![("Color".into(), Value::Null)];
+        let mut presets: Vec<(String, Value)> = vec![("Color".into(), Value::Null)];
         for group in crate::mods::looks::builtin_presets(&shipped) {
-            if group.name == "B&W" {
-                looks.extend(group.presets.into_iter().map(|p| (p.name, p.adjustments)));
+            if group.name == "B&W" && !auto_sheet {
+                presets.extend(group.presets.into_iter().map(|p| (p.name, p.adjustments)));
             }
         }
         for (n, path) in raws.split(';').filter(|p| !p.trim().is_empty()).enumerate() {
@@ -385,6 +547,32 @@ mod sheet {
                 Some(path),
             )
             .expect("decodes");
+            let mut looks = presets.clone();
+            let linear = if auto_sheet {
+                let loaded = crate::app_state::LoadedImage {
+                    path: path.to_string(),
+                    image: std::sync::Arc::new(linear),
+                    is_raw: true,
+                    as_shot,
+                };
+                let started = std::time::Instant::now();
+                let mut mix = super::auto(&loaded, &serde_json::json!({}));
+                eprintln!("{path}: Auto {mix:?} in {:?}", started.elapsed());
+                std::fs::write(
+                    out.join(format!("{}-auto.json", n + 1)),
+                    Value::Object(mix.clone()).to_string(),
+                )
+                .unwrap();
+                looks.push((
+                    "B&W".into(),
+                    serde_json::json!({ super::KEY: { "enabled": true } }),
+                ));
+                mix.insert("enabled".into(), Value::from(true));
+                looks.push(("B&W Auto".into(), serde_json::json!({ super::KEY: mix })));
+                std::sync::Arc::try_unwrap(loaded.image).expect("one owner")
+            } else {
+                linear
+            };
             let crop = crops.get(n).copied().flatten();
             let source = if crop.is_some() {
                 linear

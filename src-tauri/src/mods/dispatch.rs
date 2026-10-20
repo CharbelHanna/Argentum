@@ -110,6 +110,14 @@ struct PathsArgs {
     paths: Vec<String>,
 }
 
+/// The open photo, as the editor names it, and its edit.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct OpenPhotoArgs {
+    path: String,
+    js_adjustments: serde_json::Value,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RawToneArgs {
@@ -421,6 +429,26 @@ async fn json(
             let a: AutoWbArgs = args_for(&name, args)?;
             let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;
             serde_json::to_value(r).map_err(|e| e.to_string())
+        }
+        "black_white_auto" => {
+            let a: OpenPhotoArgs = args_for(&name, args)?;
+            let loaded = state
+                .original_image
+                .lock()
+                .map_err(|e| e.to_string())?
+                .clone()
+                .ok_or("No image loaded")?;
+            // The editor may ask while another photo is still being decoded.
+            let source = |path: &str| crate::file_management::parse_virtual_path(path).0;
+            if source(&a.path) != source(&loaded.path) {
+                return Err(format!("'{}' is not the loaded image", a.path));
+            }
+            let mix = tokio::task::spawn_blocking(move || {
+                crate::mods::black_white::auto(&loaded, &a.js_adjustments)
+            })
+            .await
+            .map_err(|e| e.to_string())?;
+            Ok(serde_json::Value::Object(mix))
         }
         "measure_auto_white_balance" => {
             let a: MeasureWbArgs = args_for(&name, args)?;

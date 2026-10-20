@@ -24,7 +24,17 @@ Newest first.
   `adjust`), `crates/rawmakase-interop/src/xmp/apply.rs` (`ConvertToGrayscale`, `GrayMixer`) and
   `assets/presets/BandW`. Unlike RAWmakase, which grades before its grey step and so renders Sepia
   untinted, Color Grading tints the grey, with Lightroom's measured grading for the Looks (see
-  "Color Grading renders as Lightroom's" under Changed). No Auto mix yet.
+  "Color Grading renders as Lightroom's" under Changed).
+- **B&W Auto mix.** The first time a photo whose B&W Mix is all zero turns B&W (the switch or V),
+  its sliders start at the photo's Auto mix, as Lightroom's "Apply auto mix when first converting
+  to black and white" does, in the same History step; an **Auto** button beside the B&W Mix's
+  Reset sets it again and is greyed while the mix is already Auto's. A mix set by hand or by a
+  look is kept. The mix is RAWmakase's measured copy of Camera Raw 18.7's Auto: a fixed linear
+  function of the direction in which the photo's colours spread most, in linear ProPhoto with the
+  edit's white balance and camera profile, so a cooler white balance brightens Blue. From
+  RAWmakase @ `5a2414b4` (v0.4.1, MIT): `crates/rawmakase-engine/src/develop/black_white.rs`
+  (`ColorSpread`, `principal_axis`, `AutoMix`'s fit and its test), in
+  `src-tauri/engine/src/rm_black_white.rs`; the open photo is measured in `mods/black_white.rs`.
 - **DNGs get the lens correction they carry.** A DNG records the corrections Lightroom applies
   as opcodes: FixVignetteRadial (corner shading) and WarpRectilinear (distortion, and colour
   fringing when it has a plane per colour). Leica, DJI's drones, phones and Lightroom's own DNGs
