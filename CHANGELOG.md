@@ -136,6 +136,18 @@ Newest first.
   RAWmakase `crates/rawmakase-raw/src/container/dng/opcodes.rs` @ `a8c5d6d7` (v0.4.0, MIT):
   the list's layout, the GainMap's parameters and its bilinear gain; the other opcodes in that
   file wait for a file that needs them.
+- **DNG Standard follows a Canon photo's levels, as Camera Raw does by ISO.** Adobe takes a
+  Canon's white level by ISO speed and moves its exposure offset with it; RAWmakase 0.4.0
+  records each body's sample levels and shifts the offset by the difference. Argentum now
+  does the same with the levels the photo is actually decoded with, which also makes the
+  Canon offsets hold with rawler's white level. An EOS R6 Mark III photo at ISO 640 moves
+  from +0.25 to +0.26 EV. 58 Canon bodies carry levels (`mods/dng_baseline.tsv`, a fifth
+  column); other makes are unchanged. Canon sRAW / mRAW keep the full-size row: Adobe's own
+  sRAW offsets make up for Adobe's sRAW scale, and Argentum's sRAW measures within 0.03 EV of
+  its full RAW (95 EOS 5D Mark II photos, each against its camera JPEG). The levels are read from the
+  file's headers without decoding its pixels, only for a body whose row has them. The engine's
+  copy (`tools/ag_dng_standard.rs`) takes them from the decoded image and gives the same
+  number. From RAWmakase `white_shift` and `data/cameras.toml` @ `a8c5d6d7` (v0.4.0, MIT).
 - **Colours on a Canon EOS 1000D and a Pentax K-S2 are corrected, and two Nikon white levels.**
   The rawler fork carried a dropped digit in the 1000D's colour matrix (`-0.0114` for Adobe's
   `-0.1140`) and a matrix on the wrong scale for the K-S2 (first row `5.29, -1.66, -0.75`). The Nikon
