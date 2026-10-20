@@ -279,3 +279,158 @@ mod tests {
         assert_eq!(mark_lightroom(plain.clone()), plain);
     }
 }
+
+/// Through the real shader, on a GPU: `cargo test --lib color_grade::gpu -- --ignored`.
+#[cfg(test)]
+mod gpu {
+    use super::*;
+    use crate::mods::dng_standard::gpu::{centre, device, image_of, render};
+    use crate::white_balance::WhiteBalance;
+    use argentum_engine::colour::{srgb_decode, srgb_encode};
+    use serde_json::json;
+
+    // modules.wgsl's AG_SRGB_TO_PROPHOTO and AG_PROPHOTO_TO_SRGB, row by row.
+    const SRGB_TO_PROPHOTO: [[f32; 3]; 3] = [
+        [0.5293458, 0.3300728, 0.1405813],
+        [0.0983744, 0.873461, 0.0281647],
+        [0.0168832, 0.1176725, 0.8654443],
+    ];
+    const PROPHOTO_TO_SRGB: [[f32; 3]; 3] = [
+        [2.0340764, -0.7273343, -0.3067417],
+        [-0.2288134, 1.2317302, -0.0029169],
+        [-0.0085698, -0.1532866, 1.1618564],
+    ];
+
+    fn mul(m: [[f32; 3]; 3], c: [f32; 3]) -> [f32; 3] {
+        m.map(|row| row[0] * c[0] + row[1] * c[1] + row[2] * c[2])
+    }
+
+    /// Greys, and colours round the hue circle at three levels.
+    fn colours() -> Vec<[f32; 3]> {
+        let mut out: Vec<[f32; 3]> = [0.005, 0.02, 0.06, 0.18, 0.4, 0.8]
+            .iter()
+            .map(|&v| [v; 3])
+            .collect();
+        for level in [0.05, 0.2, 0.6] {
+            for c in [
+                [1.0, 0.0, 0.0],
+                [1.0, 0.45, 0.05],
+                [0.9, 0.85, 0.1],
+                [0.1, 0.8, 0.15],
+                [0.1, 0.35, 1.0],
+                [0.75, 0.2, 0.8],
+                [0.8, 0.55, 0.4],
+            ] {
+                out.push(c.map(|v: f32| v * level));
+            }
+        }
+        out
+    }
+
+    fn edit(grading: Value) -> Value {
+        json!({ "agSharpen": { "capture": false, "amount": 0 }, "colorGrading": grading })
+    }
+
+    fn marked(mut grading: Value) -> Value {
+        grading[LIGHTROOM_KEY] = json!(1);
+        grading
+    }
+
+    /// The shader grades as the engine does: a patch rendered with a
+    /// Lightroom block is the patch rendered without grading, graded on the
+    /// CPU by `rm_color_grade::apply` in linear ProPhoto.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn the_shader_grades_as_the_engine_does() {
+        let ctx = device().expect("no wgpu adapter");
+        let wb = WhiteBalance::reference();
+        let image = image_of(&colours());
+        let plain = render(&ctx, &image, edit(json!({})), wb);
+        for grading in [
+            json!({
+                "shadows": { "hue": 38, "saturation": 25, "luminance": 0 },
+                "highlights": { "hue": 45, "saturation": 18, "luminance": 0 },
+                "blending": 50, "balance": 0,
+            }),
+            json!({
+                "shadows": { "hue": 200, "saturation": 60, "luminance": -30 },
+                "midtones": { "hue": 100, "saturation": 40, "luminance": 20 },
+                "highlights": { "hue": 20, "saturation": 80, "luminance": 40 },
+                "global": { "hue": 300, "saturation": 10, "luminance": -10 },
+                "blending": 80, "balance": -35,
+            }),
+        ] {
+            let all = crate::image_processing::get_all_adjustments_from_json(
+                &edit(marked(grading.clone())),
+                true,
+                crate::as_shot::AsShot::reference(),
+                Default::default(),
+                None,
+            );
+            let g = &all.global;
+            let gains = rm_color_grade::gains(&crate::image_processing::lightroom_grading(
+                [
+                    g.color_grading_shadows,
+                    g.color_grading_midtones,
+                    g.color_grading_highlights,
+                    g.color_grading_global,
+                ],
+                g.color_grading_blending,
+                g.color_grading_balance,
+            ))
+            .unwrap();
+            let got = render(&ctx, &image, edit(marked(grading.clone())), wb);
+            let mut worst = 0.0f32;
+            for i in 0..colours().len() {
+                let linear = centre(&plain, i).map(srgb_decode);
+                let graded = mul(
+                    PROPHOTO_TO_SRGB,
+                    rm_color_grade::apply(&gains, mul(SRGB_TO_PROPHOTO, linear)),
+                );
+                let want = graded.map(srgb_encode);
+                let have = centre(&got, i).map(|v| v.clamp(0.0, 1.0));
+                for c in 0..3 {
+                    worst = worst.max((have[c] - want[c]).abs() * 255.0);
+                }
+            }
+            eprintln!("{grading}: worst {worst:.3}/255 from the engine's grading");
+            assert!(worst < 0.5, "the shader is {worst:.3}/255 from the engine");
+        }
+    }
+
+    /// A Lightroom block tints a mid-grey that RapidRAW's grading leaves
+    /// almost untouched, and an unmarked block still renders with theirs.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn lightroom_s_sepia_reaches_the_mid_greys() {
+        let ctx = device().expect("no wgpu adapter");
+        let wb = WhiteBalance::reference();
+        let image = image_of(&colours());
+        let sepia = json!({
+            "shadows": { "hue": 38, "saturation": 25, "luminance": 0 },
+            "highlights": { "hue": 45, "saturation": 18, "luminance": 0 },
+            "blending": 50, "balance": 0,
+        });
+        let plain = render(&ctx, &image, edit(json!({})), wb);
+        let theirs = render(&ctx, &image, edit(sepia.clone()), wb);
+        let ours = render(&ctx, &image, edit(marked(sepia)), wb);
+        let warmth = |out: &image::Rgba32FImage, i: usize| {
+            let c = centre(out, i);
+            c[0] - c[2]
+        };
+        // Patch 3 is the 18% grey.
+        let (plain, theirs, ours) = (warmth(&plain, 3), warmth(&theirs, 3), warmth(&ours, 3));
+        eprintln!(
+            "18% grey, red minus blue: none {plain:.4}, RapidRAW {theirs:.4}, Lightroom {ours:.4}"
+        );
+        assert!(
+            theirs != plain,
+            "the unmarked block lost RapidRAW's grading"
+        );
+        assert!(
+            ours - plain > 0.03,
+            "Lightroom's Sepia barely tints: {ours}"
+        );
+        assert!(ours - plain > 3.0 * (theirs - plain).abs());
+    }
+}

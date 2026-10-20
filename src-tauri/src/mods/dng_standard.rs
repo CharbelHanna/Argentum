@@ -926,13 +926,13 @@ mod tests {
 
 /// Through the real shader, on a GPU: `cargo test --lib dng_standard::gpu -- --ignored`.
 #[cfg(test)]
-mod gpu {
+pub(crate) mod gpu {
     use super::*;
     use crate::image_processing::GpuContext;
     use image::{DynamicImage, ImageBuffer, Rgba};
     use std::sync::{Arc, Mutex};
 
-    fn device() -> Option<GpuContext> {
+    pub(crate) fn device() -> Option<GpuContext> {
         let instance = wgpu::Instance::default();
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
             power_preference: wgpu::PowerPreference::HighPerformance,
@@ -960,7 +960,7 @@ mod gpu {
     }
 
     /// Their whole render, as an export makes it.
-    fn render(
+    pub(crate) fn render(
         ctx: &GpuContext,
         image: &DynamicImage,
         js: serde_json::Value,
@@ -1014,7 +1014,7 @@ mod gpu {
         out
     }
 
-    fn image_of(patches: &[[f32; 3]]) -> DynamicImage {
+    pub(crate) fn image_of(patches: &[[f32; 3]]) -> DynamicImage {
         let w = PATCH * patches.len() as u32;
         DynamicImage::ImageRgba32F(ImageBuffer::from_fn(w, PATCH, |x, _| {
             let [r, g, b] = patches[(x / PATCH) as usize];
@@ -1022,7 +1022,7 @@ mod gpu {
         }))
     }
 
-    fn centre(out: &image::Rgba32FImage, i: usize) -> [f32; 3] {
+    pub(crate) fn centre(out: &image::Rgba32FImage, i: usize) -> [f32; 3] {
         let p = out.get_pixel(i as u32 * PATCH + PATCH / 2, PATCH / 2);
         [p[0], p[1], p[2]]
     }
