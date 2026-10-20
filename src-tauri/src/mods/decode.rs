@@ -26,6 +26,13 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // Must be first — it decides what every pixel value means.
     super::sraw_levels::fix(raw, file_bytes);
 
+    // A DNG's lens shading, as phones record it (GainMap opcodes): the
+    // corners' gain, on the samples around their black. After the levels it
+    // works around, before anything reads a sample as light - the highlights
+    // below must see a corner the gain pushed to white as clipped. The
+    // engine's decode does the same, from the same code.
+    argentum_engine::dng_gain_map::apply(raw, file_bytes);
+
     // Canon bodies older than ColorData keep their white balance somewhere
     // rawler looks for it but cannot reach. Before the highlights, which read
     // pixels, and before the matrix, which multiplies whatever they are.

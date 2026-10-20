@@ -170,6 +170,23 @@ Newest first.
   not taken).
 - Lensfun database, Italian and Russian translations updated from RapidRAW 1.6.6.
 
+- **Nikon High Efficiency and High Efficiency★ RAWs open.** These NEFs (Z 8, Z 9, Z f, Z 6III and
+  other recent bodies) hold a JPEG XS codestream, which rawler refused. The rawler fork now
+  decodes it with RAWmakase's decoder (`crates/rawmakase-raw/src/codec/nikon_he.rs` @ `a8c5d6d7`,
+  v0.4.0, MIT), added to the fork as `decompressors/nikon_he.rs` with only its error type
+  adapted; rawler is pinned to the fork commit `df7f3aec` (branch `feat/nikon-high-efficiency`,
+  on `b83a9e07`). Checked on raw.pixls.us's Z 9 samples of both kinds: 8280×5520, black 1008,
+  white 15892, the camera JPEG's picture.
+- **Phone DNGs get their lens-shading correction.** Phones record the darkening and colour cast
+  toward the corners as GainMap opcodes in the DNG and leave them to the renderer; Lightroom
+  applies them, rawler did not. Argentum now applies OpcodeList2's gain maps to the decoded
+  samples, around their black and clipped at white, before anything reads them. On a Pixel 6
+  Pro DNG all four maps apply and the corner's four mosaic colours, from 0.39-0.48 of the
+  centre's and uneven, come out within 0.06 of each other. One module in the engine
+  (`dng_gain_map.rs`), called from the engine's decode and the app's (`mods/decode.rs`). From
+  RAWmakase `crates/rawmakase-raw/src/container/dng/opcodes.rs` @ `a8c5d6d7` (v0.4.0, MIT):
+  the list's layout, the GainMap's parameters and its bilinear gain; the other opcodes in that
+  file wait for a file that needs them.
 - **DNG Standard follows a Canon photo's levels, as Camera Raw does by ISO.** Adobe takes a
   Canon's white level by ISO speed and moves its exposure offset with it; RAWmakase 0.4.0
   records each body's sample levels and shifts the offset by the difference. Argentum now
