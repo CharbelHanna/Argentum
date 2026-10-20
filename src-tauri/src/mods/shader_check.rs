@@ -118,17 +118,57 @@ mod tests {
         assert!(compact_shader(SOURCE).contains("if(sat==0.0&&vib==0.0){returncolor;}"));
     }
 
+    /// A straight-line curve reaches the shader with no points
+    /// (image_processing.rs, `shader_curve`), and this is what passes it through.
     #[test]
     fn identity_rgb_curves_bypass_curve_interpolation() {
-        assert!(compact_shader(SOURCE).contains(
-            "if(!is_default_curve(luma_curve,luma_curve_count)){r=apply_curve(r,luma_curve,luma_curve_count);g=apply_curve(g,luma_curve,luma_curve_count);b=apply_curve(b,luma_curve,luma_curve_count);}"
-        ));
         assert!(compact_shader(SOURCE)
-            .contains("if(!is_default_curve(red_curve,red_curve_count)){r=apply_curve(r,red_curve,red_curve_count);}"));
-        assert!(compact_shader(SOURCE)
-            .contains("if(!is_default_curve(green_curve,green_curve_count)){g=apply_curve(g,green_curve,green_curve_count);}"));
-        assert!(compact_shader(SOURCE)
-            .contains("if(!is_default_curve(blue_curve,blue_curve_count)){b=apply_curve(b,blue_curve,blue_curve_count);}"));
+            .contains("fnapply_curve(val:f32,src:u32,ch:u32,count:u32)->f32{if(count<2u){returnval;}"));
+    }
+
+    /// No function in the render shader takes an array, or a struct holding
+    /// one, as an argument.
+    ///
+    /// wgpu copies such an argument to the stack when the function indexes it
+    /// with a variable, once per call and so once per pixel. On an Intel Arc
+    /// 140T that copy was most of the render on Vulkan and DirectX 12: a
+    /// 3328x2219 slider move took 676 ms on Vulkan with the curves and the HSL
+    /// bands passed that way, and 15 ms once they were read from the
+    /// adjustments buffer and passed as vectors. OpenGL hid it (156 ms), which
+    /// is why it went unseen while Auto picked Vulkan.
+    #[test]
+    fn no_function_takes_an_array_by_value() {
+        use wgpu::naga::{Handle, Module, Type, TypeInner};
+        fn holds_array(module: &Module, ty: Handle<Type>) -> bool {
+            match &module.types[ty].inner {
+                TypeInner::Array { .. } | TypeInner::BindingArray { .. } => true,
+                TypeInner::Struct { members, .. } => {
+                    members.iter().any(|m| holds_array(module, m.ty))
+                }
+                _ => false,
+            }
+        }
+        let module = wgpu::naga::front::wgsl::parse_str(SOURCE).expect("parses");
+        let offenders: Vec<String> = module
+            .functions
+            .iter()
+            .flat_map(|(_, f)| {
+                f.arguments
+                    .iter()
+                    .filter(|a| holds_array(&module, a.ty))
+                    .map(move |a| {
+                        format!(
+                            "{}({})",
+                            f.name.as_deref().unwrap_or("?"),
+                            a.name.as_deref().unwrap_or("?")
+                        )
+                    })
+            })
+            .collect();
+        assert!(
+            offenders.is_empty(),
+            "pass an index into `adjustments` or vectors instead: {offenders:?}"
+        );
     }
 
     /// The export pipeline compiles too.

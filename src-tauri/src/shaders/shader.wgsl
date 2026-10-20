@@ -328,13 +328,6 @@ fn apply_hue_shift(color: vec3<f32>, shift_degrees: f32) -> vec3<f32> {
     return srgb_to_linear(shifted_srgb);
 }
 
-fn get_raw_hsl_influence(hue: f32, center: f32, width: f32) -> f32 {
-    let dist = min(abs(hue - center), 360.0 - abs(hue - center));
-    const sharpness = 1.5;
-    let falloff = dist / (width * 0.5);
-    return exp(-sharpness * falloff * falloff);
-}
-
 fn hash(p: vec2<f32>) -> f32 {
     var p3  = fract(vec3<f32>(p.xyx) * .1031);
     p3 += dot(p3, p3.yzx + 33.33);
@@ -380,19 +373,65 @@ fn interpolate_cubic_hermite(x: f32, p1: Point, p2: Point, m1: f32, m2: f32) -> 
     return h00 * p1.y + h10 * m1 * dx + h01 * p2.y + h11 * m2 * dx;
 }
 
-fn apply_curve(val: f32, points: array<Point, 16>, count: u32) -> f32 {
+// Argentum: from RapidRAW cc8200a9, src-tauri/src/shaders/shader.wgsl - a curve
+// is read point by point from `adjustments`, never passed as an array. An array
+// argument indexed in a loop is copied to the stack for every pixel; on Intel's
+// Vulkan and DirectX 12 drivers that copy was most of the render.
+// CURVE_SRC_RAW_TONE is ours: the photo's RAW tone curve (modules.wgsl).
+const CURVE_SRC_GLOBAL: u32 = 0xFFFFFFFFu;
+const CURVE_SRC_RAW_TONE: u32 = 0xFFFFFFFEu;
+
+fn curve_point(src: u32, ch: u32, i: u32) -> Point {
+    if (src == CURVE_SRC_RAW_TONE) {
+        return adjustments.global.raw_tone_curve[i];
+    }
+    if (src == CURVE_SRC_GLOBAL) {
+        switch ch {
+            case 0u: { return adjustments.global.luma_curve[i]; }
+            case 1u: { return adjustments.global.red_curve[i]; }
+            case 2u: { return adjustments.global.green_curve[i]; }
+            default: { return adjustments.global.blue_curve[i]; }
+        }
+    }
+    switch ch {
+        case 0u: { return adjustments.mask_adjustments[src].luma_curve[i]; }
+        case 1u: { return adjustments.mask_adjustments[src].red_curve[i]; }
+        case 2u: { return adjustments.mask_adjustments[src].green_curve[i]; }
+        default: { return adjustments.mask_adjustments[src].blue_curve[i]; }
+    }
+}
+
+fn curve_count(src: u32, ch: u32) -> u32 {
+    if (src == CURVE_SRC_GLOBAL) {
+        switch ch {
+            case 0u: { return adjustments.global.luma_curve_count; }
+            case 1u: { return adjustments.global.red_curve_count; }
+            case 2u: { return adjustments.global.green_curve_count; }
+            default: { return adjustments.global.blue_curve_count; }
+        }
+    }
+    switch ch {
+        case 0u: { return adjustments.mask_adjustments[src].luma_curve_count; }
+        case 1u: { return adjustments.mask_adjustments[src].red_curve_count; }
+        case 2u: { return adjustments.mask_adjustments[src].green_curve_count; }
+        default: { return adjustments.mask_adjustments[src].blue_curve_count; }
+    }
+}
+
+fn apply_curve(val: f32, src: u32, ch: u32, count: u32) -> f32 {
     if (count < 2u) { return val; }
-    var local_points = points;
     let x = val * 255.0;
-    if (x <= local_points[0].x) { return local_points[0].y / 255.0; }
-    if (x >= local_points[count - 1u].x) { return local_points[count - 1u].y / 255.0; }
+    let first = curve_point(src, ch, 0u);
+    if (x <= first.x) { return first.y / 255.0; }
+    let last = curve_point(src, ch, count - 1u);
+    if (x >= last.x) { return last.y / 255.0; }
     for (var i = 0u; i < 15u; i = i + 1u) {
         if (i >= count - 1u) { break; }
-        let p1 = local_points[i];
-        let p2 = local_points[i + 1u];
+        let p2 = curve_point(src, ch, i + 1u);
         if (x <= p2.x) {
-            let p0 = local_points[max(0u, i - 1u)];
-            let p3 = local_points[min(count - 1u, i + 2u)];
+            let p1 = curve_point(src, ch, i);
+            let p0 = curve_point(src, ch, select(i - 1u, 0u, i == 0u));
+            let p3 = curve_point(src, ch, min(count - 1u, i + 2u));
             let delta_before = (p1.y - p0.y) / max(0.001, p1.x - p0.x);
             let delta_current = (p2.y - p1.y) / max(0.001, p2.x - p1.x);
             let delta_after = (p3.y - p2.y) / max(0.001, p3.x - p2.x);
@@ -417,7 +456,7 @@ fn apply_curve(val: f32, points: array<Point, 16>, count: u32) -> f32 {
             return clamp(result_y / 255.0, 0.0, 1.0);
         }
     }
-    return local_points[count - 1u].y / 255.0;
+    return last.y / 255.0;
 }
 
 fn apply_tonal_adjustments(
@@ -735,16 +774,37 @@ fn apply_creative_color(color: vec3<f32>, sat: f32, vib: f32) -> vec3<f32> {
     return max(processed, vec3<f32>(0.0));
 }
 
-fn apply_hsl_panel(color: vec3<f32>, hsl_adjustments: array<HslColor, 8>, coords_i: vec2<i32>) -> vec3<f32> {
-    var has_adjustments = false;
-    for (var i = 0u; i < 8u; i = i + 1u) {
-        if (abs(hsl_adjustments[i].hue) > 0.0001 ||
-            abs(hsl_adjustments[i].saturation) > 0.0001 ||
-            abs(hsl_adjustments[i].luminance) > 0.0001) {
-            has_adjustments = true;
-            break;
-        }
-    }
+// Argentum: the eight bands travel as two vec4s per channel (bands 0-3 and
+// 4-7), never as an array. An array argument indexed in a loop is copied to the
+// stack for every pixel, and on Intel's Vulkan and DirectX 12 drivers that copy
+// cost more than all the colour work. Same arithmetic in the same order as
+// their loops; with every band moved, at most one level in 8 bits changed, on
+// a few hundred of 7.4 million pixels.
+struct HslBands {
+    hue_lo: vec4<f32>, hue_hi: vec4<f32>,
+    sat_lo: vec4<f32>, sat_hi: vec4<f32>,
+    lum_lo: vec4<f32>, lum_hi: vec4<f32>,
+}
+
+fn get_raw_hsl_influence4(hue: f32, center: vec4<f32>, width: vec4<f32>) -> vec4<f32> {
+    let d = abs(vec4<f32>(hue) - center);
+    let dist = min(d, vec4<f32>(360.0) - d);
+    const sharpness = 1.5;
+    let falloff = dist / (width * 0.5);
+    return exp(-sharpness * falloff * falloff);
+}
+
+/// The eight lanes added in band order, as their loop added them.
+fn sum_bands(lo: vec4<f32>, hi: vec4<f32>) -> f32 {
+    return ((((((lo.x + lo.y) + lo.z) + lo.w) + hi.x) + hi.y) + hi.z) + hi.w;
+}
+
+fn apply_hsl_panel(color: vec3<f32>, bands: HslBands, coords_i: vec2<i32>) -> vec3<f32> {
+    let eps = vec4<f32>(0.0001);
+    let has_adjustments =
+        any(abs(bands.hue_lo) > eps) || any(abs(bands.hue_hi) > eps) ||
+        any(abs(bands.sat_lo) > eps) || any(abs(bands.sat_hi) > eps) ||
+        any(abs(bands.lum_lo) > eps) || any(abs(bands.lum_hi) > eps);
     if (!has_adjustments) {
         return color;
     }
@@ -765,29 +825,28 @@ fn apply_hsl_panel(color: vec3<f32>, hsl_adjustments: array<HslColor, 8>, coords
 
     let original_hue = original_hsv.x;
 
-    var raw_influences: array<f32, 8>;
-    var total_raw_influence: f32 = 0.0;
-    for (var i = 0u; i < 8u; i = i + 1u) {
-        let range = HSL_RANGES[i];
-        let influence = get_raw_hsl_influence(original_hue, range.center, range.width);
-        raw_influences[i] = influence;
-        total_raw_influence += influence;
-    }
+    let raw_lo = get_raw_hsl_influence4(
+        original_hue,
+        vec4<f32>(HSL_RANGES[0].center, HSL_RANGES[1].center, HSL_RANGES[2].center, HSL_RANGES[3].center),
+        vec4<f32>(HSL_RANGES[0].width, HSL_RANGES[1].width, HSL_RANGES[2].width, HSL_RANGES[3].width),
+    );
+    let raw_hi = get_raw_hsl_influence4(
+        original_hue,
+        vec4<f32>(HSL_RANGES[4].center, HSL_RANGES[5].center, HSL_RANGES[6].center, HSL_RANGES[7].center),
+        vec4<f32>(HSL_RANGES[4].width, HSL_RANGES[5].width, HSL_RANGES[6].width, HSL_RANGES[7].width),
+    );
+    let total_raw_influence = sum_bands(raw_lo, raw_hi);
 
-    var total_hue_shift: f32 = 0.0;
-    var total_sat_multiplier: f32 = 0.0;
-    var total_lum_adjust: f32 = 0.0;
+    let norm_lo = raw_lo / total_raw_influence;
+    let norm_hi = raw_hi / total_raw_influence;
+    let hue_sat_lo = norm_lo * saturation_mask;
+    let hue_sat_hi = norm_hi * saturation_mask;
+    let luma_lo = norm_lo * luminance_weight;
+    let luma_hi = norm_hi * luminance_weight;
 
-    for (var i = 0u; i < 8u; i = i + 1u) {
-        let normalized_influence = raw_influences[i] / total_raw_influence;
-
-        let hue_sat_influence = normalized_influence * saturation_mask;
-        let luma_influence = normalized_influence * luminance_weight;
-
-        total_hue_shift += hsl_adjustments[i].hue * 2.0 * hue_sat_influence;
-        total_sat_multiplier += hsl_adjustments[i].saturation * hue_sat_influence;
-        total_lum_adjust += hsl_adjustments[i].luminance * luma_influence;
-    }
+    let total_hue_shift = sum_bands(bands.hue_lo * 2.0 * hue_sat_lo, bands.hue_hi * 2.0 * hue_sat_hi);
+    let total_sat_multiplier = sum_bands(bands.sat_lo * hue_sat_lo, bands.sat_hi * hue_sat_hi);
+    let total_lum_adjust = sum_bands(bands.lum_lo * luma_lo, bands.lum_hi * luma_hi);
 
     if (original_hsv.y * (1.0 + total_sat_multiplier) < 0.0001) {
         let final_luma = original_luma * (1.0 + total_lum_adjust);
@@ -1128,6 +1187,48 @@ fn apply_dehaze(
     }
 }
 
+// Argentum: from RapidRAW cc8200a9, src-tauri/src/shaders/shader.wgsl - the
+// luma taps are unrolled into vec4s instead of filled into arrays in a loop.
+fn nr_luma_tap(
+    coords_i: vec2<i32>,
+    max_idx: vec2<i32>,
+    dx: i32,
+    dy: i32,
+    extra: f32,
+    jx: f32,
+    jy: f32,
+    is_raw: u32
+) -> f32 {
+    let ring = max(abs(dx), abs(dy));
+    let ring_factor = select(0.5, 1.0, ring == 2);
+    let grow = 1.0 + extra * ring_factor;
+    let off_f = vec2<f32>(f32(dx) * grow + jx, f32(dy) * grow + jy);
+    let off   = vec2<i32>(i32(round(off_f.x)), i32(round(off_f.y)));
+    let coord = clamp(coords_i + off, vec2<i32>(0), max_idx);
+    var s = textureLoad(input_texture, vec2<u32>(coord), 0).rgb;
+    if (is_raw == 0u) { s = srgb_to_linear(s); }
+    return get_luma(max(s, vec3<f32>(0.0)));
+}
+
+fn nr_accum_outlier(acc: ptr<function, vec2<f32>>, l: f32, init_w: f32, mean: f32, tol: f32) {
+    if (init_w > 0.0001) {
+        let d = l - mean;
+        let r = abs(d) / tol;
+        let bisq = max(0.0, 1.0 - r * r);
+        let outlier_w = bisq * bisq;
+        let w = init_w * outlier_w;
+        (*acc).x += l * w;
+        (*acc).y += w;
+    }
+}
+
+fn nr_accum_outlier4(acc: ptr<function, vec2<f32>>, l: vec4<f32>, init_w: vec4<f32>, mean: f32, tol: f32) {
+    nr_accum_outlier(acc, l.x, init_w.x, mean, tol);
+    nr_accum_outlier(acc, l.y, init_w.y, mean, tol);
+    nr_accum_outlier(acc, l.z, init_w.z, mean, tol);
+    nr_accum_outlier(acc, l.w, init_w.w, mean, tol);
+}
+
 fn apply_noise_reduction(
     center_linear: vec3<f32>,
     coords_i: vec2<i32>,
@@ -1164,41 +1265,60 @@ fn apply_noise_reduction(
 
         let h1 = hash(vec2<f32>(coords_i));
         let h2 = hash(vec2<f32>(coords_i) + vec2<f32>(17.31, 71.13));
+        let jx = (h1 - 0.5) * 2.0 * extra;
+        let jy = (h2 - 0.5) * 2.0 * extra;
 
-        var samp_luma: array<f32, 25>;
-        var samp_spat: array<f32, 25>;
-        var lmin: f32 = center_luma;
-        var lmax: f32 = center_luma;
+        let l0 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx, -2, -2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -1, -2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  0, -2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  1, -2, extra, jx, jy, is_raw));
+        let l1 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx,  2, -2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -2, -1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -1, -1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  0, -1, extra, jx, jy, is_raw));
+        let l2 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx,  1, -1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  2, -1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -2,  0, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -1,  0, extra, jx, jy, is_raw));
+        let l3 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx,  1,  0, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  2,  0, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -2,  1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -1,  1, extra, jx, jy, is_raw));
+        let l4 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx,  0,  1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  1,  1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  2,  1, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx, -2,  2, extra, jx, jy, is_raw));
+        let l5 = vec4<f32>(
+            nr_luma_tap(coords_i, max_idx, -1,  2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  0,  2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  1,  2, extra, jx, jy, is_raw),
+            nr_luma_tap(coords_i, max_idx,  2,  2, extra, jx, jy, is_raw));
 
-        samp_luma[0] = center_luma;
-        samp_spat[0] = 1.0;
+        let e1 = exp(1.0 * l_spat_n);
+        let e2 = exp(2.0 * l_spat_n);
+        let e4 = exp(4.0 * l_spat_n);
+        let e5 = exp(fma(l_spat_n, 4.0, l_spat_n));
+        let e8 = exp(8.0 * l_spat_n);
+        let sp0 = vec4<f32>(e8, e5, e4, e5);
+        let sp1 = vec4<f32>(e8, e5, e2, e1);
+        let sp2 = vec4<f32>(e2, e5, e4, e1);
+        let sp3 = vec4<f32>(e1, e4, e5, e2);
+        let sp4 = vec4<f32>(e1, e2, e5, e8);
+        let sp5 = vec4<f32>(e5, e4, e5, e8);
 
-        var idx: u32 = 1u;
-        for (var dy: i32 = -2; dy <= 2; dy = dy + 1) {
-            for (var dx: i32 = -2; dx <= 2; dx = dx + 1) {
-                if (dx == 0 && dy == 0) { continue; }
-
-                let ring = max(abs(dx), abs(dy));
-                let ring_factor = select(0.5, 1.0, ring == 2);
-                let grow = 1.0 + extra * ring_factor;
-
-                let jx = (h1 - 0.5) * 2.0 * extra;
-                let jy = (h2 - 0.5) * 2.0 * extra;
-
-                let off_f = vec2<f32>(f32(dx) * grow + jx, f32(dy) * grow + jy);
-                let off   = vec2<i32>(i32(round(off_f.x)), i32(round(off_f.y)));
-                let coord = clamp(coords_i + off, vec2<i32>(0), max_idx);
-
-                var s = textureLoad(input_texture, vec2<u32>(coord), 0).rgb;
-                if (is_raw == 0u) { s = srgb_to_linear(s); }
-                let s_luma = get_luma(max(s, vec3<f32>(0.0)));
-                samp_luma[idx] = s_luma;
-                samp_spat[idx] = exp(f32(dx * dx + dy * dy) * l_spat_n);
-                lmin = min(lmin, s_luma);
-                lmax = max(lmax, s_luma);
-                idx = idx + 1u;
-            }
-        }
+        let lmin = min(center_luma, min(
+            min(min(min(l0.x, l0.y), min(l0.z, l0.w)), min(min(l1.x, l1.y), min(l1.z, l1.w))),
+            min(min(min(min(l2.x, l2.y), min(l2.z, l2.w)), min(min(l3.x, l3.y), min(l3.z, l3.w))),
+                min(min(min(l4.x, l4.y), min(l4.z, l4.w)), min(min(l5.x, l5.y), min(l5.z, l5.w))))));
+        let lmax = max(center_luma, max(
+            max(max(max(l0.x, l0.y), max(l0.z, l0.w)), max(max(l1.x, l1.y), max(l1.z, l1.w))),
+            max(max(max(max(l2.x, l2.y), max(l2.z, l2.w)), max(max(l3.x, l3.y), max(l3.z, l3.w))),
+                max(max(max(l4.x, l4.y), max(l4.z, l4.w)), max(max(l5.x, l5.y), max(l5.z, l5.w))))));
 
         let luma_range    = lmax - lmin;
         let edge_strength = smoothstep(0.04, 0.20, luma_range);
@@ -1211,38 +1331,43 @@ fn apply_noise_reduction(
             edge_strength
         );
 
+        var samp_luma = array<f32, 25>(center_luma, l0.x, l0.y, l0.z, l0.w, l1.x, l1.y, l1.z, l1.w, l2.x, l2.y, l2.z, l2.w, l3.x, l3.y, l3.z, l3.w, l4.x, l4.y, l4.z, l4.w, l5.x, l5.y, l5.z, l5.w);
+        var samp_spat = array<f32, 25>(1.0, sp0.x, sp0.y, sp0.z, sp0.w, sp1.x, sp1.y, sp1.z, sp1.w, sp2.x, sp2.y, sp2.z, sp2.w, sp3.x, sp3.y, sp3.z, sp3.w, sp4.x, sp4.y, sp4.z, sp4.w, sp5.x, sp5.y, sp5.z, sp5.w);
         var samp_gate: array<f32, 25>;
         var sum_a: f32 = 0.0;
         var w_a:   f32 = 0.0;
         for (var k: u32 = 0u; k < 25u; k = k + 1u) {
-            let diff = abs(samp_luma[k] - center_luma);
+            let lk = samp_luma[k];
+            let sk = samp_spat[k];
+            let diff = abs(lk - center_luma);
             let g_range = 1.0 - smoothstep(l_range_tol * 0.6, l_range_tol, diff);
-            let s_side  = samp_luma[k] > edge_midpoint;
+            let s_side  = lk > edge_midpoint;
             let g_side  = select(0.0, 1.0, s_side == center_side);
             let g_edge  = mix(1.0, g_side, edge_strength);
-            let w = samp_spat[k] * g_range * g_edge;
+            let w = sk * g_range * g_edge;
             samp_gate[k] = w;
-            sum_a += samp_luma[k] * w;
+            sum_a += lk * w;
             w_a   += w;
         }
         let initial_mean = sum_a / max(w_a, 1e-4);
+        let g_c = samp_gate[0];
+        let g0 = vec4<f32>(samp_gate[1], samp_gate[2], samp_gate[3], samp_gate[4]);
+        let g1 = vec4<f32>(samp_gate[5], samp_gate[6], samp_gate[7], samp_gate[8]);
+        let g2 = vec4<f32>(samp_gate[9], samp_gate[10], samp_gate[11], samp_gate[12]);
+        let g3 = vec4<f32>(samp_gate[13], samp_gate[14], samp_gate[15], samp_gate[16]);
+        let g4 = vec4<f32>(samp_gate[17], samp_gate[18], samp_gate[19], samp_gate[20]);
+        let g5 = vec4<f32>(samp_gate[21], samp_gate[22], samp_gate[23], samp_gate[24]);
 
         let outlier_tol = mix(0.07, 0.025, edge_strength);
-        var sum_b: f32 = 0.0;
-        var w_b:   f32 = 0.0;
-        for (var k: u32 = 0u; k < 25u; k = k + 1u) {
-            let init_w = samp_gate[k];
-            if (init_w > 0.0001) {
-                let d = samp_luma[k] - initial_mean;
-                let r = abs(d) / outlier_tol;
-                let bisq = max(0.0, 1.0 - r * r);
-                let outlier_w = bisq * bisq;
-                let w = init_w * outlier_w;
-                sum_b += samp_luma[k] * w;
-                w_b   += w;
-            }
-        }
-        let robust_luma = select(initial_mean, sum_b / max(w_b, 1e-6), w_b > 0.01);
+        var acc_b = vec2<f32>(0.0);
+        nr_accum_outlier(&acc_b, center_luma, g_c, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l0, g0, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l1, g1, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l2, g2, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l3, g3, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l4, g4, initial_mean, outlier_tol);
+        nr_accum_outlier4(&acc_b, l5, g5, initial_mean, outlier_tol);
+        let robust_luma = select(initial_mean, acc_b.x / max(acc_b.y, 1e-6), acc_b.y > 0.01);
 
         let strength = luma_a * mix(1.0, 0.6, edge_strength);
         new_luma = mix(center_luma, robust_luma, strength);
@@ -1435,55 +1560,22 @@ fn no_tonemap(c: vec3<f32>) -> vec3<f32> {
     return c;
 }
 
-fn is_default_curve(points: array<Point, 16>, count: u32) -> bool {
-    if (count < 2u) {
-        return false;
+// Argentum: one apply_curve call site, stepping through the six curve passes:
+// the luma curve on red, green and blue, then each channel's own curve, which is
+// the order their version ran them in. A straight-line curve arrives with no
+// points (image_processing.rs, shader_curve), so apply_curve passes the value
+// through and their per-pixel is_default_curve check is gone. Six inlined curve
+// walks inside the mask loop made DirectX 12's software renderer (WARP) compile
+// a shader that wrote nothing at all.
+fn apply_all_curves(color: vec3<f32>, src: u32) -> vec3<f32> {
+    var rgb = color;
+    for (var step = 0u; step < 6u; step = step + 1u) {
+        let ch = select(step - 2u, 0u, step < 3u);
+        let c = step % 3u;
+        let v = apply_curve(select(select(rgb.b, rgb.g, c == 1u), rgb.r, c == 0u), src, ch, curve_count(src, ch));
+        rgb = select(rgb, vec3<f32>(v), vec3<bool>(c == 0u, c == 1u, c == 2u));
     }
-
-    var is_identity = true;
-    for (var i = 0u; i < count; i = i + 1u) {
-        if (abs(points[i].x - points[i].y) > 0.5) {
-            is_identity = false;
-            break;
-        }
-    }
-
-    let p0 = points[0];
-    let p_last = points[count - 1u];
-    let p0_is_origin = abs(p0.x - 0.0) < 0.1 && abs(p0.y - 0.0) < 0.1;
-    let p_last_is_end = abs(p_last.x - 255.0) < 0.1 && abs(p_last.y - 255.0) < 0.1;
-
-    return is_identity && p0_is_origin && p_last_is_end;
-}
-
-fn apply_all_curves(
-    color: vec3<f32>,
-    luma_curve: array<Point, 16>, luma_curve_count: u32,
-    red_curve: array<Point, 16>, red_curve_count: u32,
-    green_curve: array<Point, 16>, green_curve_count: u32,
-    blue_curve: array<Point, 16>, blue_curve_count: u32
-) -> vec3<f32> {
-    var r = color.r;
-    var g = color.g;
-    var b = color.b;
-
-    if (!is_default_curve(luma_curve, luma_curve_count)) {
-        r = apply_curve(r, luma_curve, luma_curve_count);
-        g = apply_curve(g, luma_curve, luma_curve_count);
-        b = apply_curve(b, luma_curve, luma_curve_count);
-    }
-
-    if (!is_default_curve(red_curve, red_curve_count)) {
-        r = apply_curve(r, red_curve, red_curve_count);
-    }
-    if (!is_default_curve(green_curve, green_curve_count)) {
-        g = apply_curve(g, green_curve, green_curve_count);
-    }
-    if (!is_default_curve(blue_curve, blue_curve_count)) {
-        b = apply_curve(b, blue_curve, blue_curve_count);
-    }
-
-    return clamp(vec3<f32>(r, g, b), vec3<f32>(0.0), vec3<f32>(1.0));
+    return clamp(rgb, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
 fn get_mask_influence(mask_index: u32, coords: vec2<u32>) -> f32 {
@@ -1785,11 +1877,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         }
     }
 
-    let final_hsl = array<HslColor, 8>(
-        HslColor(h0_h, h0_s, h0_l, 0.0), HslColor(h1_h, h1_s, h1_l, 0.0),
-        HslColor(h2_h, h2_s, h2_l, 0.0), HslColor(h3_h, h3_s, h3_l, 0.0),
-        HslColor(h4_h, h4_s, h4_l, 0.0), HslColor(h5_h, h5_s, h5_l, 0.0),
-        HslColor(h6_h, h6_s, h6_l, 0.0), HslColor(h7_h, h7_s, h7_l, 0.0)
+    let final_hsl = HslBands(
+        vec4<f32>(h0_h, h1_h, h2_h, h3_h), vec4<f32>(h4_h, h5_h, h6_h, h7_h),
+        vec4<f32>(h0_s, h1_s, h2_s, h3_s), vec4<f32>(h4_s, h5_s, h6_s, h7_s),
+        vec4<f32>(h0_l, h1_l, h2_l, h3_l), vec4<f32>(h4_l, h5_l, h6_l, h7_l)
     );
 
     initial_linear_rgb = apply_noise_reduction(
@@ -1958,23 +2049,12 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
     base_srgb = apply_filmic_exposure(base_srgb, t_brightness);
 
-    var final_rgb = apply_all_curves(base_srgb,
-        adjustments.global.luma_curve, adjustments.global.luma_curve_count,
-        adjustments.global.red_curve, adjustments.global.red_curve_count,
-        adjustments.global.green_curve, adjustments.global.green_curve_count,
-        adjustments.global.blue_curve, adjustments.global.blue_curve_count
-    );
+    var final_rgb = apply_all_curves(base_srgb, CURVE_SRC_GLOBAL);
 
     for (var i = 0u; i < adjustments.mask_count; i = i + 1u) {
         let influence = get_mask_influence(i, absolute_coord);
         if (influence > 0.001) {
-            let m = adjustments.mask_adjustments[i];
-            let mask_curved_srgb = apply_all_curves(final_rgb,
-                m.luma_curve, m.luma_curve_count,
-                m.red_curve, m.red_curve_count,
-                m.green_curve, m.green_curve_count,
-                m.blue_curve, m.blue_curve_count
-            );
+            let mask_curved_srgb = apply_all_curves(final_rgb, i);
             final_rgb = mix(final_rgb, mask_curved_srgb, influence);
         }
     }
