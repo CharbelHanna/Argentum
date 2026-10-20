@@ -328,13 +328,19 @@ html[data-ag-look='modern'] .group:has(> .relative.w-full.h-5 > input.slider-inp
   font-weight: 400;
 }
 
-/* Scrollbars: thin, in the line colour. */
-html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar {
+/*
+ * Scrollbars: thin, in the line colour. Our lists left of the grid (Snapshots,
+ * History) carry agm-scroll instead of their custom-scrollbar: bench/replay.js
+ * scrolls the first .custom-scrollbar on the page, which has to be the grid.
+ */
+html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar,
+html[data-ag-look='modern'] .agm-scroll::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
-html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar-thumb {
+html[data-ag-look='modern'] .custom-scrollbar::-webkit-scrollbar-thumb,
+html[data-ag-look='modern'] .agm-scroll::-webkit-scrollbar-thumb {
   background-color: var(--agm-active);
   border-radius: 4px;
 }
