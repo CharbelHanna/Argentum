@@ -13,6 +13,7 @@ mod cache;
 pub mod colour;
 pub mod contract;
 mod develop;
+pub mod dng_gain_map;
 pub mod engine;
 mod error;
 mod frame;
