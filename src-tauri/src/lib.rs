@@ -188,6 +188,7 @@ pub fn generate_transformed_preview(
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_transform_hash(adjustments).hash(&mut hasher);
+    crate::mods::lens_builtin::fold(0, adjustments).hash(&mut hasher); // Argentum
     preview_dim.hash(&mut hasher);
     let cache_key = hasher.finish();
 
@@ -241,6 +242,7 @@ fn compute_transformed_preview(
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_geometry_hash(adjustments).hash(&mut hasher);
+    crate::mods::lens_builtin::fold(0, adjustments).hash(&mut hasher); // Argentum
     let warped_key = hasher.finish();
 
     let warped = get_or_compute_stage(&state.patched_warped_cache, warped_key, || {
@@ -248,7 +250,9 @@ fn compute_transformed_preview(
     })?;
     // Argentum: sharpening measures the preview on the full-resolution picture it
     // is a copy of (mods/input_stage.rs), which this staged preview no longer makes.
-    crate::mods::input_stage::keep_full_picture(&loaded_image.path, calculate_transform_hash(adjustments), || {
+    // Argentum: keyed as the preview's render keys its lookup (new_transform_hash).
+    let transform_hash = crate::mods::lens_builtin::fold(calculate_transform_hash(adjustments), adjustments);
+    crate::mods::input_stage::keep_full_picture(&loaded_image.path, transform_hash, || {
         match crate::adjustment_utils::apply_spatial_transformations(Cow::Borrowed(warped.as_ref()), adjustments).0 {
             Cow::Borrowed(_) => Arc::clone(&warped),
             Cow::Owned(img) => Arc::new(img),
@@ -432,6 +436,7 @@ pub fn get_cached_full_warped_image_for_path(
     let mut hasher = DefaultHasher::new();
     loaded_image.path.hash(&mut hasher);
     calculate_geometry_hash(js_adjustments).hash(&mut hasher);
+    crate::mods::lens_builtin::fold(0, js_adjustments).hash(&mut hasher); // Argentum
     let cache_key = hasher.finish();
 
     {
@@ -531,7 +536,7 @@ fn process_preview_job(
         .clone();
     drop(loaded_image_guard);
 
-    let new_transform_hash = calculate_transform_hash(&adjustments_clone);
+    let new_transform_hash = crate::mods::lens_builtin::fold(calculate_transform_hash(&adjustments_clone), &adjustments_clone); // Argentum
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
     let live_quality = settings.live_preview_quality.as_deref().unwrap_or("high");
 

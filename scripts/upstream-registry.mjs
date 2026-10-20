@@ -2300,6 +2300,45 @@ export const REGISTRY = [
     ],
     keywords: /layout|workspace|side.?panel|panel.?switcher|toolbar|navigator|histogram|waveform|filmstrip|title.?bar|settings/i,
   },
+  {
+    id: 'lens-builtin',
+    kind: 'feature',
+    what:
+      'The camera\'s built-in lens correction: the distortion, lateral chromatic aberration and '
+      + 'vignetting tables a Fujifilm RAF stores per shot (FujiIFD 0xF00B, 0xF00F, 0xF010), read by '
+      + 'the engine (rm_lens_builtin.rs, from RAWmakase @ a8c5d6d7) and applied in the lens warp in '
+      + 'place of the lensfun profile while its switch, at the top of Crop > Lens Correction, is on. '
+      + 'On for a photo with no edit yet; an edit saved earlier keeps its look until switched on.',
+    ours: [
+      'src-tauri/engine/src/rm_lens_builtin.rs',
+      'src-tauri/src/mods/lens_builtin.rs',
+      'src/argentum/lensBuiltin.ts',
+      'src/argentum/LensBuiltinSwitch.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_geometry_params_from_json', how: 'extends',
+        note: 'GeometryParams.lens_builtin, read from the edit; lensfun\'s numbers are left out while it is '
+          + 'set. warp_image_geometry, unwarp_image_geometry, inverse_transform_point and '
+          + 'is_geometry_identity each apply it where lensfun\'s distortion is applied. Render path.' },
+      { file: 'src-tauri/src/lib.rs', symbol: 'calculate_transform_hash', how: 'calls',
+        note: 'The preview\'s geometry caches fold lensBuiltin and lensBuiltinParams in '
+          + '(lens_builtin::fold), since GEOMETRY_KEYS in their cache_utils.rs has no room for them. '
+          + 'Their thumbnail and AI-mask caches key on GEOMETRY_KEYS alone, so after the switch is '
+          + 'flipped those keep the old geometry until another geometry change. Render path.' },
+      { file: 'src/components/panel/right/CropPanel.tsx', how: 'extends',
+        note: 'The switch above Auto/Manual; the lensfun choice greyed while it is on; the Distortion, '
+          + 'Chromatic Aberration and Vignetting rows read the camera\'s tables then; both resets put '
+          + 'the switch back to the photo\'s default. Today\'s interface.' },
+    ],
+    tests: [
+      'src-tauri/engine/src/rm_lens_builtin.rs #[cfg(test)]: the Fujifilm reader on a synthetic RAF, '
+        + 'interpolation, fill scale, amounts, the inverse map; a_real_rafs_tables (ignored) prints a '
+        + 'real file\'s tables.',
+      'src-tauri/src/mods/lens_builtin.rs #[cfg(test)]: only a switched-on edit with tables applies it, '
+        + 'the panel\'s amounts, the hash fold.',
+    ],
+    keywords: /lens|distortion|vignett|chromatic|fringe|fujifilm|raf|built.?in/i,
+  },
 ];
 
 /**
