@@ -112,7 +112,7 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'done',
     what: 'A Lightroom-style starting look',
-    release: '26.41.13',
+    release: '26.43.1',
     why:
       'RAW photos opened dark and flat next to Lightroom or the camera\x27s own JPEG. DNG Standard '
       + 'renders them as a DNG renderer does by default - the camera\x27s exposure offset and '
@@ -128,12 +128,13 @@ const MILESTONES: Milestone[] = [
       + 'Take it away where it cannot mean anything.',
   },
   {
-    stage: 'planned',
-    what: 'Auto picks the fastest graphics mode',
+    stage: 'done',
+    what: 'Fast on every graphics mode',
+    release: '26.43.1',
     why:
-      'Auto takes Vulkan on Windows without measuring, and on some laptops that is '
-      + 'several times slower than OpenGL or DirectX. Time each one on this computer, '
-      + 'once, and use the fastest.',
+      'Auto takes Vulkan on Windows, and on some laptops that was several times slower than '
+      + 'OpenGL. The cause was in how the editor drew each pixel, not in the graphics mode: '
+      + 'with that fixed, Vulkan and DirectX 12 are 20 to 45 times faster, and Auto is fast.',
   },
   {
     stage: 'planned',
