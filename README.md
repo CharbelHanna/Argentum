@@ -1,17 +1,19 @@
 # Argentum
 
-**A RAW photo editor.** RapidRAW's interface and AI, darktable's colour science —
-harvested one module at a time.
+**A RAW photo editor** that opens a RAW the way Lightroom does, built from the
+best parts of open-source photo editing, harvested one tool at a time.
 
-Argentum is a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by Timon
-Käch. His is the interface, the GPU pipeline, the catalogue and very nearly all of
-the application. Argentum's own work is the colour: what happens to a RAW file
-between the sensor data and the picture on screen, rebuilt on
-[darktable](https://github.com/darktable-org/darktable)'s methods.
+Argentum began as a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by
+Timon Käch, whose GPU pipeline, catalogue and editing panels are still most of the
+application. It is becoming an editor of its own: a processing engine where every
+tool is one file in a registry, with tools taken from
+[darktable](https://github.com/darktable-org/darktable),
+[RawTherapee](https://github.com/RawTherapee/RawTherapee),
+[RAWmakase](https://github.com/pch/rawmakase) and RapidRAW, each credited to the
+file and commit it came from.
 
-Everything Argentum adds lives in its own files, so RapidRAW's updates keep
-merging cleanly. That constraint is enforced by a script, not by good intentions
-— see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+RapidRAW is now a source like the others, reviewed once per release, rather than a
+base merged forever. How and why is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ![Argentum editing a photo from a Canon EOS R6 Mark III](docs/screenshot.jpg)
 
@@ -28,7 +30,7 @@ merging cleanly. That constraint is enforced by a script, not by good intentions
 
 ## Status
 
-**Early preview**, used daily by its author on Windows.
+**Early preview**, used daily on Windows.
 
 | Platform | State |
 |---|---|
@@ -83,9 +85,13 @@ Settings.
 
 ## What Argentum adds
 
-Everything here is about colour and RAW decoding. The editing interface is
-RapidRAW's.
+**The picture**
 
+- **RAWs open looking like Lightroom's default** (DNG Standard): each camera's own
+  exposure offset (RAWmakase's table, 230 bodies), Adobe's default tone curve and
+  Lightroom's default sharpening. The earlier look is one setting away.
+- **B&W** with Lightroom's measured black-and-white mix, an Auto mix per photo, and
+  **Color Grading** that tints as strongly as Lightroom's, both from RAWmakase.
 - **White balance rebuilt on real colour science.** Kelvin and tint, scene-linear
   Bradford adaptation, and a picker that settles on one answer instead of drifting
   each time you click.
@@ -101,15 +107,35 @@ RapidRAW's.
 - **Display colour management.** The preview is converted for the monitor's own
   ICC profile, so what you see matches what you export. Windows only for now; see
   Known limitations.
-- **Canon sRAW and mRAW fixed.** They came out green with crushed shadows. Both
-  causes found and corrected.
-- **Automatic lens detection on Canon bodies**, read from the MakerNote, so lens
-  corrections apply without picking the lens by hand.
 - **An RGB readout**, so a colour under the cursor can be measured instead of
   argued about.
 
-Full detail, with the darktable source file and commit for every harvested
-module, is in [CHANGELOG.md](CHANGELOG.md). What is planned is in
+**Detail and lenses**
+
+- **Capture sharpening from RawTherapee**, which undoes the slight blur of lens and
+  sensor, and a manual Sharpen from darktable, each with an eye that shows where it
+  works. Every mask has a Sharpen of its own.
+- **Restore** makes a lens that is soft wide open look closer to its sharpest, at
+  the photo's own size (OmniLens, downloaded on first use).
+- **The camera's own lens correction**, read from the file: Fujifilm, Sony and the
+  corrections a DNG carries. Phone DNGs get their corner shading corrected.
+- **Automatic lens detection on every RAW format**, so lensfun's corrections apply
+  without picking the lens by hand.
+- **Canon sRAW and mRAW fixed** (they came out green with crushed shadows), and
+  Nikon High Efficiency RAWs open.
+
+**Editing**
+
+- **One window** for the photos, the folders and the editor, with the Edit panel
+  in the order a photo is corrected in.
+- **AI masks**: Subject, Sky and Background in one click, and Object by clicking on
+  it, on SAM 2.1 as RAWmakase runs it.
+- **Looks**: presets, LUTs and film looks in one place, applied to one photo or to
+  every photo selected. **Snapshots** keep versions of an edit beside it.
+
+RapidRAW's own features (its AI tools, Relight, Fog, panorama, HDR, healing,
+export) are all still here. Full detail, with the source file and commit for every
+harvested tool, is in [CHANGELOG.md](CHANGELOG.md). What is planned is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
@@ -194,18 +220,15 @@ npm run tauri build
 
 ## Staying current with RapidRAW
 
+RapidRAW is reviewed once per release, not merged commit by commit. Its changes to
+the code that renders a photo are read and copied in by hand when wanted; the rest
+is merged, and one line per feature records what was taken, copied or skipped.
+`npm run check:merge` checks that Argentum's lines in RapidRAW's files only ever go
+down. The steps are in [ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ```bash
 git remote add upstream https://github.com/CyberTimon/RapidRAW.git
 ```
-
-```bash
-git fetch upstream && git merge upstream/main
-```
-
-This is meant to be boring, and it is the reason for the architecture. If a merge
-needs real thought rather than "keep both sides", something drifted into a file
-it should not be in — see
-[ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ---
 
@@ -213,8 +236,9 @@ it should not be in — see
 
 | File | What's in it |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, and why upstream updates don't hurt |
-| [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | The recipe for harvesting a module |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, the engine, and how RapidRAW is reviewed per release |
+| [src-tauri/engine/README.md](src-tauri/engine/README.md) | The engine: adding a tool is one file and one registry line |
+| [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | The older recipe, for tools not yet moved into the engine |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is planned, in what order |
 | [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
 | [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
