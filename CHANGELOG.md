@@ -27,8 +27,8 @@ Newest first.
 - **AI Models counted the selection models as "other files".** The Subject, Object, Sky and
   Background masks' models (SAM 2.1 and DETR, 258 MB in `rawmakase-selection/`) now have their own
   row, Selection masks. The rows for RapidRAW's Subject selection and Sky detection say what uses
-  them now: Quick Erase and Inpainting's Subject for the first, nothing for the second (it still
-  downloads along with Foreground and Depth).
+  them now: Quick Erase and Inpainting's Subject for the first; for the second, Foreground and
+  Depth, which load it with their own models. Both are still in use, and Clear treats them so.
 
 ## 26.43.1 — 2026-10-21
 

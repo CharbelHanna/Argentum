@@ -158,9 +158,11 @@ pub const CATALOGUE: &[Model] = &[
     // --- RapidRAW's: their code downloads these four together
     // (`get_or_init_ai_models`) the first time Foreground, Depth, Lens blur,
     // Fog, Quick Erase or Inpainting's Subject is used, so deleting one brings
-    // it back with the next of those. Their Subject (SAM 1) and Sky left the
-    // Masks menu for the selection masks above; their Sky is still loaded
-    // with the others, and nothing runs it.
+    // it back with the next of those: all four are in use. Their Subject
+    // (SAM 1) and Sky left the Masks menu for the selection masks above; their
+    // Sky is still loaded with the others and has to be there for any of
+    // them. Loading it only for the Sky mask would save its 168 MB, but that
+    // is a change to their loader, not to this list.
     Model {
         id: "subject",
         label: "Subject selection",
@@ -200,7 +202,7 @@ pub const CATALOGUE: &[Model] = &[
     Model {
         id: "sky",
         label: "Sky detection",
-        purpose: "Not used any more: the Sky mask now uses Selection masks. It still downloads along with Foreground and Depth.",
+        purpose: "Loaded with Foreground and Depth, which need it to be here. The Sky mask itself now uses Selection masks.",
         // Saved under an underscore, downloaded from a name with a hyphen.
         stored: Stored::Files(&[rapidraw!(
             "skyseg_u2net.onnx",
