@@ -82,7 +82,9 @@ const FLAG_LAYER_MASK: u32 = 128u;
 @group(0) @binding(6) var<storage, read_write> aux: array<f32>;
 @group(0) @binding(7) var<storage, read_write> blend: array<f32>;
 @group(0) @binding(8) var<storage, read_write> stopped: array<atomic<u32>>;
-@group(0) @binding(9) var<storage, read_write> counter: array<u32>;
+// progress[0] is the iteration under way; progress[1 + b] is what stopped[b]
+// held when it began.
+@group(0) @binding(9) var<storage, read_write> progress: array<u32>;
 // RapidRAW's own mask bitmaps for the masks with a Sharpen of their own, one
 // layer each, render size.
 @group(0) @binding(10) var local_masks: texture_2d_array<f32>;
@@ -301,10 +303,21 @@ fn mask_v(@builtin(global_invocation_id) id: vec3<u32>) {
     blend[idx(id.x, id.y)] = sum / wsum;
 }
 
-/// One iteration has begun. The iteration check needs to know which.
-@compute @workgroup_size(1, 1, 1)
-fn tick() {
-    counter[0] = counter[0] + 1u;
+/// One iteration has begun. The iteration check needs to know which, and
+/// which blocks had stopped before it: copied out of the atomics here, once,
+/// so rl_update_v reads plain memory. Every pixel of a block reading the same
+/// atomic word made that pass ten times slower than its siblings on Intel's
+/// Vulkan driver - most of a first sharpen.
+@compute @workgroup_size(64, 1, 1)
+fn tick(@builtin(local_invocation_index) li: u32) {
+    if (li == 0u) {
+        progress[0] = progress[0] + 1u;
+    }
+    let blocks_w = (p.ext_w + STOP_BLOCK - 1u) / STOP_BLOCK;
+    let blocks = blocks_w * ((p.ext_h + STOP_BLOCK - 1u) / STOP_BLOCK);
+    for (var b = li; b < blocks; b = b + 64u) {
+        progress[1u + b] = atomicLoad(&stopped[b]);
+    }
 }
 
 // rt_ capture sharpening: Richardson-Lucy deconvolution with a gaussian PSF.
@@ -369,13 +382,14 @@ fn rl_update_v(@builtin(global_invocation_id) id: vec3<u32>) {
     let i = idx(id.x, id.y);
     let blocks_w = (p.ext_w + STOP_BLOCK - 1u) / STOP_BLOCK;
     let b = (id.y / STOP_BLOCK) * blocks_w + id.x / STOP_BLOCK;
-    let k_now = counter[0];
+    let k_now = progress[0];
 
     // A block RawTherapee would have stopped iterating keeps the estimate it
     // stopped at. Stopped "at" an earlier iteration, never this one: every
     // pixel of the block finishes the iteration in which the check failed,
-    // as RawTherapee's tile does.
-    let at = atomicLoad(&stopped[b]);
+    // as RawTherapee's tile does. So the stops as this iteration began are
+    // all it needs, and tick has copied those.
+    let at = progress[1u + b];
     if (at != 0u && at < k_now) {
         return;
     }

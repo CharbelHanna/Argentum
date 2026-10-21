@@ -488,7 +488,8 @@ struct Engine {
     uniform: wgpu::Buffer,
     scratch: [wgpu::Buffer; 5],
     stopped: wgpu::Buffer,
-    counter: wgpu::Buffer,
+    /// The iteration under way, then each block's stop as it began.
+    progress: wgpu::Buffer,
     /// Bound when no mask has a Sharpen of its own.
     no_masks: wgpu::TextureView,
     /// Oldest first, at most `KEEP`.
@@ -689,7 +690,7 @@ impl Engine {
                 buffer("Argentum Sharpen Blend", plane, rw),
             ],
             stopped: buffer("Argentum Sharpen Stopped", blocks, rw),
-            counter: buffer("Argentum Sharpen Counter", 16, rw),
+            progress: buffer("Argentum Sharpen Progress", 4 + blocks, rw),
             no_masks: device
                 .create_texture(&wgpu::TextureDescriptor {
                     label: Some("Argentum Sharpen No Masks"),
@@ -825,7 +826,7 @@ impl Engine {
         });
         entries.push(wgpu::BindGroupEntry {
             binding: 9,
-            resource: self.counter.as_entire_binding(),
+            resource: self.progress.as_entire_binding(),
         });
         entries.push(wgpu::BindGroupEntry {
             binding: 10,
@@ -1111,7 +1112,7 @@ impl Engine {
                         });
                 if !cleared {
                     encoder.clear_buffer(&self.stopped, 0, None);
-                    encoder.clear_buffer(&self.counter, 0, None);
+                    encoder.clear_buffer(&self.progress, 0, None);
                     cleared = true;
                 }
                 {
@@ -1513,6 +1514,18 @@ mod tests {
                 e.emit_to_string(SHADER)
             );
         }
+    }
+
+    /// Every pixel of a block reading the same atomic word, every iteration,
+    /// made a first sharpen six times slower on Intel's Vulkan driver: 741 ms
+    /// against 113 for the passes alone at 3328x2219 on an Arc 140V. The
+    /// stops are read per pixel from tick's plain copy instead.
+    #[test]
+    fn the_per_pixel_pass_reads_no_atomic() {
+        let start = SHADER.find("fn rl_update_v(").expect("rl_update_v");
+        let body = &SHADER[start..];
+        let body = &body[..body.find("\n}\n").expect("end of rl_update_v")];
+        assert!(!body.contains("atomicLoad"), "{body}");
     }
 
     // ------------------------------------------------------------------

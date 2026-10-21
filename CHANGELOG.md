@@ -4,7 +4,7 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
-## Unreleased
+## 26.43.2 — 2026-10-21
 
 ### Added
 
@@ -22,8 +22,32 @@ Newest first.
   model's tokenizer, which RapidRAW's code never checks, is pinned to the file Hugging Face serves
   today (SHA-256 `b556ac8c`).
 
+### Changed
+
+- **A photo's first sharpen is about four times faster on Vulkan.** Capture sharpening's
+  iteration check read each block's stop flag with an atomic load in every pixel of every
+  iteration. On Intel's Vulkan driver that made the pass ten times slower than the three blurs
+  around it, and it was most of a first sharpen. The pass that starts each iteration (`tick` in
+  `shaders/sharpen.wgsl`) now copies the flags to plain memory once, and every pixel reads the
+  copy. A flag set during an iteration never skipped anything in that iteration, so blocks stop
+  where they did: renders match the old ones bit for bit on Vulkan, DirectX 12 and OpenGL, on a
+  textured photo and on hard edges where the check stops blocks. On an Intel Arc 140V, a first
+  render with sharpening went from 787 ms to 182 ms at 3328x2219 and from 2.7 s to 0.6 s at
+  6960x4640 on Vulkan, what Processing Backend = Auto picks. DirectX 12 and OpenGL are unchanged.
+
 ### Fixed
 
+- **DirectX 12 renders again.** In 26.43.1 the main shader failed to build on DirectX 12, on a
+  graphics card and on WARP alike, so photos did not render with DirectX 12 chosen in Settings:
+  FXC, the HLSL compiler DirectX 12 uses on every Windows PC, stopped with *unable to unroll
+  loop*. Lightroom's colour grading (`rm_grade` in `shaders/modules.wgsl`, from RAWmakase
+  `crates/rawmakase-engine/src/develop/gpu/develop.wgsl` @ `5a2414b4`) wrote each channel of its
+  result through a loop index, a write FXC cannot address; it unrolled that loop and then could
+  not unroll the per-mask loop around it. Each channel is now its own call, with RAWmakase's
+  arithmetic in the same order: on Vulkan a graded photo, with the photo's own block and two
+  masks' blocks, renders bit-identical to before. Vulkan and OpenGL were not affected.
+  `shader_check` now fails any shader that writes a vector or matrix variable through an index
+  known only when it runs.
 - **AI Models counted the selection models as "other files".** The Subject, Object, Sky and
   Background masks' models (SAM 2.1 and DETR, 258 MB in `rawmakase-selection/`) now have their own
   row, Selection masks. The rows for RapidRAW's Subject selection and Sky detection say what uses
