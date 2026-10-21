@@ -242,6 +242,7 @@ git remote add upstream https://github.com/CyberTimon/RapidRAW.git
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is planned, in what order |
 | [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
 | [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
+| [docs/RELEASING.md](docs/RELEASING.md) | How a release is cut, and the speed check it must pass |
 | [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
 | [CREDITS.md](CREDITS.md) | Whose work this is built on |
 

@@ -2075,14 +2075,18 @@ mod tests {
 
     /// Where an editor render's time goes: their render alone, the auto
     /// contrast measurement, and sharpening the first time and once kept -
-    /// each waited for on the GPU, which their log line is not.
+    /// each waited for on the GPU, which their log line is not. Every row is
+    /// held to its budget in `speed_budgets.rs`, which are one laptop's:
+    /// run there before every release (docs/RELEASING.md).
     #[test]
-    #[ignore = "timing; run by hand"]
+    #[ignore = "timing against the reference laptop's budgets; run by hand"]
     fn where_the_time_goes() {
+        use super::super::speed_budgets;
         let gpu_ms = |ctx: &GpuContext, started: Instant| {
             let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
             started.elapsed().as_secs_f32() * 1000.0
         };
+        let mut breaches = Vec::new();
         for (name, backends) in [
             // What Settings > Processing Backend = Auto asks for on Windows
             // (gpu_processing.rs); the adapter line says which one it got.
@@ -2094,6 +2098,7 @@ mod tests {
             let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
             desc.backends = backends;
             let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
+                breaches.push(format!("{name}: no adapter, so nothing checked"));
                 continue;
             };
             for (w, h) in [(3328u32, 2219u32), (6960, 4640)] {
@@ -2261,9 +2266,28 @@ mod tests {
                      with sharpening {:.0} ms first, {:.0} ms kept (flags {:#x}, {} iterations)",
                     sharpened[0], sharpened[1], plan.flags, plan.iterations
                 );
+                // In speed_budgets::ROWS order.
+                let measured = [
+                    alone,
+                    measure_cold,
+                    measure_warm,
+                    sharpened[0],
+                    sharpened[1],
+                    mask_on,
+                    mask_off,
+                    pan_step,
+                    eyes,
+                    frame,
+                ];
+                eprintln!(
+                    "measured: {}",
+                    speed_budgets::table_line(name, [w, h], &measured)
+                );
+                breaches.extend(speed_budgets::breaches(name, [w, h], &measured));
                 reset();
             }
         }
+        speed_budgets::assert_none(&breaches);
     }
 
     fn all_checks(ctx: &GpuContext) {

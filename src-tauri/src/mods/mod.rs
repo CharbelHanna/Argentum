@@ -67,6 +67,8 @@ pub mod sharpen_gpu;
 pub mod shell_photos;
 pub mod sigmoid;
 pub mod snapshots;
+#[cfg(test)]
+mod speed_budgets;
 pub mod sraw_levels;
 pub mod startup;
 pub mod super_resolution;
