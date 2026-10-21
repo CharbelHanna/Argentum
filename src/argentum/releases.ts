@@ -32,6 +32,16 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.43.2',
+    date: '2026-10-21',
+    notes: [
+      'DirectX 12 works again: in 26.43.1, photos did not show with DirectX 12 chosen in Settings.',
+      'The first sharpening of a photo is about four times faster with Vulkan, which Auto uses.',
+      'Settings > AI and models: download a model before you need it, see the models the '
+      + 'selection masks use, and clear files no model uses.',
+    ],
+  },
+  {
     version: '26.43.1',
     date: '2026-10-21',
     notes: [
