@@ -172,6 +172,81 @@ mod tests {
         );
     }
 
+    /// No shader writes into a vector or matrix held in a function's own
+    /// variable through an index known only when it runs (`v[i] = x`).
+    ///
+    /// FXC, the HLSL compiler DirectX 12 uses on every Windows PC, cannot
+    /// address such a write, so it unrolls the loop around it; inside a loop
+    /// it cannot unroll, the pipeline fails to build. Lightroom's grading
+    /// wrote `out[c]` inside the per-mask loop, and every photo failed on
+    /// DirectX 12 while Vulkan and OpenGL were fine. Build the vector from
+    /// its parts instead. A local array is fine: FXC can index those, and
+    /// RapidRAW's noise reduction writes one.
+    #[test]
+    fn no_shader_writes_a_local_vector_through_a_variable_index() {
+        use wgpu::naga::{Block, Expression, Function, Handle, Module, Statement, TypeInner};
+        fn into_local_vector(m: &Module, f: &Function, mut e: Handle<Expression>) -> bool {
+            let mut variable_index = false;
+            loop {
+                match f.expressions[e] {
+                    Expression::Access { base, .. } => (variable_index, e) = (true, base),
+                    Expression::AccessIndex { base, .. } => e = base,
+                    Expression::LocalVariable(v) => {
+                        return variable_index
+                            && matches!(
+                                m.types[f.local_variables[v].ty].inner,
+                                TypeInner::Vector { .. } | TypeInner::Matrix { .. }
+                            );
+                    }
+                    _ => return false,
+                }
+            }
+        }
+        fn writes(m: &Module, f: &Function, block: &Block) -> usize {
+            block
+                .iter()
+                .map(|s| match s {
+                    Statement::Store { pointer, .. } => {
+                        usize::from(into_local_vector(m, f, *pointer))
+                    }
+                    Statement::Block(b) => writes(m, f, b),
+                    Statement::If { accept, reject, .. } => {
+                        writes(m, f, accept) + writes(m, f, reject)
+                    }
+                    Statement::Switch { cases, .. } => {
+                        cases.iter().map(|c| writes(m, f, &c.body)).sum()
+                    }
+                    Statement::Loop {
+                        body, continuing, ..
+                    } => writes(m, f, body) + writes(m, f, continuing),
+                    _ => 0,
+                })
+                .sum()
+        }
+        let shaders = [
+            ("render", SOURCE),
+            ("display", DISPLAY_SOURCE),
+            ("sharpen", crate::mods::sharpen_gpu::SHADER),
+            ("blur", include_str!("../shaders/blur.wgsl")),
+            ("flare", include_str!("../shaders/flare.wgsl")),
+            ("guided", include_str!("../shaders/guided.wgsl")),
+        ];
+        let mut offenders = Vec::new();
+        for (what, source) in shaders {
+            let module = wgpu::naga::front::wgsl::parse_str(source).expect("parses");
+            let functions = module.functions.iter().map(|(_, f)| f);
+            for f in functions.chain(module.entry_points.iter().map(|e| &e.function)) {
+                if writes(&module, f, &f.body) > 0 {
+                    offenders.push(format!("{what}: {}", f.name.as_deref().unwrap_or("?")));
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "build the vector from its parts instead: {offenders:?}"
+        );
+    }
+
     /// The export pipeline compiles too.
     ///
     /// This is the check the feature most needs and the one a GPU-free test can

@@ -19,6 +19,20 @@ Newest first.
   render with sharpening went from 787 ms to 182 ms at 3328x2219 and from 2.7 s to 0.6 s at
   6960x4640 on Vulkan, what Processing Backend = Auto picks. DirectX 12 and OpenGL are unchanged.
 
+### Fixed
+
+- **DirectX 12 renders again.** In 26.43.1 the main shader failed to build on DirectX 12, on a
+  graphics card and on WARP alike, so photos did not render with DirectX 12 chosen in Settings:
+  FXC, the HLSL compiler DirectX 12 uses on every Windows PC, stopped with *unable to unroll
+  loop*. Lightroom's colour grading (`rm_grade` in `shaders/modules.wgsl`, from RAWmakase
+  `crates/rawmakase-engine/src/develop/gpu/develop.wgsl` @ `5a2414b4`) wrote each channel of its
+  result through a loop index, a write FXC cannot address; it unrolled that loop and then could
+  not unroll the per-mask loop around it. Each channel is now its own call, with RAWmakase's
+  arithmetic in the same order: on Vulkan a graded photo, with the photo's own block and two
+  masks' blocks, renders bit-identical to before. Vulkan and OpenGL were not affected.
+  `shader_check` now fails any shader that writes a vector or matrix variable through an index
+  known only when it runs.
+
 ## 26.43.1 — 2026-10-21
 
 ### Added
