@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import './noCloud';
+import './historyOnRelease';
 import RgbReadout from './RgbReadout';
 import LinearMask from './LinearMask';
 import RadialFeather from './RadialFeather';

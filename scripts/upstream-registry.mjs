@@ -2486,6 +2486,32 @@ export const REGISTRY = [
     ],
     keywords: /grad(e|ing)|split.?ton|tint|sepia/i,
   },
+  {
+    id: 'history-on-release',
+    kind: 'behaviour-change',
+    what:
+      'One History step per drag, recorded when the slider is let go, instead of one at every '
+      + 'pause of 500 ms while it is still held.',
+    ours: ['src/argentum/historyOnRelease.ts'],
+    dependsOn: [
+      { file: 'src/store/useEditorStore.ts', symbol: 'pushHistory', how: 'shadows',
+        note: 'Replaced in the store at import by one that holds the step while isSliderDragging '
+          + 'is on and calls theirs otherwise; the release records the held one. Relies on '
+          + 'every drag of theirs setting isSliderDragging and clearing it on release.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'debouncedSetHistory', how: 'calls',
+        note: 'Their debounce calls the store\'s pushHistory, so ours. On release it is flushed, '
+          + 'so a change in the drag\'s last 500 ms is recorded at once rather than after it.' },
+    ],
+    tests: [
+      'npx vitest run src/argentum/historyOnRelease.test.ts: nothing recorded while held, one step '
+        + 'on release, a last change recorded once, an empty drag records nothing, a held step '
+        + 'dropped when another photo opened, their 500 ms kept without a drag.',
+      'Manual: drag LUT Intensity (or any slider), pausing a second or two without letting go, '
+        + 'then release: History gains one step, and only on release. Undo takes the whole drag off.',
+      'Manual: click a slider\'s track without dragging: one step. Type a value: one step.',
+    ],
+    keywords: /history|undo|redo|debounce/i,
+  },
 ];
 
 /**
