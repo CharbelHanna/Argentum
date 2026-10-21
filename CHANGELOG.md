@@ -6,6 +6,19 @@ Newest first.
 
 ## 26.43.2 — 2026-10-21
 
+### Changed
+
+- **A photo's first sharpen is about four times faster on Vulkan.** Capture sharpening's
+  iteration check read each block's stop flag with an atomic load in every pixel of every
+  iteration. On Intel's Vulkan driver that made the pass ten times slower than the three blurs
+  around it, and it was most of a first sharpen. The pass that starts each iteration (`tick` in
+  `shaders/sharpen.wgsl`) now copies the flags to plain memory once, and every pixel reads the
+  copy. A flag set during an iteration never skipped anything in that iteration, so blocks stop
+  where they did: renders match the old ones bit for bit on Vulkan, DirectX 12 and OpenGL, on a
+  textured photo and on hard edges where the check stops blocks. On an Intel Arc 140V, a first
+  render with sharpening went from 787 ms to 182 ms at 3328x2219 and from 2.7 s to 0.6 s at
+  6960x4640 on Vulkan, what Processing Backend = Auto picks. DirectX 12 and OpenGL are unchanged.
+
 ### Fixed
 
 - **DirectX 12 renders again.** In 26.43.1 the main shader failed to build on DirectX 12, on a
