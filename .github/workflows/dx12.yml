@@ -1,0 +1,56 @@
+name: DirectX 12
+
+# The shaders through DirectX 12, as every Windows PC without Vulkan runs
+# them. wgpu translates WGSL to HLSL and FXC, the HLSL compiler built into
+# Windows, compiles that when a pipeline is created. FXC refuses some shaders
+# that Vulkan and OpenGL accept: 26.43.1's main shader failed to build with
+# "unable to unroll loop" (X3511) on DirectX 12 only.
+#
+# The runner has no graphics card, so DirectX gives it WARP, Microsoft's
+# software adapter, which ships with Windows. wgpu's own CI runs its DirectX 12
+# tests on WARP too (gfx-rs/wgpu .github/workflows/ci.yml, gpu-test). Their
+# runs pick DXC; this one pins FXC, the compiler the app gets, because it ships
+# no dxcompiler.dll.
+#
+# Runs only when a file that goes into a GPU pipeline changes: the shaders, the
+# files that build the pipelines, and the one that composes the main shader.
+# A wgpu update is worth a run by hand from the Actions tab.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src-tauri/src/shaders/**'
+      - 'src-tauri/src/gpu_processing.rs'
+      - 'src-tauri/src/mods/sharpen_gpu.rs'
+      - 'src-tauri/src/mods/export_precision.rs'
+      - '.github/workflows/dx12.yml'
+  pull_request:
+    paths:
+      - 'src-tauri/src/shaders/**'
+      - 'src-tauri/src/gpu_processing.rs'
+      - 'src-tauri/src/mods/sharpen_gpu.rs'
+      - 'src-tauri/src/mods/export_precision.rs'
+      - '.github/workflows/dx12.yml'
+  workflow_dispatch:
+
+jobs:
+  warp:
+    name: Shaders on DirectX 12 (WARP)
+    runs-on: windows-latest
+    env:
+      WGPU_DX12_COMPILER: fxc
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          rust-src-dir: src-tauri
+
+      # Sharpening, a mask's own Sharpen and the whole render (main shader,
+      # blur, flare, guided filter) on every backend the machine has. Here that
+      # is WARP; the others say they are not on this machine.
+      - name: Every backend we offer
+        working-directory: src-tauri
+        run: cargo test --lib mods::sharpen_gpu::tests::every_backend_we_offer -- --ignored --exact --nocapture
