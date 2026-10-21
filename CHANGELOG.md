@@ -4,7 +4,7 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
-## 26.41.13 — 2026-10-17
+## 26.43.1 — 2026-10-21
 
 ### Added
 

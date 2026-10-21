@@ -32,9 +32,34 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
-    version: '26.41.13',
-    date: '2026-10-17',
+    version: '26.43.1',
+    date: '2026-10-21',
     notes: [
+      'A new window: the photos, the folders and the editor in one window, Settings behind the '
+      + 'gear, and a text size of your choice. The old layout is gone.',
+      'Edit follows the order a photo is corrected in: profile and white balance first, then '
+      + 'tone, presence, colour and detail.',
+      'Looks: presets, LUTs and film looks in one tab. Save your own, and put a look on every '
+      + 'photo selected in the grid.',
+      'Snapshots keep versions of an edit beside it, to compare or go back to.',
+      'B&W: a Color | B&W switch in Basic (or press V). The B&W Mix starts where Lightroom\x27s '
+      + 'Auto would put it for the photo, with an Auto button to go back there, and six B&W '
+      + 'looks come with the app.',
+      'Color Grading tints as strongly as Lightroom\x27s, so Sepia is brown again. Photos you '
+      + 'have already graded keep their look.',
+      'AI masks: Subject, Sky and Background in one click, and Object by clicking on what to '
+      + 'mask.',
+      'Lens correction the camera stores in the file: on by default for Fujifilm and DNG photos, '
+      + 'a switch for Sony. Phone DNGs get their corner shading corrected.',
+      'Nikon High Efficiency RAWs open.',
+      'From RapidRAW 1.6.6: Relight and Fog in Effects, Auto straighten, a movable centre for '
+      + 'the vignette, print resolution on export, and exports that keep the rating, label and '
+      + 'keywords.',
+      'Editing is 20 to 45 times faster with the Vulkan and DirectX 12 graphics modes, so Auto '
+      + 'is fast again.',
+      'Copy and Paste and presets carry the camera profile, the RAW rendering and sharpening, '
+      + 'and Auto white balance is measured on each photo it is pasted onto.',
+      'A photo you open and leave unedited no longer gets a sidecar file.',
       'RAW photos now open looking like Lightroom\x27s default: brighter, with fuller contrast, '
       + 'and with the sharpening Lightroom applies by default. Under RAW > Rendering it is called '
       + 'DNG Standard; Default brings back the earlier look.',
