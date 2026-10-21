@@ -15,6 +15,10 @@
  * Update with the current settings, Duplicate, Move to a folder, Export and
  * Delete; a folder of them Rename, Export and Delete.
  *
+ * Ctrl-click and Shift-click pick several of the user's LUTs, or several of
+ * their presets, as in the photo grid; a right-click on them moves or deletes
+ * them all, and Esc lets them go. Folders are listed A to Z.
+ *
  * Every part is today's: a LUT goes on through their handleLutSelect and
  * previews through their setLutPreviewOverride, swatches come from their
  * generate_lut_previews and generate_preset_preview, the user's presets from
@@ -94,8 +98,31 @@ const PREVIEW_AFTER_MS = 120;
 const SWATCH_PX = 72;
 const UNCATEGORIZED = 'uncategorized';
 
-/** Portrait2 before Portrait10. */
-const byName = (a: Look, b: Look) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
+/** Portrait2 before Portrait10; looks and folders alike. */
+const byName = (a: { name?: string }, b: { name?: string }) =>
+  (a.name ?? '').localeCompare(b.name ?? '', undefined, { numeric: true, sensitivity: 'base' });
+
+/** Only the user's own LUTs and presets can move or go. */
+const movable = (look: Look) => !!look.own || (!!look.lut && !look.lut.isBuiltIn);
+
+/** Their list without the given presets, and those presets in list order. */
+function takePresets(items: UserPreset[], ids: Set<string>): { kept: UserPreset[]; taken: Preset[] } {
+  const taken: Preset[] = [];
+  const kept = items.flatMap((item): UserPreset[] => {
+    if (item.preset) {
+      if (!ids.has(item.preset.id)) return [item];
+      taken.push(item.preset);
+      return [];
+    }
+    if (item.folder) {
+      const children = item.folder.children as Preset[];
+      taken.push(...children.filter((p) => ids.has(p.id)));
+      return [{ folder: { ...item.folder, children: children.filter((p) => !ids.has(p.id)) } }];
+    }
+    return [item];
+  });
+  return { kept, taken };
+}
 
 const lutLook = (entry: LutEntry): Look => ({
   id: entry.path,
@@ -156,6 +183,9 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState<Set<string>>(() => new Set(['presets', 'mine', 'luts', 'lib:film']));
   const hover = useRef<number | undefined>(undefined);
+  /** Looks picked with Ctrl or Shift, all of one kind; Shift runs from the anchor. */
+  const [picked, setPicked] = useState<string[]>([]);
+  const anchor = useRef<string | null>(null);
 
   useEffect(() => {
     load();
@@ -178,14 +208,16 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       id: 'presets',
       name: t('looksGroupPresets'),
       looks: [],
-      folders: builtin.map((group) => ({
-        id: `builtin:${group.name}`,
-        name: group.name,
-        looks: group.presets.map((p) => ({ id: p.id, name: p.name, kind: 'preset' as const, preset: p.adjustments })),
-      })),
+      folders: builtin
+        .map((group) => ({
+          id: `builtin:${group.name}`,
+          name: group.name,
+          looks: group.presets.map((p) => ({ id: p.id, name: p.name, kind: 'preset' as const, preset: p.adjustments })),
+        }))
+        .sort(byName),
     };
-    const own: Group = { id: 'mine', name: t('looksGroupMine'), looks: mine.root, folders: mine.folders };
-    // The film looks are LUTs that come with the app: the first folder of LUTs.
+    const own: Group = { id: 'mine', name: t('looksGroupMine'), looks: mine.root, folders: mine.folders.sort(byName) };
+    // The film looks are LUTs that come with the app: a folder of LUTs like the user's.
     const lutGroup: Group = {
       id: 'luts',
       name: t('looksGroupLuts'),
@@ -211,7 +243,9 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
             .map(lutLook)
             .sort(byName),
         })),
-      ].filter((group) => group.looks.length > 0),
+      ]
+        .filter((group) => group.looks.length > 0)
+        .sort(byName),
     };
     return { presets, own, lutGroup };
   }, [builtin, luts, libraries, userItems, t]);
@@ -220,6 +254,23 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     const flat = (g: Group): Look[] => [...g.looks, ...(g.folders ?? []).flatMap(flat)];
     return [sections.presets, sections.own, sections.lutGroup].flatMap(flat);
   }, [sections]);
+
+  // A picked look that was moved away or deleted drops out on its own.
+  const pickedLooks = useMemo(() => everyLook.filter((l) => picked.includes(l.id)), [everyLook, picked]);
+
+  // Esc lets them go before it does anything else (as onPhoto.tsx's handles).
+  const anyPicked = pickedLooks.length > 0;
+  useEffect(() => {
+    if (!anyPicked) return;
+    const ui = useUIStore.getState();
+    const before = ui.customEscapeHandler;
+    const handler = () => setPicked([]);
+    ui.setCustomEscapeHandler(handler);
+    return () => {
+      const now = useUIStore.getState();
+      if (now.customEscapeHandler === handler) now.setCustomEscapeHandler(before);
+    };
+  }, [anyPicked]);
 
   // ------------------------------------------------------------- actions
 
@@ -392,10 +443,16 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     if (filePath) await exportPresetsToFile([item], filePath).catch(() => toast.error(t('looksExportFailed')));
   };
 
-  const folders = userItems.flatMap((item) => (item.folder ? [item.folder] : []));
+  const folders = userItems.flatMap((item) => (item.folder ? [item.folder] : [])).sort(byName);
 
   const lookMenu = (event: MouseEvent, look: Look) => {
     event.preventDefault();
+    if (pickedLooks.length > 1 && picked.includes(look.id)) {
+      pickedMenu(event, pickedLooks);
+      return;
+    }
+    // A right-click elsewhere is about that look alone.
+    setPicked([]);
     const starred = favourites.includes(look.id);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- their menu's option type is not exported
     const options: any[] = [
@@ -461,6 +518,95 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     showContextMenu(event.clientX, event.clientY, options);
   };
 
+  /** The picked looks, all LUTs or all presets: Move them to a folder, or Delete them. */
+  const pickedMenu = (event: MouseEvent, looks: Look[]) => {
+    const luts = looks[0].kind === 'lut';
+    const what = t(luts ? 'looksSomeLuts' : 'looksSomePresets').replace('{count}', String(looks.length));
+    const targets = luts
+      ? lutFolders
+          .filter((library) => !looks.every((l) => (l.lut?.libraryId ?? UNCATEGORIZED) === library.id))
+          .map((library) => ({ label: library.name, onClick: () => moveLuts(looks, library.id) }))
+      : [
+          { label: t('looksTopLevel'), onClick: () => movePresets(looks, null) },
+          ...folders.map((folder) => ({ label: folder.name, onClick: () => movePresets(looks, folder.id ?? null) })),
+        ];
+    showContextMenu(event.clientX, event.clientY, [
+      { label: t('looksMoveSome').replace('{what}', what), submenu: targets },
+      { type: OPTION_SEPARATOR },
+      {
+        label: t('looksDeleteSome').replace('{what}', what),
+        isDestructive: true,
+        onClick: () =>
+          useUIStore.getState().setUI({
+            confirmModalState: {
+              isOpen: true,
+              title: t('looksDeleteSomeAsk').replace('{what}', what),
+              message: t('looksDeleteSomeNote'),
+              confirmText: t('looksDelete'),
+              confirmVariant: 'destructive',
+              onConfirm: () => deleteLooks(looks),
+            },
+          }),
+      },
+    ]);
+  };
+
+  /** One at a time: each move rewrites their library manifest. */
+  const moveLuts = async (looks: Look[], libraryId: string) => {
+    setPicked([]);
+    try {
+      for (const look of looks) {
+        if (look.lut && (look.lut.libraryId ?? UNCATEGORIZED) !== libraryId)
+          await invoke('set_lut_library', { path: look.lut.path, libraryId });
+      }
+    } catch (err) {
+      toast.error(String(err));
+    }
+    await refreshLuts();
+  };
+
+  /** Into a folder of the user's, or the top level for null; those already there stay where they are. */
+  const movePresets = (looks: Look[], folderId: string | null) => {
+    setPicked([]);
+    const already = new Set(
+      folderId === null
+        ? userItems.flatMap((item) => (item.preset ? [item.preset.id] : []))
+        : ((userItems.find((item) => item.folder?.id === folderId)?.folder?.children ?? []) as Preset[]).map(
+            (p) => p.id,
+          ),
+    );
+    const { kept, taken } = takePresets(userItems, new Set(looks.map((l) => l.id).filter((id) => !already.has(id))));
+    const moved =
+      folderId === null
+        ? [...kept, ...taken.map((preset) => ({ preset }))]
+        : kept.map((item) =>
+            item.folder?.id === folderId
+              ? { folder: { ...item.folder, children: [...item.folder.children, ...taken] } }
+              : item,
+          );
+    savePresetList(moved);
+  };
+
+  const deleteLooks = async (looks: Look[]) => {
+    setPicked([]);
+    if (looks[0]?.kind === 'preset') {
+      savePresetList(takePresets(userItems, new Set(looks.map((l) => l.id))).kept);
+      return;
+    }
+    try {
+      for (const look of looks) if (look.lut) await invoke('remove_lut', { path: look.lut.path });
+    } catch (err) {
+      toast.error(String(err));
+    }
+    await refreshLuts();
+  };
+
+  /** The user's presets as a whole, as copyToMine saves them: their hook's own calls change one at a time. */
+  const savePresetList = (items: UserPreset[]) =>
+    invoke(Invokes.SavePresets, { presets: items })
+      .then(refreshPresets)
+      .catch((err) => toast.error(String(err)));
+
   /** A copy of what comes with the app, as the user's own: it can be renamed and changed. */
   const copyToMine = (item: UserPreset) =>
     invoke(Invokes.SavePresets, { presets: [...userItems, item] })
@@ -482,11 +628,11 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
   };
 
-  /** The LUT folders a LUT can be in: Imported first, then the user's. */
+  /** The LUT folders a LUT can be in: Imported and the user's, A to Z. */
   const lutFolders = [
     { id: UNCATEGORIZED, name: t('looksImported') },
     ...libraries.filter((library) => library.id !== UNCATEGORIZED),
-  ];
+  ].sort(byName);
 
   const lutFolderMenu = (event: MouseEvent, groupId: string) => {
     event.preventDefault();
@@ -610,12 +756,13 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         ? [sections.lutGroup]
         : [sections.presets, sections.own, sections.lutGroup];
 
-  // Swatches only for what is on screen: a group asks for its own when it opens.
+  // What is on screen, in its order: swatches only for these (a group asks for
+  // its own when it opens), and Shift picks a run of them.
   const visible = flatList
     ? shownFlat
     : shownSections.flatMap((section) =>
         open.has(section.id)
-          ? [...section.looks, ...(section.folders ?? []).flatMap((f) => (open.has(f.id) ? f.looks : []))]
+          ? [...(section.folders ?? []).flatMap((f) => (open.has(f.id) ? f.looks : [])), ...section.looks]
           : [],
       );
   const onPhotoLooks = everyLook.filter((l) => l.id === adjustments.lutPath || l.id === onPhoto?.id);
@@ -629,11 +776,38 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       return next;
     });
 
+  /**
+   * A plain click puts the look on, as before. Ctrl adds or drops one of the
+   * user's looks; Shift picks the run from the last one clicked, as Explorer
+   * does. A look of the other kind starts the picking again.
+   */
+  const click = (event: MouseEvent, look: Look) => {
+    const adding = event.ctrlKey || event.metaKey;
+    if (!adding && !event.shiftKey) {
+      setPicked([]);
+      anchor.current = look.id;
+      choose(look);
+      return;
+    }
+    if (!movable(look)) return;
+    const kept = adding ? pickedLooks.filter((l) => l.kind === look.kind).map((l) => l.id) : [];
+    if (event.shiftKey) {
+      const from = visible.findIndex((l) => l.id === anchor.current);
+      const to = visible.findIndex((l) => l.id === look.id);
+      const run = from === -1 ? [look] : visible.slice(Math.min(from, to), Math.max(from, to) + 1);
+      setPicked([...new Set([...kept, ...run.filter((l) => movable(l) && l.kind === look.kind).map((l) => l.id)])]);
+      if (from === -1) anchor.current = look.id;
+      return;
+    }
+    setPicked(kept.includes(look.id) ? kept.filter((id) => id !== look.id) : [...kept, look.id]);
+    anchor.current = look.id;
+  };
+
   const row = (look: Look, showKind = false) => (
     <div
       key={look.id}
-      className={clsx('agm-look', isOn(look) && 'agm-on')}
-      onClick={() => choose(look)}
+      className={clsx('agm-look', isOn(look) && 'agm-on', picked.includes(look.id) && 'agm-picked')}
+      onClick={(e) => click(e, look)}
       onMouseEnter={() => startPreview(look)}
       onMouseLeave={stopPreview}
       onContextMenu={(e) => lookMenu(e, look)}
@@ -712,7 +886,11 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
             </button>
           ))}
         </div>
-        <div className="agm-hint">{t(photo ? 'looksHintPhoto' : 'looksHintGrid')}</div>
+        <div className="agm-hint">
+          {anyPicked
+            ? t('looksPicked').replace('{count}', String(pickedLooks.length))
+            : t(photo ? 'looksHintPhoto' : 'looksHintGrid')}
+        </div>
       </div>
 
       {photo && (lutOn || adjustments.lutPath || onPhoto) && (

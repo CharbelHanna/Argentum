@@ -4,6 +4,21 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Added
+
+- **Looks: move or delete several at once.** In the Looks tab, Ctrl-click adds one of your own
+  LUTs or presets to a selection and Shift-click takes the run from the last one clicked, as in
+  the photo grid; a plain click still puts a look on the photo. A right-click on the selection
+  offers "Move 4 LUTs to" a folder and "Delete 4 LUTs" (after a confirmation); Esc clears it.
+  LUTs and presets are never selected together, since they live in different folders. Looks that
+  come with the app cannot be selected.
+
+### Changed
+
+- **Looks folders are listed A to Z**, in every section and in the Move to menus.
+
 ## 26.43.2 — 2026-10-21
 
 ### Added

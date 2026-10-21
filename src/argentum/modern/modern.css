@@ -1405,6 +1405,7 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   cursor: pointer;
   color: var(--agm-text);
   font-size: calc(12px * var(--agm-text-scale, 1));
+  user-select: none;
 }
 
 .agm-look:hover {
@@ -1414,6 +1415,13 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 .agm-look.agm-on {
   background: var(--agm-selrow);
   box-shadow: inset 2px 0 0 var(--agm-marker);
+}
+
+/* Picked with Ctrl or Shift, for a move or delete: the accent, as a selection. */
+.agm-look.agm-picked,
+.agm-look.agm-picked:hover {
+  background: var(--agm-accent);
+  color: var(--agm-button-text);
 }
 
 .agm-swatch {
