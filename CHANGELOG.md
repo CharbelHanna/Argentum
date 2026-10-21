@@ -4,7 +4,7 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
-## Unreleased
+## 26.43.3 — 2026-10-21
 
 ### Added
 
@@ -18,6 +18,16 @@ Newest first.
 ### Changed
 
 - **Looks folders are listed A to Z**, in every section and in the Move to menus.
+
+### Fixed
+
+- **One History step per slider drag, recorded on release.** History recorded a step 500 ms after
+  the last change even with the mouse still down, so a drag that paused now and then left a step
+  at every pause (eight "LUT Intensity" steps for one drag). While a slider, curve point, colour
+  wheel or the crop's pan is held, the step now waits, and letting go records it at once; Undo
+  takes the whole drag off. A click, a typed value or a reset keeps the 500 ms.
+  `src/argentum/historyOnRelease.ts` replaces the store's `pushHistory` at import; no RapidRAW
+  file changes.
 
 ## 26.43.2 — 2026-10-21
 
