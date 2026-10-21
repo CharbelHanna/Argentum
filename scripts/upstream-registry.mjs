@@ -1490,9 +1490,10 @@ export const REGISTRY = [
   {
     id: 'model-manager',
     kind: 'feature',
-    what: 'Settings > AI and models: every model the app downloads, what is on disk, and deleting it.',
+    what: 'Settings > AI and models: every model the app downloads, what is on disk, downloading, deleting it, and clearing what no model uses.',
     ours: [
       'src-tauri/src/mods/model_catalog.rs',
+      'src-tauri/src/mods/model_download.rs',
       'src-tauri/src/mods/model_manager.rs',
       'src/argentum/AiModels.tsx',
     ],
@@ -1505,16 +1506,21 @@ export const REGISTRY = [
           + 'Classic it was placed under that card on General by AiModelsPlacement.tsx, deleted with Classic.' },
       { file: 'src-tauri/src/ai_processing.rs', symbol: 'get_models_dir', how: 'calls',
         note:
-          'Their model file names and addresses are private constants here, copied into '
+          'Their model file names, addresses and SHA-256s are private constants here, copied into '
           + 'model_catalog.rs rather than made pub. Its tests read this file and fail when a copy '
-          + 'drifts or a new *_FILENAME appears (their SAM3 models are the next one). Deleting relies '
+          + 'drifts or a new *_FILENAME appears (their SAM3 models are the next one). The Download '
+          + 'button relies on download_and_verify_model accepting a file with that name and checksum '
+          + 'without fetching it again, and Clear on SKYSEG_LEGACY_FILENAME being the only old name '
+          + 'promote_legacy_model_filename renames (RENAMED in model_catalog.rs). Deleting relies '
           + 'on download_and_verify_model fetching a missing file again on next use, and on '
           + 'get_models_dir staying app_data_dir()/models. If upstream starts remembering downloads '
           + 'anywhere else, a deleted model would stop coming back and this must follow.' },
     ],
     tests: [
-      'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, and every model their code saves is listed',
-      'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start',
+      'src-tauri/src/mods/model_catalog.rs #[cfg(test)]: the copies (names, addresses, checksums) match ai_processing.rs, super_resolution.rs and gpu_runtime.rs, every model their code saves is listed, the selection entry is the rm_selection manifest, and every file that writes to the models folder is known',
+      'src-tauri/src/mods/model_download.rs #[cfg(test)]: against a local server, a matching file lands under its name, a wrong one is not kept, only missing or wrong files are fetched, the fallback is tried, Stop leaves nothing, nothing is written through a junction',
+      'src-tauri/src/mods/model_manager.rs #[cfg(test)]: sizes, deleting one entry and nothing else, path checks, removal at the next start, Clear deletes leftovers and never a catalogue file, hard-linked and junctioned copies kept elsewhere survive',
+      'Manual: Settings > AI and models, Download on a model that is not downloaded shows progress, then Downloaded; use its feature and nothing downloads.',
       'Manual: Settings > AI and models, under Generative AI, lists the models with sizes; delete one, use its feature, and it downloads again.',
       'Manual (Windows): enlarge a photo, then delete Graphics card support; it says it goes at the next start, and is gone after a restart.',
     ],
