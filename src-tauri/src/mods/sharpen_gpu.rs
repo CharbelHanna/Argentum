@@ -2099,22 +2099,28 @@ mod tests {
             let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
             started.elapsed().as_secs_f32() * 1000.0
         };
-        let mut breaches = Vec::new();
-        for (name, backends) in [
+        let all_backends = [
             // What Settings > Processing Backend = Auto asks for on Windows
             // (gpu_processing.rs); the adapter line says which one it got.
             ("Auto", wgpu::Backends::PRIMARY),
             ("DirectX 12", wgpu::Backends::DX12),
             ("OpenGL", wgpu::Backends::GL),
             ("Vulkan", wgpu::Backends::VULKAN),
-        ] {
+        ];
+        let sizes = [[3328u32, 2219u32], [6960, 4640]];
+        // Three rounds, each on a device of its own, and each row judged by
+        // its fastest: noise only adds time, a slowdown slows all three.
+        let mut rounds = Vec::new();
+        // A key of its own each time, so the auto contrast cache never hands
+        // "measure first" an earlier answer.
+        let mut photo = 0u64;
+        for (name, backends) in std::iter::repeat_n(all_backends, 3).flatten() {
             let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
             desc.backends = backends;
             let Some(ctx) = device_on(wgpu::Instance::new(desc), false) else {
-                breaches.push(format!("{name}: no adapter, so nothing checked"));
                 continue;
             };
-            for (w, h) in [(3328u32, 2219u32), (6960, 4640)] {
+            for [w, h] in sizes {
                 // Texture everywhere, so the iteration check stops nothing early.
                 let base =
                     image::DynamicImage::ImageRgb32F(image::ImageBuffer::from_fn(w, h, |x, y| {
@@ -2190,11 +2196,12 @@ mod tests {
                 let alone = gpu_ms(&ctx, started);
 
                 let params = adjustments().global.ag_sharpen;
+                photo += 1;
                 let started = Instant::now();
-                let t = super::super::sharpen::thresholds(&params, &base, 1, true);
+                let t = super::super::sharpen::thresholds(&params, &base, photo, true);
                 let measure_cold = started.elapsed().as_secs_f32() * 1000.0;
                 let started = Instant::now();
-                let _ = super::super::sharpen::thresholds(&params, &base, 1, true);
+                let _ = super::super::sharpen::thresholds(&params, &base, photo, true);
                 let measure_warm = started.elapsed().as_secs_f32() * 1000.0;
 
                 let job = Job {
@@ -2292,12 +2299,29 @@ mod tests {
                     eyes,
                     frame,
                 ];
-                eprintln!(
-                    "measured: {}",
-                    speed_budgets::table_line(name, [w, h], &measured)
-                );
-                breaches.extend(speed_budgets::breaches(name, [w, h], &measured));
+                rounds.push((name, [w, h], measured));
                 reset();
+            }
+        }
+        let mut breaches = Vec::new();
+        for (name, _) in all_backends {
+            for size in sizes {
+                let ms: Vec<_> = rounds
+                    .iter()
+                    .filter(|(n, s, _)| *n == name && *s == size)
+                    .map(|(.., ms)| *ms)
+                    .collect();
+                if ms.is_empty() {
+                    breaches.push(format!("{name}: no adapter, so nothing checked"));
+                    break;
+                }
+                let fastest = speed_budgets::fastest_ms(&ms);
+                eprintln!(
+                    "fastest of {}: {}",
+                    ms.len(),
+                    speed_budgets::table_line(name, size, &fastest)
+                );
+                breaches.extend(speed_budgets::breaches(name, size, &fastest));
             }
         }
         speed_budgets::assert_none(&breaches);
