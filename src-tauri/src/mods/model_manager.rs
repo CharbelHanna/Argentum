@@ -1,16 +1,25 @@
-//! What is in the AI models folder, and deleting it. Ours.
+//! What is in the AI models folder, deleting it, and clearing what nothing
+//! uses. Ours.
 //!
 //! The list of what can be there is `model_catalog`. This reads the folder
-//! against it for Settings > General > AI Models, and removes one entry's files on
-//! request. It never downloads: each feature fetches its own model again the
-//! next time it is used.
+//! against it for Settings > General > AI Models, removes one entry's files on
+//! request, and clears the leftovers: anything in the folder no entry claims.
+//! Downloading is `model_download`'s.
 //!
 //! WHAT IT WILL DELETE
 //!
-//! Only the names a catalogue entry lists, joined onto the models folder, and
-//! only after checking each is a bare name, is not a link, and resolves to
-//! something directly inside that folder. The settings page sends an id, never a
-//! path, so nothing it says can name a file outside the list.
+//! An entry's files: only the names a catalogue entry lists, joined onto the
+//! models folder (or the entry's own folder in it), and only after checking
+//! each is a bare name, is not a link, and resolves to something directly
+//! inside that folder. The settings page sends an id, never a path, so nothing
+//! it says can name a file outside the list.
+//!
+//! Leftovers: only what `leftovers` lists — what no entry claims, such as a
+//! half-finished download, a temporary file a feature left, a model a removed
+//! feature fetched, or an old copy their code would rename and already has the
+//! new name of. The page shows that list first and sends back the names it
+//! showed; a name that is not a leftover when it arrives is skipped. Links are
+//! never listed and never followed: one points at files kept somewhere else.
 //!
 //! WHEN IT CANNOT
 //!
@@ -35,13 +44,15 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::Manager;
 
-use super::model_catalog::{self, CATALOGUE, GPU_RUNTIME, Model, Stored};
+use super::model_catalog::{self, CATALOGUE, GPU_RUNTIME, Model, RENAMED, Stored};
+use super::model_download::{self, Progress};
 
 /// Ids waiting to be removed at the next start, one per line.
 const PENDING: &str = "argentum-remove-at-start.txt";
 
 /// The folder every AI feature downloads into. RapidRAW's `get_models_dir`,
-/// `super_resolution::models_dir` and `gpu_runtime` all name this same one.
+/// `super_resolution::models_dir`, `gpu_runtime` and `selection_models::dir`
+/// all name this same one.
 ///
 /// Not created here: looking at the settings page should not make a folder.
 pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
@@ -55,7 +66,8 @@ pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 #[serde(rename_all = "camelCase")]
 pub enum OnDisk {
     Downloaded,
-    /// Some of an entry's files and not others: an interrupted download.
+    /// Some of an entry's files and not others, or a file of the wrong size:
+    /// an interrupted download.
     Partial,
     Missing,
 }
@@ -69,9 +81,19 @@ pub struct ModelStatus {
     pub on_disk: OnDisk,
     /// Size on disk now.
     pub bytes: u64,
-    pub download_bytes: Option<u64>,
+    /// What a download fetches now: the files not yet there at their size.
+    pub download_bytes: u64,
     /// Deleting it was refused while Argentum runs; it goes at the next start.
     pub removing_at_next_start: bool,
+}
+
+/// Something in the models folder no catalogue entry claims.
+#[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Leftover {
+    /// Where it is inside the models folder, `/` between folder and name.
+    pub name: String,
+    pub bytes: u64,
 }
 
 #[derive(Serialize, Debug)]
@@ -80,9 +102,12 @@ pub struct Listing {
     pub models: Vec<ModelStatus>,
     /// Everything in the folder, listed or not.
     pub total_bytes: u64,
-    /// The part of that no entry claims: a half-finished download, a file an
-    /// update renamed, a model a newer version of Argentum added.
+    /// The part of that `other` adds up to.
     pub other_bytes: u64,
+    /// What no entry claims: what Clear deletes.
+    pub other: Vec<Leftover>,
+    /// The download running now, for a page opened after it began.
+    pub downloading: Option<Progress>,
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
@@ -92,6 +117,14 @@ pub enum Outcome {
     /// Could not go now; it is removed the next time Argentum starts.
     AtNextStart,
     NotThere,
+}
+
+#[derive(Serialize, Debug, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct Cleared {
+    pub freed_bytes: u64,
+    /// What could not be deleted, each with why.
+    pub left: Vec<String>,
 }
 
 /// A single path component, with nothing that could climb out of the folder.
@@ -120,13 +153,13 @@ fn size_of(path: &Path) -> u64 {
     }
 }
 
+fn entries(dir: &Path) -> impl Iterator<Item = fs::DirEntry> {
+    fs::read_dir(dir).into_iter().flatten().flatten()
+}
+
 /// Real folders in `dir` whose names start with `prefix`.
 fn folders_starting_with(dir: &Path, prefix: &str) -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut found: Vec<PathBuf> = entries
-        .flatten()
+    let mut found: Vec<PathBuf> = entries(dir)
         .filter(|e| e.file_type().is_ok_and(|t| t.is_dir() && !t.is_symlink()))
         .filter(|e| {
             e.file_name()
@@ -139,23 +172,40 @@ fn folders_starting_with(dir: &Path, prefix: &str) -> Vec<PathBuf> {
     found
 }
 
-/// What of this entry is on disk now.
-fn present(dir: &Path, model: &Model) -> Vec<PathBuf> {
-    match model.stored {
-        Stored::Files(files) => files
-            .iter()
-            .map(|(name, _)| dir.join(name))
-            .filter(|path| fs::symlink_metadata(path).is_ok())
-            .collect(),
-        Stored::FoldersStartingWith { prefix, .. } => folders_starting_with(dir, prefix),
+/// The folder an entry's files sit in, before any check.
+fn files_dir(dir: &Path, model: &Model) -> PathBuf {
+    match model.stored.folder() {
+        Some(folder) => dir.join(folder),
+        None => dir.to_path_buf(),
     }
 }
 
-/// Does some entry claim this name in the folder?
-fn claimed(name: &str, is_dir: bool) -> bool {
+/// What of this entry is on disk now, at any size.
+fn present(dir: &Path, model: &Model) -> Vec<PathBuf> {
+    match model.stored {
+        Stored::FoldersStartingWith { prefix, .. } => folders_starting_with(dir, prefix),
+        stored => {
+            let inside = files_dir(dir, model);
+            stored
+                .files()
+                .iter()
+                .map(|f| inside.join(f.name))
+                .filter(|path| fs::symlink_metadata(path).is_ok())
+                .collect()
+        }
+    }
+}
+
+/// Does some entry claim this name directly in `dir`? An entry's own folder
+/// is claimed here; what is inside it is sorted out by `find_leftovers`.
+fn claimed(dir: &Path, name: &str, is_dir: bool) -> bool {
     name == PENDING
+        || RENAMED
+            .iter()
+            .any(|(old, current)| *old == name && fs::symlink_metadata(dir.join(current)).is_err())
         || CATALOGUE.iter().any(|m| match m.stored {
-            Stored::Files(files) => files.iter().any(|(file, _)| *file == name),
+            Stored::Files(files) => files.iter().any(|f| f.name == name),
+            Stored::Folder { name: folder, .. } => is_dir && folder == name,
             Stored::FoldersStartingWith { prefix, .. } => is_dir && name.starts_with(prefix),
         })
 }
@@ -190,14 +240,31 @@ pub fn list(dir: &Path) -> Listing {
     let mut models = Vec::new();
     for model in CATALOGUE {
         let found = present(dir, model);
-        let expected = match model.stored {
-            Stored::Files(files) => files.len(),
-            Stored::FoldersStartingWith { .. } => found.len().max(1),
-        };
-        let on_disk = match found.len() {
-            0 => OnDisk::Missing,
-            n if n < expected => OnDisk::Partial,
-            _ => OnDisk::Downloaded,
+        let (on_disk, download_bytes) = match model.stored {
+            Stored::FoldersStartingWith { bytes, .. } if found.is_empty() => {
+                (OnDisk::Missing, bytes)
+            }
+            Stored::FoldersStartingWith { .. } => (OnDisk::Downloaded, 0),
+            stored => {
+                let inside = files_dir(dir, model);
+                let to_fetch: u64 = stored
+                    .files()
+                    .iter()
+                    .filter(|f| {
+                        !fs::metadata(inside.join(f.name))
+                            .is_ok_and(|m| m.is_file() && m.len() == f.bytes)
+                    })
+                    .map(|f| f.bytes)
+                    .sum();
+                let on_disk = if found.is_empty() {
+                    OnDisk::Missing
+                } else if to_fetch > 0 {
+                    OnDisk::Partial
+                } else {
+                    OnDisk::Downloaded
+                };
+                (on_disk, to_fetch)
+            }
         };
         if on_disk == OnDisk::Missing && !model.listed_when_missing {
             continue;
@@ -208,30 +275,92 @@ pub fn list(dir: &Path) -> Listing {
             purpose: model.purpose,
             on_disk,
             bytes: found.iter().map(|p| size_of(p)).sum(),
-            download_bytes: model.download_bytes,
+            download_bytes,
             removing_at_next_start: on_disk != OnDisk::Missing && waiting.contains(model.id),
         });
     }
 
-    let mut total_bytes = 0;
-    let mut other_bytes = 0;
-    for entry in fs::read_dir(dir).into_iter().flatten().flatten() {
-        let size = size_of(&entry.path());
-        total_bytes += size;
-        let is_dir = entry
-            .file_type()
-            .is_ok_and(|t| t.is_dir() && !t.is_symlink());
-        let name = entry.file_name();
-        if !name.to_str().is_some_and(|n| claimed(n, is_dir)) {
-            other_bytes += size;
-        }
-    }
-
+    let total_bytes = entries(dir).map(|e| size_of(&e.path())).sum();
+    let other = leftovers(dir);
     Listing {
         models,
         total_bytes,
-        other_bytes,
+        other_bytes: other.iter().map(|l| l.bytes).sum(),
+        other,
+        downloading: None,
     }
+}
+
+/// `list`, with the download running now.
+pub fn list_for_app(app: &tauri::AppHandle) -> Result<Listing, String> {
+    let mut listing = list(&models_dir(app)?);
+    listing.downloading = model_download::current();
+    Ok(listing)
+}
+
+/// A leftover: where it is, the entry folder it is in (if any), and how the
+/// page names it.
+struct Found {
+    path: PathBuf,
+    folder: Option<&'static str>,
+    leftover: Leftover,
+}
+
+/// Everything in `dir` no entry claims, and everything in an entry's own
+/// folder that is not one of its files. Links are left out, and an entry's
+/// folder that is a link is not looked into.
+fn find_leftovers(dir: &Path) -> Vec<Found> {
+    let mut found = Vec::new();
+    for entry in entries(dir) {
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if kind.is_symlink() {
+            continue;
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let own_folder = CATALOGUE
+            .iter()
+            .find(|m| kind.is_dir() && m.stored.folder() == Some(name.as_str()));
+        if let Some(model) = own_folder {
+            let files = model.stored.files();
+            for inner in entries(&entry.path()) {
+                if inner.file_type().is_ok_and(|t| t.is_symlink()) {
+                    continue;
+                }
+                let inner_name = inner.file_name().to_string_lossy().into_owned();
+                if !files.iter().any(|f| f.name == inner_name) {
+                    found.push(Found {
+                        path: inner.path(),
+                        folder: model.stored.folder(),
+                        leftover: Leftover {
+                            name: format!("{name}/{inner_name}"),
+                            bytes: size_of(&inner.path()),
+                        },
+                    });
+                }
+            }
+        } else if !claimed(dir, &name, kind.is_dir()) {
+            found.push(Found {
+                path: entry.path(),
+                folder: None,
+                leftover: Leftover {
+                    name,
+                    bytes: size_of(&entry.path()),
+                },
+            });
+        }
+    }
+    found.sort_by(|a, b| a.leftover.name.cmp(&b.leftover.name));
+    found
+}
+
+/// What Clear would delete, by name and size.
+pub fn leftovers(dir: &Path) -> Vec<Leftover> {
+    find_leftovers(dir)
+        .into_iter()
+        .map(|f| f.leftover)
+        .collect()
 }
 
 /// Windows' ways of saying a file is open somewhere.
@@ -247,6 +376,30 @@ fn in_use(e: &io::Error) -> bool {
     } else {
         e.kind() == io::ErrorKind::ResourceBusy
     }
+}
+
+/// The folder an entry's files sit directly in, resolved: the models folder,
+/// or the entry's own folder in it, which must be a real folder right there
+/// and not a link to somewhere else.
+fn entry_root(dir: &Path, folder: Option<&str>) -> Result<PathBuf, String> {
+    let root = fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let Some(folder) = folder else {
+        return Ok(root);
+    };
+    let path = dir.join(folder);
+    let meta = fs::symlink_metadata(&path).map_err(|e| format!("{folder}: {e}"))?;
+    if meta.file_type().is_symlink() {
+        return Err(format!(
+            "{folder} is a link to another folder, so what is in it was left alone"
+        ));
+    }
+    let real = fs::canonicalize(&path).map_err(|e| format!("{folder}: {e}"))?;
+    if real.parent() != Some(root.as_path()) {
+        return Err(format!(
+            "Refusing to delete from {folder}: it is not inside the models folder"
+        ));
+    }
+    Ok(real)
 }
 
 /// `target` is a bare name directly inside `root`, and not a link.
@@ -271,6 +424,16 @@ fn check_inside(root: &Path, target: &Path) -> Result<(), String> {
     Ok(())
 }
 
+/// Delete a file, or a folder and what is in it (links inside are removed,
+/// never followed).
+fn remove(target: &Path) -> io::Result<()> {
+    if fs::symlink_metadata(target).is_ok_and(|m| m.is_dir()) {
+        fs::remove_dir_all(target)
+    } else {
+        fs::remove_file(target)
+    }
+}
+
 enum Removal {
     Done,
     Refused,
@@ -283,16 +446,11 @@ fn remove_now(dir: &Path, model: &Model) -> Result<Removal, String> {
     if targets.is_empty() {
         return Ok(Removal::Done);
     }
-    let root = fs::canonicalize(dir).map_err(|e| e.to_string())?;
+    let root = entry_root(dir, model.stored.folder())?;
     let mut refused = false;
     for target in targets {
         check_inside(&root, &target)?;
-        let result = if fs::symlink_metadata(&target).is_ok_and(|m| m.is_dir()) {
-            fs::remove_dir_all(&target)
-        } else {
-            fs::remove_file(&target)
-        };
-        match result {
+        match remove(&target) {
             Ok(()) => {}
             Err(e) if e.kind() == io::ErrorKind::NotFound => {}
             Err(e) if in_use(&e) => refused = true,
@@ -337,11 +495,50 @@ pub fn delete(dir: &Path, id: &str, held: bool) -> Result<Outcome, String> {
     })
 }
 
-/// `delete`, for the settings page: asks `gpu_runtime` whether the runtime is
-/// held this run.
+/// `delete`, for the settings page: not while it is downloading, and asks
+/// `gpu_runtime` whether the runtime is held this run.
 pub fn delete_for_app(app: &tauri::AppHandle, id: &str) -> Result<Outcome, String> {
+    if model_download::current().is_some_and(|p| p.id == id) {
+        return Err("It is downloading. Stop the download first.".to_string());
+    }
     let held = id == GPU_RUNTIME && super::gpu_runtime::held_until_exit();
     delete(&models_dir(app)?, id, held)
+}
+
+/// Delete the leftovers named, as `leftovers` lists them. A name that is not
+/// a leftover now — a catalogue file, or something already gone — is skipped.
+pub fn clear(dir: &Path, names: &[String]) -> Result<Cleared, String> {
+    let mut cleared = Cleared {
+        freed_bytes: 0,
+        left: Vec::new(),
+    };
+    for found in find_leftovers(dir) {
+        let name = &found.leftover.name;
+        if !names.contains(name) {
+            continue;
+        }
+        let removed = entry_root(dir, found.folder)
+            .and_then(|root| check_inside(&root, &found.path))
+            .and_then(|()| match remove(&found.path) {
+                Ok(()) => Ok(()),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(e) if in_use(&e) => Err("in use".to_string()),
+                Err(e) => Err(e.to_string()),
+            });
+        match removed {
+            Ok(()) => cleared.freed_bytes += found.leftover.bytes,
+            Err(e) => cleared.left.push(format!("{name}: {e}")),
+        }
+    }
+    Ok(cleared)
+}
+
+/// `clear`, for the settings page: never while a download is writing its
+/// part file.
+pub fn clear_for_app(app: &tauri::AppHandle, names: &[String]) -> Result<Cleared, String> {
+    let _no_download = model_download::exclusive()
+        .ok_or("A download is running. Clear the other files once it has finished.")?;
+    clear(&models_dir(app)?, names)
 }
 
 /// Finish deletions that had to wait for a restart, and remove what a removed
@@ -396,6 +593,7 @@ fn remove_retired(dir: &Path) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mods::selection_models;
 
     fn write(dir: &Path, name: &str, bytes: usize) {
         let path = dir.join(name);
@@ -403,8 +601,40 @@ mod tests {
         fs::write(path, vec![0u8; bytes]).unwrap();
     }
 
+    /// A file of exactly this size, without writing its bytes.
+    fn sized(dir: &Path, name: &str, bytes: u64) {
+        let path = dir.join(name);
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::File::create(path).unwrap().set_len(bytes).unwrap();
+    }
+
     fn status<'a>(listing: &'a Listing, id: &str) -> Option<&'a ModelStatus> {
         listing.models.iter().find(|m| m.id == id)
+    }
+
+    fn names(listing: &[Leftover]) -> Vec<&str> {
+        listing.iter().map(|l| l.name.as_str()).collect()
+    }
+
+    /// Every name the catalogue claims, as a path inside the models folder.
+    fn every_catalogue_file() -> Vec<String> {
+        let mut all = Vec::new();
+        for model in CATALOGUE {
+            match model.stored {
+                Stored::FoldersStartingWith { prefix, .. } => {
+                    all.push(format!("{prefix}1.22.0/onnxruntime.dll"))
+                }
+                stored => {
+                    for file in stored.files() {
+                        all.push(match stored.folder() {
+                            Some(folder) => format!("{folder}/{}", file.name),
+                            None => file.name.to_string(),
+                        });
+                    }
+                }
+            }
+        }
+        all
     }
 
     #[test]
@@ -432,9 +662,13 @@ mod tests {
             let listing = list(&dir);
             assert_eq!(listing.total_bytes, 0);
             assert!(listing.models.iter().all(|m| m.on_disk == OnDisk::Missing));
-            assert!(status(&listing, "sky").is_some());
+            let sky = status(&listing, "sky").unwrap();
+            assert_eq!(sky.download_bytes, 175_997_079);
+            let selection = status(&listing, model_catalog::SELECTION).unwrap();
+            assert_eq!(selection.download_bytes, 184_115_050 + 86_559_030);
             // Only listed where it exists: it never does off Windows.
             assert!(status(&listing, GPU_RUNTIME).is_none());
+            assert!(listing.other.is_empty());
         }
     }
 
@@ -442,6 +676,7 @@ mod tests {
     fn sizes_and_states_come_from_the_folder() {
         let tmp = tempfile::tempdir().unwrap();
         let dir = tmp.path();
+        sized(dir, "omnilens_swinir_aodlib_256.onnx", 53_592_179);
         write(dir, "u2net.onnx", 1000);
         write(dir, "sam_vit_b_01ec64_encoder.onnx", 300);
         write(dir, "onnxruntime-directml-1.22.0/onnxruntime.dll", 50);
@@ -450,18 +685,64 @@ mod tests {
         write(dir, "skyseg-u2net.onnx", 5);
 
         let listing = list(dir);
+        let restore = status(&listing, "restore").unwrap();
+        assert_eq!(
+            (restore.on_disk, restore.bytes, restore.download_bytes),
+            (OnDisk::Downloaded, 53_592_179, 0)
+        );
+        // There, but not at its size: an interrupted or damaged download.
         let foreground = status(&listing, "foreground").unwrap();
         assert_eq!(
-            (foreground.on_disk, foreground.bytes),
-            (OnDisk::Downloaded, 1000)
+            (
+                foreground.on_disk,
+                foreground.bytes,
+                foreground.download_bytes
+            ),
+            (OnDisk::Partial, 1000, 175_997_641)
         );
         let subject = status(&listing, "subject").unwrap();
-        assert_eq!((subject.on_disk, subject.bytes), (OnDisk::Partial, 300));
+        assert_eq!(
+            (subject.on_disk, subject.bytes, subject.download_bytes),
+            (OnDisk::Partial, 300, 100_293_382 + 8_751_331)
+        );
         let runtime = status(&listing, GPU_RUNTIME).unwrap();
         assert_eq!((runtime.on_disk, runtime.bytes), (OnDisk::Downloaded, 70));
         assert_eq!(status(&listing, "sky").unwrap().on_disk, OnDisk::Missing);
-        assert_eq!(listing.other_bytes, 12);
-        assert_eq!(listing.total_bytes, 1000 + 300 + 70 + 12);
+        // Their sky model under its old name is kept until their code renames it.
+        assert_eq!(names(&listing.other), [".u2net.onnx.download"]);
+        assert_eq!(listing.other_bytes, 7);
+        assert_eq!(listing.total_bytes, 53_592_179 + 1000 + 300 + 70 + 7 + 5);
+    }
+
+    /// The selection models sit in their own folder; what else is in it is a
+    /// leftover, and none of it is "other" the way the whole folder was before
+    /// it had an entry.
+    #[test]
+    fn the_selection_models_are_listed_in_their_folder() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let folder = selection_models::FOLDER;
+        let files = selection_models::files();
+        let (small, rest): (Vec<&model_catalog::File>, Vec<_>) =
+            files.iter().partition(|f| f.bytes < 1 << 20);
+        for file in &small {
+            sized(dir, &format!("{folder}/{}", file.name), file.bytes);
+        }
+        write(dir, &format!("{folder}/vision_encoder.onnx_data.part"), 9);
+
+        let listing = list(dir);
+        let selection = status(&listing, model_catalog::SELECTION).unwrap();
+        assert_eq!(selection.on_disk, OnDisk::Partial);
+        assert_eq!(selection.bytes, small.iter().map(|f| f.bytes).sum::<u64>());
+        assert_eq!(
+            selection.download_bytes,
+            rest.iter().map(|f| f.bytes).sum::<u64>()
+        );
+        assert_eq!(
+            names(&listing.other),
+            [format!("{folder}/vision_encoder.onnx_data.part").as_str()]
+        );
+        assert_eq!(listing.other_bytes, 9);
     }
 
     #[test]
@@ -498,6 +779,143 @@ mod tests {
         assert!(!dir.join("onnxruntime-directml-1.21.0").exists());
         assert!(dir.join("onnxruntime-directml-notes.txt").exists());
         assert!(dir.join("onnxruntime-other/onnxruntime.dll").exists());
+    }
+
+    /// Clear deletes what nothing uses, and never a file a listed model
+    /// uses, even when it is asked to by name.
+    #[test]
+    fn clearing_deletes_leftovers_and_nothing_a_model_uses() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let kept = every_catalogue_file();
+        for name in &kept {
+            write(dir, name, 3);
+        }
+        write(dir, PENDING, 3);
+        let leftovers_written = [
+            (".u2net.onnx.download", 11),            // RapidRAW's temporary file
+            ("realesrgan_x2plus.onnx.download", 12), // Super Resolution's
+            ("u2net.onnx.part", 13),                 // ours, interrupted
+            ("rawmakase-selection/vision_encoder.onnx.part", 14),
+            ("skyseg-u2net.onnx", 15), // the old name, now the new one is here
+            ("vitmatte_small_composition_1k.onnx", 16), // retired
+            ("something-else/inside.bin", 17),
+        ];
+        for (name, bytes) in leftovers_written {
+            write(dir, name, bytes);
+        }
+
+        let found = leftovers(dir);
+        let mut expected: Vec<&str> = leftovers_written
+            .iter()
+            .map(|(name, _)| name.split_once("/inside").map_or(*name, |(d, _)| d))
+            .collect();
+        expected.sort();
+        assert_eq!(names(&found), expected);
+
+        // Asked for every leftover and every catalogue file by name.
+        let mut asked: Vec<String> = found.iter().map(|l| l.name.clone()).collect();
+        asked.extend(kept.iter().cloned());
+        asked.push(PENDING.to_string());
+        let cleared = clear(dir, &asked).unwrap();
+        assert_eq!(cleared.freed_bytes, (11..=17).sum::<u64>());
+        assert!(cleared.left.is_empty(), "{:?}", cleared.left);
+
+        for name in &kept {
+            assert!(dir.join(name).exists(), "{name} was deleted");
+        }
+        assert!(dir.join(PENDING).exists());
+        assert!(leftovers(dir).is_empty());
+        let listing = list(dir);
+        assert_eq!(listing.other_bytes, 0);
+    }
+
+    /// Only what the page showed is cleared: something that turned up since
+    /// stays until it is shown.
+    #[test]
+    fn clearing_deletes_only_the_names_asked_for() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        write(dir, "a.part", 1);
+        write(dir, "b.part", 1);
+        let cleared = clear(dir, &["a.part".to_string()]).unwrap();
+        assert_eq!(cleared.freed_bytes, 1);
+        assert!(!dir.join("a.part").exists());
+        assert!(dir.join("b.part").exists());
+    }
+
+    /// Their sky model under its old name is that model until their code
+    /// renames it: not a leftover, and not cleared.
+    #[test]
+    fn an_old_name_is_kept_until_the_new_one_is_there() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        write(dir, "skyseg-u2net.onnx", 5);
+        assert!(leftovers(dir).is_empty());
+        clear(dir, &["skyseg-u2net.onnx".to_string()]).unwrap();
+        assert!(dir.join("skyseg-u2net.onnx").exists());
+    }
+
+    /// Copies kept outside the app and hard-linked into its folder: deleting
+    /// the entry removes the app's names for them, and the kept copies stay
+    /// whole. Clearing never lists them.
+    #[test]
+    fn hard_linked_copies_kept_elsewhere_survive() {
+        let tmp = tempfile::tempdir().unwrap();
+        let kept = tmp.path().join("kept");
+        let dir = tmp.path().join("models");
+        let folder = dir.join(selection_models::FOLDER);
+        fs::create_dir_all(&kept).unwrap();
+        fs::create_dir_all(&folder).unwrap();
+        for file in selection_models::files() {
+            fs::write(kept.join(file.name), file.name).unwrap();
+            fs::hard_link(kept.join(file.name), folder.join(file.name)).unwrap();
+        }
+
+        assert!(leftovers(&dir).is_empty());
+        assert_eq!(
+            delete(&dir, model_catalog::SELECTION, false),
+            Ok(Outcome::Deleted)
+        );
+        for file in selection_models::files() {
+            assert!(!folder.join(file.name).exists());
+            assert_eq!(fs::read_to_string(kept.join(file.name)).unwrap(), file.name);
+        }
+    }
+
+    /// The selection folder as a junction to copies kept elsewhere: nothing in
+    /// it is deleted or listed for clearing.
+    #[cfg(windows)]
+    #[test]
+    fn a_junctioned_folder_is_left_alone() {
+        let tmp = tempfile::tempdir().unwrap();
+        let kept = tmp.path().join("kept");
+        let dir = tmp.path().join("models");
+        fs::create_dir_all(&kept).unwrap();
+        fs::create_dir_all(&dir).unwrap();
+        let made = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(dir.join(selection_models::FOLDER))
+            .arg(&kept)
+            .output()
+            .is_ok_and(|o| o.status.success());
+        if !made {
+            eprintln!("could not make a junction here; skipped");
+            return;
+        }
+        for file in selection_models::files() {
+            fs::write(kept.join(file.name), file.name).unwrap();
+        }
+        write(&kept, "stray.part", 1);
+
+        assert!(leftovers(&dir).is_empty());
+        assert!(delete(&dir, model_catalog::SELECTION, false).is_err());
+        let asked = vec![format!("{}/stray.part", selection_models::FOLDER)];
+        assert_eq!(clear(&dir, &asked).unwrap().freed_bytes, 0);
+        for file in selection_models::files() {
+            assert!(kept.join(file.name).exists(), "{}", file.name);
+        }
+        assert!(kept.join("stray.part").exists());
     }
 
     /// The runtime after this run has pointed ONNX Runtime at it: left in

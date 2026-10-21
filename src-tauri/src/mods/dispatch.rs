@@ -236,6 +236,12 @@ struct IdArgs {
     id: String,
 }
 
+/// Leftovers in the models folder, as `list_ai_models` named them.
+#[derive(Deserialize)]
+struct NamesArgs {
+    names: Vec<String>,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
@@ -376,11 +382,8 @@ async fn json(
             use tauri::Emitter;
             let dir = crate::mods::selection_models::dir(&app_handle)?;
             let app = app_handle.clone();
-            crate::mods::selection_models::download(&dir, move |done, total| {
-                let _ = app.emit(
-                    "ag-selection-download",
-                    serde_json::json!({ "done": done, "total": total }),
-                );
+            crate::mods::selection_models::download(&dir, move |progress| {
+                let _ = app.emit(crate::mods::model_download::EVENT, progress);
             })
             .await?;
             Ok(serde_json::Value::Null)
@@ -689,8 +692,28 @@ async fn json(
                 .map_err(|e| e.to_string())
         }
         "list_ai_models" => {
+            serde_json::to_value(crate::mods::model_manager::list_for_app(&app_handle)?)
+                .map_err(|e| e.to_string())
+        }
+        "download_ai_model" => {
+            use tauri::Emitter;
+            let a: IdArgs = args_for(&name, args)?;
             let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            serde_json::to_value(crate::mods::model_manager::list(&dir)).map_err(|e| e.to_string())
+            let app = app_handle.clone();
+            let fetched = crate::mods::model_download::download(&dir, &a.id, move |progress| {
+                let _ = app.emit(crate::mods::model_download::EVENT, progress);
+            })
+            .await?;
+            serde_json::to_value(fetched).map_err(|e| e.to_string())
+        }
+        "stop_ai_model_download" => {
+            crate::mods::model_download::stop();
+            Ok(serde_json::Value::Null)
+        }
+        "clear_ai_model_leftovers" => {
+            let a: NamesArgs = args_for(&name, args)?;
+            let r = crate::mods::model_manager::clear_for_app(&app_handle, &a.names)?;
+            serde_json::to_value(r).map_err(|e| e.to_string())
         }
         "delete_ai_model" => {
             let a: IdArgs = args_for(&name, args)?;

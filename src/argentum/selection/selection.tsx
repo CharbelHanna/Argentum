@@ -136,7 +136,9 @@ async function ensureModels(): Promise<boolean> {
   if (status.installed) return true;
   if (!(await askToDownload(status.missingBytes))) return false;
   const note = toast.info(agText('selDownloading').replace('{percent}', '0'), { autoClose: false });
-  const unlisten = await listen<{ done: number; total: number }>('ag-selection-download', (event) => {
+  // mods/model_download.rs reports every model download on this one event.
+  const unlisten = await listen<{ id: string; done: number; total: number }>('ag-model-download', (event) => {
+    if (event.payload.id !== 'selection') return;
     const percent = Math.floor((100 * event.payload.done) / Math.max(1, event.payload.total));
     toast.update(note, { render: agText('selDownloading').replace('{percent}', String(percent)) });
   });
