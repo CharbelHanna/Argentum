@@ -1,0 +1,46 @@
+name: App
+
+# The app crate's unit tests (src-tauri, `cargo test --lib`). lint.yml only
+# lints this crate and engine.yml tests the engine, so until this ran, nothing
+# in CI ran them - among them the GPU-free shader guards in
+# mods/shader_check.rs, which compile every shader with naga and fail the
+# patterns FXC, DirectX 12's compiler, cannot build.
+#
+# The tests that need a GPU or test photos are #[ignore]d and skipped here;
+# dx12.yml runs the shaders on a software GPU.
+#
+# A workflow of its own rather than a step in lint.yml's clippy job: lint.yml is
+# RapidRAW's file, and our lines in it only go down (scripts/upstream-ratchet.json).
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  unit:
+    name: App unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          rustflags: ''
+          rust-src-dir: src-tauri
+
+      # lint.yml's clippy job's list, without libgphoto2: tethering is a
+      # feature, off by default.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            pkg-config
+
+      - name: Test
+        working-directory: src-tauri
+        run: cargo test --lib

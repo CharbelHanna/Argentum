@@ -81,6 +81,9 @@ export const OURS = [
   '.github/workflows/upstream.yml',
   // Ours by creation: upstream has no engine crate, and so no workflow for it.
   '.github/workflows/engine.yml',
+  // Ours by creation: the app's unit tests, and its shaders on DirectX 12.
+  '.github/workflows/app.yml',
+  '.github/workflows/dx12.yml',
   // Ours by creation too: upstream has no cargo config. It holds the dev
   // linker (registry entry fast-dev-builds).
   '.cargo/config.toml',
