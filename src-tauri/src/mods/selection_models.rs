@@ -9,18 +9,25 @@
 //! Fetching follows RAWmakase's installer (src/app/subject_mask/models.rs @
 //! 7c3c81a): nothing downloads unless asked, and the size is given first. Every
 //! file comes from a pinned commit: RAWmakase's mirror first, then the
-//! original repository. It is written beside its final name and moved into
-//! place only once its SHA-256 matches. Not yet taken from it: resuming a
-//! half-finished file, and the lock between two running copies of the app.
+//! original repository. The download itself is `model_download`'s, shared with
+//! Settings > General > AI Models, where these five are the "Selection masks"
+//! entry (`model_catalog::SELECTION`): each file is written beside its final
+//! name and moved into place only once its SHA-256 matches. Not yet taken from
+//! RAWmakase: resuming a half-finished file, and the lock between two running
+//! copies of the app.
 
-use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use rm_selection::manifest::{ModelFile, all_files, total_bytes};
 use serde::Serialize;
-use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
+
+use super::model_catalog::{File, SELECTION};
+use super::model_download::{Progress, fetch_missing, sha256_of};
+
+/// Their folder inside the models folder.
+pub const FOLDER: &str = "rawmakase-selection";
 
 /// Where the five files live.
 pub fn dir(app: &AppHandle) -> Result<PathBuf, String> {
@@ -29,7 +36,21 @@ pub fn dir(app: &AppHandle) -> Result<PathBuf, String> {
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join("models")
-        .join("rawmakase-selection"))
+        .join(FOLDER))
+}
+
+/// The five, as the catalogue and the downloader describe a file.
+pub fn files() -> Vec<File> {
+    all_files()
+        .into_iter()
+        .map(|f| File {
+            name: f.name,
+            url: f.url,
+            fallback: Some(f.fallback),
+            sha256: f.sha256,
+            bytes: f.size_bytes,
+        })
+        .collect()
 }
 
 /// Whether the models are there, and how much is left to fetch.
@@ -81,92 +102,11 @@ pub fn verify(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn sha256_of(path: &Path) -> Result<String, String> {
-    let mut reader = std::fs::File::open(path).map_err(|e| e.to_string())?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0u8; 1 << 20];
-    loop {
-        let n = reader.read(&mut buffer).map_err(|e| e.to_string())?;
-        if n == 0 {
-            break;
-        }
-        hasher.update(&buffer[..n]);
-    }
-    Ok(hex(&hasher.finalize()))
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
-}
-
-/// Fetch whatever is missing or wrong. `progress` hears the bytes done of the
-/// bytes to fetch.
-pub async fn download(dir: &Path, progress: impl Fn(u64, u64)) -> Result<(), String> {
-    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    let wanted: Vec<ModelFile> = all_files()
-        .into_iter()
-        .filter(|f| sha256_of(&dir.join(f.name)).ok().as_deref() != Some(f.sha256))
-        .collect();
-    let total: u64 = wanted.iter().map(|f| f.size_bytes).sum();
-    let mut done = 0u64;
-    for file in wanted {
-        let mut last_error = String::new();
-        let mut fetched = false;
-        for url in [file.url, file.fallback] {
-            match fetch(dir, &file, url, done, total, &progress).await {
-                Ok(()) => {
-                    fetched = true;
-                    break;
-                }
-                Err(e) => last_error = format!("{url}: {e}"),
-            }
-        }
-        if !fetched {
-            return Err(format!("Could not download {}: {last_error}", file.name));
-        }
-        done += file.size_bytes;
-        progress(done, total);
-    }
+/// Fetch whatever is missing or wrong, then check all five.
+pub async fn download(dir: &Path, progress: impl Fn(&Progress)) -> Result<(), String> {
+    fetch_missing(dir, SELECTION, &files(), progress).await?;
     *VERIFIED.lock().map_err(|e| e.to_string())? = None;
     verify(dir)
-}
-
-/// One file from one source, into a sibling `.part`, moved into place once its
-/// checksum matches.
-async fn fetch(
-    dir: &Path,
-    file: &ModelFile,
-    url: &str,
-    before: u64,
-    total: u64,
-    progress: &impl Fn(u64, u64),
-) -> Result<(), String> {
-    let part = dir.join(format!("{}.part", file.name));
-    let mut response = reqwest::get(url).await.map_err(|e| e.to_string())?;
-    if !response.status().is_success() {
-        return Err(format!("HTTP {}", response.status()));
-    }
-    let mut out = std::fs::File::create(&part).map_err(|e| e.to_string())?;
-    let mut hasher = Sha256::new();
-    let mut got = 0u64;
-    while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
-        got += chunk.len() as u64;
-        if got > file.size_bytes {
-            drop(out);
-            let _ = std::fs::remove_file(&part);
-            return Err("larger than expected".to_string());
-        }
-        hasher.update(&chunk);
-        out.write_all(&chunk).map_err(|e| e.to_string())?;
-        progress(before + got, total);
-    }
-    out.flush().map_err(|e| e.to_string())?;
-    drop(out);
-    if got != file.size_bytes || hex(&hasher.finalize()) != file.sha256 {
-        let _ = std::fs::remove_file(&part);
-        return Err("checksum does not match".to_string());
-    }
-    std::fs::rename(&part, dir.join(file.name)).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

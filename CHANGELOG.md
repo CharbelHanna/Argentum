@@ -4,6 +4,32 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
+## Unreleased
+
+### Added
+
+- **AI Models: Download and Clear.** Settings > AI and models gets a Download button, with its size,
+  on every model that is not (or only partly) on this computer, a progress bar and Stop while it
+  downloads, and a Clear button on the "other files" line that first lists what it would delete
+  and how much. A download fetches the same files from the same addresses as the feature that uses
+  them and keeps each only once its SHA-256 matches, so the feature finds it there and fetches
+  nothing. Clear deletes only what no listed model claims (unfinished downloads, temporary files, a
+  retired model, an old copy of a renamed one) and only what it showed; it never follows a link and
+  never runs during a download. Adapted from Shoebox `src-tauri/src/models.rs` @ `3c82753`
+  (`download`, `fetch`, the `.part` file kept only when its checksum matches) and its
+  `src/components/ModelsTab.tsx` (the row's button and progress line); one downloader,
+  `mods/model_download.rs`, now serves this page and the selection masks' first use. The tagging
+  model's tokenizer, which RapidRAW's code never checks, is pinned to the file Hugging Face serves
+  today (SHA-256 `b556ac8c`).
+
+### Fixed
+
+- **AI Models counted the selection models as "other files".** The Subject, Object, Sky and
+  Background masks' models (SAM 2.1 and DETR, 258 MB in `rawmakase-selection/`) now have their own
+  row, Selection masks. The rows for RapidRAW's Subject selection and Sky detection say what uses
+  them now: Quick Erase and Inpainting's Subject for the first, nothing for the second (it still
+  downloads along with Foreground and Depth).
+
 ## 26.43.1 — 2026-10-21
 
 ### Added

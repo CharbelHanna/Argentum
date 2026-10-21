@@ -48,6 +48,7 @@ pub mod makernote_lens;
 pub mod mask_falloff;
 pub mod memory;
 pub mod model_catalog;
+pub mod model_download;
 pub mod model_manager;
 pub mod modern_start;
 pub mod preview_encode;
