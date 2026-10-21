@@ -87,14 +87,6 @@ impl Stored {
             _ => None,
         }
     }
-
-    /// What a download of the whole entry transfers.
-    pub fn download_bytes(&self) -> u64 {
-        match *self {
-            Stored::FoldersStartingWith { bytes, .. } => bytes,
-            _ => self.files().iter().map(|f| f.bytes).sum(),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -581,7 +573,7 @@ mod tests {
             .collect();
         assert_eq!(names, theirs);
         assert_eq!(
-            stored.download_bytes(),
+            stored.files().iter().map(|f| f.bytes).sum::<u64>(),
             rm_selection::manifest::total_bytes()
         );
     }

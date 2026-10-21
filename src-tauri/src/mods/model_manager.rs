@@ -723,7 +723,8 @@ mod tests {
         let dir = tmp.path();
         let folder = selection_models::FOLDER;
         let files = selection_models::files();
-        let (small, rest): (Vec<_>, Vec<_>) = files.iter().partition(|f| f.bytes < 1 << 20);
+        let (small, rest): (Vec<&model_catalog::File>, Vec<_>) =
+            files.iter().partition(|f| f.bytes < 1 << 20);
         for file in &small {
             sized(dir, &format!("{folder}/{}", file.name), file.bytes);
         }
