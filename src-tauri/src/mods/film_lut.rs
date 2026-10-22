@@ -34,6 +34,15 @@
 //! curve (`dng_standard::offset_of`). The rendering's tone curve stays out: the
 //! film's own curve is the rendering. Their curve and lookup are untouched.
 //!
+//! Blown highlights reach the film as DNG Standard shows them, each channel
+//! capped at the sensor's white in ProPhoto (`ag_prophoto_to_white`).
+//! `highlights::settle_blown` turns a blown area neutral in the decode, but
+//! only where the file's white level is where the sensor really clipped; on
+//! some 5D Mark II frames Canon's SpecularWhiteLevel sits above the point red
+//! saturates, the area keeps the magenta white balance gives it, and the
+//! renderings hide that by capping at white. Uncapped, the film printed it
+//! pink.
+//!
 //! An enlargement (mods/super_resolution.rs) is an ordinary image at its RAW's
 //! exposure, with no rendering of its own, so its edit carries the offset as a
 //! number, `agLutExposureEv`.
@@ -188,8 +197,10 @@ mod tests {
         }
     }
 
-    /// Greys, and colours at full and partial strength, in linear sRGB.
-    const PATCHES: [[f32; 3]; 10] = [
+    /// Greys, and colours at full and partial strength, in linear sRGB; then
+    /// a blown area the decode settled to neutral, and one it could not, in
+    /// the magenta white balance leaves (measured on a 5D Mark II frame).
+    const PATCHES: [[f32; 3]; 12] = [
         [0.0, 0.0, 0.0],
         [0.18, 0.18, 0.18],
         [0.9, 0.9, 0.9],
@@ -200,7 +211,17 @@ mod tests {
         [0.7, 0.4, 0.25],
         [0.55, 0.1, 0.6],
         [1.0, 0.85, 0.1],
+        [2.26, 2.26, 2.26],
+        [3.34, 0.675, 2.09],
     ];
+
+    /// What a marked film look is fed: capped at white in ProPhoto as DNG
+    /// Standard caps it, at `ev`, in V-Gamut.
+    fn fed_now(c: [f32; 3], ev: f32) -> [f32; 3] {
+        use crate::mods::dng_standard::gpu::{FROM, TO, mul};
+        let at_white = mul(FROM, mul(TO, c).map(|v| v.clamp(0.0, 1.0)));
+        (srgb_to_v_gamut() * (glam::Vec3::from_array(at_white) * ev.exp2())).to_array()
+    }
 
     /// How far the render of PATCHES with `js` and a LUT that hands back what
     /// it is given lands from V-Log over `fed(patch)`, in 1/255.
@@ -239,15 +260,13 @@ mod tests {
         })
     }
 
-    /// The film look's input, through the whole render: V-Log over V-Gamut
-    /// for a marked edit, V-Log over the working RGB for one put on before.
+    /// The film look's input, through the whole render: V-Log over V-Gamut,
+    /// blown highlights capped at white, for a marked edit; V-Log over the
+    /// working RGB, as it comes, for one put on before.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
     fn the_shader_feeds_a_marked_film_look_v_gamut() {
-        let m = srgb_to_v_gamut();
-        let miss = worst_miss(film_look(true, "default", vec![]), |c| {
-            (m * glam::Vec3::from_array(c)).to_array()
-        });
+        let miss = worst_miss(film_look(true, "default", vec![]), |c| fed_now(c, 0.0));
         assert!(miss < 1.5, "marked: {miss:.2}/255 from the reference");
         let miss = worst_miss(film_look(false, "default", vec![]), |c| c);
         assert!(miss < 1.5, "unmarked: {miss:.2}/255 from the reference");
@@ -259,7 +278,6 @@ mod tests {
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
     fn a_marked_film_look_takes_a_raw_at_its_offset() {
-        let m = srgb_to_v_gamut();
         for ev in [-0.4f32, 0.5] {
             let renderings = [
                 (dng_standard::MODE, dng_standard::curve_points(ev)),
@@ -267,7 +285,7 @@ mod tests {
             ];
             for (rendering, curve) in renderings {
                 let miss = worst_miss(film_look(true, rendering, curve.clone()), |c| {
-                    (m * (glam::Vec3::from_array(c) * ev.exp2())).to_array()
+                    fed_now(c, ev)
                 });
                 assert!(miss < 1.5, "{rendering} {ev:+}: {miss:.2}/255");
                 let miss = worst_miss(film_look(false, rendering, curve), |c| c);

@@ -321,12 +321,18 @@ fn rt_rgb_tone(c: vec3<f32>, count: u32) -> vec3<f32> {
     return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
 }
 
+/// The picture in linear ProPhoto, each channel capped at the sensor's white:
+/// where DNG Standard's curve starts, and what makes a blown highlight white
+/// whatever colour the decode left in it. A film look starts here too.
+fn ag_prophoto_to_white(linear: vec3<f32>) -> vec3<f32> {
+    return clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 /// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
 /// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
 fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
-    let prophoto = clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
-    let toned = rt_rgb_tone(prophoto, count);
+    let toned = rt_rgb_tone(ag_prophoto_to_white(linear), count);
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
 }
 
@@ -351,11 +357,17 @@ const AG_SRGB_TO_V_GAMUT = mat3x3<f32>(
     vec3<f32>(0.0921622, 0.1017843, 0.8629887),
 );
 
+/// Blown highlights reach the film as DNG Standard shows them: capped at the
+/// sensor's white (`ag_prophoto_to_white`), so a clipped area the decode
+/// could not settle to neutral (highlights::settle_blown) prints white, not
+/// in the magenta white balance left in it. Then the camera's offset, then
+/// V-Gamut.
 fn ag_film_lut_input(linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.ag_film_lut_input == 0u) {
         return linear;
     }
-    return AG_SRGB_TO_V_GAMUT * (linear * exp2(adjustments.global.ag_film_lut_ev));
+    let at_white = AG_PROPHOTO_TO_SRGB * ag_prophoto_to_white(linear);
+    return AG_SRGB_TO_V_GAMUT * (at_white * exp2(adjustments.global.ag_film_lut_ev));
 }
 
 // ============================================================================

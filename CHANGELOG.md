@@ -57,6 +57,15 @@ Newest first.
   enlargement carries its RAW's offset as `agLutExposureEv`. Edits from before keep their look, as
   above.
 
+- **Film looks print blown highlights white, as the rendering shows them.** On some 5D Mark II
+  frames a sun or a white shirt came out pink under a film look and white without one. Canon's
+  SpecularWhiteLevel sits above the point where red saturates there (16383 and 16235 against
+  16034), so `highlights::settle_blown` never sees the area as blown and it keeps the magenta white
+  balance gives it; DNG Standard hides that by capping each channel at the sensor's white in
+  ProPhoto before its curve. A film look now starts from the same cap (`ag_prophoto_to_white` in
+  `modules.wgsl`, shared with DNG Standard). Film looks put on from now on; edits from before keep
+  their look.
+
 - **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
   a look put the photo back at once, and the next look showed only after its delay and render, so
   every move along the list blinked to the original. The look on screen now stays until the next

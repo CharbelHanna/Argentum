@@ -2496,7 +2496,9 @@ export const REGISTRY = [
       + 'the picture converted to V-Gamut before their V-Log encode, in ag_film_lut_input '
       + '(modules.wgsl), and a RAW in DNG Standard or Linear at the camera\'s exposure offset its '
       + 'curve carries (dng_standard::offset_of; an enlargement carries the number, '
-      + 'agLutExposureEv), when the edit carries agLutDeclaredInput: true. The Looks tab writes it '
+      + 'agLutExposureEv), each channel first capped at the sensor\'s white in ProPhoto as DNG '
+      + 'Standard caps it (ag_prophoto_to_white), so blown highlights print white, when the edit '
+      + 'carries agLutDeclaredInput: true. The Looks tab writes it '
       + 'whenever it puts a LUT on or previews one, and Copy settings carries it; an edit that put '
       + 'a film look on before has no mark and keeps their input, linear sRGB under the curve.',
     ours: [
