@@ -93,12 +93,12 @@ fn fingerprint(edit: &Value) -> String {
                 feed(hash, text.as_bytes());
             }
             Value::Array(items) => {
-                feed(hash, &[b'[']);
+                feed(hash, b"[");
                 feed(hash, &(items.len() as u64).to_le_bytes());
                 items.iter().for_each(|item| walk(hash, item));
             }
             Value::Object(map) => {
-                feed(hash, &[b'{']);
+                feed(hash, b"{");
                 feed(hash, &(map.len() as u64).to_le_bytes());
                 let mut keys: Vec<&String> = map.keys().collect();
                 keys.sort();
