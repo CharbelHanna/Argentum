@@ -2494,7 +2494,9 @@ export const REGISTRY = [
     what:
       'The film looks that come with the app (spektrafilm LUTs, made for V-Log over V-Gamut) get '
       + 'the picture converted to V-Gamut before their V-Log encode, in ag_film_lut_input '
-      + '(modules.wgsl), when the edit carries agLutDeclaredInput: true. The Looks tab writes it '
+      + '(modules.wgsl), and a RAW in DNG Standard or Linear at the camera\'s exposure offset its '
+      + 'curve carries (dng_standard::offset_of; an enlargement carries the number, '
+      + 'agLutExposureEv), when the edit carries agLutDeclaredInput: true. The Looks tab writes it '
       + 'whenever it puts a LUT on or previews one, and Copy settings carries it; an edit that put '
       + 'a film look on before has no mark and keeps their input, linear sRGB under the curve.',
     ours: [
@@ -2509,10 +2511,12 @@ export const REGISTRY = [
           + 'shader_check holds the one call. If they move the encode, the call moves with it. '
           + 'Render path.' },
       { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
-        note: 'ag_film_lut_input takes their _pad_raw_tone1 slot, so the layout is unchanged. '
+        note: 'ag_film_lut_input and ag_film_lut_ev take their _pad_raw_tone1 and _pad_raw_tone2 '
+          + 'slots, so the layout is unchanged. '
           + 'Render path.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'extends',
-        note: 'Fills ag_film_lut_input from the edit (film_lut::declared_input). Render path.' },
+        note: 'Fills ag_film_lut_input and ag_film_lut_ev from the edit (film_lut::declared_input, '
+          + 'exposure_ev, from the raw tone points it reads). Render path.' },
       { file: 'src-tauri/src/image_processing.rs', symbol: 'primaries_to_xyz_matrix', how: 'calls',
         note: 'The test that checks the shader\'s matrix builds it from the primaries; xy_to_xyz '
           + 'now takes a negative y (V-Gamut\'s blue) instead of treating it as missing. Render path.' },
@@ -2536,7 +2540,9 @@ export const REGISTRY = [
       'src-tauri/src/mods/film_lut.rs #[cfg(test)]: the shader\'s matrix is the one V-Gamut\'s and '
         + 'sRGB\'s primaries define; only a marked edit is fed it; through the whole render with an '
         + 'identity LUT, a marked edit is fed V-Log over V-Gamut and an unmarked one V-Log over sRGB '
-        + '(GPU, ignored).',
+        + '(GPU, ignored), and a RAW in DNG Standard or Linear at its offset (GPU, ignored); the '
+        + 'offset reads back from either curve (dng_standard.rs); an enlargement carries it '
+        + '(super_resolution.rs).',
       'src-tauri/src/mods/shader_check.rs #[cfg(test)]: the one call, and the struct layout.',
       'Manual: put K-Portra 400 on a photo, and open a photo that had a film look before: the new '
         + 'one is less saturated, the old one looks as it did.',

@@ -336,7 +336,8 @@ fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
 // A film look that comes with the app is a spektrafilm LUT, made for V-Log
 // over V-Gamut primaries (mods/film_lut.rs). Their scene-referred LUT path
 // encodes the scene-linear picture with the V-Log curve; this hands it the
-// picture in V-Gamut first. An edit that put a film look on before this
+// picture in V-Gamut first, and a RAW at the camera's exposure offset, as its
+// rendering would have shown it. An edit that put a film look on before this
 // carries no mark, and is handed the working RGB, as it was.
 // ============================================================================
 
@@ -354,7 +355,7 @@ fn ag_film_lut_input(linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.ag_film_lut_input == 0u) {
         return linear;
     }
-    return AG_SRGB_TO_V_GAMUT * linear;
+    return AG_SRGB_TO_V_GAMUT * (linear * exp2(adjustments.global.ag_film_lut_ev));
 }
 
 // ============================================================================

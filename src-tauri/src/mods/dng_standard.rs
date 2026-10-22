@@ -346,6 +346,32 @@ pub fn linear_points(ev: f32) -> Vec<ToneCurvePoint> {
     sixteen_points(|v| exposed(v, ev))
 }
 
+/// The exposure offset, in EV, that a DNG Standard curve (`linear` false) or a
+/// Linear one (`linear` true) was made with: the offset whose curve passes
+/// through the edit's point nearest middle grey. Read back from the edit
+/// rather than the table, so a later change to the table cannot move it.
+pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
+    let grey = encode(0.18) * 255.0;
+    let point = points
+        .iter()
+        .filter(|p| p.x > 0.0 && p.x < 255.0)
+        .min_by(|a, b| (a.x - grey).abs().total_cmp(&(b.x - grey).abs()))?;
+    let v = decode(point.x / 255.0);
+    let made_with = |ev: f32| encode(if linear { exposed(v, ev) } else { tone(v, ev) }) * 255.0;
+    // Both curves rise with the offset; halving the range 32 times is well
+    // under a thousandth of a stop.
+    let (mut low, mut high) = (-4.0f32, 4.0f32);
+    for _ in 0..32 {
+        let mid = 0.5 * (low + high);
+        if made_with(mid) < point.y {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    Some(0.5 * (low + high))
+}
+
 fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
     (0..16)
         .map(|i| {
@@ -753,6 +779,24 @@ mod tests {
                 .fold(0.0, f32::max);
             assert!(miss < 0.5, "{ev:+} EV: off by {miss:.2}/255");
         }
+    }
+
+    /// The table's whole range and beyond, with stops held back on top.
+    #[test]
+    fn the_offset_reads_back_from_either_curve() {
+        for ev in [-1.5, -0.75, -0.2, 0.0, 0.2, 0.8, 1.6, 2.5] {
+            let dng = offset_of(&curve_points(ev), false).expect("DNG Standard");
+            let linear = offset_of(&linear_points(ev), true).expect("Linear");
+            assert!(
+                (dng - ev).abs() < 0.005,
+                "{ev:+} EV: DNG Standard reads {dng:+.4}"
+            );
+            assert!(
+                (linear - ev).abs() < 0.005,
+                "{ev:+} EV: Linear reads {linear:+.4}"
+            );
+        }
+        assert_eq!(offset_of(&[], true), None);
     }
 
     #[test]

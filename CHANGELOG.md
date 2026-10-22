@@ -45,6 +45,18 @@ Newest first.
   the LUT (`src/argentum/looks/filmLookInput.ts`). RapidRAW's own code (main @ `211ef559`) still
   feeds sRGB.
 
+- **Film looks take a RAW at the camera's exposure offset.** DNG Standard and Linear brighten each
+  RAW by its camera's exposure offset (+0.2 EV at the table's median), but the offset rides in the
+  rendering's curve, which a film look replaces whole, so every RAW reached the film darker than it
+  shows without one, and switching the rendering did nothing to a film look. spektrafilm takes
+  linear 0.18 as middle grey for a V-Log input (its commit `3bb2c2d2`, "fix: vlog midgray
+  exposure"), which is where the offset puts a RAW's. A film look put on from now on takes a RAW in
+  DNG Standard or Linear at the offset its rendering carries, read back from the edit's own curve
+  (`dng_standard::offset_of`), so a later change to the camera table cannot move it; the
+  rendering's tone curve still stays out, since the film's own curve is the rendering. An
+  enlargement carries its RAW's offset as `agLutExposureEv`. Edits from before keep their look, as
+  above.
+
 - **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
   a look put the photo back at once, and the next look showed only after its delay and render, so
   every move along the list blinked to the original. The look on screen now stays until the next

@@ -1279,6 +1279,17 @@ fn carry_view_transform(
 ) {
     let view = raw_view_curve(adjustments, raw_override, photo);
     let agx = matches!(view, RawViewCurve::Nothing);
+    // The camera's exposure offset a film look takes the RAW at rides in its
+    // rendering, which the enlargement does not keep; it carries the number
+    // (film_lut.rs), for a film look on it now or put on later.
+    let mode = crate::mods::raw_tone::mode_of(adjustments);
+    let offset = crate::mods::film_lut::rendering_ev(
+        mode,
+        &crate::mods::raw_tone::points_of(adjustments, mode, photo),
+    );
+    if offset != 0.0 {
+        adjustments[crate::mods::film_lut::CARRIED_EV_KEY] = json!(offset);
+    }
     adjustments["toneMapper"] = json!(if agx { "agx" } else { "basic" });
     adjustments["rawToneRendering"] = json!("default");
     if non_raw_override.is_some_and(|mode| (mode == 1) != agx) {
@@ -2193,6 +2204,28 @@ mod tests {
         carry_view_transform(&mut adjustments, None, None, None);
         let worst = worst_levels(&adjustments["curves"]["luma"], raw_basic_curve);
         assert!(worst < 1.0, "off by {worst} levels");
+        let carried = &adjustments[crate::mods::film_lut::CARRIED_EV_KEY];
+        assert!(
+            carried.is_null(),
+            "RapidRAW's rendering has no offset to carry"
+        );
+    }
+
+    /// A film look on the enlargement takes it at the offset the RAW's
+    /// rendering gave it, which the enlargement carries as a number.
+    #[test]
+    fn the_raws_exposure_offset_travels_for_a_film_look() {
+        let points = crate::mods::dng_standard::linear_points(0.45);
+        let mut adjustments = json!({
+            "rawToneRendering": crate::mods::dng_standard::LINEAR_MODE,
+            "rawToneCurve": points,
+            "rawToneCurveMode": crate::mods::dng_standard::LINEAR_MODE,
+        });
+        carry_view_transform(&mut adjustments, None, None, None);
+        let carried = adjustments[crate::mods::film_lut::CARRIED_EV_KEY]
+            .as_f64()
+            .expect("carried");
+        assert!((carried - 0.45).abs() < 0.005, "{carried}");
     }
 
     /// The saving the overlap was halved for: an R6 Mark III frame.

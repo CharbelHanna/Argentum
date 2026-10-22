@@ -18,10 +18,25 @@
 //! stronger one: 1.4 to 1.6 times the chroma (OkLab) for skin, sky and
 //! foliage, skin turned 11 degrees toward red and blues 15 toward cyan.
 //!
+//! It also feeds them a RAW at the exposure the sensor left it, without the
+//! camera's exposure offset that DNG Standard and Linear add (dng_standard.rs).
+//! The film look replaces the rendering whole, so that offset, which rides in
+//! the rendering's curve, never reached it, and every RAW went to the film a
+//! fraction of a stop dark. spektrafilm takes linear 0.18 as middle grey for a
+//! V-Log input (no exposure gain since 0.3.4, its commit 3bb2c2d2 "fix: vlog
+//! midgray exposure"), and the offset is what puts a RAW's middle grey there.
+//!
 //! WHAT THIS FEEDS THEM
 //!
 //! What the file declares: the picture converted to V-Gamut before the curve
-//! (`ag_film_lut_input` in modules.wgsl). Their curve and lookup are untouched.
+//! (`ag_film_lut_input` in modules.wgsl), and, for a RAW in DNG Standard or
+//! Linear, at the offset its rendering carries, read back from the edit's own
+//! curve (`dng_standard::offset_of`). The rendering's tone curve stays out: the
+//! film's own curve is the rendering. Their curve and lookup are untouched.
+//!
+//! An enlargement (mods/super_resolution.rs) is an ordinary image at its RAW's
+//! exposure, with no rendering of its own, so its edit carries the offset as a
+//! number, `agLutExposureEv`.
 //!
 //! WHICH EDITS
 //!
@@ -35,8 +50,15 @@
 
 use serde_json::Value;
 
+use crate::mods::dng_standard;
+use crate::mods::raw_tone::{self, ToneCurvePoint};
+
 /// The key in an edit that marks its LUT as fed what the LUT's file declares.
 pub const KEY: &str = "agLutDeclaredInput";
+
+/// The key in an enlargement's edit that carries the offset its RAW's
+/// rendering gave a film look, in EV.
+pub const CARRIED_EV_KEY: &str = "agLutExposureEv";
 
 /// The `lutPath` of their LUT swatches (`generate_lut_previews` in
 /// lut_processing.rs), which are rendered from no edit but this.
@@ -47,6 +69,36 @@ const SWATCH_LUT_PATH: &str = "preview";
 /// shows the LUT as it goes on now.
 pub fn declared_input(js: &Value) -> u32 {
     u32::from(js[KEY].as_bool() == Some(true) || js["lutPath"].as_str() == Some(SWATCH_LUT_PATH))
+}
+
+/// The exposure a film look takes the picture at, in EV, as the shader reads
+/// it (`ag_film_lut_ev`): for an edit fed the declared input, the offset an
+/// enlargement carries or else its RAW's rendering's; 0 for anything else.
+/// `raw_tone_mode` and `raw_tone_points` as `get_all_adjustments_from_json`
+/// reads them.
+pub fn exposure_ev(js: &Value, raw_tone_mode: u32, raw_tone_points: &[Value]) -> f32 {
+    if declared_input(js) == 0 {
+        return 0.0;
+    }
+    js[CARRIED_EV_KEY].as_f64().map_or_else(
+        || rendering_ev(raw_tone_mode, raw_tone_points),
+        |ev| ev as f32,
+    )
+}
+
+/// The camera's exposure offset a RAW's rendering carries, in EV: DNG
+/// Standard's and Linear's, read back from their curve; 0 for the others,
+/// which have none, and for an ordinary image (`raw_tone_mode` 0).
+pub fn rendering_ev(raw_tone_mode: u32, raw_tone_points: &[Value]) -> f32 {
+    if !raw_tone::is_camera_raw_style(raw_tone_mode) {
+        return 0.0;
+    }
+    let points: Vec<ToneCurvePoint> = raw_tone_points
+        .iter()
+        .filter_map(|p| serde_json::from_value(p.clone()).ok())
+        .collect();
+    let linear = raw_tone_mode == raw_tone::mode_index(dng_standard::LINEAR_MODE);
+    dng_standard::offset_of(&points, linear).unwrap_or(0.0)
 }
 
 #[cfg(test)]
@@ -150,52 +202,98 @@ mod tests {
         [1.0, 0.85, 0.1],
     ];
 
-    /// The film look's input, through the whole render with a LUT that hands
-    /// back what it is given: V-Log over V-Gamut for a marked edit, V-Log over
-    /// the working RGB for one put on before.
+    /// How far the render of PATCHES with `js` and a LUT that hands back what
+    /// it is given lands from V-Log over `fed(patch)`, in 1/255.
+    fn worst_miss(js: Value, fed: impl Fn([f32; 3]) -> [f32; 3]) -> f32 {
+        let ctx = device().expect("no wgpu adapter");
+        let got = render_with_lut(
+            &ctx,
+            &image_of(&PATCHES),
+            js,
+            crate::white_balance::WhiteBalance::reference(),
+            Some(Arc::new(identity(65))),
+        );
+        let mut worst = 0.0f32;
+        for (i, c) in PATCHES.iter().enumerate() {
+            let want = fed(*c).map(vlog);
+            let g = centre(&got, i);
+            let miss = (0..3).map(|k| (g[k] - want[k]).abs()).fold(0.0, f32::max) * 255.0;
+            if miss > 1.0 {
+                eprintln!("patch {c:?}: shader {g:?}, expected {want:?}");
+            }
+            worst = worst.max(miss);
+        }
+        worst
+    }
+
+    fn film_look(marked: bool, rendering: &str, curve: Vec<ToneCurvePoint>) -> Value {
+        json!({
+            "rawToneRendering": rendering,
+            "rawToneCurve": curve,
+            "rawToneCurveMode": rendering,
+            "agSharpen": { "capture": false, "amount": 0 },
+            "lutPath": "identity",
+            "lutIntensity": 100,
+            "lutIsSceneReferred": true,
+            KEY: marked,
+        })
+    }
+
+    /// The film look's input, through the whole render: V-Log over V-Gamut
+    /// for a marked edit, V-Log over the working RGB for one put on before.
     #[test]
     #[ignore = "needs a GPU; run with --ignored"]
     fn the_shader_feeds_a_marked_film_look_v_gamut() {
-        let ctx = device().expect("no wgpu adapter");
-        let image = image_of(&PATCHES);
-        let lut = Arc::new(identity(65));
         let m = srgb_to_v_gamut();
-        for marked in [false, true] {
-            let js = json!({
-                "rawToneRendering": "default",
-                "agSharpen": { "capture": false, "amount": 0 },
-                "lutPath": "identity",
-                "lutIntensity": 100,
-                "lutIsSceneReferred": true,
-                KEY: marked,
-            });
-            let got = render_with_lut(
-                &ctx,
-                &image,
-                js,
-                crate::white_balance::WhiteBalance::reference(),
-                Some(lut.clone()),
-            );
-            let mut worst = 0.0f32;
-            for (i, c) in PATCHES.iter().enumerate() {
-                let fed = if marked {
-                    (m * glam::Vec3::from_array(*c)).to_array()
-                } else {
-                    *c
-                };
-                let want = fed.map(vlog);
-                let g = centre(&got, i);
-                let miss = (0..3).map(|k| (g[k] - want[k]).abs()).fold(0.0, f32::max) * 255.0;
-                if miss > 1.0 {
-                    eprintln!("marked {marked}, patch {c:?}: shader {g:?}, expected {want:?}");
-                }
-                worst = worst.max(miss);
+        let miss = worst_miss(film_look(true, "default", vec![]), |c| {
+            (m * glam::Vec3::from_array(c)).to_array()
+        });
+        assert!(miss < 1.5, "marked: {miss:.2}/255 from the reference");
+        let miss = worst_miss(film_look(false, "default", vec![]), |c| c);
+        assert!(miss < 1.5, "unmarked: {miss:.2}/255 from the reference");
+    }
+
+    /// A RAW in DNG Standard or Linear reaches a marked film look at the
+    /// offset its rendering carries, and without the rendering's tone curve;
+    /// one put on before, at the RAW's own exposure.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_marked_film_look_takes_a_raw_at_its_offset() {
+        let m = srgb_to_v_gamut();
+        for ev in [-0.4f32, 0.5] {
+            let renderings = [
+                (dng_standard::MODE, dng_standard::curve_points(ev)),
+                (dng_standard::LINEAR_MODE, dng_standard::linear_points(ev)),
+            ];
+            for (rendering, curve) in renderings {
+                let miss = worst_miss(film_look(true, rendering, curve.clone()), |c| {
+                    (m * (glam::Vec3::from_array(c) * ev.exp2())).to_array()
+                });
+                assert!(miss < 1.5, "{rendering} {ev:+}: {miss:.2}/255");
+                let miss = worst_miss(film_look(false, rendering, curve), |c| c);
+                assert!(miss < 1.5, "{rendering} {ev:+} unmarked: {miss:.2}/255");
             }
-            eprintln!("marked {marked}: worst {worst:.2}/255");
-            assert!(
-                worst < 1.5,
-                "marked {marked}: {worst:.2}/255 from the reference"
-            );
         }
+    }
+
+    #[test]
+    fn only_a_marked_film_look_takes_the_offset() {
+        let curve: Vec<Value> = dng_standard::linear_points(0.35)
+            .into_iter()
+            .map(|p| serde_json::to_value(p).unwrap())
+            .collect();
+        let linear = raw_tone::mode_index(dng_standard::LINEAR_MODE);
+        let marked = json!({ KEY: true });
+        assert!((exposure_ev(&marked, linear, &curve) - 0.35).abs() < 0.005);
+        assert_eq!(exposure_ev(&json!({}), linear, &curve), 0.0);
+        // RapidRAW's rendering, and an ordinary image, carry no offset.
+        assert_eq!(exposure_ev(&marked, 0, &curve), 0.0);
+        // An enlargement carries its RAW's.
+        let enlarged = json!({ KEY: true, CARRIED_EV_KEY: 0.6 });
+        assert!((exposure_ev(&enlarged, 0, &[]) - 0.6).abs() < 1e-6);
+        assert_eq!(
+            rendering_ev(linear, &curve),
+            exposure_ev(&marked, linear, &curve)
+        );
     }
 }

@@ -123,8 +123,8 @@ struct GlobalAdjustments {
 
     raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear
     raw_tone_curve_count: u32,
-    ag_film_lut_input: u32,      // Argentum: 1 when a film look is fed V-Gamut, see modules.wgsl
-    _pad_raw_tone2: u32,
+    ag_film_lut_input: u32,      // Argentum: 1 when a film look is fed what it declares, see modules.wgsl
+    ag_film_lut_ev: f32,         // Argentum: the exposure it takes the picture at
     raw_tone_curve: array<Point, 16>,
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
     ag_grade: AgGrade,           // Argentum: Lightroom's colour grading, see modules.wgsl

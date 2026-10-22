@@ -1770,9 +1770,10 @@ pub struct GlobalAdjustments {
     // has been converted to display RGB and before user curves.
     pub raw_tone_mode: u32,
     pub raw_tone_curve_count: u32,
-    // Argentum: 1 when a film look is fed what it declares (mods/film_lut.rs).
+    // Argentum: a film look's input (mods/film_lut.rs): 1 when it is fed what
+    // it declares, and the exposure it takes the picture at, in EV.
     pub ag_film_lut_input: u32,
-    _pad_raw_tone2: u32,
+    pub ag_film_lut_ev: f32,
     pub raw_tone_curve: [Point; 16],
 
     // Argentum: sharpening, read by the input stage before the shader runs.
@@ -2712,7 +2713,7 @@ fn get_global_adjustments_from_json(
             raw_tone_points.len().min(16) as u32
         },
         ag_film_lut_input: crate::mods::film_lut::declared_input(js_adjustments),
-        _pad_raw_tone2: 0,
+        ag_film_lut_ev: crate::mods::film_lut::exposure_ev(js_adjustments, raw_tone_mode, &raw_tone_points),
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 
         ag_sharpen: sharpen::from_json(js_adjustments, is_raw, photo),
