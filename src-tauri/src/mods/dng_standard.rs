@@ -1355,6 +1355,11 @@ pub(crate) mod gpu {
     /// by eye. For each LUT in AG_LUTS (separated by ';') a sheet in AG_OUT,
     /// `<lut>.html`: each RAW in AG_RAWS with no LUT, with the LUT on DNG
     /// Standard, and with the LUT on the offset alone (no tone curve).
+    ///
+    /// A LUT from the app's own `resources/film_luts` is applied as the app
+    /// applies one that comes with it (`lutIsSceneReferred`, from `is_built_in`
+    /// in lut_processing.rs): to the scene-linear picture, in place of the
+    /// rendering. Any other LUT goes after the rendering, as a user's does.
     #[test]
     #[ignore = "reads RAW files; run by hand"]
     fn film_lut_sheets() {
@@ -1414,6 +1419,10 @@ pub(crate) mod gpu {
                 (name, small, wb, ev)
             })
             .collect();
+        let built_in_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/film_luts")
+            .canonicalize()
+            .expect("the app's film LUTs");
         for lut_path in luts.split(';').filter(|p| !p.trim().is_empty()) {
             let lut = Arc::new(crate::lut_processing::parse_lut_file(lut_path).expect("reads LUT"));
             let lut_name = std::path::Path::new(lut_path)
@@ -1421,6 +1430,11 @@ pub(crate) mod gpu {
                 .unwrap()
                 .to_string_lossy()
                 .to_string();
+            let is_built_in = std::path::Path::new(lut_path)
+                .canonicalize()
+                .expect("the LUT's path")
+                .parent()
+                == Some(built_in_dir.as_path());
             let mut html = format!(
                 "<!doctype html><meta charset=utf-8><title>{lut_name}</title><style>\
                  body{{background:#1b1b1b;color:#ddd;font:14px system-ui;margin:16px}}\
@@ -1438,6 +1452,7 @@ pub(crate) mod gpu {
                     if lut_on {
                         js["lutPath"] = lut_path.into();
                         js["lutIntensity"] = 100.into();
+                        js["lutIsSceneReferred"] = is_built_in.into();
                     }
                     js
                 };
