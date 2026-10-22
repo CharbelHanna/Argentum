@@ -70,7 +70,15 @@ export const PROFILE_KEYS = ['cameraProfile', 'rawToneRendering', 'rawToneCurve'
 const FRINGE_KEYS = ['chromaticAberrationRedCyan', 'chromaticAberrationBlueYellow'];
 
 /** The LUT, a look now (argentum/looks): no section's reset, copy or eye touches it. */
-const LUT_KEYS = ['lutData', 'lutIntensity', 'lutName', 'lutPath', 'lutSize', 'lutIsSceneReferred'];
+const LUT_KEYS = [
+  'lutData',
+  'lutIntensity',
+  'lutName',
+  'lutPath',
+  'lutSize',
+  'lutIsSceneReferred',
+  'agLutDeclaredInput',
+];
 
 /**
  * Maps worked out from one photo's pixels (depth for Lens blur and Fog, surface

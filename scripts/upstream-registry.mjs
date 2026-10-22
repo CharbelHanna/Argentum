@@ -481,9 +481,10 @@ export const REGISTRY = [
       'src-tauri/src/mods/looks.rs',
     ],
     dependsOn: [
-      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleLutSelect', how: 'calls',
-        note: 'A LUT or film look goes on through it, and previews through setLutPreviewOverride; a '
-          + 'preset previews through the editor store\'s previewOverride, as the LUT preview does.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'setAdjustments', how: 'calls',
+        note: 'A LUT or film look goes on as their handleLutSelect puts one on, and previews as '
+          + 'setLutPreviewOverride does, with a mark of ours (entry film-look-input); a preset '
+          + 'previews through the editor store\'s previewOverride, as the LUT preview does.' },
       { file: 'src/hooks/usePresets.ts', symbol: 'usePresets', how: 'calls',
         note: 'The user\'s presets and folders, their import and every change to them: addPreset, '
           + 'configurePreset, overwritePreset, duplicatePreset, movePreset, addFolder, renameItem, '
@@ -2486,6 +2487,61 @@ export const REGISTRY = [
         + 'Open a photo graded before this: it looks as it did.',
     ],
     keywords: /grad(e|ing)|split.?ton|tint|sepia/i,
+  },
+  {
+    id: 'film-look-input',
+    kind: 'behaviour-change',
+    what:
+      'The film looks that come with the app (spektrafilm LUTs, made for V-Log over V-Gamut) get '
+      + 'the picture converted to V-Gamut before their V-Log encode, in ag_film_lut_input '
+      + '(modules.wgsl), when the edit carries agLutDeclaredInput: true. The Looks tab writes it '
+      + 'whenever it puts a LUT on or previews one, and Copy settings carries it; an edit that put '
+      + 'a film look on before has no mark and keeps their input, linear sRGB under the curve.',
+    ours: [
+      'src-tauri/src/mods/film_lut.rs',
+      'src-tauri/src/shaders/modules.wgsl',
+      'src/argentum/looks/filmLookInput.ts',
+      'src/argentum/looks/LooksPanel.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'linear_to_vlog', how: 'calls',
+        note: 'Their scene-referred LUT path encodes ag_film_lut_input(composite_rgb_linear); '
+          + 'shader_check holds the one call. If they move the encode, the call moves with it. '
+          + 'Render path.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'ag_film_lut_input takes their _pad_raw_tone1 slot, so the layout is unchanged. '
+          + 'Render path.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'extends',
+        note: 'Fills ag_film_lut_input from the edit (film_lut::declared_input). Render path.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'primaries_to_xyz_matrix', how: 'calls',
+        note: 'The test that checks the shader\'s matrix builds it from the primaries; xy_to_xyz '
+          + 'now takes a negative y (V-Gamut\'s blue) instead of treating it as missing. Render path.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleLutSelect', how: 'shadows',
+        note: 'The Looks tab puts a LUT on and previews it as handleLutSelect and '
+          + 'setLutPreviewOverride do, with the mark (filmLookInput.ts lutKeys); theirs are left for '
+          + 'the Effects LUT block, which the Looks tab replaced. A key they add has to be added '
+          + 'to lutKeys.' },
+      { file: 'src-tauri/src/lut_processing.rs', symbol: 'generate_lut_previews', how: 'retypes',
+        note: 'Its swatch edit, lutPath "preview", is read as a LUT going on now '
+          + '(film_lut::declared_input), so the swatches show a film look as it goes on. If they '
+          + 'rename the sentinel, the swatches show the old input.' },
+      { file: 'src-tauri/src/app_settings.rs', symbol: 'all_available_adjustments', how: 'extends',
+        note: 'The mark is pasted by default, on the line with our other keys (mods/copy_keys.rs).' },
+      { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_GROUPS', how: 'extends',
+        note: 'filmLookInput.ts adds the mark to their LUT copy group and COPYABLE_ADJUSTMENT_KEYS at '
+          + 'import, so presets and Copy settings carry it with the LUT. Found by the group\'s label, '
+          + 'modals.copyPaste.groups.lut.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/film_lut.rs #[cfg(test)]: the shader\'s matrix is the one V-Gamut\'s and '
+        + 'sRGB\'s primaries define; only a marked edit is fed it; through the whole render with an '
+        + 'identity LUT, a marked edit is fed V-Log over V-Gamut and an unmarked one V-Log over sRGB '
+        + '(GPU, ignored).',
+      'src-tauri/src/mods/shader_check.rs #[cfg(test)]: the one call, and the struct layout.',
+      'Manual: put K-Portra 400 on a photo, and open a photo that had a film look before: the new '
+        + 'one is less saturated, the old one looks as it did.',
+    ],
+    keywords: /lut|film|v.?log|v.?gamut|spektrafilm|scene.?referred/i,
   },
   {
     id: 'history-on-release',

@@ -331,6 +331,33 @@ fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
 }
 
 // ============================================================================
+// THE FILM LOOK INPUT
+//
+// A film look that comes with the app is a spektrafilm LUT, made for V-Log
+// over V-Gamut primaries (mods/film_lut.rs). Their scene-referred LUT path
+// encodes the scene-linear picture with the V-Log curve; this hands it the
+// picture in V-Gamut first. An edit that put a film look on before this
+// carries no mark, and is handed the working RGB, as it was.
+// ============================================================================
+
+// Linear sRGB (D65) to linear V-Gamut (D65), through XYZ, from V-Gamut's
+// primaries in Panasonic's V-Log/V-Gamut Reference Manual (2014). Each row
+// sums to one, so white stays white. Built column by column, as WGSL does;
+// mods/film_lut.rs checks it against the primaries.
+const AG_SRGB_TO_V_GAMUT = mat3x3<f32>(
+    vec3<f32>(0.5851961, 0.0785886, 0.0227942),
+    vec3<f32>(0.3226416, 0.8196271, 0.1142170),
+    vec3<f32>(0.0921622, 0.1017843, 0.8629887),
+);
+
+fn ag_film_lut_input(linear: vec3<f32>) -> vec3<f32> {
+    if (adjustments.global.ag_film_lut_input == 0u) {
+        return linear;
+    }
+    return AG_SRGB_TO_V_GAMUT * linear;
+}
+
+// ============================================================================
 // THE GRADING ANCHOR
 //
 // Lightroom's colour grading (mods/color_grade.rs): after the tone curve, the

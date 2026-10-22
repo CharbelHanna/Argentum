@@ -1770,7 +1770,8 @@ pub struct GlobalAdjustments {
     // has been converted to display RGB and before user curves.
     pub raw_tone_mode: u32,
     pub raw_tone_curve_count: u32,
-    _pad_raw_tone1: u32,
+    // Argentum: 1 when a film look is fed what it declares (mods/film_lut.rs).
+    pub ag_film_lut_input: u32,
     _pad_raw_tone2: u32,
     pub raw_tone_curve: [Point; 16],
 
@@ -2056,7 +2057,9 @@ const PRIMARIES_REC2020: [Vec2; 3] = [
 ];
 
 fn xy_to_xyz(xy: Vec2) -> Vec3 {
-    if xy.y < 1e-6 {
+    // Argentum: abs, so an imaginary primary with y below zero (V-Gamut's blue,
+    // y = -0.03, mods/film_lut.rs) is converted, not taken for a missing one.
+    if xy.y.abs() < 1e-6 {
         Vec3::ZERO
     } else {
         Vec3::new(xy.x / xy.y, 1.0, (1.0 - xy.x - xy.y) / xy.y)
@@ -2708,7 +2711,7 @@ fn get_global_adjustments_from_json(
         } else {
             raw_tone_points.len().min(16) as u32
         },
-        _pad_raw_tone1: 0,
+        ag_film_lut_input: crate::mods::film_lut::declared_input(js_adjustments),
         _pad_raw_tone2: 0,
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 

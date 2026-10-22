@@ -123,7 +123,7 @@ struct GlobalAdjustments {
 
     raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear
     raw_tone_curve_count: u32,
-    _pad_raw_tone1: u32,
+    ag_film_lut_input: u32,      // Argentum: 1 when a film look is fed V-Gamut, see modules.wgsl
     _pad_raw_tone2: u32,
     raw_tone_curve: array<Point, 16>,
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
@@ -2045,7 +2045,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let is_scene_lut = (adjustments.global.has_lut == 1u && adjustments.global.lut_is_scene_referred == 1u);
 
     if (is_scene_lut) {
-        let vlog_encoded = linear_to_vlog(composite_rgb_linear);
+        let vlog_encoded = linear_to_vlog(ag_film_lut_input(composite_rgb_linear));  // Argentum: what the film look declares, see modules.wgsl
         let lut_color = sample_lut_tetrahedral(vlog_encoded);
         base_srgb = mix(default_tonemapped, lut_color, adjustments.global.lut_intensity);
     } else {

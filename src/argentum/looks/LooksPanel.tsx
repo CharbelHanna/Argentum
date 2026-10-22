@@ -19,8 +19,9 @@
  * their presets, as in the photo grid; a right-click on them moves or deletes
  * them all, and Esc lets them go. Folders are listed A to Z.
  *
- * Every part is today's: a LUT goes on through their handleLutSelect and
- * previews through their setLutPreviewOverride, swatches come from their
+ * Every part is today's: a LUT goes on and previews as their handleLutSelect
+ * and setLutPreviewOverride do it, with the mark that feeds a film look what
+ * its file declares (filmLookInput.ts), swatches come from their
  * generate_lut_previews and generate_preset_preview, the user's presets from
  * their usePresets and import from their commands. A preset's Amount follows
  * presetAmount.ts. The Effects section's LUT block and today's presets panel
@@ -56,8 +57,9 @@ type Modal =
   | null;
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
-import { type Adjustments, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
+import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { type AgKey, useAgTranslation } from '../locales';
+import { lutKeys } from './filmLookInput';
 import { presetAt } from './presetAmount';
 import { type LutEntry, useLooks } from './looksStore';
 
@@ -159,7 +161,7 @@ function userGroups(items: UserPreset[]): { root: Look[]; folders: Group[] } {
 export default function LooksPanel({ editing }: { editing: boolean }) {
   const t = useAgTranslation();
   const { showContextMenu } = useContextMenu();
-  const { setAdjustments, handleLutSelect, setLutPreviewOverride } = useEditorActions();
+  const { setAdjustments } = useEditorActions();
   const adjustments = useEditorStore((s) => s.adjustments);
   const photo = useEditorStore((s) => (editing ? s.selectedImage : null));
   const setEditor = useEditorStore((s) => s.setEditor);
@@ -293,13 +295,29 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     if (!photo) return;
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
+      const now = useEditorStore.getState().adjustments;
       if (look.lut) {
-        setLutPreviewOverride(look.lut.path, look.lut.isBuiltIn);
+        setEditor({ previewOverride: { ...now, ...lutKeys(look.lut.path, look.lut.isBuiltIn) } });
       } else if (look.preset) {
-        const now = useEditorStore.getState().adjustments;
         setEditor({ previewOverride: { ...now, ...presetAt(now, look.preset, 100) } });
       }
     }, PREVIEW_AFTER_MS);
+  };
+
+  /** The LUT onto the open photo, at full strength. */
+  const putOnLut = async (lut: LutEntry) => {
+    try {
+      const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: lut.path });
+      setAdjustments((prev: Adjustments) => ({
+        ...prev,
+        ...lutKeys(lut.path, lut.isBuiltIn),
+        lutSize: size,
+        lutIntensity: 100,
+        activeTools: setToolActive(getActiveTools(prev), 'lut', true),
+      }));
+    } catch (err) {
+      toast.error(`Failed to load LUT: ${err}`);
+    }
   };
 
   const clearLut = () =>
@@ -335,13 +353,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       let changes: Partial<Adjustments>;
       if (look.lut) {
         const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: look.lut.path });
-        changes = {
-          lutPath: look.lut.path,
-          lutName: look.lut.path.split(/[\\/]/).pop() ?? look.name,
-          lutSize: size,
-          lutIntensity: 100,
-          lutIsSceneReferred: look.lut.isBuiltIn,
-        };
+        changes = { ...lutKeys(look.lut.path, look.lut.isBuiltIn), lutSize: size, lutIntensity: 100 };
       } else if (look.preset) {
         changes = look.preset;
       } else return;
@@ -393,7 +405,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
     if (look.lut) {
       if (isOn(look)) clearLut();
-      else handleLutSelect(look.lut.path, look.lut.isBuiltIn);
+      else putOnLut(look.lut);
       return;
     }
     if (!look.preset) return;

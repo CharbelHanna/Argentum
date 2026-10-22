@@ -32,6 +32,19 @@ Newest first.
 
 ### Fixed
 
+- **Film looks get the colours they are made for.** The film looks that come with the app are
+  spektrafilm LUTs, made for V-Log over V-Gamut primaries: the input their headers name, and what
+  spektrafilm's LUT creator means by it (`spektrafilm_lut_creator/color_spaces.py` @ `3bb2c2d2`,
+  the 0.3.4 the LUTs were made with). RapidRAW hands them the V-Log curve over the working RGB,
+  linear sRGB, so every colour reached the film as a stronger one: 1.4 to 1.6 times the chroma
+  (OkLab) for skin, sky and foliage, skin turned 11° toward red and blues 15° toward cyan. A film
+  look put on from now on gets the picture converted to V-Gamut first (`ag_film_lut_input` in
+  `modules.wgsl`, `mods/film_lut.rs`). An edit that put one on before keeps its look: a LUT is
+  given the declared input only when its edit carries `agLutDeclaredInput`, which the Looks tab
+  now writes whenever it puts a LUT on or previews one, and Copy settings and presets carry with
+  the LUT (`src/argentum/looks/filmLookInput.ts`). RapidRAW's own code (main @ `211ef559`) still
+  feeds sRGB.
+
 - **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
   a look put the photo back at once, and the next look showed only after its delay and render, so
   every move along the list blinked to the original. The look on screen now stays until the next
