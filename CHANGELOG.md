@@ -32,6 +32,23 @@ Newest first.
 
 ### Fixed
 
+- **Blown highlights are found where a Canon file states its white too high.** rawler takes a
+  Canon file's white level from its SpecularWhiteLevel. On some 5D Mark II frames that is above the
+  point the sensor stopped (16383 and 16235, where every clipped photosite reads 16033), so no
+  photosite reached the clipping threshold: highlight recovery and `highlights::settle_blown`
+  never ran, and a blown sun or a white wall kept the magenta white balance gives clipped data.
+  The renderings hid it by capping at white; at -2 EV it showed. A hard clip leaves its mark in
+  the file, every clipped photosite on one value (278,198 on 16033 and 136,085 on 16032 on one
+  frame, against at most 43 on any value below), and where the file proves a white below the
+  threshold, that white now decides what is clipped (`highlights::proven_white`). Only that
+  judgement moves: the white level that scales the picture is untouched, so nothing outside a
+  clipped area changes. Of 4,513 Canon RAWs measured (5D Mark II CR2 and sRAW, R6 Mark III CR3),
+  two change; on those, every changed pixel lies within 8 px of a clipped photosite, and six
+  other RAWs render bit for bit as before in every rendering, with and without a film look. The
+  idea is RawTherapee's (`rtengine/hilite_recon.cc` @ `1a3fce8c`, which judges clipping against
+  the maxima an image reached), held to a spike so a photo with nothing clipped never moves. It
+  costs 1 to 4 ms per decode.
+
 - **Film looks get the colours they are made for.** The film looks that come with the app are
   spektrafilm LUTs, made for V-Log over V-Gamut primaries: the input their headers name, and what
   spektrafilm's LUT creator means by it (`spektrafilm_lut_creator/color_spaces.py` @ `3bb2c2d2`,

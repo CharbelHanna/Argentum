@@ -44,10 +44,15 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // measurement is careful to skip.
     super::sharpen::record_raw(raw, photo_path);
 
+    // Where each colour stopped being data. Judged once, on the photosites as
+    // decoded, before recovery rewrites the ones it is judged on, so recovery
+    // and the step after it agree on what is clipped.
+    let ceilings = super::highlights::ceilings(raw);
+
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.
-    let rebuilt = super::highlights::recover(raw);
+    let rebuilt = super::highlights::recover(raw, ceilings);
 
     // And make what it could not record at all come out white rather than
     // magenta. Not behind recovery's switch: with recovery off a blown window
@@ -55,7 +60,7 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // with, including RapidRAW's multi-exposure exception, because neutral is
     // only neutral after the balance that is actually applied.
     let wb = crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
-    super::highlights::settle_blown(raw, wb, rebuilt);
+    super::highlights::settle_blown(raw, wb, rebuilt, ceilings);
 
     // Remember the matrix rawler will use, so the GPU can correct off it.
     apply_camera_profile(raw, photo_path);

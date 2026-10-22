@@ -806,7 +806,11 @@ export const REGISTRY = [
   {
     id: 'highlight-recovery',
     kind: 'feature',
-    what: 'Highlight recovery, and the sigmoid that lands it.',
+    what: 'Highlight recovery, and the sigmoid that lands it. What counts as clipped follows the '
+      + 'white level rawler reads, lowered to the white the file proves (a hard-clip spike in the '
+      + 'histogram, highlights::proven_white) where the stated one sits above the point the sensor '
+      + 'stopped, as Canon\'s SpecularWhiteLevel does on some 5D Mark II frames. The white that '
+      + 'scales the picture is rawler\'s, untouched.',
     ours: [
       'src/argentum/HighlightRecovery.tsx',
       'src-tauri/src/mods/highlights.rs',
