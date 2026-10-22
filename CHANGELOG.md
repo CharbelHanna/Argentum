@@ -32,6 +32,11 @@ Newest first.
 
 ### Fixed
 
+- **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
+  a look put the photo back at once, and the next look showed only after its delay and render, so
+  every move along the list blinked to the original. The look on screen now stays until the next
+  one replaces it, and the photo comes back when the pointer leaves the list or a look is clicked.
+
 - **One History step per slider drag, recorded on release.** History recorded a step 500 ms after
   the last change even with the mouse still down, so a drag that paused now and then left a step
   at every pause (eight "LUT Intensity" steps for one drag). While a slider, curve point, colour

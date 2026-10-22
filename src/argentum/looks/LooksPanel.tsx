@@ -276,10 +276,18 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 
   const isOn = (look: Look) => (look.lut ? adjustments.lutPath === look.lut.path : onPhoto?.id === look.id);
 
+  /** Back to the photo as it is: the pointer has left the list, or a look was clicked. */
   const stopPreview = () => {
     window.clearTimeout(hover.current);
     setEditor({ previewOverride: null });
   };
+
+  /**
+   * The pointer left one look. The look already on screen stays there until
+   * the next one replaces it, so moving from look to look never flashes the
+   * photo between them; only a look not yet shown is called off.
+   */
+  const leaveLook = () => window.clearTimeout(hover.current);
 
   const startPreview = (look: Look) => {
     if (!photo) return;
@@ -809,7 +817,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       className={clsx('agm-look', isOn(look) && 'agm-on', picked.includes(look.id) && 'agm-picked')}
       onClick={(e) => click(e, look)}
       onMouseEnter={() => startPreview(look)}
-      onMouseLeave={stopPreview}
+      onMouseLeave={leaveLook}
       onContextMenu={(e) => lookMenu(e, look)}
     >
       <span
@@ -954,7 +962,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         </div>
       )}
 
-      <div className="agm-looks-list">
+      <div className="agm-looks-list" onMouseLeave={stopPreview}>
         {flatList ? (
           shownFlat.length ? (
             shownFlat.map((look) => row(look, true))
