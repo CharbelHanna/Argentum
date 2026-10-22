@@ -107,7 +107,8 @@ function maskOverride(state: any, mode: MaskMode) {
  * DNG Standard brings Camera Raw's default sharpening with it: Sharpen 25 at
  * radius 1 measured the same as RAWmakase's render of Camera Raw's defaults
  * (Amount 40, Radius 1.0) on 200% crops. Only until someone sets their own.
- * mods/sharpen.rs applies the same numbers (DNG_STANDARD_AMOUNT).
+ * mods/sharpen.rs applies the same numbers (DNG_STANDARD_AMOUNT), and to
+ * Linear too, DNG Standard without its curve (raw_tone::is_camera_raw_style).
  */
 export const DNG_STANDARD_SHARPEN: Pick<AgSharpen, 'amount' | 'usmRadius'> = { amount: 25, usmRadius: 1 };
 
@@ -116,7 +117,7 @@ export function sharpenDefaults(
   adjustments: { rawToneRendering?: string } | null | undefined,
   isRaw: boolean,
 ): AgSharpen {
-  return isRaw && rawToneRenderingOf(adjustments) === 'dngStandard'
+  return isRaw && ['dngStandard', 'linear'].includes(rawToneRenderingOf(adjustments))
     ? { ...SHARPEN_DEFAULTS, ...DNG_STANDARD_SHARPEN }
     : SHARPEN_DEFAULTS;
 }
