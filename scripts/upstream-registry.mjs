@@ -2577,6 +2577,57 @@ export const REGISTRY = [
     ],
     keywords: /history|undo|redo|debounce/i,
   },
+  {
+    id: 'history-kept',
+    kind: 'feature',
+    what:
+      'Each photo keeps its History: switching to another photo and back, or restarting, gives it back '
+      + 'at the step it was at, so undo and redo carry on. Kept in the sidecar as agHistory beside the '
+      + 'edit: each step its name and only what it changed (JSON Pointer to value), the step the edit '
+      + 'is at, and a fingerprint of the saved edit, so it is used only with that edit. The model of '
+      + 'darktable (src/common/exif.cc @ f973fb0f: history and history_end); RAWmakase keeps one in its '
+      + 'catalog (develop_history.rs @ bf5346d), and its way of saving a change not yet a step.',
+    ours: [
+      'src/argentum/history/historyKeeper.ts',
+      'src/argentum/history/historyRecord.ts',
+      'src/argentum/layout/historyNames.ts',
+      'src-tauri/src/mods/history.rs',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'ImageMetadata', how: 'extends',
+        note: 'agHistory, an optional field beside adjustments, read leniently: one this version cannot '
+          + 'read counts as none, never as an unreadable sidecar. Their save of the edit '
+          + '(save_metadata_and_update_thumbnail) reads the sidecar and replaces only adjustments, which '
+          + 'keeps it; if it starts writing a fresh record, History is lost on every save.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'write_sidecar', how: 'calls',
+        note: 'History is written through it, so a sidecar left holding only defaults is not kept: '
+          + 'History alone never gives a photo opened and left unedited a sidecar.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'resetHistory', how: 'calls',
+        note: 'Watched, not changed: a History of one state equal to the edit is their fresh start '
+          + '(opening, reset, paste), which the kept one replaces through setState when it fits.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'debouncedSave', how: 'calls',
+        note: 'Their save comes 300 ms after the last change and their step 500 ms after it; History '
+          + 'is written 600 ms after, so the two never write the sidecar at once. Shorter on their '
+          + 'side is fine; longer than 600 ms and the two can overlap.' },
+      { file: 'src/hooks/useAppNavigation.ts', symbol: 'handleImageSelect', how: 'calls',
+        note: 'Flushes their save of the edit before the photo in the store changes, which is when '
+          + 'History writes the photo left, so the sidecar holds the edit its History ends on.' },
+    ],
+    tests: [
+      'cargo test --lib mods::history::: kept beside the edit, the rest of the sidecar untouched; only '
+        + 'good for the edit it was written with (a rating keeps it, a changed edit drops it); an '
+        + 'unedited photo gets no sidecar; one this version cannot read leaves the edit readable; '
+        + 'the record the editor writes (src/argentum/history/record.fixture.json) reads as written.',
+      'npx vitest run src/argentum/history/: round trip of states, step and names; a changed edit, or '
+        + 'one the steps do not fit, starts fresh; the last 50 states kept, as many as the editor holds; '
+        + '50 steps within 6,032 bytes plus a new mask once; the record matches the fixture; back after '
+        + 'another photo with redo; written after their save; a change not yet a step kept as one; '
+        + 'nothing written for an unedited photo; names as saved.',
+      'Manual: edit a photo (a few sliders, undo one), open another and come back: History is as left, '
+        + 'Redo works. Restart, open it: the same. Paste settings onto it from another photo: fresh History.',
+    ],
+    keywords: /history|undo|redo|agHistory/i,
+  },
 ];
 
 /**

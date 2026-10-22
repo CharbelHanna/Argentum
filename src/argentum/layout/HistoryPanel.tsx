@@ -4,7 +4,8 @@
  * History is a tab beside the adjustments. It lists today's editor history,
  * each step named as RapidRAW's toolbar named it in the menu under its undo
  * and redo buttons (historyNames.ts), and a click goes to one through today's
- * own goToHistoryIndex. Nothing is kept here.
+ * own goToHistoryIndex. Nothing is kept here: each photo's History is kept in
+ * its sidecar and given back when it opens (history/historyKeeper.ts).
  */
 
 import { useEffect, useRef } from 'react';

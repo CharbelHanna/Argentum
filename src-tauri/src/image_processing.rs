@@ -90,6 +90,15 @@ pub struct ImageMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub ag_snapshots: Option<Vec<crate::mods::snapshots::Snapshot>>,
+    /// Argentum: the photo's History (mods/history.rs), kept beside the edit so
+    /// Copy settings, presets and sync never carry it.
+    #[serde(
+        rename = "agHistory",
+        default,
+        deserialize_with = "crate::mods::history::lenient",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ag_history: Option<crate::mods::history::HistoryRecord>,
 }
 
 impl Default for ImageMetadata {
@@ -102,6 +111,7 @@ impl Default for ImageMetadata {
             tags: None,
             exif: None,
             ag_snapshots: None,
+            ag_history: None,
         }
     }
 }
