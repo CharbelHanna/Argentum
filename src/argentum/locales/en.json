@@ -52,6 +52,7 @@
   "rawToneBaseCurve": "Base Curve (darktable-style)",
   "rawToneAutoMatched": "Auto-Matched (RawTherapee-style)",
   "rawToneDngStandard": "DNG Standard (Lightroom-style)",
+  "rawToneLinear": "Linear (for film LUTs)",
   "rawToneCalculating": "Calculating tone curve…",
   "gearAddProfile": "Add profile…",
   "gearRemoveProfile": "Delete this profile",

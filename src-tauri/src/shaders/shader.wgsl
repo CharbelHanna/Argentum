@@ -121,7 +121,7 @@ struct GlobalAdjustments {
     ag_profile_row1: vec4<f32>,
     ag_profile_row2: vec4<f32>,
 
-    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard
+    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear
     raw_tone_curve_count: u32,
     _pad_raw_tone1: u32,
     _pad_raw_tone2: u32,

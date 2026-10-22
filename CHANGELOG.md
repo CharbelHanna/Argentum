@@ -14,6 +14,17 @@ Newest first.
   offers "Move 4 LUTs to" a folder and "Delete 4 LUTs" (after a confirmation); Esc clears it.
   LUTs and presets are never selected together, since they live in different folders. Looks that
   come with the app cannot be selected.
+- **Linear RAW rendering, the base film-simulation LUTs are made for.** Profile > Rendering gets
+  "Linear (for film LUTs)": DNG Standard's per-camera exposure offset without Adobe's tone curve,
+  so the photo keeps the camera's linear contrast. A film-simulation LUT carries its film's own
+  tone curve and is made to be applied to exactly that (abpy's FujifilmCameraProfiles ask for a
+  linear camera profile, Stuart Sowerby's Fuji HaldCLUTs for a neutral RAW with no curve); on DNG
+  Standard the two curves stack, and skies and skin blow out to white. Linear brings DNG Standard's
+  sharpening. A preset can pick it, so one preset can hold the rendering and the LUT together.
+  `mods/dng_standard.rs` (`LINEAR_MODE`, `linear_points`), mode 4 in `mods/raw_tone.rs`, drawn by
+  DNG Standard's path in `modules.wgsl`.
+- **A preset that brings a LUT fades it in with its Amount.** The LUT's strength used to start from
+  the photo's own (full), so the Amount slider did nothing to a preset's LUT below 100%.
 
 ### Changed
 

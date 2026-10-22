@@ -249,6 +249,7 @@ fn ag_stage_color(color: vec3<f32>) -> vec3<f32> {
 //
 //   mode 1 Base Curve, 2 Auto-Matched   sRGB, then the curve on each channel
 //   mode 3 DNG Standard                 the curve applied as Adobe applies it
+//   mode 4 Linear                       the same, its curve the exposure offset alone
 //
 // Their struct carries the mode and the photo's 16 points; this reads them
 // from `adjustments` directly, so the call line in their file never has to
@@ -261,7 +262,7 @@ fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.is_raw_image != 1u || mode == 0u || count < 2u) {
         return theirs;
     }
-    if (mode == 3u) {
+    if (mode == 3u || mode == 4u) {
         return ag_dng_standard(linear, count);
     }
     let encoded = linear_to_srgb(linear);

@@ -7,7 +7,8 @@
  * Base Curve is a camera-style curve; Auto-Matched is fitted from the JPEG
  * embedded in this RAW file; DNG Standard is a DNG renderer's default - the
  * camera's exposure offset and Adobe's default tone curve, applied as Adobe
- * applies it (mods/dng_standard.rs).
+ * applies it (mods/dng_standard.rs); Linear is DNG Standard without the tone
+ * curve, the neutral base a film-simulation LUT is made for.
  *
  * The curve is fitted to this photo, so Copy settings and presets carry the
  * rendering but never `rawToneCurve` (mods/copy_keys.rs). `rawToneCurveMode`
@@ -23,14 +24,17 @@ import { ag } from './ag';
 import { rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
 
-type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard';
+type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard' | 'linear';
 
 interface ToneCurvePoint {
   x: number;
   y: number;
 }
 
-const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard'];
+const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard', 'linear'];
+
+/** The renderings the renderer fills in from the photo itself: nothing to fit here. */
+const READ_BY_RENDERER: RawToneRenderingMode[] = ['dngStandard', 'linear'];
 
 /** What a highlight-protecting camera mode held back (mods/highlight_protection.rs). */
 interface HeldBack {
@@ -118,13 +122,13 @@ export default function RawToneRendering() {
     [path, setAdjustments],
   );
 
-  // DNG Standard needs nothing fitted: the renderer reads the photo's curve
-  // itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
+  // DNG Standard and Linear need nothing fitted: the renderer reads the photo's
+  // curve itself (raw_tone::fill_missing), so a RAW that merely opens in it is not
   // written to. A curve fitted for another rendering - left behind when a
   // rendering is pasted onto the photo - counts as none.
   const fitted = adjustments?.rawToneCurve?.length >= 2 && (adjustments?.rawToneCurveMode ?? current) === current;
   useEffect(() => {
-    if (!isRaw || !path || current === 'default' || current === 'dngStandard' || fitted || busy) {
+    if (!isRaw || !path || current === 'default' || READ_BY_RENDERER.includes(current) || fitted || busy) {
       return;
     }
     ensureCurve(current);
@@ -161,10 +165,11 @@ export default function RawToneRendering() {
           <option value="baseCurve">{t('rawToneBaseCurve')}</option>
           <option value="autoMatched">{t('rawToneAutoMatched')}</option>
           <option value="dngStandard">{t('rawToneDngStandard')}</option>
+          <option value="linear">{t('rawToneLinear')}</option>
         </select>
       </div>
       {busy && <p className="mt-1 text-xs text-text-secondary">{t('rawToneCalculating')}</p>}
-      {current === 'dngStandard' && path && <HeldBackNote path={path} />}
+      {READ_BY_RENDERER.includes(current) && path && <HeldBackNote path={path} />}
     </div>
   );
 }

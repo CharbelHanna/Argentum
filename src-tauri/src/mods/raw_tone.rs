@@ -5,9 +5,10 @@
 //! monotonic tone curve from the scene-linear RAW and the camera JPEG embedded
 //! in the same file. DNG Standard is a DNG renderer's default: the camera's
 //! exposure offset and Adobe's default tone curve, applied as Adobe applies it
-//! (see dng_standard.rs). The curve is applied on the GPU, in `ag_stage_tone`
-//! (modules.wgsl); this module only builds the small per-photo data that
-//! crosses into the renderer.
+//! (see dng_standard.rs). Linear is DNG Standard without the tone curve, the
+//! base a film-simulation LUT is made for. The curve is applied on the GPU, in
+//! `ag_stage_tone` (modules.wgsl); this module only builds the small per-photo
+//! data that crosses into the renderer.
 
 use crate::app_settings::AppSettings;
 use crate::image_processing::downscale_f32_image;
@@ -48,8 +49,15 @@ pub fn mode_index(mode: &str) -> u32 {
         "baseCurve" => 1,
         "autoMatched" => 2,
         crate::mods::dng_standard::MODE => 3,
+        crate::mods::dng_standard::LINEAR_MODE => 4,
         _ => 0,
     }
+}
+
+/// The renderings Camera Raw would make: DNG Standard, and Linear (the same
+/// with a linear camera profile). They bring Camera Raw's default sharpening.
+pub fn is_camera_raw_style(mode: u32) -> bool {
+    mode == 3 || mode == 4
 }
 
 /// Which rendering an edit asks for, as `mode_index` numbers it.
@@ -90,7 +98,7 @@ pub fn points_of(js: &Value, mode: u32, photo: Option<&str>) -> Vec<Value> {
 }
 
 /// The points a mode needs when the edit carries none: Base Curve's fixed
-/// curve, or DNG Standard's for this photo's camera. Auto-Matched has no stand-in
+/// curve, or DNG Standard's or Linear's for this photo's camera. Auto-Matched has no stand-in
 /// and renders RapidRAW's until it has been fitted.
 fn fill_missing(mode: u32, points: &mut Vec<Value>, photo: Option<&str>) {
     if points.len() >= 2 {
@@ -99,6 +107,7 @@ fn fill_missing(mode: u32, points: &mut Vec<Value>, photo: Option<&str>) {
     let curve = match mode {
         1 => base_curve(),
         3 => crate::mods::dng_standard::curve_for_photo(photo),
+        4 => crate::mods::dng_standard::linear_curve_for_photo(photo),
         _ => return,
     };
     *points = curve
@@ -117,6 +126,7 @@ pub fn curve_for(
         "baseCurve" => Ok(base_curve()),
         "autoMatched" => auto_matched_curve(bytes, path, settings),
         crate::mods::dng_standard::MODE => crate::mods::dng_standard::curve(bytes),
+        crate::mods::dng_standard::LINEAR_MODE => crate::mods::dng_standard::linear_curve(bytes),
         _ => Err(format!("unknown RAW tone rendering mode: {mode}")),
     }
 }
@@ -285,6 +295,7 @@ mod tests {
         assert_eq!(mode_of(&json!({ "rawToneRendering": "default" })), 0);
         assert_eq!(mode_of(&json!({ "rawToneRendering": "baseCurve" })), 1);
         assert_eq!(mode_of(&json!({ "rawToneRendering": "dngStandard" })), 3);
+        assert_eq!(mode_of(&json!({ "rawToneRendering": "linear" })), 4);
     }
 
     #[test]
@@ -292,6 +303,9 @@ mod tests {
         let mut points = Vec::new();
         fill_missing(3, &mut points, None);
         assert_eq!(points.len(), 16);
+        let mut points = Vec::new();
+        fill_missing(4, &mut points, None);
+        assert_eq!(points.len(), 16, "Linear has the photo's offset");
         let mut points = Vec::new();
         fill_missing(1, &mut points, None);
         assert_eq!(points.len(), base_curve().len());

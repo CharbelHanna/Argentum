@@ -1639,7 +1639,8 @@ export const REGISTRY = [
       'DNG Standard, a fourth RAW tone rendering, opt-in: the camera’s exposure offset '
       + '(BaselineExposure, from a DNG or a per-body table taken from RAWmakase) and Adobe’s default '
       + 'tone curve, applied in linear ProPhoto to each pixel’s largest and smallest channel as '
-      + 'Adobe’s RGBTone does, so hues hold.',
+      + 'Adobe’s RGBTone does, so hues hold. Linear, a fifth, is the same without the tone curve: '
+      + 'the offset alone, the base a film-simulation LUT is made for.',
     ours: [
       'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/dng_baseline.tsv',
       'src-tauri/src/shaders/modules.wgsl', 'src/argentum/RawToneRendering.tsx',
