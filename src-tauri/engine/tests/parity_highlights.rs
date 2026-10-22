@@ -2,8 +2,9 @@
 //! `mods/highlights.rs` on the same input.
 //!
 //! The app's side is its own file, compiled unchanged by the reference crate,
-//! and run the way the app's decode runs it: `recover`, then `settle_blown`
-//! with the file's white balance, with recovery on and off.
+//! and run the way the app's decode runs it (`mods/decode.rs`): the ceilings
+//! judged once, then `recover`, then `settle_blown` with the file's white
+//! balance, with recovery on and off.
 
 mod common;
 
@@ -63,13 +64,21 @@ fn compare(label: &str, raw: &RawImage) -> usize {
         "AG_NO_RECOVERY is set, which switches the app's recovery off: unset it"
     );
     let _turn = SWITCH.lock().unwrap_or_else(|e| e.into_inner());
+    // What counts as clipped, the same to the bit on both sides.
+    let (ours, theirs) = (dt_highlights::ceilings(raw), today::ceilings(raw));
+    assert_eq!(
+        ours.map(|c| c.map(f32::to_bits)),
+        theirs.map(|c| c.map(f32::to_bits)),
+        "{label}: ceilings differ, ours {ours:?} theirs {theirs:?}"
+    );
     let mut moved_on = 0;
     for recover in [true, false] {
         let mut theirs = raw.clone();
         today::set_enabled(recover);
-        let rebuilt = today::recover(&mut theirs);
+        let ceilings = today::ceilings(&theirs);
+        let rebuilt = today::recover(&mut theirs, ceilings);
         let wb = theirs.wb_coeffs;
-        today::settle_blown(&mut theirs, wb, rebuilt);
+        today::settle_blown(&mut theirs, wb, rebuilt, ceilings);
         today::set_enabled(true);
 
         let mut ours = raw.clone();
@@ -169,6 +178,22 @@ fn bit_identical_on_synthetic_sensor_data() {
     // Everything clipped: nothing to learn a colour from.
     let blown = common::bayer(128, 128, |_, _| 15000);
     compare("synthetic Bayer, all clipped", &blown);
+
+    // A sensor that stops below the white the file states, as some 5D Mark II
+    // frames do: the clipped disc reads 14000 against a stated 15000, under
+    // the white-level ceiling. The ceiling has to come down to the white the
+    // file proves, and both sides have to agree on all of it.
+    let mut low = common::scene(640, 480);
+    if let RawImageData::Integer(v) = &mut low.data {
+        v.iter_mut().for_each(|x| *x = (*x).min(14000));
+    }
+    let stated = 512.0 + (15000.0 - 512.0) * 0.99;
+    let proven = today::ceilings(&low).expect("ceilings");
+    assert!(
+        proven[0] < stated && proven[0] > 13800.0,
+        "the proven white sets the ceiling: {proven:?} against {stated}"
+    );
+    assert!(compare("synthetic Bayer, clipped below the stated white", &low) > 0);
 }
 
 #[test]
