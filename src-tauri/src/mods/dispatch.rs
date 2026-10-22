@@ -204,6 +204,13 @@ struct SnapshotsArgs {
     snapshots: Vec<crate::mods::snapshots::Snapshot>,
 }
 
+/// A photo and the History to keep for it; none takes it out.
+#[derive(Deserialize)]
+struct HistoryArgs {
+    path: String,
+    record: Option<crate::mods::history::HistoryRecord>,
+}
+
 /// A text size's name, narrowed by `TextSize::from_name`, Normal if unknown.
 #[derive(Deserialize)]
 struct TextSizeArgs {
@@ -605,6 +612,20 @@ async fn json(
         "set_snapshots" => {
             let a: SnapshotsArgs = args_for(&name, args)?;
             tokio::task::spawn_blocking(move || commands::set_snapshots(&a.path, a.snapshots))
+                .await
+                .map_err(|e| e.to_string())??;
+            Ok(serde_json::Value::Null)
+        }
+        "history" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let record = tokio::task::spawn_blocking(move || commands::history(&a.path))
+                .await
+                .map_err(|e| e.to_string())?;
+            serde_json::to_value(record).map_err(|e| e.to_string())
+        }
+        "set_history" => {
+            let a: HistoryArgs = args_for(&name, args)?;
+            tokio::task::spawn_blocking(move || commands::set_history(&a.path, a.record))
                 .await
                 .map_err(|e| e.to_string())??;
             Ok(serde_json::Value::Null)

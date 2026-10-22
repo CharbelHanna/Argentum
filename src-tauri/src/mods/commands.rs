@@ -440,6 +440,21 @@ pub fn set_snapshots(
     crate::mods::snapshots::write(&sidecar, list)
 }
 
+/// A photo's History (mods/history.rs), from its sidecar.
+pub fn history(path: &str) -> Option<crate::mods::history::HistoryRecord> {
+    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
+    crate::mods::history::read(&sidecar)
+}
+
+/// Keep this as the photo's History; none takes it out.
+pub fn set_history(
+    path: &str,
+    record: Option<crate::mods::history::HistoryRecord>,
+) -> Result<(), String> {
+    let (source, sidecar) = crate::file_management::parse_virtual_path(path);
+    crate::mods::history::write(&source, &sidecar, record)
+}
+
 /// How large the panels' text is drawn. Normal until chosen.
 pub fn text_size() -> Result<crate::mods::editor_layout::TextSize, String> {
     Ok(crate::mods::editor_layout::text_size(profile_library()?))

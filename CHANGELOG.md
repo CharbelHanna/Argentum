@@ -8,6 +8,17 @@ Newest first.
 
 ### Added
 
+- **Each photo keeps its History.** Open another photo and come back, or restart Argentum, and a
+  photo's History is as it was left, at the step it was at: undo and redo carry on, and steps undone
+  before leaving can still be redone. It is kept in the photo's sidecar beside the edit, as
+  `agHistory`, the way darktable keeps its history stack and `history_end` in its XMP
+  (`src/common/exif.cc` @ `f973fb0f`); RAWmakase keeps one in its catalog
+  (`crates/rawmakase-catalog/src/catalog/develop_history.rs` @ `bf5346d`). Each step keeps its
+  name and only what it changed, so a 50-step edit adds about 11 kB, half of it a mask added along
+  the way (the edit itself is about 10 kB). A History is used only with the edit it was saved
+  beside: after a paste, a reset or a change made elsewhere the photo starts a fresh one. A photo
+  opened and left unedited still gets no sidecar, and Copy settings, presets and sync carry the
+  edit, never its History. `mods/history.rs`, `src/argentum/history/`.
 - **Looks: move or delete several at once.** In the Looks tab, Ctrl-click adds one of your own
   LUTs or presets to a selection and Shift-click takes the run from the last one clicked, as in
   the photo grid; a plain click still puts a look on the photo. A right-click on the selection

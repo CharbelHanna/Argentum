@@ -40,6 +40,7 @@ pub mod folder_counts;
 pub mod gpu_runtime;
 pub mod highlight_protection;
 pub mod highlights;
+pub mod history;
 pub mod input_stage;
 pub mod lens_builtin;
 pub mod lens_crop;
