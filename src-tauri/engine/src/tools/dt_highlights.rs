@@ -4,7 +4,8 @@
 //! Copied from `src-tauri/src/mods/highlights.rs` @ 2bcb953d - `recover`, which
 //! rebuilds a clipped channel from the ones that survived, and `settle_blown`,
 //! which makes what no channel survived come out white rather than magenta -
-//! with the helpers they call. The method is darktable's "opposed"
+//! with the helpers they call; what counts as clipped, `ceilings` and the white
+//! a file proves, @ 99f5e045. The method is darktable's "opposed"
 //! reconstruction (`src/iop/hlreconstruct/opposed.c`): learn the colour of the
 //! highlights from the bright pixels that did not clip. The code is
 //! Argentum's, written after it, and learns that colour once per photo rather
@@ -72,9 +73,12 @@ pub fn apply(raw: &mut RawImage, recover_on: bool) -> bool {
         RawImageData::Float(v) => Some(v.clone()),
         RawImageData::Integer(_) => None,
     };
-    let rebuilt = recover_on && recover(raw);
+    // Judged once, before recovery rewrites the photosites, as the app's
+    // decode does (`mods/decode.rs`).
+    let ceilings = ceilings(raw);
+    let rebuilt = recover_on && recover(raw, ceilings);
     let wb = raw.wb_coeffs;
-    settle_blown(raw, wb, rebuilt);
+    settle_blown(raw, wb, rebuilt, ceilings);
     // Both only ever replace an integer buffer with a new float one when they
     // move something, so an integer buffer still integer is untouched.
     match (&raw.data, before_float) {
@@ -98,12 +102,25 @@ pub fn apply(raw: &mut RawImage, recover_on: bool) -> bool {
 /// the same reason.
 const CLIP_MARGIN: f32 = 0.99;
 
-// Copied from src-tauri/src/mods/highlights.rs @ 2bcb953d.
+// Copied from src-tauri/src/mods/highlights.rs @ 99f5e045: `ceilings` and the
+// white a file proves, `proven_white` and `hard_clip`, with their constants.
 /// The value at which each of the four CFA colours stops being data.
 ///
 /// `whitelevel` may carry one entry for all channels or one per channel; both
 /// are normal, and a missing table means we cannot say anything useful, so the
 /// caller gets `None` rather than a guess.
+///
+/// Usually that is the file's white level, less the margin. But a file can
+/// state a white above the point its sensor actually stopped at: on some 5D
+/// Mark II frames Canon's SpecularWhiteLevel says 16383 while every clipped
+/// photosite reads 16033, so nothing reached the ceiling, `recover` and
+/// `settle_blown` never ran, and a blown sun came out magenta. Where the file
+/// proves a lower white (`proven_white`) that the margin misses, the ceiling
+/// comes from that white instead, by the same rule. Only the judgement of what
+/// is clipped moves: the white level that scales the picture is rawler's and is
+/// not touched, so nothing outside a clipped area can change, and a file whose
+/// ceiling already catches its clipped photosites keeps exactly the ceiling it
+/// had.
 pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
     let levels = &raw.whitelevel.0;
     let first = *levels.first()? as f32;
@@ -121,13 +138,121 @@ pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
         .map(|r| r.as_f32())
         .unwrap_or(0.0);
 
+    // The margin applies to the range above black, which is the part that is
+    // signal. Applying it to the raw count would move the threshold by a
+    // different amount on every camera.
+    let ceiling = |white: f32| black + (white - black) * CLIP_MARGIN;
+    let proven = proven_white(raw, black, out.iter().copied().fold(0.0, f32::max));
     for slot in out.iter_mut() {
-        // The margin applies to the range above black, which is the part that
-        // is signal. Applying it to the raw count would move the threshold by
-        // a different amount on every camera.
-        *slot = black + (*slot - black) * CLIP_MARGIN;
+        *slot = ceiling(*slot);
+        if let Some(white) = proven
+            && white < *slot
+        {
+            *slot = ceiling(white);
+        }
     }
     Some(out)
+}
+
+/// The part of the range searched for a hard clip, from the top, as a fraction
+/// of the range above black.
+const PROVEN_WHITE_SEARCH: f32 = 0.2;
+
+/// Photosites a value and its lower neighbour must hold between them to be
+/// read as a clip. The 5D Mark II frames that showed the fault hold tens of
+/// thousands; a few hot pixels never reach this.
+const PROVEN_WHITE_MIN: u32 = 64;
+
+/// How many times the most any value just below holds a clip must hold.
+/// Measured on such a frame, all three colours together: 278,198 photosites
+/// on 16033 and 136,085 on 16032, against at most 43 on any value below.
+/// Natural light, spread by noise, never comes close.
+const PROVEN_WHITE_RATIO: u32 = 16;
+
+/// The level a mosaic's photosites actually stopped at, when the file proves
+/// one below its stated white `white`.
+///
+/// A sensor that saturates reports one value, the same for every photosite in a
+/// clipped area, so a hard clip shows in the histogram as a spike: one value,
+/// or two neighbouring ones, holding far more photosites than anything just
+/// below. Light that did not clip never piles up on one value, because noise
+/// spreads it. Only the highest populated value in the top fifth of the range
+/// is looked at, inside the image area, and it counts only if it is such a
+/// spike. Anything else - a photo with nothing clipped, a float buffer, a
+/// three-colour sRAW, a value at or above the stated white - proves nothing.
+///
+/// The idea is RawTherapee's (`rtengine/hilite_recon.cc` @ 1a3fce8c,
+/// `HLRecovery_inpaint`): it judges clipping against the maxima an image
+/// actually reached per channel (`chmax`), not against its white level. Taken
+/// more strictly here, because a maximum alone is also what a photo with
+/// nothing clipped has, and it would mark that photo's brightest pixels as
+/// clipped; a spike is never there.
+fn proven_white(raw: &RawImage, black: f32, white: f32) -> Option<f32> {
+    let RawImageData::Integer(data) = &raw.data else {
+        return None;
+    };
+    if raw.cpp != 1 || white <= black {
+        return None;
+    }
+    let low = (black + (white - black) * (1.0 - PROVEN_WHITE_SEARCH)).ceil() as usize;
+    let high = white as usize;
+    if high <= low + 12 {
+        return None;
+    }
+    let (x0, y0, x1, y1) = raw
+        .crop_area
+        .or(raw.active_area)
+        .map(|a| (a.p.x, a.p.y, a.p.x + a.d.w, a.p.y + a.d.h))
+        .unwrap_or((0, 0, raw.width, raw.height));
+    let (x1, y1) = (x1.min(raw.width), y1.min(raw.height));
+    if x0 >= x1 || y0 >= y1 || data.len() < raw.width * y1 {
+        return None;
+    }
+
+    use rayon::prelude::*;
+    let bins = high - low;
+    let histogram = (y0..y1)
+        .into_par_iter()
+        .fold(
+            || vec![0u32; bins],
+            |mut counts, y| {
+                for &v in &data[y * raw.width + x0..y * raw.width + x1] {
+                    let v = v as usize;
+                    if (low..high).contains(&v) {
+                        counts[v - low] += 1;
+                    }
+                }
+                counts
+            },
+        )
+        .reduce(
+            || vec![0u32; bins],
+            |mut a, b| {
+                a.iter_mut().zip(b).for_each(|(a, b)| *a += b);
+                a
+            },
+        );
+
+    hard_clip(&histogram).map(|bin| (low + bin) as f32)
+}
+
+/// Which bin of `histogram` a hard clip stopped at: the highest bin holding
+/// half of `PROVEN_WHITE_MIN` photosites, if it and the bin below hold
+/// `PROVEN_WHITE_MIN` together and `PROVEN_WHITE_RATIO` times the most any of
+/// the ten bins under them holds. A stray photosite above the clip is too few
+/// to count. The highest such bin decides alone, so a photo whose brightest
+/// values are spread out proves nothing, whatever lies further down.
+fn hard_clip(histogram: &[u32]) -> Option<usize> {
+    let top = (12..histogram.len())
+        .rev()
+        .find(|&i| histogram[i] >= PROVEN_WHITE_MIN / 2)?;
+    let pair = histogram[top] + histogram[top - 1];
+    let below = histogram[top - 12..top - 1]
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    (pair >= PROVEN_WHITE_MIN && pair >= PROVEN_WHITE_RATIO * below.max(1)).then_some(top)
 }
 
 /// How bright an unclipped pixel has to be before it is allowed to say what
@@ -267,8 +392,8 @@ pub fn rebuild(pixel: [f32; 3], ceilings: [f32; 3], colour: &HighlightColour) ->
 /// long before twenty million samples.
 const SAMPLE_STRIDE: usize = 4;
 
-// Copied from src-tauri/src/mods/highlights.rs @ 2bcb953d, without its two
-// switches: the global preference (`enabled()`) is this tool's `recover`
+// Copied from src-tauri/src/mods/highlights.rs @ 99f5e045 (the ceilings as an
+// argument; 2bcb953d before), without its two switches: the global preference (`enabled()`) is this tool's `recover`
 // setting, and the `AG_NO_RECOVERY` environment variable is not read.
 /// Put back what the sensor could not record, in place, before demosaic.
 ///
@@ -278,8 +403,11 @@ const SAMPLE_STRIDE: usize = 4;
 /// Returns whether recovery was in charge of this photo's clipped pixels: with
 /// a measured highlight colour to rebuild them from. `settle_blown` needs to
 /// know, because when it was not, nothing has dealt with them yet.
-pub fn recover(raw: &mut RawImage) -> bool {
-    let Some(ceil4) = ceilings(raw) else {
+///
+/// `ceilings` are this photo's, from `ceilings`, judged once before
+/// anything rewrites the photosites they are judged on.
+pub fn recover(raw: &mut RawImage, ceilings: Option<[f32; 4]>) -> bool {
+    let Some(ceil4) = ceilings else {
         return false;
     };
     let ceilings = [ceil4[0], ceil4[1], ceil4[2]];
@@ -415,7 +543,8 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
     true
 }
 
-// Copied from src-tauri/src/mods/highlights.rs @ 2bcb953d.
+// Copied from src-tauri/src/mods/highlights.rs @ 99f5e045 (the ceilings as an
+// argument; 2bcb953d before).
 /// Make sure what the sensor lost entirely comes out white, not magenta.
 ///
 /// Where every channel clipped there is nothing left to rebuild from, and
@@ -436,8 +565,11 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 /// coefficients rawler will develop with. A block with nothing clipped is
 /// never touched, and a photo with nothing clipped keeps its integer buffer
 /// exactly as decoded.
-pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool) {
-    let Some(ceil4) = ceilings(raw) else { return };
+///
+/// `ceilings` are the ones `recover` was given: judged on the photo as decoded,
+/// not on what recovery made of it.
+pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: Option<[f32; 4]>) {
+    let Some(ceil4) = ceilings else { return };
     let black = raw
         .blacklevel
         .levels
@@ -714,7 +846,11 @@ mod tests {
             };
             // Red at 990 implies 1100, blue at 800 implies 1000: averaged, 1050.
             let out = rebuild([990.0, 1000.0, 800.0], CEILINGS, &colour);
-            assert!((out[1] - 1050.0).abs() < 1.0, "green came back as {}", out[1]);
+            assert!(
+                (out[1] - 1050.0).abs() < 1.0,
+                "green came back as {}",
+                out[1]
+            );
             assert_eq!(out[0], 990.0, "red was not clipped and must not move");
             assert_eq!(out[2], 800.0, "blue was not clipped and must not move");
         }
@@ -733,7 +869,10 @@ mod tests {
             let out = rebuild([1000.0, 1000.0, 480.0], CEILINGS, &colour);
             let level_r = out[0] / colour.ratio[0];
             let level_g = out[1] / colour.ratio[1];
-            assert!(level_g >= level_r - 1.0, "green rebuilt below what red proves: {out:?}");
+            assert!(
+                level_g >= level_r - 1.0,
+                "green rebuilt below what red proves: {out:?}"
+            );
             assert_eq!(out[2], 480.0, "blue was not clipped and must not move");
         }
 
@@ -775,9 +914,9 @@ mod tests {
         }
 
         fn spread(b: &[f32]) -> f32 {
-            let (lo, hi) = b
-                .iter()
-                .fold((f32::INFINITY, 0.0f32), |(lo, hi), &x| (lo.min(x), hi.max(x)));
+            let (lo, hi) = b.iter().fold((f32::INFINITY, 0.0f32), |(lo, hi), &x| {
+                (lo.min(x), hi.max(x))
+            });
             (hi - lo) / hi
         }
 
