@@ -32,6 +32,40 @@ Newest first.
 
 ### Fixed
 
+- **Film looks get the colours they are made for.** The film looks that come with the app are
+  spektrafilm LUTs, made for V-Log over V-Gamut primaries: the input their headers name, and what
+  spektrafilm's LUT creator means by it (`spektrafilm_lut_creator/color_spaces.py` @ `3bb2c2d2`,
+  the 0.3.4 the LUTs were made with). RapidRAW hands them the V-Log curve over the working RGB,
+  linear sRGB, so every colour reached the film as a stronger one: 1.4 to 1.6 times the chroma
+  (OkLab) for skin, sky and foliage, skin turned 11° toward red and blues 15° toward cyan. A film
+  look put on from now on gets the picture converted to V-Gamut first (`ag_film_lut_input` in
+  `modules.wgsl`, `mods/film_lut.rs`). An edit that put one on before keeps its look: a LUT is
+  given the declared input only when its edit carries `agLutDeclaredInput`, which the Looks tab
+  now writes whenever it puts a LUT on or previews one, and Copy settings and presets carry with
+  the LUT (`src/argentum/looks/filmLookInput.ts`). RapidRAW's own code (main @ `211ef559`) still
+  feeds sRGB.
+
+- **Film looks take a RAW at the camera's exposure offset.** DNG Standard and Linear brighten each
+  RAW by its camera's exposure offset (+0.2 EV at the table's median), but the offset rides in the
+  rendering's curve, which a film look replaces whole, so every RAW reached the film darker than it
+  shows without one, and switching the rendering did nothing to a film look. spektrafilm takes
+  linear 0.18 as middle grey for a V-Log input (its commit `3bb2c2d2`, "fix: vlog midgray
+  exposure"), which is where the offset puts a RAW's. A film look put on from now on takes a RAW in
+  DNG Standard or Linear at the offset its rendering carries, read back from the edit's own curve
+  (`dng_standard::offset_of`), so a later change to the camera table cannot move it; the
+  rendering's tone curve still stays out, since the film's own curve is the rendering. An
+  enlargement carries its RAW's offset as `agLutExposureEv`. Edits from before keep their look, as
+  above.
+
+- **Film looks print blown highlights white, as the rendering shows them.** On some 5D Mark II
+  frames a sun or a white shirt came out pink under a film look and white without one. Canon's
+  SpecularWhiteLevel sits above the point where red saturates there (16383 and 16235 against
+  16034), so `highlights::settle_blown` never sees the area as blown and it keeps the magenta white
+  balance gives it; DNG Standard hides that by capping each channel at the sensor's white in
+  ProPhoto before its curve. A film look now starts from the same cap (`ag_prophoto_to_white` in
+  `modules.wgsl`, shared with DNG Standard). Film looks put on from now on; edits from before keep
+  their look.
+
 - **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
   a look put the photo back at once, and the next look showed only after its delay and render, so
   every move along the list blinked to the original. The look on screen now stays until the next

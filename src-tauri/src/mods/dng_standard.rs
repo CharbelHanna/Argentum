@@ -346,6 +346,32 @@ pub fn linear_points(ev: f32) -> Vec<ToneCurvePoint> {
     sixteen_points(|v| exposed(v, ev))
 }
 
+/// The exposure offset, in EV, that a DNG Standard curve (`linear` false) or a
+/// Linear one (`linear` true) was made with: the offset whose curve passes
+/// through the edit's point nearest middle grey. Read back from the edit
+/// rather than the table, so a later change to the table cannot move it.
+pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
+    let grey = encode(0.18) * 255.0;
+    let point = points
+        .iter()
+        .filter(|p| p.x > 0.0 && p.x < 255.0)
+        .min_by(|a, b| (a.x - grey).abs().total_cmp(&(b.x - grey).abs()))?;
+    let v = decode(point.x / 255.0);
+    let made_with = |ev: f32| encode(if linear { exposed(v, ev) } else { tone(v, ev) }) * 255.0;
+    // Both curves rise with the offset; halving the range 32 times is well
+    // under a thousandth of a stop.
+    let (mut low, mut high) = (-4.0f32, 4.0f32);
+    for _ in 0..32 {
+        let mid = 0.5 * (low + high);
+        if made_with(mid) < point.y {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    Some(0.5 * (low + high))
+}
+
 fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
     (0..16)
         .map(|i| {
@@ -755,6 +781,24 @@ mod tests {
         }
     }
 
+    /// The table's whole range and beyond, with stops held back on top.
+    #[test]
+    fn the_offset_reads_back_from_either_curve() {
+        for ev in [-1.5, -0.75, -0.2, 0.0, 0.2, 0.8, 1.6, 2.5] {
+            let dng = offset_of(&curve_points(ev), false).expect("DNG Standard");
+            let linear = offset_of(&linear_points(ev), true).expect("Linear");
+            assert!(
+                (dng - ev).abs() < 0.005,
+                "{ev:+} EV: DNG Standard reads {dng:+.4}"
+            );
+            assert!(
+                (linear - ev).abs() < 0.005,
+                "{ev:+} EV: Linear reads {linear:+.4}"
+            );
+        }
+        assert_eq!(offset_of(&[], true), None);
+    }
+
     #[test]
     fn middle_grey_lands_where_adobe_puts_it() {
         assert!((acr3(0.18) - 0.388).abs() < 0.001, "{}", acr3(0.18));
@@ -1107,22 +1151,24 @@ pub(crate) mod gpu {
         [p[0], p[1], p[2]]
     }
 
-    fn mul(m: [[f32; 3]; 3], c: [f32; 3]) -> [f32; 3] {
+    pub(crate) fn mul(m: [[f32; 3]; 3], c: [f32; 3]) -> [f32; 3] {
         m.map(|row| row[0] * c[0] + row[1] * c[1] + row[2] * c[2])
     }
 
+    /// modules.wgsl's AG_SRGB_TO_PROPHOTO and AG_PROPHOTO_TO_SRGB, row by row.
+    pub(crate) const TO: [[f32; 3]; 3] = [
+        [0.5293458, 0.3300728, 0.1405813],
+        [0.0983744, 0.873461, 0.0281647],
+        [0.0168832, 0.1176725, 0.8654443],
+    ];
+    pub(crate) const FROM: [[f32; 3]; 3] = [
+        [2.0340764, -0.7273343, -0.3067417],
+        [-0.2288134, 1.2317302, -0.0029169],
+        [-0.0085698, -0.1532866, 1.1618564],
+    ];
+
     /// DNG Standard on the CPU, with the exact curve rather than its 16 points.
     fn reference(c: [f32; 3], ev: f32) -> [f32; 3] {
-        const TO: [[f32; 3]; 3] = [
-            [0.5293458, 0.3300728, 0.1405813],
-            [0.0983744, 0.873461, 0.0281647],
-            [0.0168832, 0.1176725, 0.8654443],
-        ];
-        const FROM: [[f32; 3]; 3] = [
-            [2.0340764, -0.7273343, -0.3067417],
-            [-0.2288134, 1.2317302, -0.0029169],
-            [-0.0085698, -0.1532866, 1.1618564],
-        ];
         let pp = mul(TO, c).map(|v| v.clamp(0.0, 1.0));
         let hi = pp[0].max(pp[1]).max(pp[2]);
         let lo = pp[0].min(pp[1]).min(pp[2]);
@@ -1351,10 +1397,21 @@ pub(crate) mod gpu {
         std::fs::write(out.join("sheet.html"), html).unwrap();
     }
 
-    /// Film-simulation LUTs on DNG Standard and on the offset alone, to judge
-    /// by eye. For each LUT in AG_LUTS (separated by ';') a sheet in AG_OUT,
-    /// `<lut>.html`: each RAW in AG_RAWS with no LUT, with the LUT on DNG
-    /// Standard, and with the LUT on the offset alone (no tone curve).
+    /// Film-simulation LUTs to judge by eye. For each LUT in AG_LUTS
+    /// (separated by ';') a sheet in AG_OUT, `<lut>.html`, with each RAW in
+    /// AG_RAWS: no LUT (DNG Standard), then the LUT two ways.
+    ///
+    /// A LUT from the app's own `resources/film_luts` is applied as the app
+    /// applies one that comes with it (`lutIsSceneReferred`, from `is_built_in`
+    /// in lut_processing.rs), to the scene-linear picture in place of the
+    /// rendering: as an edit put it on before (no mark: V-Log over sRGB, at
+    /// the RAW's own exposure) and as the Looks tab puts it on now
+    /// (film_lut.rs: V-Gamut, at the camera's offset). Any other LUT goes after
+    /// the rendering, as a user's does: on DNG Standard and on Linear.
+    ///
+    /// AG_REFS (';' per RAW, any of them empty) puts a reference JPEG beside
+    /// each RAW, and AG_CROPS (`x,y,w,h` fractions, ';' per RAW) adds a row
+    /// of that part, rendered at full size and shown at 200%.
     #[test]
     #[ignore = "reads RAW files; run by hand"]
     fn film_lut_sheets() {
@@ -1366,6 +1423,21 @@ pub(crate) mod gpu {
             .ok()
             .and_then(|w| w.parse().ok())
             .unwrap_or(900);
+        let per_raw = |name: &str| -> Vec<String> {
+            std::env::var(name)
+                .unwrap_or_default()
+                .split(';')
+                .map(str::to_string)
+                .collect()
+        };
+        let crops: Vec<Option<[f32; 4]>> = per_raw("AG_CROPS")
+            .iter()
+            .map(|c| {
+                let v: Vec<f32> = c.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+            })
+            .collect();
+        let refs = per_raw("AG_REFS");
         std::fs::create_dir_all(&out).unwrap();
         let ctx = device().expect("no wgpu adapter");
         let jpeg = |img: &image::Rgba32FImage| {
@@ -1385,10 +1457,20 @@ pub(crate) mod gpu {
                 jpeg(img)
             )
         };
+        // At 200%: each pixel shown as two, unsmoothed.
+        let zoomed = |img: &image::Rgba32FImage, label: &str| {
+            format!(
+                "<figure class=zoom><img style='width:{}px' src='data:image/jpeg;base64,{}'>\
+                 <figcaption>{label}, 200%</figcaption></figure>",
+                img.width() * 2,
+                jpeg(img)
+            )
+        };
         let photos: Vec<_> = raws
             .split(';')
             .filter(|p| !p.trim().is_empty())
-            .map(|path| {
+            .enumerate()
+            .map(|(n, path)| {
                 let bytes = std::fs::read(path).expect("read raw");
                 let linear = crate::raw_processing::develop_raw_image(
                     &bytes,
@@ -1399,9 +1481,29 @@ pub(crate) mod gpu {
                     Some(path),
                 )
                 .expect("decodes");
-                let h =
-                    (linear.height() as f32 * width as f32 / linear.width() as f32).round() as u32;
-                let small = crate::image_processing::downscale_f32_image(&linear, width, h);
+                let (w, h) = (linear.width() as f32, linear.height() as f32);
+                let small = crate::image_processing::downscale_f32_image(
+                    &linear,
+                    width,
+                    (h * width as f32 / w).round() as u32,
+                );
+                let part = crops.get(n).copied().flatten().map(|[x, y, cw, ch]| {
+                    linear.crop_imm(
+                        (x * w) as u32,
+                        (y * h) as u32,
+                        (cw * w) as u32,
+                        (ch * h) as u32,
+                    )
+                });
+                let reference = refs.get(n).filter(|r| !r.trim().is_empty()).map(|r| {
+                    let r = std::path::Path::new(r.trim());
+                    let image = image::open(r)
+                        .expect("reads the reference")
+                        .resize(width, width * 2, image::imageops::FilterType::Lanczos3)
+                        .to_rgba32f();
+                    let label = format!("D - reference, {}", r.file_name().unwrap().display());
+                    (image, label)
+                });
                 let wb = crate::raw_processing::read_as_shot(&bytes)
                     .map(|a| a.white_balance)
                     .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
@@ -1411,9 +1513,13 @@ pub(crate) mod gpu {
                     .unwrap()
                     .to_string_lossy()
                     .to_string();
-                (name, small, wb, ev)
+                (name, small, part, reference, wb, ev)
             })
             .collect();
+        let built_in_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/film_luts")
+            .canonicalize()
+            .expect("the app's film LUTs");
         for lut_path in luts.split(';').filter(|p| !p.trim().is_empty()) {
             let lut = Arc::new(crate::lut_processing::parse_lut_file(lut_path).expect("reads LUT"));
             let lut_name = std::path::Path::new(lut_path)
@@ -1421,47 +1527,87 @@ pub(crate) mod gpu {
                 .unwrap()
                 .to_string_lossy()
                 .to_string();
+            let is_built_in = std::path::Path::new(lut_path)
+                .canonicalize()
+                .expect("the LUT's path")
+                .parent()
+                == Some(built_in_dir.as_path());
             let mut html = format!(
                 "<!doctype html><meta charset=utf-8><title>{lut_name}</title><style>\
                  body{{background:#1b1b1b;color:#ddd;font:14px system-ui;margin:16px}}\
                  .row{{display:flex;gap:8px;margin:0 0 28px}}figure{{margin:0;flex:1}}\
                  img{{width:100%;display:block}}figcaption{{padding:4px 0}}h2{{font-size:15px;margin:8px 0}}\
+                 .crops{{overflow-x:auto}}figure.zoom{{flex:none}}\
+                 figure.zoom img{{max-width:none;image-rendering:pixelated}}\
                  </style><h1 style='font-size:18px'>LUT: {lut_name}</h1>"
             );
-            for (n, (name, small, wb, ev)) in photos.iter().enumerate() {
-                let with = |mode: &str, points: Vec<ToneCurvePoint>, lut_on: bool| {
+            for (n, (name, small, part, reference, wb, ev)) in photos.iter().enumerate() {
+                // `lut`: none, or on, with the Looks tab's mark or without it.
+                let with = |mode: &str, points: Vec<ToneCurvePoint>, lut: Option<bool>| {
                     let mut js = serde_json::json!({
                         "rawToneRendering": mode,
                         "rawToneCurve": json_points(&points),
+                        "rawToneCurveMode": mode,
                         "agSharpen": { "capture": false, "amount": 0 },
                     });
-                    if lut_on {
+                    if let Some(marked) = lut {
                         js["lutPath"] = lut_path.into();
                         js["lutIntensity"] = 100.into();
+                        js["lutIsSceneReferred"] = is_built_in.into();
+                        js[crate::mods::film_lut::KEY] = marked.into();
                     }
                     js
                 };
-                let a =
-                    render_with_lut(&ctx, small, with(MODE, curve_points(*ev), false), *wb, None);
-                let b = render_with_lut(
-                    &ctx,
-                    small,
-                    with(MODE, curve_points(*ev), true),
-                    *wb,
-                    Some(lut.clone()),
+                let no_lut = (
+                    "A - DNG Standard, no LUT".to_string(),
+                    with(MODE, curve_points(*ev), None),
                 );
-                let c = render_with_lut(
-                    &ctx,
-                    small,
-                    with(LINEAR_MODE, linear_points(*ev), true),
-                    *wb,
-                    Some(lut.clone()),
-                );
+                let edits = if is_built_in {
+                    [
+                        no_lut,
+                        (
+                            "B - film look as put on before: V-Log over sRGB, the RAW's own exposure"
+                                .to_string(),
+                            with(MODE, curve_points(*ev), Some(false)),
+                        ),
+                        (
+                            format!("C - film look as put on now: V-Gamut, offset {ev:+.2} EV"),
+                            with(MODE, curve_points(*ev), Some(true)),
+                        ),
+                    ]
+                } else {
+                    [
+                        no_lut,
+                        (
+                            "B - LUT on DNG Standard".to_string(),
+                            with(MODE, curve_points(*ev), Some(true)),
+                        ),
+                        (
+                            "C - LUT on Linear (no tone curve)".to_string(),
+                            with(LINEAR_MODE, linear_points(*ev), Some(true)),
+                        ),
+                    ]
+                };
+                let render = |image: &DynamicImage, js: &serde_json::Value| {
+                    let lut = js["lutPath"].is_string().then(|| lut.clone());
+                    render_with_lut(&ctx, image, js.clone(), *wb, lut)
+                };
                 html += &format!("<h2>{} - {name}</h2><div class=row>", n + 1);
-                html += &figure(&a, "A - Today (DNG Standard), no LUT");
-                html += &figure(&b, "B - LUT on today's base (DNG Standard)");
-                html += &figure(&c, "C - LUT on Linear (no tone curve)");
+                for (label, js) in &edits {
+                    html += &figure(&render(small, js), label);
+                }
+                if let Some((reference, label)) = reference {
+                    html += &figure(reference, label);
+                }
                 html += "</div>";
+                if let Some(part) = part {
+                    html += "<div class='row crops'>";
+                    for (label, js) in &edits {
+                        html += &zoomed(&render(part, js), &label[..1]);
+                    }
+                    html += "</div>";
+                }
+                eprintln!("{lut_name}: {name}, offset {ev:+.2} EV");
             }
             std::fs::write(out.join(format!("{lut_name}.html")), html).unwrap();
             eprintln!("wrote {lut_name}.html");

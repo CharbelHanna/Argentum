@@ -321,13 +321,53 @@ fn rt_rgb_tone(c: vec3<f32>, count: u32) -> vec3<f32> {
     return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
 }
 
+/// The picture in linear ProPhoto, each channel capped at the sensor's white:
+/// where DNG Standard's curve starts, and what makes a blown highlight white
+/// whatever colour the decode left in it. A film look starts here too.
+fn ag_prophoto_to_white(linear: vec3<f32>) -> vec3<f32> {
+    return clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 /// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
 /// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
 fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
-    let prophoto = clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
-    let toned = rt_rgb_tone(prophoto, count);
+    let toned = rt_rgb_tone(ag_prophoto_to_white(linear), count);
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
+}
+
+// ============================================================================
+// THE FILM LOOK INPUT
+//
+// A film look that comes with the app is a spektrafilm LUT, made for V-Log
+// over V-Gamut primaries (mods/film_lut.rs). Their scene-referred LUT path
+// encodes the scene-linear picture with the V-Log curve; this hands it the
+// picture in V-Gamut first, and a RAW at the camera's exposure offset, as its
+// rendering would have shown it. An edit that put a film look on before this
+// carries no mark, and is handed the working RGB, as it was.
+// ============================================================================
+
+// Linear sRGB (D65) to linear V-Gamut (D65), through XYZ, from V-Gamut's
+// primaries in Panasonic's V-Log/V-Gamut Reference Manual (2014). Each row
+// sums to one, so white stays white. Built column by column, as WGSL does;
+// mods/film_lut.rs checks it against the primaries.
+const AG_SRGB_TO_V_GAMUT = mat3x3<f32>(
+    vec3<f32>(0.5851961, 0.0785886, 0.0227942),
+    vec3<f32>(0.3226416, 0.8196271, 0.1142170),
+    vec3<f32>(0.0921622, 0.1017843, 0.8629887),
+);
+
+/// Blown highlights reach the film as DNG Standard shows them: capped at the
+/// sensor's white (`ag_prophoto_to_white`), so a clipped area the decode
+/// could not settle to neutral (highlights::settle_blown) prints white, not
+/// in the magenta white balance left in it. Then the camera's offset, then
+/// V-Gamut.
+fn ag_film_lut_input(linear: vec3<f32>) -> vec3<f32> {
+    if (adjustments.global.ag_film_lut_input == 0u) {
+        return linear;
+    }
+    let at_white = AG_PROPHOTO_TO_SRGB * ag_prophoto_to_white(linear);
+    return AG_SRGB_TO_V_GAMUT * (at_white * exp2(adjustments.global.ag_film_lut_ev));
 }
 
 // ============================================================================

@@ -1,6 +1,6 @@
 //! Our keys in a photo's edit that Copy settings, Paste and presets carry:
-//! `cameraProfile`, `rawToneRendering`, `agSharpen`, `whiteBalanceAuto` and
-//! `agBlackWhite` (B&W).
+//! `cameraProfile`, `rawToneRendering`, `agSharpen`, `whiteBalanceAuto`,
+//! `agBlackWhite` (B&W) and `agLutDeclaredInput` (film_lut.rs).
 //!
 //! RapidRAW's paste goes through a saved list of keys
 //! (`copyPasteSettings.includedAdjustments`), seeded and extended at each start
@@ -9,7 +9,7 @@
 //! start. On the interface's side they are in their copy groups
 //! (`ADJUSTMENT_GROUPS` in utils/adjustments.ts): the camera profile, the RAW
 //! rendering and B&W as one group, `agSharpen` with Sharpness,
-//! `whiteBalanceAuto` with White Balance.
+//! `whiteBalanceAuto` with White Balance, `agLutDeclaredInput` with the LUT.
 //!
 //! Auto names the photo it was measured on, and every photo it is pasted onto
 //! is measured again for its own light (argentum/autoWhiteBalance.ts,
@@ -34,6 +34,7 @@ mod tests {
             "agSharpen",
             "whiteBalanceAuto",
             super::super::black_white::KEY,
+            super::super::film_lut::KEY,
         ] {
             assert!(available.contains(key), "{key} is not offered to paste");
             assert!(included.contains(key), "{key} is not pasted by default");
