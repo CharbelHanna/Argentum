@@ -6,6 +6,13 @@ Newest first.
 
 ## 26.43.4 — 2026-10-23
 
+### Changed
+
+- **A LUT's Strength in Looks goes to 200%,** as Lightroom's profile Amount does: past 100 the
+  LUT's change is pushed further. The rendering is unchanged; a Look's Amount above 100 already
+  took the LUT past 100, and the slider now shows and sets that range. 100 is still the LUT as
+  made. `src/argentum/looks/LooksPanel.tsx`.
+
 ### Fixed
 
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
