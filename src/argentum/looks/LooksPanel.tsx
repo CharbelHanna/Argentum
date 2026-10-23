@@ -1090,7 +1090,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
               <Slider
                 label={t('looksStrength')}
                 min={0}
-                max={100}
+                max={200}
                 step={1}
                 defaultValue={100}
                 value={adjustments.lutIntensity ?? 100}
