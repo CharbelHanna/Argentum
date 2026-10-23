@@ -12,8 +12,11 @@
 //! Ctrl while dragging Whites or Blacks empties the picture to black or white
 //! and shows only what is being blown or crushed, which is how a white point
 //! and a black point are actually set. Lightroom does this with Alt; Alt and
-//! Shift on a slider here already mean fine adjustment, so it is Ctrl. The
-//! third is the sharpening mask, held from the Sharpening card the same way.
+//! Shift on a slider here already mean fine adjustment, so it is Ctrl. With a
+//! film look on, what the photo loses on its way into the look shows too: a
+//! faded look never prints black or white, so the screen alone would show
+//! nothing (`ag_point_view` in modules.wgsl). The third is the sharpening
+//! mask, held from the Sharpening card the same way.
 //!
 //! WHY NOT ONE VIEW WITH THE CHANNELS COLOUR-CODED
 //!
@@ -123,5 +126,266 @@ mod tests {
         assert_eq!(mode(&json!({ "showClipping": 9 })), SHARPEN_MASK_LOCAL);
         assert_eq!(mode(&json!({ "showClipping": 99 })), OFF);
         assert_eq!(mode(&json!({ "showClipping": "yes" })), OFF);
+    }
+}
+
+/// The white and black point views through the real shader, on a GPU:
+/// `cargo test --lib clipping::gpu -- --ignored`. What they light with a film
+/// look on is `ag_point_view` in modules.wgsl.
+#[cfg(test)]
+mod gpu {
+    use super::*;
+    use crate::image_processing::GpuContext;
+    use crate::lut_processing::Lut;
+    use crate::mods::dng_standard;
+    use crate::mods::dng_standard::gpu::{centre, device, image_of, render_with_lut};
+    use crate::mods::film_lut::KEY as DECLARED_INPUT;
+    use serde_json::{Value, json};
+    use std::sync::Arc;
+
+    /// A faded look: everything printed between 10% and 90%, so on screen
+    /// nothing is ever black or white - the photo that showed nothing had one
+    /// printing black as 17% grey.
+    fn faded() -> Arc<Lut> {
+        let size = 17u32;
+        let step = 1.0 / (size - 1) as f32;
+        let mut data = Vec::with_capacity((size * size * size * 3) as usize);
+        for b in 0..size {
+            for g in 0..size {
+                for r in 0..size {
+                    data.extend([r, g, b].map(|v| 0.1 + 0.8 * v as f32 * step));
+                }
+            }
+        }
+        Arc::new(Lut { size, data })
+    }
+
+    /// The two places a look goes on.
+    #[derive(Clone, Copy, Debug)]
+    enum Look {
+        /// A film look that comes with the app: scene-referred, fed its
+        /// declared input.
+        BuiltIn,
+        /// A LUT imported into Looks: after the Curves, on the display picture.
+        Imported,
+    }
+
+    /// An edit with the faded look on as `look` at `intensity`, plus `extra`.
+    fn with_look(look: Look, intensity: u32, extra: Value) -> Value {
+        let mut js = json!({
+            "rawToneRendering": "default",
+            "agSharpen": { "capture": false, "amount": 0 },
+            "lutPath": "faded",
+            "lutIntensity": intensity,
+            "lutIsSceneReferred": matches!(look, Look::BuiltIn),
+            // Looks marks every LUT it puts on (filmLookInput.ts).
+            DECLARED_INPUT: true,
+        });
+        for (k, v) in extra.as_object().expect("an object") {
+            js[k] = v.clone();
+        }
+        js
+    }
+
+    fn render(
+        ctx: &GpuContext,
+        patches: &[[f32; 3]],
+        js: &Value,
+        view: u32,
+        lut: Option<Arc<Lut>>,
+    ) -> Vec<[f32; 3]> {
+        let mut js = js.clone();
+        js["showClipping"] = json!(view);
+        let out = render_with_lut(
+            ctx,
+            &image_of(patches),
+            js,
+            crate::white_balance::WhiteBalance::reference(),
+            lut,
+        );
+        (0..patches.len()).map(|i| centre(&out, i)).collect()
+    }
+
+    const LIT_WHITE: [f32; 3] = [1.0, 1.0, 1.0];
+    const LIT_BLACK: [f32; 3] = [0.0, 0.0, 0.0];
+
+    fn same(a: [f32; 3], b: [f32; 3]) -> bool {
+        a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-4)
+    }
+
+    /// Without a look the views light exactly what is blown or crushed on
+    /// screen, as they always did - and the same with either kind of look at
+    /// 0%, or a film look put on before looks were fed their declared input.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn without_a_look_the_point_views_judge_the_screen() {
+        let ctx = device().expect("no wgpu adapter");
+        let patches = [
+            [0.0, 0.0, 0.0],
+            [0.0005, 0.0005, 0.0005],
+            [0.01, 0.01, 0.01],
+            [0.18, 0.18, 0.18],
+            [0.9, 0.9, 0.9],
+            [3.0, 3.0, 3.0],
+            [0.9, 0.05, 0.0],
+            [0.0, 0.3, 0.9],
+        ];
+        let edits = [
+            (
+                json!({ "rawToneRendering": "default", "agSharpen": { "capture": false, "amount": 0 } }),
+                None,
+            ),
+            (with_look(Look::BuiltIn, 0, json!({})), Some(faded())),
+            (with_look(Look::Imported, 0, json!({})), Some(faded())),
+            (
+                with_look(Look::BuiltIn, 100, json!({ DECLARED_INPUT: false })),
+                Some(faded()),
+            ),
+        ];
+        for (js, lut) in edits {
+            let screen = render(&ctx, &patches, &js, OFF, lut.clone());
+            let white = render(&ctx, &patches, &js, WHITE_POINT, lut.clone());
+            let black = render(&ctx, &patches, &js, BLACK_POINT, lut);
+            let (mut blown, mut crushed) = (0, 0);
+            for (i, s) in screen.iter().enumerate() {
+                let want_white = s.map(|c| if c > 0.998 { 1.0 } else { 0.0 });
+                let want_black = s.map(|c| if c < 0.002 { 0.0 } else { 1.0 });
+                assert!(
+                    same(white[i], want_white),
+                    "{js}: patch {i} on screen {s:?}, white point view {:?}",
+                    white[i]
+                );
+                assert!(
+                    same(black[i], want_black),
+                    "{js}: patch {i} on screen {s:?}, black point view {:?}",
+                    black[i]
+                );
+                blown += usize::from(want_white != LIT_BLACK);
+                crushed += usize::from(want_black != LIT_WHITE);
+            }
+            // Something must be at each limit on screen, or this proves nothing.
+            if js["lutIntensity"].as_u64().unwrap_or(0) == 0 {
+                assert!(
+                    blown > 0 && crushed > 0,
+                    "{js}: no blown or no crushed patch on screen"
+                );
+            }
+        }
+    }
+
+    /// The reported case: a faded look, Exposure -2 and Blacks -100. What the
+    /// photo crushes never reaches the screen as black, and the view shows it.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_look_shows_what_the_photo_crushes_before_it() {
+        let ctx = device().expect("no wgpu adapter");
+        let patches = [
+            [0.0, 0.0, 0.0],
+            [0.004, 0.004, 0.004],
+            [0.18, 0.18, 0.18],
+            [0.6, 0.6, 0.6],
+        ];
+        for look in [Look::BuiltIn, Look::Imported] {
+            let js = with_look(look, 100, json!({ "exposure": -2.0, "blacks": -100.0 }));
+            let screen = render(&ctx, &patches, &js, OFF, Some(faded()));
+            let black = render(&ctx, &patches, &js, BLACK_POINT, Some(faded()));
+            // The first two patches are crushed before the look; the rest are not.
+            for (i, (s, b)) in screen.iter().zip(&black).enumerate() {
+                if i < 2 {
+                    assert!(
+                        s.iter().all(|&c| c > 0.05),
+                        "{look:?}: patch {i} is black on screen {s:?}: the look did not fade it"
+                    );
+                    assert!(
+                        same(*b, LIT_BLACK),
+                        "{look:?}: patch {i}, crushed before the look, not lit: {b:?}"
+                    );
+                } else {
+                    assert!(
+                        same(*b, LIT_WHITE),
+                        "{look:?}: patch {i} lit though nothing crushed it: {b:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// A curve that crushes black still shows: after a film look the screen
+    /// is asked as well as the look's input, and an imported LUT is handed
+    /// the picture after the Curves.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_curve_that_crushes_black_still_shows() {
+        let ctx = device().expect("no wgpu adapter");
+        let patches = [[0.1, 0.1, 0.1], [0.9, 0.9, 0.9]];
+        let identity = json!([{ "x": 0, "y": 0 }, { "x": 255, "y": 255 }]);
+        let curves = json!({
+            "luma": [{ "x": 0, "y": 0 }, { "x": 128, "y": 0 }, { "x": 255, "y": 255 }],
+            "red": identity, "green": identity, "blue": identity,
+        });
+        for look in [Look::BuiltIn, Look::Imported] {
+            let js = with_look(look, 100, json!({ "curves": curves }));
+            let screen = render(&ctx, &patches, &js, OFF, Some(faded()));
+            let black = render(&ctx, &patches, &js, BLACK_POINT, Some(faded()));
+            if matches!(look, Look::BuiltIn) {
+                assert!(
+                    screen[0].iter().all(|&c| c < 0.002),
+                    "the curve after the film look did not crush the patch: {:?}",
+                    screen[0]
+                );
+            }
+            assert!(
+                same(black[0], LIT_BLACK),
+                "{look:?}: crushed by the curve, not lit: {:?}",
+                black[0]
+            );
+            assert!(
+                same(black[1], LIT_WHITE),
+                "{look:?}: lit though nothing crushed it: {:?}",
+                black[1]
+            );
+        }
+    }
+
+    /// A RAW in Linear reaches the look at the camera's offset, applied after
+    /// the cap and into V-Log, which keeps it: a highlight between 2^-offset
+    /// and the cap is printed with its detail and must not light. One past the
+    /// cap is lost, and does.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn highlights_the_film_look_keeps_are_not_lit() {
+        let ctx = device().expect("no wgpu adapter");
+        let ev = 0.5;
+        let patches = [[0.18, 0.18, 0.18], [0.95, 0.95, 0.95], [1.2, 1.2, 1.2]];
+        let js = with_look(
+            Look::BuiltIn,
+            100,
+            json!({
+                "rawToneRendering": dng_standard::LINEAR_MODE,
+                "rawToneCurveMode": dng_standard::LINEAR_MODE,
+                "rawToneCurve": dng_standard::linear_points(ev),
+            }),
+        );
+        assert!(
+            0.95 > (-ev).exp2(),
+            "the kept highlight must sit above 2^-offset"
+        );
+        let screen = render(&ctx, &patches, &js, OFF, Some(faded()));
+        let white = render(&ctx, &patches, &js, WHITE_POINT, Some(faded()));
+        assert!(
+            screen.iter().flatten().all(|&c| c < 0.95),
+            "the look printed white: {screen:?}"
+        );
+        assert!(same(white[0], LIT_BLACK), "mid grey lit: {:?}", white[0]);
+        assert!(
+            same(white[1], LIT_BLACK),
+            "a highlight the look keeps lit: {:?}",
+            white[1]
+        );
+        assert!(
+            same(white[2], LIT_WHITE),
+            "a highlight past the look's cap not lit: {:?}",
+            white[2]
+        );
     }
 }

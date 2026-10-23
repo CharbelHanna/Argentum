@@ -43,6 +43,21 @@ Newest first.
 
 ### Fixed
 
+- **Ctrl + Whites or Blacks shows what a look hides.** Holding Ctrl while dragging Whites or
+  Blacks shows only what is blown or crushed, and it judged the final picture alone. A faded look
+  never prints black or white (one fitted to a faded film stock prints black as 17% grey and
+  nothing above 98%), so with one on the view stayed empty at every setting. It now also lights a
+  channel where the photo is blown or crushed on its way into the look. For a LUT imported into
+  Looks, that is the picture it is handed after the Curves; for a film look that comes with the
+  app, its input in ProPhoto where it is capped at white, taken before the camera's exposure
+  offset, which the look keeps. The final picture is still judged as well, so a curve after a
+  film look that crushes black still shows. Without a look, with one at 0%, or with a film look
+  put on before looks were fed their declared input, the view is as before, and the Clipping
+  button is unchanged. On a RAW under a faded imported look, the view went from nothing lit to
+  7.7% (Blacks, at Exposure -2) and 7.8% (Whites), the areas that are black or white before the
+  look. Lightroom's Alt view shows nothing under a faded profile, and darktable, RawTherapee and
+  RAWmakase judge only the final picture; this goes further on purpose, because the point being
+  set is the photo's, not the look's. `ag_point_view` and `ag_look_entry` in `modules.wgsl`.
 - **Object selects what is inside a box again.** A box dragged on the photo with no click before it
   failed with *Invalid dimension #3*; a click worked. SAM 2.1's decoder is told "no points" with an
   empty points tensor, and ort 2.0.0-rc.10, the app's version, refuses to build a zero-sized tensor

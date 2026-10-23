@@ -2064,6 +2064,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         }
     }
 
+    let ag_lut_input = final_rgb;  // Argentum: what a LUT after the Curves is handed, for the white and black point views, see modules.wgsl
     if (adjustments.global.has_lut == 1u && adjustments.global.lut_is_scene_referred == 0u) {
         let lut_color = sample_lut_tetrahedral(final_rgb);
         final_rgb = mix(final_rgb, lut_color, adjustments.global.lut_intensity);
@@ -2085,7 +2086,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         final_rgb += vec3<f32>(noise_val) * amount * luma_mask;
     }
 
-    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping, absolute_coord);  // Argentum: the display-referred anchor, see modules.wgsl
+    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping, absolute_coord, composite_rgb_linear, ag_lut_input);  // Argentum: the display-referred anchor, see modules.wgsl
 
     // upstream #1466
     if (!HIGH_PRECISION_OUTPUT) {
