@@ -473,12 +473,15 @@ export const REGISTRY = [
       + 'Import, and On this photo with a LUT\'s Strength and a preset\'s Amount. The presets that '
       + 'come with the app are RAWmakase\'s (assets/presets @ 7c3c81a, BandW @ a8c5d6d7; MIT). Amount '
       + 'follows RAWmakase\'s rule on RapidRAW\'s mixing: from the photo before the preset, only '
-      + 'the preset\'s settings. The LUT block left Effects.',
+      + 'the preset\'s settings. The LUT block left Effects. Suggested for this photo: the LUTs '
+      + 'picked for the photos most like the open one, by light and colours (look_picks.rs).',
     ours: [
       'src/argentum/looks/LooksPanel.tsx',
       'src/argentum/looks/looksStore.ts',
       'src/argentum/looks/presetAmount.ts',
+      'src/argentum/looks/suggestions.ts',
       'src-tauri/src/mods/looks.rs',
+      'src-tauri/src/mods/look_picks.rs',
     ],
     dependsOn: [
       { file: 'src/hooks/useEditorActions.ts', symbol: 'setAdjustments', how: 'calls',

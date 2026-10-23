@@ -45,6 +45,7 @@ pub mod input_stage;
 pub mod lens_builtin;
 pub mod lens_crop;
 pub mod lens_name;
+pub mod look_picks;
 pub mod looks;
 pub mod makernote_lens;
 pub mod mask_falloff;

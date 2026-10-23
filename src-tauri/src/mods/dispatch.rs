@@ -197,6 +197,34 @@ struct IdsArgs {
     ids: Vec<String>,
 }
 
+/// The open photo and the LUT just put on it (its path).
+#[derive(Deserialize)]
+struct LookPickArgs {
+    path: String,
+    lut: String,
+}
+
+#[derive(Deserialize)]
+struct LearningArgs {
+    on: bool,
+}
+
+/// The photo the editor holds, if it is the one asked about: the editor may
+/// ask while another photo is still being decoded.
+fn the_open_photo(state: &AppState, path: &str) -> Result<crate::app_state::LoadedImage, String> {
+    let loaded = state
+        .original_image
+        .lock()
+        .map_err(|e| e.to_string())?
+        .clone()
+        .ok_or("No image loaded")?;
+    let source = |path: &str| crate::file_management::parse_virtual_path(path).0;
+    if source(path) != source(&loaded.path) {
+        return Err(format!("'{path}' is not the loaded image"));
+    }
+    Ok(loaded)
+}
+
 /// A photo and the snapshots to keep for it.
 #[derive(Deserialize)]
 struct SnapshotsArgs {
@@ -442,17 +470,7 @@ async fn json(
         }
         "black_white_auto" => {
             let a: OpenPhotoArgs = args_for(&name, args)?;
-            let loaded = state
-                .original_image
-                .lock()
-                .map_err(|e| e.to_string())?
-                .clone()
-                .ok_or("No image loaded")?;
-            // The editor may ask while another photo is still being decoded.
-            let source = |path: &str| crate::file_management::parse_virtual_path(path).0;
-            if source(&a.path) != source(&loaded.path) {
-                return Err(format!("'{}' is not the loaded image", a.path));
-            }
+            let loaded = the_open_photo(&state, &a.path)?;
             let mix = tokio::task::spawn_blocking(move || {
                 crate::mods::black_white::auto(&loaded, &a.js_adjustments)
             })
@@ -636,6 +654,33 @@ async fn json(
         "set_looks_favourites" => {
             let a: IdsArgs = args_for(&name, args)?;
             commands::set_looks_favourites(&a.ids)?;
+            Ok(serde_json::Value::Null)
+        }
+        "look_suggestions" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let loaded = the_open_photo(&state, &a.path)?;
+            serde_json::to_value(commands::look_suggestions(&a.path, &loaded)?)
+                .map_err(|e| e.to_string())
+        }
+        "look_pick" => {
+            let a: LookPickArgs = args_for(&name, args)?;
+            let loaded = the_open_photo(&state, &a.path)?;
+            serde_json::to_value(commands::look_pick(&a.path, &a.lut, &loaded)?)
+                .map_err(|e| e.to_string())
+        }
+        "look_unpick" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let loaded = the_open_photo(&state, &a.path)?;
+            serde_json::to_value(commands::look_unpick(&a.path, &loaded)?)
+                .map_err(|e| e.to_string())
+        }
+        "set_look_learning" => {
+            let a: LearningArgs = args_for(&name, args)?;
+            commands::set_look_learning(a.on)?;
+            Ok(serde_json::Value::Null)
+        }
+        "forget_look_picks" => {
+            commands::forget_look_picks()?;
             Ok(serde_json::Value::Null)
         }
         "set_text_size" => {

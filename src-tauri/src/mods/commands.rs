@@ -1,8 +1,9 @@
 //! Tauri commands for Argentum's own features.
 
-use crate::app_state::AppState;
+use crate::app_state::{AppState, LoadedImage};
 use crate::get_cached_full_warped_image;
 use crate::mods::auto_wb::{self, AutoWhiteBalance, DetectMode};
+use crate::mods::look_picks;
 
 /// Build a per-photo RAW tone curve. Base Curve is a small camera-style
 /// default; Auto-Matched compares the decoded RAW with its embedded JPEG.
@@ -423,6 +424,48 @@ pub fn looks_favourites() -> Result<Vec<String>, String> {
 /// Keep these as the starred looks.
 pub fn set_looks_favourites(ids: &[String]) -> Result<(), String> {
     crate::mods::looks::save_favourites(profile_library()?, ids)
+}
+
+/// The LUTs the open photo is likely to get (mods/look_picks.rs); `photo` is
+/// its name in the editor.
+pub fn look_suggestions(
+    photo: &str,
+    loaded: &LoadedImage,
+) -> Result<look_picks::Suggested, String> {
+    let here = look_picks::fingerprint(loaded);
+    Ok(look_picks::load(profile_library()?).suggested(photo, &here))
+}
+
+/// A LUT was put on the open photo: remember it, and say what is shown now.
+pub fn look_pick(
+    photo: &str,
+    lut: &str,
+    loaded: &LoadedImage,
+) -> Result<look_picks::Suggested, String> {
+    let here = look_picks::fingerprint(loaded);
+    look_picks::change(profile_library()?, |book| {
+        book.record(photo, lut, here);
+        book.suggested(photo, &here)
+    })
+}
+
+/// The open photo's LUT was taken off: forget its pick.
+pub fn look_unpick(photo: &str, loaded: &LoadedImage) -> Result<look_picks::Suggested, String> {
+    let here = look_picks::fingerprint(loaded);
+    look_picks::change(profile_library()?, |book| {
+        book.forget(photo);
+        book.suggested(photo, &here)
+    })
+}
+
+/// Learn from the LUTs put on photos, or stop.
+pub fn set_look_learning(on: bool) -> Result<(), String> {
+    look_picks::change(profile_library()?, |book| book.learning = on)
+}
+
+/// Forget every pick.
+pub fn forget_look_picks() -> Result<(), String> {
+    look_picks::change(profile_library()?, |book| book.picks.clear())
 }
 
 /// A photo's snapshots (mods/snapshots.rs), from its sidecar.

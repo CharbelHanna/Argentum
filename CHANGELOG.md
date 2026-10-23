@@ -8,6 +8,22 @@ Newest first.
 
 ### Added
 
+- **Looks: LUTs suggested for each photo.** At the top of the Looks tab, "Suggested for this photo"
+  shows the three LUTs most likely to be put on the open photo, each with why ("You picked it for 4
+  similar lamp-lit photos"). It learns from every LUT put on a photo in the editor: the pick is kept
+  with the photo's light, lamp-lit or daylight, and eight numbers about its colours. Lamp light is
+  told from the camera's As Shot white balance, how bright the scene was (its exposure) and whether
+  the photo stays warm after that white balance: no one of them alone tells lamps from daylight on
+  leaves or a bright downlight, and together they sorted 210 5D Mark II RAWs (35 under lamps) with
+  no mistake. The colours: how warm, how bright, how colourful, and how much green, sky, pink, warm
+  tones and near-grey (OkLab hues). A photo's suggestions are the LUTs its eight nearest picks in
+  the same light chose, most votes first. No model and nothing downloaded; suggestions
+  start after three photos. One pick per photo, the last LUT put on; taking it off forgets it, and
+  a photo's own pick never counts for it, so the list stays put while LUTs are tried. Nothing is
+  read from photos edited before: it learns from picks made from now on. The picks are one small
+  file beside Argentum's settings (`look-picks.json`); the group's ⋯ menu stops or resumes the
+  learning, forgets every pick, and says how often the pick was one of the suggestions. The LUT
+  folders below keep their A to Z order. `mods/look_picks.rs`, `src/argentum/looks/suggestions.ts`.
 - **Each photo keeps its History.** Open another photo and come back, or restart Argentum, and a
   photo's History is as it was left, at the step it was at: undo and redo carry on, and steps undone
   before leaving can still be redone. It is kept in the photo's sidecar beside the edit, as
