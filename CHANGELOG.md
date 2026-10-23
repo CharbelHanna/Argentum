@@ -58,6 +58,12 @@ Newest first.
   look. Lightroom's Alt view shows nothing under a faded profile, and darktable, RawTherapee and
   RAWmakase judge only the final picture; this goes further on purpose, because the point being
   set is the photo's, not the look's. `ag_point_view` and `ag_look_entry` in `modules.wgsl`.
+- **Object selects what is inside a box again.** A box dragged on the photo with no click before it
+  failed with *Invalid dimension #3*; a click worked. SAM 2.1's decoder is told "no points" with an
+  empty points tensor, and ort 2.0.0-rc.10, the app's version, refuses to build a zero-sized tensor
+  from data. The port of RAWmakase's selection code (`crates/rawmakase-inference/src/runtime.rs`
+  @ `7c3c81a`) already allocated the empty tensor for "no box"; now the points and their labels
+  get the same, in `rm_selection/src/runtime.rs`.
 - **Blown highlights are found where a Canon file states its white too high.** rawler takes a
   Canon file's white level from its SpecularWhiteLevel. On some 5D Mark II frames that is above the
   point the sensor stopped (16383 and 16235, where every clipped photosite reads 16033), so no

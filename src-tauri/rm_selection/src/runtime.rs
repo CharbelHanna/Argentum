@@ -437,9 +437,9 @@ impl Session {
             let outputs = decoder
                 .run_with_options(
                     ort::inputs![
-                        "input_points" => TensorRef::from_array_view(([1usize, 1, n, 2], &points[..])).map_err(failed)?,
-                        "input_labels" => TensorRef::from_array_view(([1usize, 1, n], &labels[..])).map_err(failed)?,
-                        "input_boxes" => boxes_input(boxes, &bounds)?,
+                        "input_points" => prompt_input([1usize, 1, n, 2], &points)?,
+                        "input_labels" => prompt_input([1usize, 1, n], &labels)?,
+                        "input_boxes" => prompt_input([1usize, boxes, 4], &bounds)?,
                         "image_embeddings.0" => view(f0)?,
                         "image_embeddings.1" => view(f1)?,
                         "image_embeddings.2" => view(f2)?,
@@ -637,18 +637,21 @@ fn view(f: &([usize; 4], Vec<f32>)) -> Result<TensorRef<'_, f32>, InferenceError
 }
 
 /// Argentum: rc.10 refuses a zero-sized dimension built from raw data, which is how a
-/// prompt of points alone says "no box"; an allocated empty tensor is accepted.
-fn boxes_input(
-    boxes: usize,
-    bounds: &[f32],
-) -> Result<ort::session::SessionInputValue<'_>, InferenceError> {
-    if boxes == 0 {
-        let empty =
-            ort::value::Tensor::<f32>::new(&ort::memory::Allocator::default(), [1usize, 0, 4])
-                .map_err(failed)?;
+/// prompt of points alone says "no box", and a box alone "no points"; an allocated
+/// empty tensor is accepted.
+fn prompt_input<T, const N: usize>(
+    shape: [usize; N],
+    data: &[T],
+) -> Result<ort::session::SessionInputValue<'_>, InferenceError>
+where
+    T: ort::tensor::PrimitiveTensorElementType + std::fmt::Debug + Clone + 'static,
+{
+    if shape.contains(&0) {
+        let empty = ort::value::Tensor::<T>::new(&ort::memory::Allocator::default(), shape)
+            .map_err(failed)?;
         Ok(empty.into())
     } else {
-        Ok(TensorRef::from_array_view(([1usize, boxes, 4], bounds))
+        Ok(TensorRef::from_array_view((shape, data))
             .map_err(failed)?
             .into())
     }
