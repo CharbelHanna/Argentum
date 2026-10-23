@@ -444,6 +444,42 @@ mod tests {
         assert!(overlap > 0.5, "overlap {overlap:.2}");
     }
 
+    /// The real models again: a box drawn around the person Subject found, with
+    /// no click, selects the same person. Same variables as above.
+    #[test]
+    #[ignore = "needs the models, a runtime and a photo"]
+    fn a_box_around_the_person_selects_the_person() {
+        let dir = PathBuf::from(std::env::var("AG_SELECTION_MODELS").unwrap());
+        let photo = std::env::var("AG_SELECTION_PHOTO").unwrap();
+        let bytes = std::fs::read(&photo).unwrap();
+        let picture = Arc::new(crate::raw_processing::extract_embedded_preview(&bytes).unwrap());
+        let subject = decode(&select(&dir, &picture, 3, Kind::Subject, PLAIN).unwrap());
+        let (mut left, mut top, mut right, mut bottom) = (u32::MAX, u32::MAX, 0, 0);
+        for (x, y, p) in subject.enumerate_pixels() {
+            if p[0] > 127 {
+                (left, top) = (left.min(x), top.min(y));
+                (right, bottom) = (right.max(x), bottom.max(y));
+            }
+        }
+        assert!(left < right && top < bottom, "Subject found no one to box");
+        let bounds = Bounds {
+            start_x: left as f64,
+            start_y: top as f64,
+            end_x: right as f64,
+            end_y: bottom as f64,
+        };
+        let object = decode(&select_object(&dir, &picture, 3, &[], Some(bounds), PLAIN).unwrap());
+        let (mut both, mut either) = (0f64, 0f64);
+        for (a, b) in subject.pixels().zip(object.pixels()) {
+            let (a, b) = (a[0] > 127, b[0] > 127);
+            both += (a && b) as u8 as f64;
+            either += (a || b) as u8 as f64;
+        }
+        let overlap = both / either.max(1.0);
+        eprintln!("boxed Object and Subject overlap: {overlap:.2}");
+        assert!(overlap > 0.5, "overlap {overlap:.2}");
+    }
+
     const PLAIN: Frame = Frame {
         rotation: 0.0,
         flip_horizontal: false,
