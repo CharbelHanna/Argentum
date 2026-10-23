@@ -80,10 +80,23 @@ function mixValues(before: Values, preset: Values, fraction: number, path: strin
 }
 
 /**
+ * A preset that brings a LUT the photo did not have: its strength starts from
+ * none, so the Amount fades the LUT in. The photo's own strength belonged to
+ * its own LUT, or to no LUT at all.
+ */
+function bringsItsOwnLut(before: Values, preset: Values): boolean {
+  return typeof preset.lutPath === 'string' && preset.lutPath !== before.lutPath;
+}
+
+/**
  * The settings the preset has, at `amount` percent from `before` (the photo
  * before the preset) to the preset: 0 is `before`'s own values, 100 the
  * preset's, 200 twice as far.
  */
 export function presetAt<T extends object>(before: T, preset: Partial<T>, amount: number): Partial<T> {
-  return mixValues(before as Values, preset as Values, amount / 100) as Partial<T>;
+  const from =
+    amount > 0 && bringsItsOwnLut(before as Values, preset as Values)
+      ? { ...(before as Values), lutIntensity: 0 }
+      : (before as Values);
+  return mixValues(from, preset as Values, amount / 100) as Partial<T>;
 }

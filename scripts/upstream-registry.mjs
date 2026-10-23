@@ -473,17 +473,21 @@ export const REGISTRY = [
       + 'Import, and On this photo with a LUT\'s Strength and a preset\'s Amount. The presets that '
       + 'come with the app are RAWmakase\'s (assets/presets @ 7c3c81a, BandW @ a8c5d6d7; MIT). Amount '
       + 'follows RAWmakase\'s rule on RapidRAW\'s mixing: from the photo before the preset, only '
-      + 'the preset\'s settings. The LUT block left Effects.',
+      + 'the preset\'s settings. The LUT block left Effects. Suggested for this photo: the LUTs '
+      + 'picked for the photos most like the open one, by light and colours (look_picks.rs).',
     ours: [
       'src/argentum/looks/LooksPanel.tsx',
       'src/argentum/looks/looksStore.ts',
       'src/argentum/looks/presetAmount.ts',
+      'src/argentum/looks/suggestions.ts',
       'src-tauri/src/mods/looks.rs',
+      'src-tauri/src/mods/look_picks.rs',
     ],
     dependsOn: [
-      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleLutSelect', how: 'calls',
-        note: 'A LUT or film look goes on through it, and previews through setLutPreviewOverride; a '
-          + 'preset previews through the editor store\'s previewOverride, as the LUT preview does.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'setAdjustments', how: 'calls',
+        note: 'A LUT or film look goes on as their handleLutSelect puts one on, and previews as '
+          + 'setLutPreviewOverride does, with a mark of ours (entry film-look-input); a preset '
+          + 'previews through the editor store\'s previewOverride, as the LUT preview does.' },
       { file: 'src/hooks/usePresets.ts', symbol: 'usePresets', how: 'calls',
         note: 'The user\'s presets and folders, their import and every change to them: addPreset, '
           + 'configurePreset, overwritePreset, duplicatePreset, movePreset, addFolder, renameItem, '
@@ -805,7 +809,11 @@ export const REGISTRY = [
   {
     id: 'highlight-recovery',
     kind: 'feature',
-    what: 'Highlight recovery, and the sigmoid that lands it.',
+    what: 'Highlight recovery, and the sigmoid that lands it. What counts as clipped follows the '
+      + 'white level rawler reads, lowered to the white the file proves (a hard-clip spike in the '
+      + 'histogram, highlights::proven_white) where the stated one sits above the point the sensor '
+      + 'stopped, as Canon\'s SpecularWhiteLevel does on some 5D Mark II frames. The white that '
+      + 'scales the picture is rawler\'s, untouched.',
     ours: [
       'src/argentum/HighlightRecovery.tsx',
       'src-tauri/src/mods/highlights.rs',
@@ -1639,7 +1647,8 @@ export const REGISTRY = [
       'DNG Standard, a fourth RAW tone rendering, opt-in: the camera’s exposure offset '
       + '(BaselineExposure, from a DNG or a per-body table taken from RAWmakase) and Adobe’s default '
       + 'tone curve, applied in linear ProPhoto to each pixel’s largest and smallest channel as '
-      + 'Adobe’s RGBTone does, so hues hold.',
+      + 'Adobe’s RGBTone does, so hues hold. Linear, a fifth, is the same without the tone curve: '
+      + 'the offset alone, the base a film-simulation LUT is made for.',
     ours: [
       'src-tauri/src/mods/dng_standard.rs', 'src-tauri/src/mods/dng_baseline.tsv',
       'src-tauri/src/shaders/modules.wgsl', 'src/argentum/RawToneRendering.tsx',
@@ -2487,6 +2496,69 @@ export const REGISTRY = [
     keywords: /grad(e|ing)|split.?ton|tint|sepia/i,
   },
   {
+    id: 'film-look-input',
+    kind: 'behaviour-change',
+    what:
+      'The film looks that come with the app (spektrafilm LUTs, made for V-Log over V-Gamut) get '
+      + 'the picture converted to V-Gamut before their V-Log encode, in ag_film_lut_input '
+      + '(modules.wgsl), and a RAW in DNG Standard or Linear at the camera\'s exposure offset its '
+      + 'curve carries (dng_standard::offset_of; an enlargement carries the number, '
+      + 'agLutExposureEv), each channel first capped at the sensor\'s white in ProPhoto as DNG '
+      + 'Standard caps it (ag_prophoto_to_white), so blown highlights print white, when the edit '
+      + 'carries agLutDeclaredInput: true. The Looks tab writes it '
+      + 'whenever it puts a LUT on or previews one, and Copy settings carries it; an edit that put '
+      + 'a film look on before has no mark and keeps their input, linear sRGB under the curve.',
+    ours: [
+      'src-tauri/src/mods/film_lut.rs',
+      'src-tauri/src/shaders/modules.wgsl',
+      'src/argentum/looks/filmLookInput.ts',
+      'src/argentum/looks/LooksPanel.tsx',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'linear_to_vlog', how: 'calls',
+        note: 'Their scene-referred LUT path encodes ag_film_lut_input(composite_rgb_linear); '
+          + 'shader_check holds the one call. If they move the encode, the call moves with it. '
+          + 'Render path.' },
+      { file: 'src-tauri/src/shaders/shader.wgsl', symbol: 'GlobalAdjustments', how: 'extends',
+        note: 'ag_film_lut_input and ag_film_lut_ev take their _pad_raw_tone1 and _pad_raw_tone2 '
+          + 'slots, so the layout is unchanged. '
+          + 'Render path.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'get_all_adjustments_from_json', how: 'extends',
+        note: 'Fills ag_film_lut_input and ag_film_lut_ev from the edit (film_lut::declared_input, '
+          + 'exposure_ev, from the raw tone points it reads). Render path.' },
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'primaries_to_xyz_matrix', how: 'calls',
+        note: 'The test that checks the shader\'s matrix builds it from the primaries; xy_to_xyz '
+          + 'now takes a negative y (V-Gamut\'s blue) instead of treating it as missing. Render path.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'handleLutSelect', how: 'shadows',
+        note: 'The Looks tab puts a LUT on and previews it as handleLutSelect and '
+          + 'setLutPreviewOverride do, with the mark (filmLookInput.ts lutKeys); theirs are left for '
+          + 'the Effects LUT block, which the Looks tab replaced. A key they add has to be added '
+          + 'to lutKeys.' },
+      { file: 'src-tauri/src/lut_processing.rs', symbol: 'generate_lut_previews', how: 'retypes',
+        note: 'Its swatch edit, lutPath "preview", is read as a LUT going on now '
+          + '(film_lut::declared_input), so the swatches show a film look as it goes on. If they '
+          + 'rename the sentinel, the swatches show the old input.' },
+      { file: 'src-tauri/src/app_settings.rs', symbol: 'all_available_adjustments', how: 'extends',
+        note: 'The mark is pasted by default, on the line with our other keys (mods/copy_keys.rs).' },
+      { file: 'src/utils/adjustments.ts', symbol: 'ADJUSTMENT_GROUPS', how: 'extends',
+        note: 'filmLookInput.ts adds the mark to their LUT copy group and COPYABLE_ADJUSTMENT_KEYS at '
+          + 'import, so presets and Copy settings carry it with the LUT. Found by the group\'s label, '
+          + 'modals.copyPaste.groups.lut.' },
+    ],
+    tests: [
+      'src-tauri/src/mods/film_lut.rs #[cfg(test)]: the shader\'s matrix is the one V-Gamut\'s and '
+        + 'sRGB\'s primaries define; only a marked edit is fed it; through the whole render with an '
+        + 'identity LUT, a marked edit is fed V-Log over V-Gamut and an unmarked one V-Log over sRGB '
+        + '(GPU, ignored), and a RAW in DNG Standard or Linear at its offset (GPU, ignored); the '
+        + 'offset reads back from either curve (dng_standard.rs); an enlargement carries it '
+        + '(super_resolution.rs).',
+      'src-tauri/src/mods/shader_check.rs #[cfg(test)]: the one call, and the struct layout.',
+      'Manual: put K-Portra 400 on a photo, and open a photo that had a film look before: the new '
+        + 'one is less saturated, the old one looks as it did.',
+    ],
+    keywords: /lut|film|v.?log|v.?gamut|spektrafilm|scene.?referred/i,
+  },
+  {
     id: 'history-on-release',
     kind: 'behaviour-change',
     what:
@@ -2511,6 +2583,57 @@ export const REGISTRY = [
       'Manual: click a slider\'s track without dragging: one step. Type a value: one step.',
     ],
     keywords: /history|undo|redo|debounce/i,
+  },
+  {
+    id: 'history-kept',
+    kind: 'feature',
+    what:
+      'Each photo keeps its History: switching to another photo and back, or restarting, gives it back '
+      + 'at the step it was at, so undo and redo carry on. Kept in the sidecar as agHistory beside the '
+      + 'edit: each step its name and only what it changed (JSON Pointer to value), the step the edit '
+      + 'is at, and a fingerprint of the saved edit, so it is used only with that edit. The model of '
+      + 'darktable (src/common/exif.cc @ f973fb0f: history and history_end); RAWmakase keeps one in its '
+      + 'catalog (develop_history.rs @ bf5346d), and its way of saving a change not yet a step.',
+    ours: [
+      'src/argentum/history/historyKeeper.ts',
+      'src/argentum/history/historyRecord.ts',
+      'src/argentum/layout/historyNames.ts',
+      'src-tauri/src/mods/history.rs',
+    ],
+    dependsOn: [
+      { file: 'src-tauri/src/image_processing.rs', symbol: 'ImageMetadata', how: 'extends',
+        note: 'agHistory, an optional field beside adjustments, read leniently: one this version cannot '
+          + 'read counts as none, never as an unreadable sidecar. Their save of the edit '
+          + '(save_metadata_and_update_thumbnail) reads the sidecar and replaces only adjustments, which '
+          + 'keeps it; if it starts writing a fresh record, History is lost on every save.' },
+      { file: 'src-tauri/src/exif_processing.rs', symbol: 'write_sidecar', how: 'calls',
+        note: 'History is written through it, so a sidecar left holding only defaults is not kept: '
+          + 'History alone never gives a photo opened and left unedited a sidecar.' },
+      { file: 'src/store/useEditorStore.ts', symbol: 'resetHistory', how: 'calls',
+        note: 'Watched, not changed: a History of one state equal to the edit is their fresh start '
+          + '(opening, reset, paste), which the kept one replaces through setState when it fits.' },
+      { file: 'src/hooks/useEditorActions.ts', symbol: 'debouncedSave', how: 'calls',
+        note: 'Their save comes 300 ms after the last change and their step 500 ms after it; History '
+          + 'is written 600 ms after, so the two never write the sidecar at once. Shorter on their '
+          + 'side is fine; longer than 600 ms and the two can overlap.' },
+      { file: 'src/hooks/useAppNavigation.ts', symbol: 'handleImageSelect', how: 'calls',
+        note: 'Flushes their save of the edit before the photo in the store changes, which is when '
+          + 'History writes the photo left, so the sidecar holds the edit its History ends on.' },
+    ],
+    tests: [
+      'cargo test --lib mods::history::: kept beside the edit, the rest of the sidecar untouched; only '
+        + 'good for the edit it was written with (a rating keeps it, a changed edit drops it); an '
+        + 'unedited photo gets no sidecar; one this version cannot read leaves the edit readable; '
+        + 'the record the editor writes (src/argentum/history/record.fixture.json) reads as written.',
+      'npx vitest run src/argentum/history/: round trip of states, step and names; a changed edit, or '
+        + 'one the steps do not fit, starts fresh; the last 50 states kept, as many as the editor holds; '
+        + '50 steps within 6,032 bytes plus a new mask once; the record matches the fixture; back after '
+        + 'another photo with redo; written after their save; a change not yet a step kept as one; '
+        + 'nothing written for an unedited photo; names as saved.',
+      'Manual: edit a photo (a few sliders, undo one), open another and come back: History is as left, '
+        + 'Redo works. Restart, open it: the same. Paste settings onto it from another photo: fresh History.',
+    ],
+    keywords: /history|undo|redo|agHistory/i,
   },
 ];
 

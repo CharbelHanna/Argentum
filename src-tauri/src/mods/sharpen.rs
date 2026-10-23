@@ -235,8 +235,10 @@ pub fn from_json(js: &Value, is_raw: bool, photo: Option<&str>) -> Params {
     }
 
     // DNG Standard brings its sharpening with it: a RAW in it, including one
-    // whose edit names no rendering, which starts in it (raw_tone::mode_of).
-    let dng_standard = is_raw && crate::mods::raw_tone::mode_of(js) == 3;
+    // whose edit names no rendering, which starts in it (raw_tone::mode_of),
+    // and one in Linear, DNG Standard without its tone curve.
+    let dng_standard =
+        is_raw && crate::mods::raw_tone::is_camera_raw_style(crate::mods::raw_tone::mode_of(js));
     let (usm_default, usm_radius_default) = if dng_standard {
         (DNG_STANDARD_AMOUNT, DNG_STANDARD_USM_RADIUS)
     } else {
@@ -1027,6 +1029,12 @@ mod tests {
         }
         let chosen = from_json(&json!({ "rawToneRendering": "dngStandard" }), true, None);
         assert_eq!(chosen.usm_amount, DNG_STANDARD_AMOUNT / 100.0);
+        let linear = from_json(&json!({ "rawToneRendering": "linear" }), true, None);
+        assert_eq!(
+            linear.usm_amount,
+            DNG_STANDARD_AMOUNT / 100.0,
+            "Linear is DNG Standard without its curve"
+        );
         let own = json!({ "rawToneRendering": "dngStandard", "agSharpen": { "amount": 0 } });
         assert!(
             !from_json(&own, true, None).usm_on(),

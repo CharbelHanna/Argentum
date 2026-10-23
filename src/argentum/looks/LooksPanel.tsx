@@ -1,7 +1,9 @@
 /**
  * The Looks tab: presets, LUTs and film looks in one list. Ours.
  *
- * Search, Import, and chips for All, Favourites, Presets and LUTs; then what
+ * Search, Import, and chips for All, Favourites, Presets and LUTs; then the
+ * LUTs suggested for the open photo, learned from the LUTs put on photos
+ * before (suggestions.ts); then what
  * is on the photo, with a LUT's Strength and a preset's Amount; then the
  * groups: Presets (those that come with the app,
  * RAWmakase's, by group), My presets and My LUTs. Pointing at a look shows it
@@ -19,8 +21,9 @@
  * their presets, as in the photo grid; a right-click on them moves or deletes
  * them all, and Esc lets them go. Folders are listed A to Z.
  *
- * Every part is today's: a LUT goes on through their handleLutSelect and
- * previews through their setLutPreviewOverride, swatches come from their
+ * Every part is today's: a LUT goes on and previews as their handleLutSelect
+ * and setLutPreviewOverride do it, with the mark that feeds a film look what
+ * its file declares (filmLookInput.ts), swatches come from their
  * generate_lut_previews and generate_preset_preview, the user's presets from
  * their usePresets and import from their commands. A preset's Amount follows
  * presetAmount.ts. The Effects section's LUT block and today's presets panel
@@ -56,10 +59,12 @@ type Modal =
   | null;
 import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
-import { type Adjustments, INITIAL_ADJUSTMENTS } from '../../utils/adjustments';
+import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { type AgKey, useAgTranslation } from '../locales';
+import { lutKeys } from './filmLookInput';
 import { presetAt } from './presetAmount';
 import { type LutEntry, useLooks } from './looksStore';
+import { type Light, MIN_PICKS, SHOWN, type Suggested, type Suggestion, useSuggested } from './suggestions';
 
 type Kind = 'preset' | 'lut';
 type Chip = 'all' | 'favourites' | 'presets' | 'luts';
@@ -95,6 +100,9 @@ const PRESET_FILES = ['rrpreset', 'xmp', 'lrtemplate'];
 
 /** How long the pointer rests on a look before the photo shows it. */
 const PREVIEW_AFTER_MS = 120;
+/** How long the hint says a pick was remembered. */
+const NOTE_FOR_MS = 2600;
+const LIGHT_LABEL: Record<Light, AgKey> = { lamp: 'looksLightLamp', daylight: 'looksLightDaylight' };
 const SWATCH_PX = 72;
 const UNCATEGORIZED = 'uncategorized';
 
@@ -159,7 +167,7 @@ function userGroups(items: UserPreset[]): { root: Look[]; folders: Group[] } {
 export default function LooksPanel({ editing }: { editing: boolean }) {
   const t = useAgTranslation();
   const { showContextMenu } = useContextMenu();
-  const { setAdjustments, handleLutSelect, setLutPreviewOverride } = useEditorActions();
+  const { setAdjustments } = useEditorActions();
   const adjustments = useEditorStore((s) => s.adjustments);
   const photo = useEditorStore((s) => (editing ? s.selectedImage : null));
   const setEditor = useEditorStore((s) => s.setEditor);
@@ -181,8 +189,12 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const [modal, setModal] = useState<Modal>(null);
   const [chip, setChip] = useState<Chip>('all');
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState<Set<string>>(() => new Set(['presets', 'mine', 'luts', 'lib:film']));
+  const [open, setOpen] = useState<Set<string>>(() => new Set(['suggested', 'presets', 'mine', 'luts', 'lib:film']));
   const hover = useRef<number | undefined>(undefined);
+  const { suggested, lutWentOn, lutCameOff, setLearning, forget } = useSuggested(photo?.path ?? null, !!photo?.isReady);
+  /** What the hint says for a moment after a pick, in place of the usual hint. */
+  const [note, setNote] = useState<string | null>(null);
+  const noteTimer = useRef<number | undefined>(undefined);
   /** Looks picked with Ctrl or Shift, all of one kind; Shift runs from the anchor. */
   const [picked, setPicked] = useState<string[]>([]);
   const anchor = useRef<string | null>(null);
@@ -197,7 +209,19 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     if (applied && photo && applied.photo !== photo.path) setApplied(null);
   }, [applied, photo, setApplied]);
 
-  useEffect(() => () => window.clearTimeout(hover.current), []);
+  useEffect(
+    () => () => {
+      window.clearTimeout(hover.current);
+      window.clearTimeout(noteTimer.current);
+    },
+    [],
+  );
+
+  const showNote = (text: string) => {
+    window.clearTimeout(noteTimer.current);
+    setNote(text);
+    noteTimer.current = window.setTimeout(() => setNote(null), NOTE_FOR_MS);
+  };
 
   const sections = useMemo(() => {
     const mine = userGroups(userItems);
@@ -276,25 +300,50 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 
   const isOn = (look: Look) => (look.lut ? adjustments.lutPath === look.lut.path : onPhoto?.id === look.id);
 
+  /** Back to the photo as it is: the pointer has left the list, or a look was clicked. */
   const stopPreview = () => {
     window.clearTimeout(hover.current);
     setEditor({ previewOverride: null });
   };
 
+  /**
+   * The pointer left one look. The look already on screen stays there until
+   * the next one replaces it, so moving from look to look never flashes the
+   * photo between them; only a look not yet shown is called off.
+   */
+  const leaveLook = () => window.clearTimeout(hover.current);
+
   const startPreview = (look: Look) => {
     if (!photo) return;
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
+      const now = useEditorStore.getState().adjustments;
       if (look.lut) {
-        setLutPreviewOverride(look.lut.path, look.lut.isBuiltIn);
+        setEditor({ previewOverride: { ...now, ...lutKeys(look.lut.path, look.lut.isBuiltIn) } });
       } else if (look.preset) {
-        const now = useEditorStore.getState().adjustments;
         setEditor({ previewOverride: { ...now, ...presetAt(now, look.preset, 100) } });
       }
     }, PREVIEW_AFTER_MS);
   };
 
-  const clearLut = () =>
+  /** The LUT onto the open photo, at full strength. */
+  const putOnLut = async (lut: LutEntry) => {
+    try {
+      const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: lut.path });
+      setAdjustments((prev: Adjustments) => ({
+        ...prev,
+        ...lutKeys(lut.path, lut.isBuiltIn),
+        lutSize: size,
+        lutIntensity: 100,
+        activeTools: setToolActive(getActiveTools(prev), 'lut', true),
+      }));
+      tellPick(lutWentOn(lut.path), 'looksSuggestRemembered');
+    } catch (err) {
+      toast.error(`Failed to load LUT: ${err}`);
+    }
+  };
+
+  const clearLut = () => {
     setAdjustments((prev: Adjustments) => ({
       ...prev,
       lutPath: null,
@@ -304,6 +353,15 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       lutIntensity: 100,
       lutIsSceneReferred: false,
     }));
+    tellPick(lutCameOff(), 'looksSuggestForgotOne');
+  };
+
+  /** Say in the hint that a pick was remembered or forgotten, while learning. */
+  const tellPick = (answer: Promise<Suggested | null>, key: AgKey) =>
+    answer.then((now) => {
+      if (now?.learning)
+        showNote(t(key).replace('{light}', t(LIGHT_LABEL[now.light])).replace('{count}', String(now.picks)));
+    });
 
   const takeOffPreset = () => {
     if (!onPhoto) return;
@@ -327,13 +385,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       let changes: Partial<Adjustments>;
       if (look.lut) {
         const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: look.lut.path });
-        changes = {
-          lutPath: look.lut.path,
-          lutName: look.lut.path.split(/[\\/]/).pop() ?? look.name,
-          lutSize: size,
-          lutIntensity: 100,
-          lutIsSceneReferred: look.lut.isBuiltIn,
-        };
+        changes = { ...lutKeys(look.lut.path, look.lut.isBuiltIn), lutSize: size, lutIntensity: 100 };
       } else if (look.preset) {
         changes = look.preset;
       } else return;
@@ -385,7 +437,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     }
     if (look.lut) {
       if (isOn(look)) clearLut();
-      else handleLutSelect(look.lut.path, look.lut.isBuiltIn);
+      else putOnLut(look.lut);
       return;
     }
     if (!look.preset) return;
@@ -740,6 +792,61 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     ]);
   };
 
+  /** Suggested's ⋯: learning on or off, and forgetting every pick. */
+  const suggestMenu = (event: MouseEvent) => {
+    event.stopPropagation();
+    if (!suggested) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const count = String(suggested.picks);
+    showContextMenu(rect.left, rect.bottom, [
+      {
+        label: t(suggested.learning ? 'looksSuggestStop' : 'looksSuggestStart'),
+        onClick: () => setLearning(!suggested.learning),
+      },
+      {
+        label: t('looksSuggestForget').replace('{count}', count),
+        isDestructive: true,
+        disabled: suggested.picks === 0,
+        onClick: () =>
+          useUIStore.getState().setUI({
+            confirmModalState: {
+              isOpen: true,
+              title: t('looksSuggestForgetAsk').replace('{count}', count),
+              message: t('looksSuggestForgetNote'),
+              confirmText: t('looksSuggestForgetYes'),
+              confirmVariant: 'destructive',
+              onConfirm: forget,
+            },
+          }),
+      },
+      ...(suggested.of > 0
+        ? [
+            { type: OPTION_SEPARATOR },
+            {
+              label: t('looksSuggestRight')
+                .replace('{right}', String(suggested.right))
+                .replace('{of}', String(suggested.of)),
+              disabled: true,
+            },
+          ]
+        : []),
+    ]);
+  };
+
+  /** Why a LUT is suggested: how many photos like this one it was picked for. */
+  const whyOf = (s: Suggestion) => {
+    const similar = s.votes > 0;
+    const count = similar ? s.votes : s.picks;
+    const key: AgKey = similar
+      ? count === 1
+        ? 'looksSuggestWhy1'
+        : 'looksSuggestWhyN'
+      : count === 1
+        ? 'looksSuggestElse1'
+        : 'looksSuggestElseN';
+    return t(key).replace('{count}', String(count)).replace('{light}', t(LIGHT_LABEL[s.light]));
+  };
+
   // ------------------------------------------------------------- what shows
 
   const needle = query.trim().toLowerCase();
@@ -766,7 +873,18 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
           : [],
       );
   const onPhotoLooks = everyLook.filter((l) => l.id === adjustments.lutPath || l.id === onPhoto?.id);
-  const swatches = useSwatches([...visible, ...onPhotoLooks], photo?.path ?? null, !!photo?.isReady);
+  // Suggested for this photo: the LUTs it still has, under the list's header
+  // and above what is on the photo, so they stay put while one is tried.
+  const showSuggested = !!photo && !!suggested && !flatList && chip !== 'presets';
+  const suggestedLooks = (suggested?.suggestions ?? [])
+    .flatMap((s) => {
+      const entry = luts.find((l) => l.path === s.lut);
+      return entry ? [{ look: lutLook(entry), why: s }] : [];
+    })
+    .slice(0, SHOWN);
+  const shownSuggested = showSuggested && open.has('suggested') ? suggestedLooks.map((s) => s.look) : [];
+  const swatchLooks = [...new Map([...visible, ...onPhotoLooks, ...shownSuggested].map((l) => [l.id, l])).values()];
+  const swatches = useSwatches(swatchLooks, photo?.path ?? null, !!photo?.isReady);
 
   const toggle = (id: string) =>
     setOpen((was) => {
@@ -803,20 +921,28 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     anchor.current = look.id;
   };
 
-  const row = (look: Look, showKind = false) => (
+  /** A look's row; a suggested one says why under its name. */
+  const row = (look: Look, showKind = false, why?: string) => (
     <div
       key={look.id}
       className={clsx('agm-look', isOn(look) && 'agm-on', picked.includes(look.id) && 'agm-picked')}
       onClick={(e) => click(e, look)}
       onMouseEnter={() => startPreview(look)}
-      onMouseLeave={stopPreview}
+      onMouseLeave={leaveLook}
       onContextMenu={(e) => lookMenu(e, look)}
     >
       <span
         className="agm-swatch"
         style={swatches[look.id] ? { backgroundImage: `url(${swatches[look.id]})` } : undefined}
       />
-      <span className="agm-look-name">{look.name}</span>
+      {why ? (
+        <span className="agm-suggest-text">
+          <span className="agm-look-name">{look.name}</span>
+          <span className="agm-suggest-why">{why}</span>
+        </span>
+      ) : (
+        <span className="agm-look-name">{look.name}</span>
+      )}
       {showKind && <span className="agm-kind">{t(KIND_LABEL[look.kind])}</span>}
       <button
         className={clsx('agm-star', favourites.includes(look.id) && 'agm-on')}
@@ -889,9 +1015,57 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         <div className="agm-hint">
           {anyPicked
             ? t('looksPicked').replace('{count}', String(pickedLooks.length))
-            : t(photo ? 'looksHintPhoto' : 'looksHintGrid')}
+            : (note ?? t(photo ? 'looksHintPhoto' : 'looksHintGrid'))}
         </div>
       </div>
+
+      {showSuggested && suggested && (
+        <div className="agm-suggest" onMouseLeave={stopPreview}>
+          <div className="agm-sec-head" onClick={() => (suggested.learning ? toggle('suggested') : undefined)}>
+            {suggested.learning && (open.has('suggested') ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
+            <span className="min-w-0 truncate">{t(suggested.learning ? 'looksSuggested' : 'looksSuggestedOff')}</span>
+            <span className="agm-sec-tools">
+              {suggested.learning ? (
+                <span className="agm-count" data-tooltip={t('looksSuggestAbout')}>
+                  {t('looksSuggestPicks').replace('{count}', String(suggested.picks))}
+                </span>
+              ) : (
+                <button
+                  className="agm-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setLearning(true);
+                  }}
+                >
+                  {t('looksSuggestTurnOn')}
+                </button>
+              )}
+              <button className="agm-btn" onClick={suggestMenu} data-tooltip={t('looksSuggestMenu')}>
+                <MoreHorizontal size={14} />
+              </button>
+            </span>
+          </div>
+          {suggested.learning &&
+            open.has('suggested') &&
+            (suggestedLooks.length ? (
+              suggestedLooks.map(({ look, why }) => row(look, false, whyOf(why)))
+            ) : suggested.picks < MIN_PICKS ? (
+              <div className="agm-suggest-cold">
+                {t('looksSuggestCold')}
+                <span className="agm-suggest-why">
+                  <span className="agm-suggest-dots">
+                    {Array.from({ length: MIN_PICKS }, (_, i) => (
+                      <i key={i} className={clsx(i < suggested.picks && 'agm-on')} />
+                    ))}
+                  </span>
+                  {t('looksSuggestColdNote').replace('{count}', String(MIN_PICKS))}
+                </span>
+              </div>
+            ) : (
+              <div className="agm-suggest-cold agm-suggest-why">{t('looksSuggestNone')}</div>
+            ))}
+        </div>
+      )}
 
       {photo && (lutOn || adjustments.lutPath || onPhoto) && (
         <div className="agm-onphoto">
@@ -954,7 +1128,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         </div>
       )}
 
-      <div className="agm-looks-list">
+      <div className="agm-looks-list" onMouseLeave={stopPreview}>
         {flatList ? (
           shownFlat.length ? (
             shownFlat.map((look) => row(look, true))

@@ -4,22 +4,137 @@ Newest first.
 
 **Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
 
-## 26.43.3 — 2026-10-21
+## 26.43.3 — 2026-10-23
 
 ### Added
 
+- **Looks: LUTs suggested for each photo.** At the top of the Looks tab, "Suggested for this photo"
+  shows the three LUTs most likely to be put on the open photo, each with why ("You picked it for 4
+  similar lamp-lit photos"). It learns from every LUT put on a photo in the editor: the pick is kept
+  with the photo's light, lamp-lit or daylight, and eight numbers about its colours. Lamp light is
+  told from the camera's As Shot white balance, how bright the scene was (its exposure) and whether
+  the photo stays warm after that white balance: no one of them alone tells lamps from daylight on
+  leaves or a bright downlight, and together they sorted 210 5D Mark II RAWs (35 under lamps) with
+  no mistake. The colours: how warm, how bright, how colourful, and how much green, sky, pink, warm
+  tones and near-grey (OkLab hues). A photo's suggestions are the LUTs its eight nearest picks in
+  the same light chose, most votes first. No model and nothing downloaded; suggestions
+  start after three photos. One pick per photo, the last LUT put on; taking it off forgets it, and
+  a photo's own pick never counts for it, so the list stays put while LUTs are tried. Nothing is
+  read from photos edited before: it learns from picks made from now on. The picks are one small
+  file beside Argentum's settings (`look-picks.json`); the group's ⋯ menu stops or resumes the
+  learning, forgets every pick, and says how often the pick was one of the suggestions. The LUT
+  folders below keep their A to Z order. `mods/look_picks.rs`, `src/argentum/looks/suggestions.ts`.
+- **Each photo keeps its History.** Open another photo and come back, or restart Argentum, and a
+  photo's History is as it was left, at the step it was at: undo and redo carry on, and steps undone
+  before leaving can still be redone. It is kept in the photo's sidecar beside the edit, as
+  `agHistory`, the way darktable keeps its history stack and `history_end` in its XMP
+  (`src/common/exif.cc` @ `f973fb0f`); RAWmakase keeps one in its catalog
+  (`crates/rawmakase-catalog/src/catalog/develop_history.rs` @ `bf5346d`). Each step keeps its
+  name and only what it changed, so a 50-step edit adds about 11 kB, half of it a mask added along
+  the way (the edit itself is about 10 kB). A History is used only with the edit it was saved
+  beside: after a paste, a reset or a change made elsewhere the photo starts a fresh one. A photo
+  opened and left unedited still gets no sidecar, and Copy settings, presets and sync carry the
+  edit, never its History. `mods/history.rs`, `src/argentum/history/`.
 - **Looks: move or delete several at once.** In the Looks tab, Ctrl-click adds one of your own
   LUTs or presets to a selection and Shift-click takes the run from the last one clicked, as in
   the photo grid; a plain click still puts a look on the photo. A right-click on the selection
   offers "Move 4 LUTs to" a folder and "Delete 4 LUTs" (after a confirmation); Esc clears it.
   LUTs and presets are never selected together, since they live in different folders. Looks that
   come with the app cannot be selected.
+- **Linear RAW rendering, the base film-simulation LUTs are made for.** Profile > Rendering gets
+  "Linear (for film LUTs)": DNG Standard's per-camera exposure offset without Adobe's tone curve,
+  so the photo keeps the camera's linear contrast. A film-simulation LUT carries its film's own
+  tone curve and is made to be applied to exactly that (abpy's FujifilmCameraProfiles ask for a
+  linear camera profile, Stuart Sowerby's Fuji HaldCLUTs for a neutral RAW with no curve); on DNG
+  Standard the two curves stack, and skies and skin blow out to white. Linear brings DNG Standard's
+  sharpening. A preset can pick it, so one preset can hold the rendering and the LUT together.
+  `mods/dng_standard.rs` (`LINEAR_MODE`, `linear_points`), mode 4 in `mods/raw_tone.rs`, drawn by
+  DNG Standard's path in `modules.wgsl`.
+- **A preset that brings a LUT fades it in with its Amount.** The LUT's strength used to start from
+  the photo's own (full), so the Amount slider did nothing to a preset's LUT below 100%.
 
 ### Changed
 
 - **Looks folders are listed A to Z**, in every section and in the Move to menus.
 
 ### Fixed
+
+- **Ctrl + Whites or Blacks shows what a look hides.** Holding Ctrl while dragging Whites or
+  Blacks shows only what is blown or crushed, and it judged the final picture alone. A faded look
+  never prints black or white (one fitted to a faded film stock prints black as 17% grey and
+  nothing above 98%), so with one on the view stayed empty at every setting. It now also lights a
+  channel where the photo is blown or crushed on its way into the look. For a LUT imported into
+  Looks, that is the picture it is handed after the Curves; for a film look that comes with the
+  app, its input in ProPhoto where it is capped at white, taken before the camera's exposure
+  offset, which the look keeps. The final picture is still judged as well, so a curve after a
+  film look that crushes black still shows. Without a look, with one at 0%, or with a film look
+  put on before looks were fed their declared input, the view is as before, and the Clipping
+  button is unchanged. On a RAW under a faded imported look, the view went from nothing lit to
+  7.7% (Blacks, at Exposure -2) and 7.8% (Whites), the areas that are black or white before the
+  look. Lightroom's Alt view shows nothing under a faded profile, and darktable, RawTherapee and
+  RAWmakase judge only the final picture; this goes further on purpose, because the point being
+  set is the photo's, not the look's. `ag_point_view` and `ag_look_entry` in `modules.wgsl`.
+- **Object selects what is inside a box again.** A box dragged on the photo with no click before it
+  failed with *Invalid dimension #3*; a click worked. SAM 2.1's decoder is told "no points" with an
+  empty points tensor, and ort 2.0.0-rc.10, the app's version, refuses to build a zero-sized tensor
+  from data. The port of RAWmakase's selection code (`crates/rawmakase-inference/src/runtime.rs`
+  @ `7c3c81a`) already allocated the empty tensor for "no box"; now the points and their labels
+  get the same, in `rm_selection/src/runtime.rs`.
+- **Blown highlights are found where a Canon file states its white too high.** rawler takes a
+  Canon file's white level from its SpecularWhiteLevel. On some 5D Mark II frames that is above the
+  point the sensor stopped (16383 and 16235, where every clipped photosite reads 16033), so no
+  photosite reached the clipping threshold: highlight recovery and `highlights::settle_blown`
+  never ran, and a blown sun or a white wall kept the magenta white balance gives clipped data.
+  The renderings hid it by capping at white; at -2 EV it showed. A hard clip leaves its mark in
+  the file, every clipped photosite on one value (278,198 on 16033 and 136,085 on 16032 on one
+  frame, against at most 43 on any value below), and where the file proves a white below the
+  threshold, that white now decides what is clipped (`highlights::proven_white`). Only that
+  judgement moves: the white level that scales the picture is untouched, so nothing outside a
+  clipped area changes. Of 4,513 Canon RAWs measured (5D Mark II CR2 and sRAW, R6 Mark III CR3),
+  two change; on those, every changed pixel lies within 8 px of a clipped photosite, and six
+  other RAWs render bit for bit as before in every rendering, with and without a film look. The
+  idea is RawTherapee's (`rtengine/hilite_recon.cc` @ `1a3fce8c`, which judges clipping against
+  the maxima an image reached), held to a spike so a photo with nothing clipped never moves. It
+  costs 1 to 4 ms per decode.
+
+- **Film looks get the colours they are made for.** The film looks that come with the app are
+  spektrafilm LUTs, made for V-Log over V-Gamut primaries: the input their headers name, and what
+  spektrafilm's LUT creator means by it (`spektrafilm_lut_creator/color_spaces.py` @ `3bb2c2d2`,
+  the 0.3.4 the LUTs were made with). RapidRAW hands them the V-Log curve over the working RGB,
+  linear sRGB, so every colour reached the film as a stronger one: 1.4 to 1.6 times the chroma
+  (OkLab) for skin, sky and foliage, skin turned 11° toward red and blues 15° toward cyan. A film
+  look put on from now on gets the picture converted to V-Gamut first (`ag_film_lut_input` in
+  `modules.wgsl`, `mods/film_lut.rs`). An edit that put one on before keeps its look: a LUT is
+  given the declared input only when its edit carries `agLutDeclaredInput`, which the Looks tab
+  now writes whenever it puts a LUT on or previews one, and Copy settings and presets carry with
+  the LUT (`src/argentum/looks/filmLookInput.ts`). RapidRAW's own code (main @ `211ef559`) still
+  feeds sRGB.
+
+- **Film looks take a RAW at the camera's exposure offset.** DNG Standard and Linear brighten each
+  RAW by its camera's exposure offset (+0.2 EV at the table's median), but the offset rides in the
+  rendering's curve, which a film look replaces whole, so every RAW reached the film darker than it
+  shows without one, and switching the rendering did nothing to a film look. spektrafilm takes
+  linear 0.18 as middle grey for a V-Log input (its commit `3bb2c2d2`, "fix: vlog midgray
+  exposure"), which is where the offset puts a RAW's. A film look put on from now on takes a RAW in
+  DNG Standard or Linear at the offset its rendering carries, read back from the edit's own curve
+  (`dng_standard::offset_of`), so a later change to the camera table cannot move it; the
+  rendering's tone curve still stays out, since the film's own curve is the rendering. An
+  enlargement carries its RAW's offset as `agLutExposureEv`. Edits from before keep their look, as
+  above.
+
+- **Film looks print blown highlights white, as the rendering shows them.** On some 5D Mark II
+  frames a sun or a white shirt came out pink under a film look and white without one. Canon's
+  SpecularWhiteLevel sits above the point where red saturates there (16383 and 16235 against
+  16034), so `highlights::settle_blown` never sees the area as blown and it keeps the magenta white
+  balance gives it; DNG Standard hides that by capping each channel at the sensor's white in
+  ProPhoto before its curve. A film look now starts from the same cap (`ag_prophoto_to_white` in
+  `modules.wgsl`, shared with DNG Standard). Film looks put on from now on; edits from before keep
+  their look.
+
+- **Looks: hovering from one look to the next no longer flashes the photo between them.** Leaving
+  a look put the photo back at once, and the next look showed only after its delay and render, so
+  every move along the list blinked to the original. The look on screen now stays until the next
+  one replaces it, and the photo comes back when the pointer leaves the list or a look is clicked.
 
 - **One History step per slider drag, recorded on release.** History recorded a step 500 ms after
   the last change even with the mouse still down, so a drag that paused now and then left a step

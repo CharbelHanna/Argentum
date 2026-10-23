@@ -298,6 +298,11 @@ mod tests {
             1,
             "the colour stage (B&W) should be called exactly once"
         );
+        assert_eq!(
+            SOURCE.matches("linear_to_vlog(ag_film_lut_input(").count(),
+            1,
+            "a film look's input (mods/film_lut.rs) should be called exactly once, inside the V-Log encode"
+        );
     }
 
     /// The adjustments buffer is written from Rust and read by WGSL, and the

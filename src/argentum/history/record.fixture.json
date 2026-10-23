@@ -1,0 +1,8 @@
+{
+  "end": 0,
+  "steps": [
+    { "name": "Initial State" },
+    { "name": "Exposure", "set": { "/exposure": 1 } },
+    { "name": "Mask Opacity", "set": { "/masks/0/opacity": 50 } }
+  ]
+}

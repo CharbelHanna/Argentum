@@ -53,9 +53,26 @@ use crate::mods::raw_tone::ToneCurvePoint;
 /// The `rawToneRendering` value that selects this.
 pub const MODE: &str = "dngStandard";
 
+/// The `rawToneRendering` value that selects Linear: this rendering without
+/// Adobe's tone curve, the camera's exposure offset alone. Camera Raw makes
+/// the same picture with a linear camera profile, which is what a
+/// film-simulation LUT is made to be applied to: the LUT carries the film's
+/// own tone curve, so a second one under it doubles the contrast.
+pub const LINEAR_MODE: &str = "linear";
+
 /// The photo's curve: its exposure offset and Adobe's default tone curve, as
 /// the 16 points the shader takes.
 pub fn curve(bytes: &[u8]) -> Result<Vec<ToneCurvePoint>, String> {
+    offset(bytes).map(curve_points)
+}
+
+/// Linear's curve: the photo's exposure offset alone.
+pub fn linear_curve(bytes: &[u8]) -> Result<Vec<ToneCurvePoint>, String> {
+    offset(bytes).map(linear_points)
+}
+
+/// The photo's exposure offset, in EV.
+fn offset(bytes: &[u8]) -> Result<f32, String> {
     let facts = facts(bytes)?;
     let baseline = baseline(&facts);
     log::info!(
@@ -67,39 +84,50 @@ pub fn curve(bytes: &[u8]) -> Result<Vec<ToneCurvePoint>, String> {
         baseline.origin,
         facts.held_back
     );
-    Ok(curve_points(baseline.ev))
+    Ok(baseline.ev)
 }
 
 /// The curve for a photo the renderer is handed without one: a photo nobody has
-/// edited, which starts in DNG Standard (`raw_tone::mode_of`). Read from the
-/// file's metadata once per photo and kept, since every render of the photo asks
-/// again. Without a readable photo, the offset is the table's median.
+/// edited, which starts in DNG Standard (`raw_tone::mode_of`).
 pub fn curve_for_photo(photo: Option<&str>) -> Vec<ToneCurvePoint> {
+    curve_points(offset_for_photo(photo))
+}
+
+/// Linear's curve for a photo the renderer is handed without one, as a preset
+/// that picks Linear leaves it.
+pub fn linear_curve_for_photo(photo: Option<&str>) -> Vec<ToneCurvePoint> {
+    linear_points(offset_for_photo(photo))
+}
+
+/// The photo's exposure offset, read from the file's metadata once per photo
+/// and kept, since every render of the photo asks again. Without a readable
+/// photo, the table's median.
+fn offset_for_photo(photo: Option<&str>) -> f32 {
     use std::collections::HashMap;
     use std::sync::Mutex;
-    static KEPT: OnceLock<Mutex<HashMap<String, Vec<ToneCurvePoint>>>> = OnceLock::new();
+    static KEPT: OnceLock<Mutex<HashMap<String, f32>>> = OnceLock::new();
     let Some(photo) = photo else {
-        return curve_points(baseline(&Facts::default()).ev);
+        return baseline(&Facts::default()).ev;
     };
     let kept = KEPT.get_or_init(Default::default);
-    if let Some(points) = kept.lock().unwrap_or_else(|e| e.into_inner()).get(photo) {
-        return points.clone();
+    if let Some(&ev) = kept.lock().unwrap_or_else(|e| e.into_inner()).get(photo) {
+        return ev;
     }
     let (source, _) = crate::file_management::parse_virtual_path(photo);
     let read = crate::file_management::read_file_mapped(&source)
         .map_err(|e| e.to_string())
-        .and_then(|bytes| curve(&bytes));
+        .and_then(|bytes| offset(&bytes));
     match read {
-        Ok(points) => {
+        Ok(ev) => {
             kept.lock()
                 .unwrap_or_else(|e| e.into_inner())
-                .insert(photo.to_string(), points.clone());
-            points
+                .insert(photo.to_string(), ev);
+            ev
         }
         // Not kept: a file that is busy now is read again on the next render.
         Err(e) => {
             log::warn!("DNG Standard: {e}; using the median exposure offset for now");
-            curve_points(baseline(&Facts::default()).ev)
+            baseline(&Facts::default()).ev
         }
     }
 }
@@ -269,9 +297,15 @@ const SHOULDER_KNEE: f32 = 0.5;
 
 /// Linear light, before the offset, to linear light out.
 fn tone(v: f32, ev: f32) -> f32 {
+    acr3(exposed(v, ev))
+}
+
+/// Linear light, before the offset, to linear light after it: the offset
+/// alone, no tone curve.
+fn exposed(v: f32, ev: f32) -> f32 {
     let v = v.clamp(0.0, 1.0);
     let gain = ev.exp2();
-    let exposed = if ev >= 0.0 {
+    if ev >= 0.0 {
         shoulder(v * gain, gain)
     } else {
         // A darker body: the mid-tones come down by the offset and white
@@ -279,8 +313,7 @@ fn tone(v: f32, ev: f32) -> f32 {
         // exposure. The cubic term is all but zero below the highlights:
         // middle grey sits within 2% of the bare offset at -0.5 EV.
         gain * v + (1.0 - gain) * v.powi(3)
-    };
-    acr3(exposed)
+    }
 }
 
 /// Untouched up to the knee, then compressed so that `white` lands on 1. Slope
@@ -303,12 +336,49 @@ fn shoulder(x: f32, white: f32) -> f32 {
 /// stays within 0.45/255 of the exact curve over the table's whole range of
 /// offsets; evenly spaced points miss by 1.2/255 (test below).
 pub fn curve_points(ev: f32) -> Vec<ToneCurvePoint> {
+    sixteen_points(|v| tone(v, ev))
+}
+
+/// The same 16 points without Adobe's tone curve: the offset alone, so the
+/// picture keeps the camera's linear contrast. What a film-simulation LUT is
+/// made to be applied to.
+pub fn linear_points(ev: f32) -> Vec<ToneCurvePoint> {
+    sixteen_points(|v| exposed(v, ev))
+}
+
+/// The exposure offset, in EV, that a DNG Standard curve (`linear` false) or a
+/// Linear one (`linear` true) was made with: the offset whose curve passes
+/// through the edit's point nearest middle grey. Read back from the edit
+/// rather than the table, so a later change to the table cannot move it.
+pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
+    let grey = encode(0.18) * 255.0;
+    let point = points
+        .iter()
+        .filter(|p| p.x > 0.0 && p.x < 255.0)
+        .min_by(|a, b| (a.x - grey).abs().total_cmp(&(b.x - grey).abs()))?;
+    let v = decode(point.x / 255.0);
+    let made_with = |ev: f32| encode(if linear { exposed(v, ev) } else { tone(v, ev) }) * 255.0;
+    // Both curves rise with the offset; halving the range 32 times is well
+    // under a thousandth of a stop.
+    let (mut low, mut high) = (-4.0f32, 4.0f32);
+    for _ in 0..32 {
+        let mid = 0.5 * (low + high);
+        if made_with(mid) < point.y {
+            low = mid;
+        } else {
+            high = mid;
+        }
+    }
+    Some(0.5 * (low + high))
+}
+
+fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
     (0..16)
         .map(|i| {
             let x = (i as f32 / 15.0).powf(1.3);
             ToneCurvePoint {
                 x: x * 255.0,
-                y: encode(tone(decode(x), ev)) * 255.0,
+                y: encode(curve(decode(x))) * 255.0,
             }
         })
         .collect()
@@ -688,6 +758,48 @@ mod tests {
     }
 
     #[test]
+    fn linear_is_the_offset_and_nothing_else() {
+        // No offset: the picture as decoded, every point on the diagonal.
+        for p in linear_points(0.0) {
+            assert!((p.x - p.y).abs() < 0.01, "{p:?}");
+        }
+        // An offset is an exposure, and the spline carries it as closely as
+        // it carries DNG Standard's curve.
+        for ev in [-0.5, 0.25, 0.85] {
+            assert!(
+                (exposed(0.18, ev) - 0.18 * ev.exp2()).abs() < 0.003,
+                "{ev:+} EV"
+            );
+            let points = linear_points(ev);
+            let miss = (0..=4000)
+                .map(|k| {
+                    let e = k as f32 / 4000.0;
+                    (apply_curve(e, &points) - encode(exposed(decode(e), ev))).abs() * 255.0
+                })
+                .fold(0.0, f32::max);
+            assert!(miss < 0.5, "{ev:+} EV: off by {miss:.2}/255");
+        }
+    }
+
+    /// The table's whole range and beyond, with stops held back on top.
+    #[test]
+    fn the_offset_reads_back_from_either_curve() {
+        for ev in [-1.5, -0.75, -0.2, 0.0, 0.2, 0.8, 1.6, 2.5] {
+            let dng = offset_of(&curve_points(ev), false).expect("DNG Standard");
+            let linear = offset_of(&linear_points(ev), true).expect("Linear");
+            assert!(
+                (dng - ev).abs() < 0.005,
+                "{ev:+} EV: DNG Standard reads {dng:+.4}"
+            );
+            assert!(
+                (linear - ev).abs() < 0.005,
+                "{ev:+} EV: Linear reads {linear:+.4}"
+            );
+        }
+        assert_eq!(offset_of(&[], true), None);
+    }
+
+    #[test]
     fn middle_grey_lands_where_adobe_puts_it() {
         assert!((acr3(0.18) - 0.388).abs() < 0.001, "{}", acr3(0.18));
         assert!((tone(0.18, 0.0) - acr3(0.18)).abs() < 1e-6);
@@ -967,6 +1079,17 @@ pub(crate) mod gpu {
         js: serde_json::Value,
         as_shot: crate::white_balance::WhiteBalance,
     ) -> image::Rgba32FImage {
+        render_with_lut(ctx, image, js, as_shot, None)
+    }
+
+    /// The same, with a LUT; `js` names it with `lutPath`, as an edit does.
+    pub(crate) fn render_with_lut(
+        ctx: &GpuContext,
+        image: &DynamicImage,
+        js: serde_json::Value,
+        as_shot: crate::white_balance::WhiteBalance,
+        lut: Option<Arc<crate::lut_processing::Lut>>,
+    ) -> image::Rgba32FImage {
         let adjustments = crate::image_processing::get_all_adjustments_from_json(
             &js,
             true,
@@ -983,7 +1106,7 @@ pub(crate) mod gpu {
             crate::gpu_processing::RenderRequest {
                 adjustments,
                 mask_bitmaps: &[],
-                lut: None,
+                lut,
                 roi: None,
             },
         )
@@ -1028,22 +1151,24 @@ pub(crate) mod gpu {
         [p[0], p[1], p[2]]
     }
 
-    fn mul(m: [[f32; 3]; 3], c: [f32; 3]) -> [f32; 3] {
+    pub(crate) fn mul(m: [[f32; 3]; 3], c: [f32; 3]) -> [f32; 3] {
         m.map(|row| row[0] * c[0] + row[1] * c[1] + row[2] * c[2])
     }
 
+    /// modules.wgsl's AG_SRGB_TO_PROPHOTO and AG_PROPHOTO_TO_SRGB, row by row.
+    pub(crate) const TO: [[f32; 3]; 3] = [
+        [0.5293458, 0.3300728, 0.1405813],
+        [0.0983744, 0.873461, 0.0281647],
+        [0.0168832, 0.1176725, 0.8654443],
+    ];
+    pub(crate) const FROM: [[f32; 3]; 3] = [
+        [2.0340764, -0.7273343, -0.3067417],
+        [-0.2288134, 1.2317302, -0.0029169],
+        [-0.0085698, -0.1532866, 1.1618564],
+    ];
+
     /// DNG Standard on the CPU, with the exact curve rather than its 16 points.
     fn reference(c: [f32; 3], ev: f32) -> [f32; 3] {
-        const TO: [[f32; 3]; 3] = [
-            [0.5293458, 0.3300728, 0.1405813],
-            [0.0983744, 0.873461, 0.0281647],
-            [0.0168832, 0.1176725, 0.8654443],
-        ];
-        const FROM: [[f32; 3]; 3] = [
-            [2.0340764, -0.7273343, -0.3067417],
-            [-0.2288134, 1.2317302, -0.0029169],
-            [-0.0085698, -0.1532866, 1.1618564],
-        ];
         let pp = mul(TO, c).map(|v| v.clamp(0.0, 1.0));
         let hi = pp[0].max(pp[1]).max(pp[2]);
         let lo = pp[0].min(pp[1]).min(pp[2]);
@@ -1271,6 +1396,224 @@ pub(crate) mod gpu {
         }
         std::fs::write(out.join("sheet.html"), html).unwrap();
     }
+
+    /// Film-simulation LUTs to judge by eye. For each LUT in AG_LUTS
+    /// (separated by ';') a sheet in AG_OUT, `<lut>.html`, with each RAW in
+    /// AG_RAWS: no LUT (DNG Standard), then the LUT two ways.
+    ///
+    /// A LUT from the app's own `resources/film_luts` is applied as the app
+    /// applies one that comes with it (`lutIsSceneReferred`, from `is_built_in`
+    /// in lut_processing.rs), to the scene-linear picture in place of the
+    /// rendering: as an edit put it on before (no mark: V-Log over sRGB, at
+    /// the RAW's own exposure) and as the Looks tab puts it on now
+    /// (film_lut.rs: V-Gamut, at the camera's offset). Any other LUT goes after
+    /// the rendering, as a user's does: on DNG Standard and on Linear.
+    ///
+    /// AG_REFS (';' per RAW, any of them empty) puts a reference JPEG beside
+    /// each RAW, and AG_CROPS (`x,y,w,h` fractions, ';' per RAW) adds a row
+    /// of that part, rendered at full size and shown at 200%.
+    #[test]
+    #[ignore = "reads RAW files; run by hand"]
+    fn film_lut_sheets() {
+        use base64::Engine;
+        let raws = std::env::var("AG_RAWS").expect("set AG_RAWS");
+        let luts = std::env::var("AG_LUTS").expect("set AG_LUTS");
+        let out = std::path::PathBuf::from(std::env::var("AG_OUT").expect("set AG_OUT"));
+        let width: u32 = std::env::var("AG_WIDTH")
+            .ok()
+            .and_then(|w| w.parse().ok())
+            .unwrap_or(900);
+        let per_raw = |name: &str| -> Vec<String> {
+            std::env::var(name)
+                .unwrap_or_default()
+                .split(';')
+                .map(str::to_string)
+                .collect()
+        };
+        let crops: Vec<Option<[f32; 4]>> = per_raw("AG_CROPS")
+            .iter()
+            .map(|c| {
+                let v: Vec<f32> = c.split(',').filter_map(|n| n.trim().parse().ok()).collect();
+                (v.len() == 4).then(|| [v[0], v[1], v[2], v[3]])
+            })
+            .collect();
+        let refs = per_raw("AG_REFS");
+        std::fs::create_dir_all(&out).unwrap();
+        let ctx = device().expect("no wgpu adapter");
+        let jpeg = |img: &image::Rgba32FImage| {
+            let mut bytes = Vec::new();
+            DynamicImage::ImageRgba32F(img.clone())
+                .to_rgb8()
+                .write_to(
+                    &mut std::io::Cursor::new(&mut bytes),
+                    image::ImageFormat::Jpeg,
+                )
+                .unwrap();
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        };
+        let figure = |img: &image::Rgba32FImage, label: &str| {
+            format!(
+                "<figure><img src='data:image/jpeg;base64,{}'><figcaption>{label}</figcaption></figure>",
+                jpeg(img)
+            )
+        };
+        // At 200%: each pixel shown as two, unsmoothed.
+        let zoomed = |img: &image::Rgba32FImage, label: &str| {
+            format!(
+                "<figure class=zoom><img style='width:{}px' src='data:image/jpeg;base64,{}'>\
+                 <figcaption>{label}, 200%</figcaption></figure>",
+                img.width() * 2,
+                jpeg(img)
+            )
+        };
+        let photos: Vec<_> = raws
+            .split(';')
+            .filter(|p| !p.trim().is_empty())
+            .enumerate()
+            .map(|(n, path)| {
+                let bytes = std::fs::read(path).expect("read raw");
+                let linear = crate::raw_processing::develop_raw_image(
+                    &bytes,
+                    false,
+                    2.5,
+                    "default".to_string(),
+                    None,
+                    Some(path),
+                )
+                .expect("decodes");
+                let (w, h) = (linear.width() as f32, linear.height() as f32);
+                let small = crate::image_processing::downscale_f32_image(
+                    &linear,
+                    width,
+                    (h * width as f32 / w).round() as u32,
+                );
+                let part = crops.get(n).copied().flatten().map(|[x, y, cw, ch]| {
+                    linear.crop_imm(
+                        (x * w) as u32,
+                        (y * h) as u32,
+                        (cw * w) as u32,
+                        (ch * h) as u32,
+                    )
+                });
+                let reference = refs.get(n).filter(|r| !r.trim().is_empty()).map(|r| {
+                    let r = std::path::Path::new(r.trim());
+                    let image = image::open(r)
+                        .expect("reads the reference")
+                        .resize(width, width * 2, image::imageops::FilterType::Lanczos3)
+                        .to_rgba32f();
+                    let label = format!("D - reference, {}", r.file_name().unwrap().display());
+                    (image, label)
+                });
+                let wb = crate::raw_processing::read_as_shot(&bytes)
+                    .map(|a| a.white_balance)
+                    .unwrap_or_else(crate::white_balance::WhiteBalance::reference);
+                let ev = baseline(&facts(&bytes).expect("metadata")).ev;
+                let name = std::path::Path::new(path)
+                    .file_stem()
+                    .unwrap()
+                    .to_string_lossy()
+                    .to_string();
+                (name, small, part, reference, wb, ev)
+            })
+            .collect();
+        let built_in_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("resources/film_luts")
+            .canonicalize()
+            .expect("the app's film LUTs");
+        for lut_path in luts.split(';').filter(|p| !p.trim().is_empty()) {
+            let lut = Arc::new(crate::lut_processing::parse_lut_file(lut_path).expect("reads LUT"));
+            let lut_name = std::path::Path::new(lut_path)
+                .file_stem()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
+            let is_built_in = std::path::Path::new(lut_path)
+                .canonicalize()
+                .expect("the LUT's path")
+                .parent()
+                == Some(built_in_dir.as_path());
+            let mut html = format!(
+                "<!doctype html><meta charset=utf-8><title>{lut_name}</title><style>\
+                 body{{background:#1b1b1b;color:#ddd;font:14px system-ui;margin:16px}}\
+                 .row{{display:flex;gap:8px;margin:0 0 28px}}figure{{margin:0;flex:1}}\
+                 img{{width:100%;display:block}}figcaption{{padding:4px 0}}h2{{font-size:15px;margin:8px 0}}\
+                 .crops{{overflow-x:auto}}figure.zoom{{flex:none}}\
+                 figure.zoom img{{max-width:none;image-rendering:pixelated}}\
+                 </style><h1 style='font-size:18px'>LUT: {lut_name}</h1>"
+            );
+            for (n, (name, small, part, reference, wb, ev)) in photos.iter().enumerate() {
+                // `lut`: none, or on, with the Looks tab's mark or without it.
+                let with = |mode: &str, points: Vec<ToneCurvePoint>, lut: Option<bool>| {
+                    let mut js = serde_json::json!({
+                        "rawToneRendering": mode,
+                        "rawToneCurve": json_points(&points),
+                        "rawToneCurveMode": mode,
+                        "agSharpen": { "capture": false, "amount": 0 },
+                    });
+                    if let Some(marked) = lut {
+                        js["lutPath"] = lut_path.into();
+                        js["lutIntensity"] = 100.into();
+                        js["lutIsSceneReferred"] = is_built_in.into();
+                        js[crate::mods::film_lut::KEY] = marked.into();
+                    }
+                    js
+                };
+                let no_lut = (
+                    "A - DNG Standard, no LUT".to_string(),
+                    with(MODE, curve_points(*ev), None),
+                );
+                let edits = if is_built_in {
+                    [
+                        no_lut,
+                        (
+                            "B - film look as put on before: V-Log over sRGB, the RAW's own exposure"
+                                .to_string(),
+                            with(MODE, curve_points(*ev), Some(false)),
+                        ),
+                        (
+                            format!("C - film look as put on now: V-Gamut, offset {ev:+.2} EV"),
+                            with(MODE, curve_points(*ev), Some(true)),
+                        ),
+                    ]
+                } else {
+                    [
+                        no_lut,
+                        (
+                            "B - LUT on DNG Standard".to_string(),
+                            with(MODE, curve_points(*ev), Some(true)),
+                        ),
+                        (
+                            "C - LUT on Linear (no tone curve)".to_string(),
+                            with(LINEAR_MODE, linear_points(*ev), Some(true)),
+                        ),
+                    ]
+                };
+                let render = |image: &DynamicImage, js: &serde_json::Value| {
+                    let lut = js["lutPath"].is_string().then(|| lut.clone());
+                    render_with_lut(&ctx, image, js.clone(), *wb, lut)
+                };
+                html += &format!("<h2>{} - {name}</h2><div class=row>", n + 1);
+                for (label, js) in &edits {
+                    html += &figure(&render(small, js), label);
+                }
+                if let Some((reference, label)) = reference {
+                    html += &figure(reference, label);
+                }
+                html += "</div>";
+                if let Some(part) = part {
+                    html += "<div class='row crops'>";
+                    for (label, js) in &edits {
+                        html += &zoomed(&render(part, js), &label[..1]);
+                    }
+                    html += "</div>";
+                }
+                eprintln!("{lut_name}: {name}, offset {ev:+.2} EV");
+            }
+            std::fs::write(out.join(format!("{lut_name}.html")), html).unwrap();
+            eprintln!("wrote {lut_name}.html");
+        }
+    }
+
     /// The most detailed window of a photo, where sharpening shows: the
     /// `w` x `h` area with the most luminance gradient, searched at an eighth
     /// of the size.

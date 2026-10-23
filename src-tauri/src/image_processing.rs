@@ -90,6 +90,15 @@ pub struct ImageMetadata {
         skip_serializing_if = "Option::is_none"
     )]
     pub ag_snapshots: Option<Vec<crate::mods::snapshots::Snapshot>>,
+    /// Argentum: the photo's History (mods/history.rs), kept beside the edit so
+    /// Copy settings, presets and sync never carry it.
+    #[serde(
+        rename = "agHistory",
+        default,
+        deserialize_with = "crate::mods::history::lenient",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub ag_history: Option<crate::mods::history::HistoryRecord>,
 }
 
 impl Default for ImageMetadata {
@@ -102,6 +111,7 @@ impl Default for ImageMetadata {
             tags: None,
             exif: None,
             ag_snapshots: None,
+            ag_history: None,
         }
     }
 }
@@ -1770,8 +1780,10 @@ pub struct GlobalAdjustments {
     // has been converted to display RGB and before user curves.
     pub raw_tone_mode: u32,
     pub raw_tone_curve_count: u32,
-    _pad_raw_tone1: u32,
-    _pad_raw_tone2: u32,
+    // Argentum: a film look's input (mods/film_lut.rs): 1 when it is fed what
+    // it declares, and the exposure it takes the picture at, in EV.
+    pub ag_film_lut_input: u32,
+    pub ag_film_lut_ev: f32,
     pub raw_tone_curve: [Point; 16],
 
     // Argentum: sharpening, read by the input stage before the shader runs.
@@ -2056,7 +2068,9 @@ const PRIMARIES_REC2020: [Vec2; 3] = [
 ];
 
 fn xy_to_xyz(xy: Vec2) -> Vec3 {
-    if xy.y < 1e-6 {
+    // Argentum: abs, so an imaginary primary with y below zero (V-Gamut's blue,
+    // y = -0.03, mods/film_lut.rs) is converted, not taken for a missing one.
+    if xy.y.abs() < 1e-6 {
         Vec3::ZERO
     } else {
         Vec3::new(xy.x / xy.y, 1.0, (1.0 - xy.x - xy.y) / xy.y)
@@ -2708,8 +2722,8 @@ fn get_global_adjustments_from_json(
         } else {
             raw_tone_points.len().min(16) as u32
         },
-        _pad_raw_tone1: 0,
-        _pad_raw_tone2: 0,
+        ag_film_lut_input: crate::mods::film_lut::declared_input(js_adjustments),
+        ag_film_lut_ev: crate::mods::film_lut::exposure_ev(js_adjustments, raw_tone_mode, &raw_tone_points),
         raw_tone_curve: convert_points_to_aligned(raw_tone_points),
 
         ag_sharpen: sharpen::from_json(js_adjustments, is_raw, photo),

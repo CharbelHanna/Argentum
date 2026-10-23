@@ -92,6 +92,18 @@ impl Clipping {
 /// `whitelevel` may carry one entry for all channels or one per channel; both
 /// are normal, and a missing table means we cannot say anything useful, so the
 /// caller gets `None` rather than a guess.
+///
+/// Usually that is the file's white level, less the margin. But a file can
+/// state a white above the point its sensor actually stopped at: on some 5D
+/// Mark II frames Canon's SpecularWhiteLevel says 16383 while every clipped
+/// photosite reads 16033, so nothing reached the ceiling, `recover` and
+/// `settle_blown` never ran, and a blown sun came out magenta. Where the file
+/// proves a lower white (`proven_white`) that the margin misses, the ceiling
+/// comes from that white instead, by the same rule. Only the judgement of what
+/// is clipped moves: the white level that scales the picture is rawler's and is
+/// not touched, so nothing outside a clipped area can change, and a file whose
+/// ceiling already catches its clipped photosites keeps exactly the ceiling it
+/// had.
 pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
     let levels = &raw.whitelevel.0;
     let first = *levels.first()? as f32;
@@ -109,13 +121,121 @@ pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
         .map(|r| r.as_f32())
         .unwrap_or(0.0);
 
+    // The margin applies to the range above black, which is the part that is
+    // signal. Applying it to the raw count would move the threshold by a
+    // different amount on every camera.
+    let ceiling = |white: f32| black + (white - black) * CLIP_MARGIN;
+    let proven = proven_white(raw, black, out.iter().copied().fold(0.0, f32::max));
     for slot in out.iter_mut() {
-        // The margin applies to the range above black, which is the part that
-        // is signal. Applying it to the raw count would move the threshold by
-        // a different amount on every camera.
-        *slot = black + (*slot - black) * CLIP_MARGIN;
+        *slot = ceiling(*slot);
+        if let Some(white) = proven
+            && white < *slot
+        {
+            *slot = ceiling(white);
+        }
     }
     Some(out)
+}
+
+/// The part of the range searched for a hard clip, from the top, as a fraction
+/// of the range above black.
+const PROVEN_WHITE_SEARCH: f32 = 0.2;
+
+/// Photosites a value and its lower neighbour must hold between them to be
+/// read as a clip. The 5D Mark II frames that showed the fault hold tens of
+/// thousands; a few hot pixels never reach this.
+const PROVEN_WHITE_MIN: u32 = 64;
+
+/// How many times the most any value just below holds a clip must hold.
+/// Measured on such a frame, all three colours together: 278,198 photosites
+/// on 16033 and 136,085 on 16032, against at most 43 on any value below.
+/// Natural light, spread by noise, never comes close.
+const PROVEN_WHITE_RATIO: u32 = 16;
+
+/// The level a mosaic's photosites actually stopped at, when the file proves
+/// one below its stated white `white`.
+///
+/// A sensor that saturates reports one value, the same for every photosite in a
+/// clipped area, so a hard clip shows in the histogram as a spike: one value,
+/// or two neighbouring ones, holding far more photosites than anything just
+/// below. Light that did not clip never piles up on one value, because noise
+/// spreads it. Only the highest populated value in the top fifth of the range
+/// is looked at, inside the image area, and it counts only if it is such a
+/// spike. Anything else - a photo with nothing clipped, a float buffer, a
+/// three-colour sRAW, a value at or above the stated white - proves nothing.
+///
+/// The idea is RawTherapee's (`rtengine/hilite_recon.cc` @ 1a3fce8c,
+/// `HLRecovery_inpaint`): it judges clipping against the maxima an image
+/// actually reached per channel (`chmax`), not against its white level. Taken
+/// more strictly here, because a maximum alone is also what a photo with
+/// nothing clipped has, and it would mark that photo's brightest pixels as
+/// clipped; a spike is never there.
+fn proven_white(raw: &RawImage, black: f32, white: f32) -> Option<f32> {
+    let RawImageData::Integer(data) = &raw.data else {
+        return None;
+    };
+    if raw.cpp != 1 || white <= black {
+        return None;
+    }
+    let low = (black + (white - black) * (1.0 - PROVEN_WHITE_SEARCH)).ceil() as usize;
+    let high = white as usize;
+    if high <= low + 12 {
+        return None;
+    }
+    let (x0, y0, x1, y1) = raw
+        .crop_area
+        .or(raw.active_area)
+        .map(|a| (a.p.x, a.p.y, a.p.x + a.d.w, a.p.y + a.d.h))
+        .unwrap_or((0, 0, raw.width, raw.height));
+    let (x1, y1) = (x1.min(raw.width), y1.min(raw.height));
+    if x0 >= x1 || y0 >= y1 || data.len() < raw.width * y1 {
+        return None;
+    }
+
+    use rayon::prelude::*;
+    let bins = high - low;
+    let histogram = (y0..y1)
+        .into_par_iter()
+        .fold(
+            || vec![0u32; bins],
+            |mut counts, y| {
+                for &v in &data[y * raw.width + x0..y * raw.width + x1] {
+                    let v = v as usize;
+                    if (low..high).contains(&v) {
+                        counts[v - low] += 1;
+                    }
+                }
+                counts
+            },
+        )
+        .reduce(
+            || vec![0u32; bins],
+            |mut a, b| {
+                a.iter_mut().zip(b).for_each(|(a, b)| *a += b);
+                a
+            },
+        );
+
+    hard_clip(&histogram).map(|bin| (low + bin) as f32)
+}
+
+/// Which bin of `histogram` a hard clip stopped at: the highest bin holding
+/// half of `PROVEN_WHITE_MIN` photosites, if it and the bin below hold
+/// `PROVEN_WHITE_MIN` together and `PROVEN_WHITE_RATIO` times the most any of
+/// the ten bins under them holds. A stray photosite above the clip is too few
+/// to count. The highest such bin decides alone, so a photo whose brightest
+/// values are spread out proves nothing, whatever lies further down.
+fn hard_clip(histogram: &[u32]) -> Option<usize> {
+    let top = (12..histogram.len())
+        .rev()
+        .find(|&i| histogram[i] >= PROVEN_WHITE_MIN / 2)?;
+    let pair = histogram[top] + histogram[top - 1];
+    let below = histogram[top - 12..top - 1]
+        .iter()
+        .copied()
+        .max()
+        .unwrap_or(0);
+    (pair >= PROVEN_WHITE_MIN && pair >= PROVEN_WHITE_RATIO * below.max(1)).then_some(top)
 }
 
 /// Count what is clipped in one decoded RAW.
@@ -210,6 +330,66 @@ fn measure_mosaic(raw: &RawImage) -> Option<Clipping> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The top of a histogram as light that did not clip leaves it: up to
+    /// `most` photosites per value, thinning out over the last few, never piled
+    /// on one.
+    fn natural_top(len: usize, most: u32) -> Vec<u32> {
+        (0..len)
+            .map(|i| {
+                let left = (len - i) as u32;
+                (left * 4).min(most) + (i as u32 * 7 % 5)
+            })
+            .collect()
+    }
+
+    /// The 5D Mark II frame that showed the fault: 81,699 red photosites on
+    /// one value, a few dozen on each value below.
+    #[test]
+    fn a_hard_clip_is_found_where_it_is() {
+        let mut h = natural_top(400, 40);
+        h[300] = 81_699;
+        h[301..].iter_mut().for_each(|n| *n = 0);
+        assert_eq!(hard_clip(&h), Some(300));
+    }
+
+    /// A clip spread over two neighbouring values, as a frame's green was:
+    /// 312 photosites on one, 323 on the next, and fewer than 20 on each value
+    /// below.
+    #[test]
+    fn a_clip_over_two_values_is_found() {
+        let mut h = natural_top(400, 15);
+        h[250] = 312;
+        h[251] = 323;
+        h[252..].iter_mut().for_each(|n| *n = 0);
+        assert_eq!(hard_clip(&h), Some(251));
+    }
+
+    /// A photo with nothing clipped: its brightest values thin out, nothing
+    /// piles up, and it proves no white at all.
+    #[test]
+    fn light_that_did_not_clip_proves_nothing() {
+        assert_eq!(hard_clip(&natural_top(400, 40)), None);
+        assert_eq!(hard_clip(&natural_top(400, 15)), None);
+        assert_eq!(hard_clip(&vec![0; 400]), None);
+    }
+
+    /// Hot pixels at one value are too few to read as a clip.
+    #[test]
+    fn a_few_hot_pixels_are_not_a_clip() {
+        let mut h = vec![0; 400];
+        h[390] = 40;
+        assert_eq!(hard_clip(&h), None);
+    }
+
+    /// Only the highest populated value decides: a spike further down, under
+    /// brightest values that are spread out, is not where the sensor stopped.
+    #[test]
+    fn a_spike_below_spread_out_highlights_is_not_the_clip() {
+        let mut h = natural_top(400, 40);
+        h[200] = 50_000;
+        assert_eq!(hard_clip(&h), None);
+    }
 
     #[test]
     fn a_photo_with_no_blocks_reports_nothing() {
@@ -604,7 +784,10 @@ const SAMPLE_STRIDE: usize = 4;
 /// Returns whether recovery was in charge of this photo's clipped pixels: on,
 /// and with a measured highlight colour to rebuild them from. `settle_blown`
 /// needs to know, because when it was not, nothing has dealt with them yet.
-pub fn recover(raw: &mut RawImage) -> bool {
+///
+/// `ceilings` are this photo's, from `ceilings`, judged once before
+/// anything rewrites the photosites they are judged on.
+pub fn recover(raw: &mut RawImage, ceilings: Option<[f32; 4]>) -> bool {
     if !enabled() {
         return false;
     }
@@ -613,7 +796,7 @@ pub fn recover(raw: &mut RawImage) -> bool {
     if std::env::var_os("AG_NO_RECOVERY").is_some() {
         return false;
     }
-    let Some(ceil4) = ceilings(raw) else {
+    let Some(ceil4) = ceilings else {
         return false;
     };
     let ceilings = [ceil4[0], ceil4[1], ceil4[2]];
@@ -810,8 +993,11 @@ fn recover_mosaic(raw: &mut RawImage, ceilings: [f32; 3]) -> bool {
 ///
 /// A block with nothing clipped is never touched, and a photo with nothing
 /// clipped keeps its integer buffer exactly as decoded.
-pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool) {
-    let Some(ceil4) = ceilings(raw) else { return };
+///
+/// `ceilings` are the ones `recover` was given: judged on the photo as decoded,
+/// not on what recovery made of it.
+pub fn settle_blown(raw: &mut RawImage, wb: [f32; 4], rebuilt: bool, ceilings: Option<[f32; 4]>) {
+    let Some(ceil4) = ceilings else { return };
     let black = raw
         .blacklevel
         .levels
@@ -1381,7 +1567,7 @@ mod proof {
         let c4 = ceilings(&raw)?;
         let ceil = [c4[0], c4[1], c4[2]];
         if with_recovery {
-            recover(&mut raw);
+            recover(&mut raw, Some(c4));
         }
         let RawImageData::Integer(pixels) = raw.data else {
             return None;

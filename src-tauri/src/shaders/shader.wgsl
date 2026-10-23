@@ -121,10 +121,10 @@ struct GlobalAdjustments {
     ag_profile_row1: vec4<f32>,
     ag_profile_row2: vec4<f32>,
 
-    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard
+    raw_tone_mode: u32,          // Argentum: 0 default, 1 base curve, 2 auto-matched, 3 DNG standard, 4 linear
     raw_tone_curve_count: u32,
-    _pad_raw_tone1: u32,
-    _pad_raw_tone2: u32,
+    ag_film_lut_input: u32,      // Argentum: 1 when a film look is fed what it declares, see modules.wgsl
+    ag_film_lut_ev: f32,         // Argentum: the exposure it takes the picture at
     raw_tone_curve: array<Point, 16>,
     ag_sharpen: AgSharpen,       // Argentum: read before this shader runs, see modules.wgsl
     ag_grade: AgGrade,           // Argentum: Lightroom's colour grading, see modules.wgsl
@@ -2045,7 +2045,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     let is_scene_lut = (adjustments.global.has_lut == 1u && adjustments.global.lut_is_scene_referred == 1u);
 
     if (is_scene_lut) {
-        let vlog_encoded = linear_to_vlog(composite_rgb_linear);
+        let vlog_encoded = linear_to_vlog(ag_film_lut_input(composite_rgb_linear));  // Argentum: what the film look declares, see modules.wgsl
         let lut_color = sample_lut_tetrahedral(vlog_encoded);
         base_srgb = mix(default_tonemapped, lut_color, adjustments.global.lut_intensity);
     } else {
@@ -2064,6 +2064,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         }
     }
 
+    let ag_lut_input = final_rgb;  // Argentum: what a LUT after the Curves is handed, for the white and black point views, see modules.wgsl
     if (adjustments.global.has_lut == 1u && adjustments.global.lut_is_scene_referred == 0u) {
         let lut_color = sample_lut_tetrahedral(final_rgb);
         final_rgb = mix(final_rgb, lut_color, adjustments.global.lut_intensity);
@@ -2085,7 +2086,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
         final_rgb += vec3<f32>(noise_val) * amount * luma_mask;
     }
 
-    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping, absolute_coord);  // Argentum: the display-referred anchor, see modules.wgsl
+    final_rgb = ag_stage_display(final_rgb, adjustments.global.show_clipping, absolute_coord, composite_rgb_linear, ag_lut_input);  // Argentum: the display-referred anchor, see modules.wgsl
 
     // upstream #1466
     if (!HIGH_PRECISION_OUTPUT) {

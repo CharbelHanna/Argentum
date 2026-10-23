@@ -249,6 +249,7 @@ fn ag_stage_color(color: vec3<f32>) -> vec3<f32> {
 //
 //   mode 1 Base Curve, 2 Auto-Matched   sRGB, then the curve on each channel
 //   mode 3 DNG Standard                 the curve applied as Adobe applies it
+//   mode 4 Linear                       the same, its curve the exposure offset alone
 //
 // Their struct carries the mode and the photo's 16 points; this reads them
 // from `adjustments` directly, so the call line in their file never has to
@@ -261,7 +262,7 @@ fn ag_stage_tone(theirs: vec3<f32>, linear: vec3<f32>) -> vec3<f32> {
     if (adjustments.global.is_raw_image != 1u || mode == 0u || count < 2u) {
         return theirs;
     }
-    if (mode == 3u) {
+    if (mode == 3u || mode == 4u) {
         return ag_dng_standard(linear, count);
     }
     let encoded = linear_to_srgb(linear);
@@ -320,13 +321,81 @@ fn rt_rgb_tone(c: vec3<f32>, count: u32) -> vec3<f32> {
     return vec3<f32>(lo_toned) + (c - vec3<f32>(lo)) * ((hi_toned - lo_toned) / (hi - lo));
 }
 
+/// The picture in linear ProPhoto, each channel capped at the sensor's white:
+/// where DNG Standard's curve starts, and what makes a blown highlight white
+/// whatever colour the decode left in it. A film look starts here too.
+fn ag_prophoto_to_white(linear: vec3<f32>) -> vec3<f32> {
+    return clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 /// DNG Standard (mods/dng_standard.rs): the curve applied in linear ProPhoto,
 /// as Adobe and RawTherapee apply a profile's tone curve, then back to sRGB.
 /// Colours beyond sRGB are clipped channel by channel by linear_to_srgb.
 fn ag_dng_standard(linear: vec3<f32>, count: u32) -> vec3<f32> {
-    let prophoto = clamp(AG_SRGB_TO_PROPHOTO * linear, vec3<f32>(0.0), vec3<f32>(1.0));
-    let toned = rt_rgb_tone(prophoto, count);
+    let toned = rt_rgb_tone(ag_prophoto_to_white(linear), count);
     return linear_to_srgb(AG_PROPHOTO_TO_SRGB * toned);
+}
+
+// ============================================================================
+// THE FILM LOOK INPUT
+//
+// A film look that comes with the app is a spektrafilm LUT, made for V-Log
+// over V-Gamut primaries (mods/film_lut.rs). Their scene-referred LUT path
+// encodes the scene-linear picture with the V-Log curve; this hands it the
+// picture in V-Gamut first, and a RAW at the camera's exposure offset, as its
+// rendering would have shown it. An edit that put a film look on before this
+// carries no mark, and is handed the working RGB, as it was.
+// ============================================================================
+
+// Linear sRGB (D65) to linear V-Gamut (D65), through XYZ, from V-Gamut's
+// primaries in Panasonic's V-Log/V-Gamut Reference Manual (2014). Each row
+// sums to one, so white stays white. Built column by column, as WGSL does;
+// mods/film_lut.rs checks it against the primaries.
+const AG_SRGB_TO_V_GAMUT = mat3x3<f32>(
+    vec3<f32>(0.5851961, 0.0785886, 0.0227942),
+    vec3<f32>(0.3226416, 0.8196271, 0.1142170),
+    vec3<f32>(0.0921622, 0.1017843, 0.8629887),
+);
+
+/// Blown highlights reach the film as DNG Standard shows them: capped at the
+/// sensor's white (`ag_prophoto_to_white`), so a clipped area the decode
+/// could not settle to neutral (highlights::settle_blown) prints white, not
+/// in the magenta white balance left in it. Then the camera's offset, then
+/// V-Gamut.
+fn ag_film_lut_input(linear: vec3<f32>) -> vec3<f32> {
+    if (adjustments.global.ag_film_lut_input == 0u) {
+        return linear;
+    }
+    let at_white = AG_PROPHOTO_TO_SRGB * ag_prophoto_to_white(linear);
+    return AG_SRGB_TO_V_GAMUT * (at_white * exp2(adjustments.global.ag_film_lut_ev));
+}
+
+/// Where a look takes the picture in, for the white and black point views
+/// (`ag_point_view`), sRGB-encoded so the views' limits mean the same here as
+/// on screen. A channel at 1 is detail no setting of the look brings back; one
+/// at 0 is black before the look lifts it to its own darkest.
+///
+/// - A LUT after the Curves - every LUT imported into Looks - is handed the
+///   display picture, `display`, and loses what lies outside 0 to 1.
+/// - A film look that comes with the app, fed its declared input, is handed
+///   `scene_linear` capped at white in ProPhoto (`ag_prophoto_to_white`). The
+///   camera's offset is left out: it is applied after the cap, into V-Log,
+///   which keeps what it lifts.
+///
+/// Mid grey, which no limit catches, with no look, with one at 0%, or for a
+/// film look put on before the mark, which is handed the working RGB uncapped.
+fn ag_look_entry(scene_linear: vec3<f32>, display: vec3<f32>) -> vec3<f32> {
+    if (adjustments.global.has_lut != 1u || adjustments.global.lut_intensity <= 0.0) {
+        return vec3<f32>(0.5);
+    }
+    if (adjustments.global.lut_is_scene_referred == 0u) {
+        return display;
+    }
+    if (adjustments.global.ag_film_lut_input == 0u) {
+        return vec3<f32>(0.5);
+    }
+    let prophoto = AG_SRGB_TO_PROPHOTO * scene_linear;
+    return vec3<f32>(ag_srgb_encode(prophoto.r), ag_srgb_encode(prophoto.g), ag_srgb_encode(prophoto.b));
 }
 
 // ============================================================================
@@ -411,6 +480,11 @@ fn ag_stage_grade(srgb: vec3<f32>, coord: vec2<u32>) -> vec3<f32> {
 }
 
 
+/// Where every clipping view draws the line, on sRGB-encoded values: above
+/// `AG_CLIP_HIGH` a channel is blown, below `AG_CLIP_LOW` it is crushed.
+const AG_CLIP_HIGH: f32 = 0.998;
+const AG_CLIP_LOW: f32 = 0.002;
+
 /// The clipping view, in whichever mode the button has been cycled to.
 ///
 /// Red is a blown highlight and blue is a crushed shadow, in every mode. What
@@ -425,44 +499,8 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
         return color;
     }
 
-    let high = 0.998;
-    let low = 0.002;
-
-    // Setting a white or black point. Everything that is not at the limit goes
-    // away, so the only thing on screen is what you are about to lose — which
-    // is the whole reason to look.
-    //
-    // The colour is which channels went, because on the way to a white point
-    // the channels do not arrive together: red first on warm light, blue first
-    // on cold. Seeing one channel go is the signal to stop.
-    if (mode == 5u) {
-        if (color.r > high || color.g > high || color.b > high) {
-            var out = vec3<f32>(0.0, 0.0, 0.0);
-            if (color.r > high) { out.r = 1.0; }
-            if (color.g > high) { out.g = 1.0; }
-            if (color.b > high) { out.b = 1.0; }
-            return out;
-        }
-        return vec3<f32>(0.0, 0.0, 0.0);
-    }
-    if (mode == 6u) {
-        // On white, a crushed channel is *taken away* rather than added.
-        //
-        // The first version added them, the same way the white point view does
-        // on black — so a pixel with all three channels crushed came out white,
-        // on a white background, and setting a black point showed nothing at
-        // all. Removing them means all three gone is black, which is the thing
-        // you are looking for, and one gone is its complement: lose red and the
-        // pixel goes cyan.
-        if (color.r < low || color.g < low || color.b < low) {
-            var out = vec3<f32>(1.0, 1.0, 1.0);
-            if (color.r < low) { out.r = 0.0; }
-            if (color.g < low) { out.g = 0.0; }
-            if (color.b < low) { out.b = 0.0; }
-            return out;
-        }
-        return vec3<f32>(1.0, 1.0, 1.0);
-    }
+    let high = AG_CLIP_HIGH;
+    let low = AG_CLIP_LOW;
 
     var v = 0.0;
     var check_all = false;
@@ -492,6 +530,41 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
     return color;
 }
 
+/// Setting a white point (mode 5) or a black point (mode 6), held with Ctrl
+/// while dragging Whites or Blacks (useThresholdPreview.ts). Everything that
+/// is not at the limit goes away, so the only thing on screen is what you are
+/// about to lose — which is the whole reason to look.
+///
+/// A channel is at the limit on screen (`color`), or where a look takes the
+/// picture in (`entry`, from `ag_look_entry`; mid grey without one). A faded
+/// look never prints black or white — one prints black as 17% grey — so
+/// judged on screen alone these views showed nothing at any setting.
+/// Lightroom's shows nothing there too; this shows what the photo loses
+/// before the look does. The screen is still asked as well, so a curve after
+/// the look that crushes black still shows.
+///
+/// The colour is which channels went, because on the way to a white point
+/// the channels do not arrive together: red first on warm light, blue first
+/// on cold. Seeing one channel go is the signal to stop. Where it is a
+/// built-in film look's input that went, the channels are ProPhoto's: near
+/// enough to say which went first.
+fn ag_point_view(color: vec3<f32>, entry: vec3<f32>, mode: u32) -> vec3<f32> {
+    if (mode == 5u) {
+        let over = (color > vec3<f32>(AG_CLIP_HIGH)) | (entry > vec3<f32>(AG_CLIP_HIGH));
+        return select(vec3<f32>(0.0), vec3<f32>(1.0), over);
+    }
+    // On white, a crushed channel is *taken away* rather than added.
+    //
+    // The first version added them, the same way the white point view does
+    // on black — so a pixel with all three channels crushed came out white,
+    // on a white background, and setting a black point showed nothing at
+    // all. Removing them means all three gone is black, which is the thing
+    // you are looking for, and one gone is its complement: lose red and the
+    // pixel goes cyan.
+    let under = (color < vec3<f32>(AG_CLIP_LOW)) | (entry < vec3<f32>(AG_CLIP_LOW));
+    return select(vec3<f32>(1.0), vec3<f32>(0.0), under);
+}
+
 
 /// Display-referred stage: everything Argentum does after tone mapping.
 ///
@@ -509,9 +582,16 @@ fn ag_clipping_view(color: vec3<f32>, mode: u32) -> vec3<f32> {
 /// here, at this pixel, exactly as written: every adjustment in between has
 /// been run on it and is thrown away, because a mask that went through the
 /// tone curve would no longer say how strongly each pixel is sharpened.
-fn ag_stage_display(color: vec3<f32>, mode: u32, coord: vec2<u32>) -> vec3<f32> {
+///
+/// `scene_linear` and `lut_input` are what a film look that comes with the
+/// app and a LUT after the Curves are handed, for the white and black point
+/// views (`ag_point_view`); read only in those modes, so no other render pays.
+fn ag_stage_display(color: vec3<f32>, mode: u32, coord: vec2<u32>, scene_linear: vec3<f32>, lut_input: vec3<f32>) -> vec3<f32> {
     if (mode == 7u || mode == 8u || mode == 9u) {
         return textureLoad(input_texture, coord, 0).rgb;
+    }
+    if (mode == 5u || mode == 6u) {
+        return ag_point_view(color, ag_look_entry(scene_linear, lut_input), mode);
     }
     return ag_clipping_view(color, mode);
 }
