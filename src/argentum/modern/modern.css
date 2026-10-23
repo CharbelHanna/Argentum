@@ -1473,6 +1473,78 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   fill: currentColor;
 }
 
+/* Suggested for this photo (looks/suggestions.ts): the likely LUTs, each with why under its name. */
+.agm-suggest {
+  border-bottom: 1px solid var(--agm-line);
+  padding-bottom: 6px;
+}
+
+/* The pick count and Turn on read as text, not as the heading's capitals. */
+.agm-suggest .agm-sec-tools {
+  align-items: center;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.agm-suggest .agm-look {
+  height: 40px;
+}
+
+.agm-suggest .agm-swatch {
+  width: 42px;
+  height: 28px;
+}
+
+.agm-suggest-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.agm-suggest-text .agm-look-name {
+  flex: none;
+}
+
+.agm-suggest-why {
+  color: var(--agm-dim);
+  font-size: calc(10.5px * var(--agm-text-scale, 1));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.agm-suggest-cold {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 2px 12px 4px;
+  color: var(--agm-text);
+}
+
+.agm-suggest-cold .agm-suggest-why {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.agm-suggest-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.agm-suggest-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--agm-active);
+}
+
+.agm-suggest-dots i.agm-on {
+  background: var(--agm-marker);
+}
+
 /* --------------------------------------------------------------- snapshots */
 
 /* Snapshots, above History (argentum/snapshots): rows like History's. */

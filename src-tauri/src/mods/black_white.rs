@@ -195,9 +195,18 @@ fn to_prophoto(global: &GlobalAdjustments) -> [[f64; 3]; 3] {
         .to_cols_array_2d()
 }
 
-/// The spread of the photo the app holds, as the shader reads it: a RAW is
-/// linear already, anything else is sRGB.
+/// The spread of the photo the app holds, as the shader reads it.
 fn spread_of(image: &DynamicImage, is_raw: bool) -> ColorSpread {
+    let pixel = linear_pixel(image, is_raw);
+    ColorSpread::measure(image.width() as usize, image.height() as usize, pixel)
+}
+
+/// A pixel of the photo the app holds, linear RGB: a RAW is linear already,
+/// anything else is sRGB.
+pub(crate) fn linear_pixel(
+    image: &DynamicImage,
+    is_raw: bool,
+) -> impl Fn(usize, usize) -> [f32; 3] + '_ {
     let srgb_to_linear = |v: f32| {
         if v <= 0.04045 {
             v / 12.92
@@ -205,7 +214,7 @@ fn spread_of(image: &DynamicImage, is_raw: bool) -> ColorSpread {
             ((v + 0.055) / 1.055).powf(2.4)
         }
     };
-    let pixel = |x: usize, y: usize| -> [f32; 3] {
+    move |x: usize, y: usize| -> [f32; 3] {
         let (x, y) = (x as u32, y as u32);
         let rgb = match image {
             DynamicImage::ImageRgb32F(i) => i.get_pixel(x, y).0,
@@ -224,8 +233,7 @@ fn spread_of(image: &DynamicImage, is_raw: bool) -> ColorSpread {
             }
         };
         if is_raw { rgb } else { rgb.map(srgb_to_linear) }
-    };
-    ColorSpread::measure(image.width() as usize, image.height() as usize, pixel)
+    }
 }
 
 #[cfg(test)]
