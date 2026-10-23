@@ -532,14 +532,14 @@ mod tests {
 
     #[test]
     fn bodies_are_found_by_any_of_their_names() {
-        assert_eq!(rows().len(), 230);
+        assert_eq!(rows().len(), 279);
         assert_eq!(baseline("Canon", "EOS R6 Mark III", None), 0.25);
         assert_eq!(baseline("CANON", "EOS REBEL T3", None), -0.5);
         assert_eq!(baseline("Canon", "Canon EOS R6 Mark III", None), 0.25);
         // EOS R6 is listed, and is not EOS R6 Mark III.
         assert_eq!(baseline("Canon", "EOS R6", None), 0.35);
         // Not listed: the table's median.
-        assert_eq!(baseline("Nobody", "X1", None), 0.2);
+        assert_eq!(baseline("Nobody", "X1", None), 0.15);
     }
 
     #[test]

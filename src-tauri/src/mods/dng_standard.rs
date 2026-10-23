@@ -10,7 +10,7 @@
 //!
 //! 1. **A per-camera exposure offset**, the BaselineExposure Camera Raw gives
 //!    each body before anything else. A DNG carries its own; for other files it
-//!    comes from a table. The median is +0.2 EV, the range -0.75 to +0.8.
+//!    comes from a table. The median is +0.15 EV, the range -0.75 to +0.8.
 //! 2. **Adobe's default tone curve**, the "ACR3" curve of the DNG SDK. Middle
 //!    grey (0.18) comes out at 0.39 - about a stop brighter - with 1.36 times
 //!    the contrast at that point and the highlights rolled off.
@@ -854,7 +854,7 @@ mod tests {
 
     #[test]
     fn the_table_reads_and_finds_bodies_by_any_of_their_names() {
-        assert_eq!(rows().len(), 230);
+        assert_eq!(rows().len(), 279);
         let r6 = baseline(&camera("Canon", "EOS R6 Mark III"));
         assert_eq!(
             r6,
@@ -892,7 +892,7 @@ mod tests {
         assert_eq!(
             nobody,
             Baseline {
-                ev: 0.2,
+                ev: 0.15,
                 origin: Origin::TableMedian
             }
         );
