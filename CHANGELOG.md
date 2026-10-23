@@ -28,6 +28,10 @@ Newest first.
   `scripts/rawmakase-gray-chart.mjs` and `scripts/rawmakase-grade-curves.mjs`. Their sources,
   `crates/rawmakase-engine/src/develop/black_white_chart.bin` and `color_grade_curves.bin`, have
   not changed since v0.4.1, so only the tables' Source line moves; no value does.
+- **A LUT's Strength in Looks goes to 200%,** as Lightroom's profile Amount does: past 100 the
+  LUT's change is pushed further. The rendering is unchanged; a Look's Amount above 100 already
+  took the LUT past 100, and the slider now shows and sets that range. 100 is still the LUT as
+  made. `src/argentum/looks/LooksPanel.tsx`.
 
 ### Fixed
 
