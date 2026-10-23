@@ -11,7 +11,7 @@
 # Generated - never edit the rows by hand. scripts/rawmakase-cameras.mjs writes
 # them from one RAWmakase release, named on the next line, and holds the list of
 # any values of ours that differ from it, each with its reason.
-# Source: RAWmakase data/cameras.toml @ a8c5d6d71111a939340e9be68eb2c2d20b0c00f5 (v0.4.0), 230 bodies across 10 makes, 0 exceptions
+# Source: RAWmakase data/cameras.toml @ 290858a498ac8b7db7a68fc8cc2666b9dce8f274 (v0.4.3), 279 bodies across 10 makes, 0 exceptions
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
 # Adobe Standard. The first version of this table carried RAWmakase's adjustment
@@ -140,23 +140,45 @@ Fujifilm	X70	-0.05
 Fujifilm	XF10	-0.25		
 Hasselblad	CFV-100c|CFV 100C	-0.25		
 Hasselblad	X2D 100C-100c|X2D 100C	-0.25		
+Leica	C-Lux	0.1		
 Leica	D-Lux 7	0.25		
 Leica	V-Lux 5	0		
 Nikon	COOLPIX A1000	-0.1		
+Nikon	COOLPIX B700	-0.25		
+Nikon	COOLPIX P1000	-0.3		
 Nikon	COOLPIX P1100	-0.3		
 Nikon	COOLPIX P950	-0.3		
+Nikon	D300	0.5		
+Nikon	D3000	0		
+Nikon	D3100	0		
+Nikon	D3200	0.35		
+Nikon	D3300	0.35		
 Nikon	D3400	0.35		
 Nikon	D3500	0.2		
+Nikon	D4	0.25		
 Nikon	D5	0.35		
 Nikon	D500	0.2		
+Nikon	D5100	0		
+Nikon	D5200	0.35		
+Nikon	D5300	0.35		
+Nikon	D5500	0.2		
 Nikon	D5600	0.1		
 Nikon	D6	0.25		
+Nikon	D60	-0.5		
+Nikon	D600	0.35		
 Nikon	D610	0.35		
+Nikon	D700	0.5		
+Nikon	D7000	0		
+Nikon	D7100	0.35		
 Nikon	D7200	0.35		
 Nikon	D750	0.1		
 Nikon	D7500	0.35		
 Nikon	D780	0.2		
+Nikon	D80	-0.5		
+Nikon	D800	0.35		
+Nikon	D810	0.35		
 Nikon	D850	0.2		
+Nikon	D90	0.25		
 Nikon	Df	0.25		
 Nikon	Z 30	0.3		
 Nikon	Z 5	0.2		
@@ -184,44 +206,70 @@ Olympus	E-PL10	0.5
 Olympus	E-PL8	0.5		
 Olympus	E-PL9	0.5		
 Olympus	PEN-F	0.55		
+Olympus	TG-5	0.1		
+Olympus	TG-6	-0.2		
 OM Digital	OM-1	0.35		
 OM Digital	OM-1MarkII|OM-1 Mark II	0.35		
 OM Digital	OM-3	0.35		
 OM Digital	OM-5	0.3		
 OM Digital	OM-5MarkII|OM-5 Mark II	0.3		
 OM Digital	TG-7	-0.2		
-Panasonic	DC-G100	0.25		
+Panasonic	DC-FZ1000M2|DC-FZ10002	0		
+Panasonic	DC-FZ80|DC-FZ82	-0.5		
+Panasonic	DC-G100|DC-G100D|DC-G110	0.25		
 Panasonic	DC-G9	0.65		
 Panasonic	DC-G90	0.25		
-Panasonic	DC-G95	0.25		
+Panasonic	DC-G95|DC-G91|DC-G95D|DC-G97	0.25		
 Panasonic	DC-G9M2	0		
+Panasonic	DC-GF10|DC-GX880	0		
+Panasonic	DC-GF9|DC-GX800|DC-GX850	0		
 Panasonic	DC-GH5	0.3		
 Panasonic	DC-GH5M2	0.75		
 Panasonic	DC-GH5S	-0.75		
 Panasonic	DC-GH6	0		
 Panasonic	DC-GH7	0.5		
-Panasonic	DC-GX9	0.25		
+Panasonic	DC-GX9|DC-GX7MK3	0.25		
 Panasonic	DC-LX100M2	0.25		
 Panasonic	DC-S1	-0.15		
 Panasonic	DC-S1H	0.1		
 Panasonic	DC-S1M2	-0.15		
+Panasonic	DC-S1M2ES	0.05		
 Panasonic	DC-S1R	0.2		
 Panasonic	DC-S1RM2	0.15		
 Panasonic	DC-S5	0		
 Panasonic	DC-S5M2	-0.05		
 Panasonic	DC-S5M2X	-0.05		
 Panasonic	DC-S9	-0.05		
-Panasonic	DC-TZ202|DC-TZ200|DC-ZS200	0.1		
+Panasonic	DC-TZ202|DC-TZ200|DC-ZS200|DC-TZ200D|DC-ZS200D	0.1		
+Panasonic	DC-ZS70|DC-TZ90|DC-TZ91	-0.5		
+Panasonic	DC-ZS80|DC-TZ95|DC-TZ95D|DC-TZ96	-0.5		
+Panasonic	DMC-FZ2500|DMC-FZ2000	0		
+Panasonic	DMC-G7	0		
+Panasonic	DMC-G8|DMC-G80|DMC-G81|DMC-G85	0		
+Panasonic	DMC-GF8	0		
+Panasonic	DMC-GX85|DMC-GX7MK2|DMC-GX80	0		
+Panasonic	DMC-LX9|DMC-LX10|DMC-LX15	0.1		
+Panasonic	DMC-ZS100|DMC-TX1|DMC-TZ100|DMC-TZ101|DMC-TZ110	0.1		
+Panasonic	DMC-ZS60|DMC-TZ80|DMC-TZ81	-0.5		
 Pentax	645Z	-0.5		
+Pentax	K-1	-0.5		
 Pentax	K-1 Mark II	0.5		
 Pentax	K-3 Mark III	0.7		
 Pentax	K-70	0.35		
 Pentax	KF	0.5		
 Pentax	KP	0.5		
+Sony	DSC-HX95	-0.4		
 Sony	DSC-HX99	-0.4		
+Sony	DSC-RX0	-0.25		
+Sony	DSC-RX0M2	-0.25		
+Sony	DSC-RX100	-0.25		
+Sony	DSC-RX100M2	-0.25		
+Sony	DSC-RX100M5	-0.25		
 Sony	DSC-RX100M5A	-0.25		
 Sony	DSC-RX100M6	-0.25		
 Sony	DSC-RX100M7	-0.4		
+Sony	DSC-RX100M7A	-0.25		
+Sony	DSC-RX10M3	-0.15		
 Sony	DSC-RX10M4	-0.25		
 Sony	DSC-RX1RM2	0.35		
 Sony	DSC-RX1RM3	0.35		
@@ -234,7 +282,7 @@ Sony	ILCE-5000	0.35
 Sony	ILCE-6000|A6000	0.35		
 Sony	ILCE-6100|A6100	0.35		
 Sony	ILCE-6300|A6300	0.35		
-Sony	ILCE-6400|A6400	0.35		
+Sony	ILCE-6400|A6400|ILCE-6400A	0.35		
 Sony	ILCE-6500|A6500	0.35		
 Sony	ILCE-6600|A6600	0.35		
 Sony	ILCE-6700|A6700	0.1		
@@ -249,7 +297,7 @@ Sony	ILCE-7M5|A7 V	0.5
 Sony	ILCE-7R	0.35	100	
 Sony	ILCE-7RM2|A7R II	0.35	100	
 Sony	ILCE-7RM3|A7R III|ILCE-7RM3A	0.15	100	
-Sony	ILCE-7RM4|A7R IV	0.35	100	
+Sony	ILCE-7RM4|A7R IV|ILCE-7RM4A	0.35	100	
 Sony	ILCE-7RM5|A7R V	0.35		
 Sony	ILCE-7RM6|A7R VI	0.35		
 Sony	ILCE-7S	0.35		
@@ -261,6 +309,7 @@ Sony	ILCE-9M3|A9 III	0.25
 Sony	ILME-FX2	0.35		
 Sony	ILME-FX3	0.15		
 Sony	ILME-FX30	0.1		
+Sony	SLT-A33	0.35		
 Sony	SLT-A37	0.35		
 Sony	SLT-A77|SLT-A77V	0.35		
 Sony	ZV-1	-0.2		

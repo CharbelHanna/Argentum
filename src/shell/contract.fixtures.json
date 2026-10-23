@@ -324,7 +324,7 @@
           "key": "baseline_exposure_ev",
           "label": "tools.ag_dng_standard.baseline_exposure_ev",
           "kind": "float",
-          "default": 0.2,
+          "default": 0.15,
           "min": -3.0,
           "max": 3.0,
           "step": 0.01,
@@ -341,7 +341,7 @@
       "ag_dng_standard": {
         "v": 1,
         "settings": {
-          "baseline_exposure_ev": 0.2,
+          "baseline_exposure_ev": 0.15,
           "enabled": true
         }
       },
@@ -417,7 +417,7 @@
         "ag_dng_standard": {
           "v": 1,
           "settings": {
-            "baseline_exposure_ev": 0.2,
+            "baseline_exposure_ev": 0.15,
             "enabled": true
           }
         },
@@ -490,7 +490,7 @@
           "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "baseline_exposure_ev": 0.2,
+              "baseline_exposure_ev": 0.15,
               "enabled": true
             }
           },
@@ -559,7 +559,7 @@
           "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "baseline_exposure_ev": 0.2,
+              "baseline_exposure_ev": 0.15,
               "enabled": true
             }
           },
@@ -632,7 +632,7 @@
           "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "baseline_exposure_ev": 0.2,
+              "baseline_exposure_ev": 0.15,
               "enabled": true
             }
           },
@@ -702,7 +702,7 @@
           "ag_dng_standard": {
             "v": 1,
             "settings": {
-              "baseline_exposure_ev": 0.2,
+              "baseline_exposure_ev": 0.15,
               "enabled": true
             }
           },
@@ -841,7 +841,7 @@
         "ag_dng_standard": {
           "v": 1,
           "settings": {
-            "baseline_exposure_ev": 0.2,
+            "baseline_exposure_ev": 0.15,
             "enabled": true
           }
         },

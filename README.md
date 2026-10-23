@@ -88,7 +88,7 @@ Settings.
 **The picture**
 
 - **RAWs open looking like Lightroom's default** (DNG Standard): each camera's own
-  exposure offset (RAWmakase's table, 230 bodies), Adobe's default tone curve and
+  exposure offset (RAWmakase's table, 279 bodies), Adobe's default tone curve and
   Lightroom's default sharpening. The earlier look is one setting away.
 - **B&W** with Lightroom's measured black-and-white mix, an Auto mix per photo, and
   **Color Grading** that tints as strongly as Lightroom's, both from RAWmakase.
