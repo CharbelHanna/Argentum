@@ -1617,5 +1617,20 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 }
 
 .agm-btn.agm-version-new {
-  color: var(--agm-accent);
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  color: #f0b04a;
+  background: rgba(240, 176, 74, 0.14);
+  font-weight: 600;
+}
+
+.agm-btn.agm-version-new:hover {
+  color: #f6c46e;
+  background: rgba(240, 176, 74, 0.24);
+}
+
+html[data-ag-look='modern'][data-ag-theme='light'] .agm-btn.agm-version-new {
+  color: #9a5b00;
+  background: rgba(154, 91, 0, 0.1);
 }
