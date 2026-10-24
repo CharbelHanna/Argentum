@@ -6,6 +6,15 @@ Newest first.
 
 ## 26.43.4 — 2026-10-23
 
+### Added
+
+- **The version beside the Settings gear, and a new release when there is one.** A quiet
+  "v26.43.4" sits by the gear; when a newer release is published, "Argentum 26.43.5 is out" shows
+  there in the accent colour and opens its release page, and Settings > About says the same.
+  GitHub is asked at start and every six hours; nothing is downloaded. Classic's library header
+  did this until it was deleted with the Classic layout (#117). The comparison and timing are
+  Shoebox's (`src-tauri/src/updates.rs`), in `src/argentum/updates.ts`.
+
 ### Changed
 
 - **DNG Standard knows 49 more cameras' exposure offset.** The camera table follows RAWmakase

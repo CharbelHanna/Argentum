@@ -32,6 +32,7 @@ import {
 } from '../../components/ui/AppProperties';
 import RgbReadoutButton from '../RgbReadoutButton';
 import { useAgTranslation, type AgKey } from '../locales';
+import VersionNote from './VersionNote';
 import { crumbs } from './folders';
 import { Menu, MenuHead, MenuItem, MenuSep } from './Menu';
 import WindowControls, { MacLights, usePlatform } from './WindowControls';
@@ -229,6 +230,7 @@ export default function TopBar(props: TopBarProps) {
         >
           <PanelRight />
         </button>
+        <VersionNote />
         <button
           className={clsx('agm-btn agm-gear', isSettingsOpen && 'agm-active')}
           onClick={() => setUI({ isSettingsOpen: !isSettingsOpen })}

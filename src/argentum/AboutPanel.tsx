@@ -20,6 +20,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { getVersion } from '@tauri-apps/api/app';
+import { open } from '@tauri-apps/plugin-shell';
+import { useUpdateStatus } from './updates';
 import clsx from 'clsx';
 import { useAgTranslation } from './locales';
 import { ROADMAP, Stage } from './roadmap';
@@ -64,6 +66,17 @@ function Card({ children }: { children: React.ReactNode }) {
 
 type Translate = ReturnType<typeof useAgTranslation>;
 
+/** "Argentum 26.43.5 is out", under the version, when it is. */
+function AboutUpdate({ t }: { t: Translate }) {
+  const update = useUpdateStatus();
+  if (!update.newer || !update.latest) return null;
+  return (
+    <button className="mt-1 text-sm text-accent hover:underline" onClick={() => void open(update.url)}>
+      {t('updateOut').replace('{version}', update.latest)} · {t('updateTip')}
+    </button>
+  );
+}
+
 function AboutSection({ version, t }: { version: string | null; t: Translate }) {
   return (
     <div className="space-y-6">
@@ -74,6 +87,7 @@ function AboutSection({ version, t }: { version: string | null; t: Translate }) 
             {t('aboutVersion')} {version}
           </p>
         )}
+        <AboutUpdate t={t} />
         <p className="mt-4 text-text-secondary leading-relaxed">{t('aboutWhat')}</p>
         <p className="mt-3 text-text-secondary leading-relaxed">{t('aboutWhy')}</p>
       </Card>
