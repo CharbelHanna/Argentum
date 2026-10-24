@@ -1606,3 +1606,16 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   color: var(--agm-text);
   outline: 1px solid var(--agm-marker);
 }
+
+/* The version beside the gear, quiet; the accent when a newer release is out (VersionNote.tsx). */
+.agm-version {
+  align-self: center;
+  padding: 0 6px;
+  white-space: nowrap;
+  color: var(--agm-dim);
+  font-size: calc(11px * var(--agm-text-scale, 1));
+}
+
+.agm-btn.agm-version-new {
+  color: var(--agm-accent);
+}
