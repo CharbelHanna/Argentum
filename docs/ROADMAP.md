@@ -187,7 +187,7 @@ explicit or safe conversion keeps that distinction manageable.
 | ⬜ | Local laplacian contrast | ~1 week |
 
 
-## Upstream pull requests worth taking
+## RapidRAW pull requests to harvest
 
 RapidRAW's open pull requests, triaged against what Argentum already has. Each
 claim below was checked against this repository on 2026-09-12 rather than taken
@@ -231,6 +231,18 @@ named object.
 #1307. There are three. The fourth, a zero-size divide in the resize path, does
 not exist - `downscale_f32_image` already guards both the zero output and the
 zero ratio. Checked before it was believed.
+
+## Known gaps from the merging years
+
+Left open when RapidRAW was still merged, because the fix needed a line in a file
+whose line count could only go down. Those files are ours to change now.
+
+| | What | Notes |
+|---|---|---|
+| ⬜ | **Kelvin readout on Canon 1D/1Ds** | Their `read_as_shot_white_balance` decodes on its own and never reaches `mods::decode`, so the Kelvin readout is off on those bodies (the picture and the corrections are right). One line in `raw_processing.rs`; listed in `knownIssues.ts`. |
+| ⬜ | **Apple RAW 9 (macOS, off by default)** | Never reaches our decode step: no sRAW levels, highlight recovery or camera profile on that path. |
+| ⬜ | **Super-resolution and white balance** | An absolute `whiteBalance` is carried onto the enlarged non-RAW file, where the as-shot is D65; relative edits carry correctly. |
+| ⬜ | **TIFF ICC profile (RapidRAW #1752)** | Lands in the encoder arm Argentum replaced: port it to `mods/export_precision.rs` when harvested. |
 
 ## Already covered — nothing to build
 
@@ -324,7 +336,7 @@ us: zero commits and an empty diff against `5ad3ba0b` for that file.
 Defensible as "remember my last export". It also reads as a broken switch, which
 is how it was found.
 
-If it is changed, it is a line or two in their file plus a registry entry, and the
+If it is changed, it is a line or two, and the
 question to answer first is which behaviour is wanted: persist on toggle, or keep
 persisting on export and make the panel say that is what it does. **Decide before
 building.** Left alone for now.
@@ -341,7 +353,7 @@ building.** Left alone for now.
   picker reads it as linear for the same reason. `dt_white_balance` therefore
   decoded linear data a second time, applied about three quarters of its
   correction in the midtones, and clipped everything above white while a slider
-  was off zero. Retired with the 1.6.5 merge; see docs/UPSTREAM_CATCHUP.md.
+  was off zero. Retired with the 1.6.5 merge.
 
   `modules.wgsl` (`dt_white_balance`) calls `ag_to_scene_linear(color)` when
   `is_raw_image != 0`, with the comment "Only RAW arrives encoded. A JPEG has

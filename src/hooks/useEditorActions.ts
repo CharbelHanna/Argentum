@@ -83,6 +83,22 @@ export const reloadAdjustmentsForPaths = async (paths: string[]) => {
   }
 };
 
+/**
+ * The photo Copy takes settings from: the one named; else the photo open in the editor; else the
+ * grid's active photo, whose settings the Edit tab shows; else the first selected; else the photo
+ * last loaded. RapidRAW d14e19da: src/hooks/useEditorActions.ts.
+ */
+export function copySourcePath(from: {
+  named?: string;
+  editorOpen: boolean;
+  loadedPath?: string;
+  libraryActivePath: string | null;
+  multiSelectedPaths: readonly string[];
+}): string | undefined {
+  const editingPath = from.editorOpen ? from.loadedPath : undefined;
+  return from.named || editingPath || from.libraryActivePath || from.multiSelectedPaths[0] || from.loadedPath;
+}
+
 export function useEditorActions() {
   const { t } = useTranslation();
   const setEditor = useEditorStore((s) => s.setEditor);
@@ -324,8 +340,13 @@ export function useEditorActions() {
     const { libraryActivePath, multiSelectedPaths } = useLibraryStore.getState();
     let sourceAdjustments: any = null;
 
-    const pathToCopyFrom =
-      pathOverride || (selectedImage ? selectedImage.path : libraryActivePath || multiSelectedPaths[0]);
+    const pathToCopyFrom = copySourcePath({
+      named: pathOverride,
+      editorOpen: useUIStore.getState().activeView === 'editor',
+      loadedPath: selectedImage?.path,
+      libraryActivePath,
+      multiSelectedPaths,
+    });
 
     if (selectedImage && pathToCopyFrom === selectedImage.path) {
       sourceAdjustments = adjustments;

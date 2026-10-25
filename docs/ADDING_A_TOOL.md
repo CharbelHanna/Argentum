@@ -18,16 +18,15 @@ engine. It is also the map of where those pieces live.
 
 ## What today's pipeline allows
 
-Our lines in RapidRAW's files may only go down (the ratchet in
-`scripts/upstream-ratchet.json`, enforced by `npm run check:merge`). So a tool
-in today's pipeline adds nothing to a file of theirs:
+Every file is ours to change, but a tool in today's pipeline keeps its code in
+files of ours and touches an inherited file only to call it:
 
 | Piece | Where it goes |
 |---|---|
 | The math | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_tone` or `ag_stage_display` |
 | A whole-image GPU pass on the input | inside `src-tauri/src/mods/input_stage.rs` |
-| A setting the render needs | the render path (`image_processing.rs`) is ours to change. The matching WGSL struct is in their `shader.wgsl`, so a new field there is a line of ours in their file and has to be paid for by removing one; a tool that needs new settings belongs in the engine |
-| The control | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component in `src/argentum/` mounted through an existing `data-argentum` marker works too. Strings go in `src/argentum/locales/` |
+| A setting the render needs | a field in the adjustments struct (`image_processing.rs`) and the matching WGSL struct in `shader.wgsl`, kept in step; a tool that needs many new settings belongs in the engine |
+| The control | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component of its own goes in `src/argentum/`. Strings go in `src/argentum/locales/` |
 
 If a tool cannot be built that way, that is the signal to build it in the
 engine.
@@ -115,18 +114,18 @@ darktable. It won't match to the pixel — different pipelines — but the
 character should be recognisably darktable's.
 
 ```bash
-npm run check:merge
+npm run check:sources
+npm run check:frontend
 ```
 
-It fails if the tool added a line to a file of theirs, and says which.
+The first fails if wiring a feature depends on is gone; the second if types,
+lint or formatting got worse than `scripts/frontend-baseline.json`.
 
 ---
 
 ## Rules
 
-- **Never restructure a file of theirs.** Don't move their lines around.
-- **Nothing of theirs is deleted while something still uses it.** Once nothing
-  does, it is deleted and noted in that release's upstream review.
+- **Delete what nothing uses,** in its own change, with a CHANGELOG "Removed" line.
 - **One tool per commit.** Makes it obvious what to undo when something looks wrong.
 - **Note where you got it.** A comment with the source file and commit hash,
   so a year from now you can diff against it:
