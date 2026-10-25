@@ -98,6 +98,15 @@ Newest first.
 - **Copy settings (Ctrl+C) in the grid copies the active photo,** the one whose settings the Edit
   tab shows. Before, it copied the photo last clicked or arrowed to, even after that photo was
   Ctrl-clicked out of the selection. From RapidRAW `src/hooks/useEditorActions.ts` @ `d14e19da`.
+- **Automatic sharpening measures each photo itself.** Capture sharpening's automatic contrast
+  threshold was remembered by the photo's size and where its pixels sat in memory. The next photo
+  of the same size could be given that same memory, and was then sharpened with the previous
+  photo's threshold: in the editor, in a 16-bit TIFF export and before an enlargement, with the
+  Detail panel showing the previous photo's Auto value. On one R6 Mark III photo that meant 0.12
+  instead of 0.34, and 9.6% of its pixels moved by more than CIEDE2000 2. The threshold is now
+  remembered by a sample of the photo's own pixels as well, the key the sharpened picture already
+  used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
+  Thumbnails and 8-bit exports were not affected: their key already named the photo.
 
 ## 26.43.3 — 2026-10-23
 
