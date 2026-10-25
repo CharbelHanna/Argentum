@@ -178,6 +178,13 @@ Newest first.
   return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
   camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
 
+### Removed
+
+- **Tauri's HTTP plugin** (`tauri-plugin-http`), which only RapidRAW Cloud's store would call, and
+  that store never starts. 19 crates fewer in `Cargo.lock` (838 to 819), among them a second copy
+  of `reqwest`. Downloads (AI models, camera profiles) use the app's own `reqwest` and the update
+  check the window's `fetch`; both are unchanged.
+
 ## 26.43.3 — 2026-10-23
 
 ### Added
