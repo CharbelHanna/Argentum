@@ -118,11 +118,14 @@ fn stage(
         px_scale,
         full.as_deref().unwrap_or(base_image),
         transform_hash,
+        // Which picture this is, whichever texture of theirs holds it: their
+        // cache rebuilds the texture from the same image after every
+        // thumbnail render.
         (
-            source_key(base_image, transform_hash),
+            sharpen::picture_key(base_image, transform_hash),
             // The drag preview is a smaller copy of the same full picture.
             full.as_deref()
-                .map_or(0, |full| source_key(full, transform_hash)),
+                .map_or(0, |full| sharpen::picture_key(full, transform_hash)),
         ),
         Target::Kept,
     );
@@ -149,8 +152,8 @@ pub fn run_for_export(
     request: &RenderRequest,
 ) -> Option<wgpu::TextureView> {
     let (width, height) = (base_image.width(), base_image.height());
-    // Any hash will do for the measurement cache as long as it is this
-    // image's; the buffer address in the key tells renders apart.
+    // Any hash will do for the measurement cache: its key holds a sample of
+    // this image's bytes (sharpen::picture_key), which tells photos apart.
     guarded(|| {
         sharpening(
             context,
@@ -243,31 +246,6 @@ fn sharpening(
         target,
     );
     (view, thresholds.measured)
-}
-
-/// Which picture a render is of, whichever texture of theirs holds it.
-///
-/// Their cache rebuilds the texture from the same image after every
-/// thumbnail render; the image is the same `Arc` throughout, at the same
-/// address. The address alone could be reused by a later image once this one
-/// is freed, so the transform, the size and a sample of the bytes go in too.
-fn source_key(image: &DynamicImage, transform_hash: u64) -> u64 {
-    use std::hash::{Hash, Hasher};
-    let bytes = image.as_bytes();
-    let mut h = std::collections::hash_map::DefaultHasher::new();
-    transform_hash.hash(&mut h);
-    (
-        image.width(),
-        image.height(),
-        bytes.len(),
-        bytes.as_ptr() as usize,
-    )
-        .hash(&mut h);
-    let step = (bytes.len() / 4096).max(1);
-    for b in bytes.iter().step_by(step) {
-        b.hash(&mut h);
-    }
-    h.finish().max(1)
 }
 
 /// The full-resolution picture the editor's preview is a smaller copy of: the

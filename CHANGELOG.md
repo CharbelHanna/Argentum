@@ -69,9 +69,54 @@ Newest first.
   as it laid them out, to the keys, so the column count is worked out in one place. From RapidRAW
   `src/components/panel/library/LibraryGrid.tsx` and `src/hooks/useKeyboardShortcuts.ts` @
   `ecf7730f`, in `src/argentum/modern/gridRows.ts`.
+- **Highlights no longer jumps when it leaves zero, and Whites has more range,** from RapidRAW
+  1.6.7. Highlights at -1 or +1 used to flatten or sharpen the fine texture of bright areas all
+  at once, so the first step of the slider, and the soft edge of a mask carrying Highlights,
+  showed a step; the texture now changes gradually with the slider (RapidRAW `faf039cf`). Whites
+  at +100 or -100 moved the brightest tones by only 1 to 4 levels of 255; it now moves them
+  about twice as far, and reaches further into the upper mid-tones (the Whites half of RapidRAW
+  `9fc41e4a`: its pivot, push and ramp; that commit's Dehaze rewrite is not taken). Both are in
+  `src-tauri/src/shaders/shader.wgsl`, and in the engine's `rr_basic_tone` in step. Edits that
+  already use these sliders keep their values and render with the new code: on five test RAWs
+  the move is below what can be seen (Highlights: CIEDE2000 mean at most 0.05, 99th percentile
+  at most 0.8; Whites at ±40: mean at most 0.16, 99th percentile at most 0.9). Thumbnails are
+  redrawn once.
 
 ### Fixed
 
+- **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
+  of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
+  made the whole file read as defaults, and the next save wrote them over it: every setting gone,
+  or a photo's whole edit at its next rating. Now the file is copied to `<name>.bak` before
+  anything can write over it, the failure is logged, and every key that still reads is kept; only
+  the ones that do not fall back. Covers `settings.json`, `.agdata` sidecars and
+  `argentum-processing.json` (`src-tauri/src/mods/salvage.rs`).
+- **Deleting, copying, moving and renaming photos touch only the files they should.** RapidRAW
+  1.6.7's fixes (`src-tauri/src/file_management.rs` @ `fefb6a1b`, `4f64511a`, `f9899ca9`;
+  `src/hooks/useFileOperations.ts` @ `3c0a0082`), with the rules in
+  `src-tauri/src/mods/file_ops.rs` and `src/argentum/fileOps.ts`:
+  - Delete with associated files, on photos from two folders, also trashed other photos with the
+    same names in those folders (`IMG_2` in the first when it was picked in the second). Each
+    folder now loses only its own.
+  - Two photos with the same name from different folders, copied or moved into one folder, overwrote
+    each other. The copy or move now stops before writing anything, as it already did when a file
+    of that name was there. A RAW and its JPEG sharing one `.xmp` move and copy together instead of
+    failing halfway.
+  - `IMG.CR2.jpg`'s edits went with `IMG.CR2` when that photo was deleted, copied, moved or renamed.
+  - Duplicating a photo in its own folder copied its `.xmp` onto itself (emptying it on macOS and
+    Linux) and could write over a leftover sidecar. The copy gets its own `IMG_copy_1.xmp`, at the
+    first number where none of its files is taken.
+  - A tag or colour label with `&` or `<` made the `.xmp` invalid, and a `$1` in a tag was replaced
+    by nothing. They are written escaped and read back as typed.
+  - Renaming a photo with its virtual copy skipped a number in the sequence and could select the
+    wrong photos afterwards. A photo another program held open kept its name while its edits took
+    the new one; its edits now stay with it.
+  - After a delete, the next photo shown could be a virtual copy of the deleted one, gone with it.
+  - Renaming a folder while in another whose name starts the same (`trip` while in `trip2`) moved
+    the view to a folder that does not exist; pinned and library folders inside the renamed one
+    kept the old path. Renaming the photo shown in the grid opened the editor.
+  - Where files cannot be locked (the Flatpak document portal), every photo was treated as locked:
+    thumbnails decoded the whole RAW and white balance started from the wrong point.
 - **Photos hidden by a filter nothing can clear show again.** A rating, flag or colour-label
   filter saved by the old Classic layout was restored at every start, and the window has no
   control for those filters, so it hid photos with no visible reason. Only the filters the view
@@ -82,6 +127,15 @@ Newest first.
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
   optimizer as off. Only the value used is read now, with `get_i64`, in
   `mods/highlight_protection.rs`; a test covers a maker note with `u32::MAX` beside it.
+- **Highlight Tone Priority is given back on the Canon EOS R6 Mark III, R50, R10 and R50 V.** The
+  same maker-note value (4294967295 at index 13 of LightingOpt) made the highlight-preservation
+  reader in `src-tauri/src/baseline_exposure.rs` panic, since it read every LightingOpt value with
+  `get_i32`; the panic was caught and the camera counted as holding nothing back, so DNG Standard
+  rendered those photos a stop dark and the Profile note did not name the mode. It now reads only
+  the values it uses, with `get_i64`, for every maker (Canon, Fujifilm, Nikon, Olympus);
+  `mods/highlight_protection.rs` reads through the same function instead of a copy of it. RapidRAW
+  1.6.7 still reads with `get_i32`. Tests cover a maker note with 4294967295 at index 13 and the
+  stop given back with Highlight Tone Priority on.
 - **Community presets, opened from the Looks tab, gives the photo back.** Picking a look while the
   page is up returns to the photo with the look on it, as one History step; before, the page
   stayed, and the look was written to the photo's file behind the open editor, which never showed
@@ -98,6 +152,15 @@ Newest first.
 - **Copy settings (Ctrl+C) in the grid copies the active photo,** the one whose settings the Edit
   tab shows. Before, it copied the photo last clicked or arrowed to, even after that photo was
   Ctrl-clicked out of the selection. From RapidRAW `src/hooks/useEditorActions.ts` @ `d14e19da`.
+- **Automatic sharpening measures each photo itself.** Capture sharpening's automatic contrast
+  threshold was remembered by the photo's size and where its pixels sat in memory. The next photo
+  of the same size could be given that same memory, and was then sharpened with the previous
+  photo's threshold: in the editor, in a 16-bit TIFF export and before an enlargement, with the
+  Detail panel showing the previous photo's Auto value. On one R6 Mark III photo that meant 0.12
+  instead of 0.34, and 9.6% of its pixels moved by more than CIEDE2000 2. The threshold is now
+  remembered by a sample of the photo's own pixels as well, the key the sharpened picture already
+  used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
+  Thumbnails and 8-bit exports were not affected: their key already named the photo.
 - **A photo corrected with its camera's lens tables keeps the tables it was saved with.** Opening
   it read the file again and, when a newer reader read the tables differently, replaced them in
   the edit: the photo moved on screen while an export of the saved edit did not. An edit whose

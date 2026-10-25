@@ -10,10 +10,12 @@
 //!
 //! From the app @ c786c146: `apply_tonal_adjustments`,
 //! `apply_highlights_adjustment`, `shape_detail` and `sample_gf_tex` in
-//! `src-tauri/src/shaders/shader.wgsl`, and the part of its `main` that
-//! measures each pixel's detail, in `tone.wgsl`, run in the pixel pass; the
-//! sliders' scale (`SCALES` in `src-tauri/src/image_processing.rs`). The
-//! settings are the app's slider values, -100 to 100.
+//! `src-tauri/src/shaders/shader.wgsl` - the first two since with RapidRAW
+//! 1.6.7's Highlights fix (faf039cf) and Whites range (9fc41e4a), as the app
+//! took them - and the part of its `main` that measures each pixel's detail,
+//! in `tone.wgsl`, run in the pixel pass; the sliders' scale (`SCALES` in
+//! `src-tauri/src/image_processing.rs`). The settings are the app's slider
+//! values, -100 to 100.
 //!
 //! The detail is measured as the app measures it: the guided filter of the
 //! pixel pass's input, before exposure and white balance, kept on the GPU

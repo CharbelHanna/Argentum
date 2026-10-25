@@ -116,10 +116,13 @@ character should be recognisably darktable's.
 ```bash
 npm run check:sources
 npm run check:frontend
+npm run check:wiring
 ```
 
 The first fails if wiring a feature depends on is gone; the second if types,
-lint or formatting got worse than `scripts/frontend-baseline.json`.
+lint or formatting got worse than `scripts/frontend-baseline.json`; the third
+if the interface calls a command or shortcut that is not wired, or the
+dependencies changed without `scripts/wiring-baseline.json` saying so.
 
 ---
 

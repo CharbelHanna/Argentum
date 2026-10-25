@@ -168,30 +168,24 @@ fn olympus_camera_settings(file_bytes: &[u8]) -> Option<IFD> {
     .ok()
 }
 
-fn integers(ifd: &IFD, tag: u16) -> Vec<i32> {
-    ifd.get_entry(tag)
-        .map(|entry| {
-            (0..entry.value.count())
-                .map_while(|index| entry.value.get_i32(index).ok().flatten())
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
-fn first_integer(ifd: &IFD, tag: u16) -> Option<i32> {
-    ifd.get_entry(tag)?.value.get_i32(0).ok().flatten()
+/// One value of a tag, as i64, which holds every TIFF integer: rawler's
+/// `get_i32` panics on a value above `i32::MAX` instead of failing, and
+/// Canon's LightingOpt carries 4294967295 at index 13 on the EOS R6 Mark III,
+/// R50, R10 and R50 V. Only the values used are read.
+pub(crate) fn integer(ifd: &IFD, tag: u16, index: usize) -> Option<i64> {
+    ifd.get_entry(tag)?.value.get_i64(index).ok().flatten()
 }
 
 fn canon(makernote: &IFD) -> f32 {
-    let lighting_opt = integers(makernote, CANON_LIGHTING_OPT);
-    let auto_lighting_optimizer = match lighting_opt.get(2) {
+    let lighting_opt = |index| integer(makernote, CANON_LIGHTING_OPT, index);
+    let auto_lighting_optimizer = match lighting_opt(2) {
         Some(0) => 0.5,
         Some(1) => 0.33,
         Some(2) => 0.66,
         _ => 0.0,
     };
-    let highlight_tone_priority = match lighting_opt.get(3) {
-        Some(&state) if state > 0 => 1.0,
+    let highlight_tone_priority = match lighting_opt(3) {
+        Some(state) if state > 0 => 1.0,
         _ => 0.0,
     };
     auto_lighting_optimizer + highlight_tone_priority
@@ -200,7 +194,7 @@ fn canon(makernote: &IFD) -> f32 {
 fn fuji(makernote: &IFD) -> f32 {
     match [FUJI_DEVELOPMENT_DYNAMIC_RANGE, FUJI_AUTO_DYNAMIC_RANGE]
         .into_iter()
-        .find_map(|tag| first_integer(makernote, tag))
+        .find_map(|tag| integer(makernote, tag, 0))
     {
         Some(200) => 1.0,
         Some(400) => 2.0,
@@ -209,10 +203,10 @@ fn fuji(makernote: &IFD) -> f32 {
 }
 
 fn nikon(makernote: &IFD) -> f32 {
-    if first_integer(makernote, NIKON_COLOR_SPACE) == Some(4) {
+    if integer(makernote, NIKON_COLOR_SPACE, 0) == Some(4) {
         return 2.0;
     }
-    match first_integer(makernote, NIKON_ACTIVE_D_LIGHTING) {
+    match integer(makernote, NIKON_ACTIVE_D_LIGHTING, 0) {
         Some(3) => 0.33,
         Some(5) => 0.66,
         Some(7) => 1.0,
@@ -225,9 +219,9 @@ fn nikon(makernote: &IFD) -> f32 {
 }
 
 fn olympus(camera_settings: &IFD) -> f32 {
-    match integers(camera_settings, OLYMPUS_GRADATION).as_slice() {
-        [_, _, _, 1, ..] => 0.33,
-        [-1, -1, 1, ..] => 0.66,
+    match [0, 1, 2, 3].map(|index| integer(camera_settings, OLYMPUS_GRADATION, index)) {
+        [_, _, _, Some(1)] => 0.33,
+        [Some(-1), Some(-1), Some(1), _] => 0.66,
         _ => 0.0,
     }
 }
@@ -239,5 +233,57 @@ fn pentax(makernote: &IFD) -> f32 {
     {
         Some(Value::Undefined(data)) if data.first() == Some(&1) => 1.0,
         _ => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use rawler::formats::tiff::Entry;
+
+    /// Canon's LightingOpt as the EOS R6 Mark III, R50, R10 and R50 V write
+    /// it: 4294967295 at index 13, beside the settings read here.
+    fn canon_makernote(auto_lighting_optimizer: u32, highlight_tone_priority: u32) -> IFD {
+        let mut lighting_opt = vec![56, 0, auto_lighting_optimizer, highlight_tone_priority];
+        lighting_opt.extend([0; 9]);
+        lighting_opt.push(u32::MAX);
+        let mut makernote = IFD::default();
+        makernote.entries.insert(
+            CANON_LIGHTING_OPT,
+            Entry {
+                tag: CANON_LIGHTING_OPT,
+                value: Value::Long(lighting_opt),
+                embedded: None,
+            },
+        );
+        makernote
+    }
+
+    const ALO_OFF: u32 = 3;
+    const ALO_STANDARD: u32 = 0;
+    const HTP_OFF: u32 = 0;
+    const HTP_ON: u32 = 1;
+
+    #[test]
+    fn a_value_too_big_for_i32_does_not_hide_highlight_tone_priority() {
+        assert_eq!(canon(&canon_makernote(ALO_OFF, HTP_ON)), 1.0);
+        assert_eq!(canon(&canon_makernote(ALO_STANDARD, HTP_OFF)), 0.5);
+    }
+
+    #[test]
+    fn highlight_tone_priority_gives_back_its_stop() {
+        let exposure = RawExposure {
+            scene_referred: true,
+            dng_baseline: 0.0,
+            highlight_preservation: canon(&canon_makernote(ALO_OFF, HTP_ON)),
+        };
+        let given_back = |compensate_highlight_preservation| {
+            exposure.compensation(BaselineOptions {
+                baseline_exposure: None,
+                compensate_highlight_preservation,
+            })
+        };
+        assert_eq!(given_back(true), 1.0);
+        assert_eq!(given_back(false), 0.0);
     }
 }
