@@ -53,6 +53,15 @@ Newest first.
   LUT's change is pushed further. The rendering is unchanged; a Look's Amount above 100 already
   took the LUT past 100, and the slider now shows and sets that range. 100 is still the LUT as
   made. `src/argentum/looks/LooksPanel.tsx`.
+- **Up and Down move through the grid a row at a time.** They go to the photo above or below,
+  the one nearest the same place across, in every thumbnail shape (justified rows of different
+  lengths too) and from one folder's group to the next in the Subfolders view; the grid scrolls to
+  keep it in view. On the top or bottom row they stay put. Before, Up and Down did what Left and
+  Right do: the previous and next photo, wrapping round at the ends. Left and Right are unchanged,
+  and nothing changes while a photo is open or while typing in a field. The grid hands its rows,
+  as it laid them out, to the keys, so the column count is worked out in one place. From RapidRAW
+  `src/components/panel/library/LibraryGrid.tsx` and `src/hooks/useKeyboardShortcuts.ts` @
+  `ecf7730f`, in `src/argentum/modern/gridRows.ts`.
 
 ### Fixed
 
