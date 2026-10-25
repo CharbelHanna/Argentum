@@ -63,6 +63,11 @@ Newest first.
 
 ### Fixed
 
+- **Photos hidden by a filter nothing can clear show again.** A rating, flag or colour-label
+  filter saved by the old Classic layout was restored at every start, and the window has no
+  control for those filters, so it hid photos with no visible reason. Only the filters the view
+  menu shows (Show and Types) are restored now, and the others are saved back as "all".
+  `src/argentum/modern/shownFilters.ts`.
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
   above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the

@@ -8,18 +8,9 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { THEMES, DEFAULT_THEME_ID, ThemeProps } from '../utils/themes';
 import { COPYABLE_ADJUSTMENT_KEYS, withAdjustmentLayout } from '../utils/adjustments';
-import {
-  FilterCriteria,
-  Invokes,
-  LibraryViewMode,
-  RawStatus,
-  EditedStatus,
-  FlagStatus,
-  Theme,
-  ThumbnailSize,
-  ThumbnailAspectRatio,
-} from '../components/ui/AppProperties';
+import { Invokes, LibraryViewMode, Theme, ThumbnailSize, ThumbnailAspectRatio } from '../components/ui/AppProperties';
 import { useTranslation } from 'react-i18next';
+import { shownFiltersOnly } from '../argentum/modern/shownFilters';
 
 interface UseAppInitializationProps {
   preloadedDataRef: React.RefObject<any>;
@@ -178,16 +169,8 @@ export const useAppInitialization = ({
 
         if (settings?.sortCriteria) setSortCriteria(settings.sortCriteria);
 
-        if (settings?.filterCriteria) {
-          setFilterCriteria((prev: FilterCriteria) => ({
-            ...prev,
-            ...settings.filterCriteria,
-            rawStatus: settings.filterCriteria.rawStatus || RawStatus.All,
-            editedStatus: settings.filterCriteria.editedStatus || EditedStatus.All,
-            flagStatus: settings.filterCriteria.flagStatus || FlagStatus.All,
-            colors: settings.filterCriteria.colors || [],
-          }));
-        }
+        // Argentum: only the filters the window shows are restored (argentum/modern/shownFilters.ts).
+        if (settings?.filterCriteria) setFilterCriteria(shownFiltersOnly(settings.filterCriteria));
 
         if (settings?.theme) setTheme(settings.theme);
 
