@@ -50,12 +50,11 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
-    heading: 'Carried early',
+    heading: 'Taken from pull requests',
     blurb:
-      "Work by RapidRAW's contributors that Argentum runs before upstream has " +
-      'merged it. Each is marked in the source between `// upstream #NNNN` and ' +
-      '`// end upstream #NNNN`, so when their pull request lands the two ' +
-      'converge instead of colliding — and so it stays obvious whose it is.',
+      "Work by RapidRAW's contributors that Argentum took from their pull " +
+      'requests. Each is marked in the source between `// upstream #NNNN` and ' +
+      '`// end upstream #NNNN`, so it stays obvious whose it is.',
     entries: [
       {
         name: 'dimafa — #1466, high-precision export',

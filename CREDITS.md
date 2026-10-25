@@ -17,9 +17,10 @@ what we took changes, the wording changes with it.
 
 ### [RapidRAW](https://github.com/CyberTimon/RapidRAW) — Timon Käch
 
-Argentum is a fork of RapidRAW. The interface, the GPU render pipeline, the
-catalogue, masking, inpainting, export, presets, tethering and very nearly all
-of the application are his.
+Argentum is a fork of RapidRAW, taken at 1.6.6. The interface, the GPU render
+pipeline, the catalogue, masking, inpainting, export, presets, tethering and
+very nearly all of the application are his. Later releases are not merged;
+what Argentum takes from them is credited in the CHANGELOG with its commit.
 
 To be blunt about the proportions: almost everything you touch in Argentum is
 Timon's work. Argentum changed what happens to the colour.
