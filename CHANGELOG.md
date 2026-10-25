@@ -4,7 +4,7 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
-## 26.43.4 — 2026-10-23
+## 26.43.4 — 2026-10-25
 
 ### Added
 

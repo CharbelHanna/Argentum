@@ -52,6 +52,7 @@ export const RELEASES: Release[] = [
       'Community presets: Save shows the new preset, picking one returns to your photo, and ' +
         'previews no longer download photos that are only in the cloud.',
       'Canon EOS R6 Mark III: Auto Lighting Optimizer and Highlight Tone Priority are read again.',
+      'Each open RAW takes a quarter less memory, with the same pixels.',
       'The version shows beside the Settings gear, with a note when a newer release is out.',
     ],
   },
