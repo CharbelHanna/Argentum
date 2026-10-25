@@ -175,7 +175,7 @@ pub struct Found {
     /// The switch's starting position, for an edit that has none yet.
     pub default_on: bool,
     /// The photo has no saved edit, so My Lenses' "Correct new photos"
-    /// decides how it opens (argentum/lensDefault.ts).
+    /// decides how it opens (argentum/newPhotoDefaults.ts).
     pub fresh: bool,
 }
 

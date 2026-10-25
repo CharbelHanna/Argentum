@@ -294,6 +294,13 @@ struct ModelArgs {
     model: String,
 }
 
+/// A camera and the profile its new photos open with (none: built-in).
+#[derive(Deserialize)]
+struct DefaultProfileArgs {
+    model: String,
+    file: Option<String>,
+}
+
 #[derive(Deserialize)]
 struct ApplyArgs {
     photo: PhotoId,
@@ -570,6 +577,16 @@ async fn json(
             let a: ModelArgs = args_for(&name, args)?;
             commands::forget_camera(a.model)?;
             Ok(serde_json::Value::Null)
+        }
+        "set_camera_default_profile" => {
+            let a: DefaultProfileArgs = args_for(&name, args)?;
+            commands::set_camera_default_profile(a.model, a.file)?;
+            Ok(serde_json::Value::Null)
+        }
+        "camera_default_profile" => {
+            let a: ModelArgs = args_for(&name, args)?;
+            serde_json::to_value(commands::camera_default_profile(a.model)?)
+                .map_err(|e| e.to_string())
         }
         "get_profile_online" => {
             let a: ModelArgs = args_for(&name, args)?;

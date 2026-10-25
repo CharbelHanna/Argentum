@@ -4,6 +4,7 @@
 
 mod common;
 
+use argentum_engine::colour::{delta_e2000, lab};
 use argentum_engine::rawler::imgop::{Dim2, Point, Rect};
 use argentum_engine::rawler::rawimage::RawPhotometricInterpretation;
 use argentum_engine::tools::{ag_dng_standard, rt_capture_sharpen};
@@ -49,39 +50,29 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
     // shifts under it.
     let mut odd = common::scene(1280, 960);
     odd.active_area = Some(Rect::new(Point::new(13, 9), Dim2::new(1250, 940)));
-    // Each with the colour limits it is held to: mean and 95th percentile.
-    let synthetic = (SYNTHETIC_MEAN, SYNTHETIC_P95);
     let mut sources = vec![
         (
             "synthetic".to_string(),
             common::source(1280, 960),
             (300, 300),
-            synthetic,
         ),
         (
             "synthetic, cropped".to_string(),
             Source::new(7, cropped),
             (300, 300),
-            synthetic,
         ),
         (
             "synthetic, odd active area".to_string(),
             Source::new(8, odd),
             (300, 300),
-            synthetic,
         ),
     ];
     for path in common::raws("a_half_size_preview_is_the_full_develop_made_small") {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        sources.push((
-            name,
-            common::open(&path),
-            (1600, 1600),
-            (PHOTO_MEAN, PHOTO_P95),
-        ));
+        sources.push((name, common::open(&path), (1600, 1600)));
     }
 
-    for (name, source, (max_w, max_h), (max_mean, max_p95)) in sources {
+    for (name, source, (max_w, max_h)) in sources {
         let bayer = source.raw.cpp == 1
             && matches!(&source.raw.photometric, RawPhotometricInterpretation::Cfa(c) if c.cfa.width == 2);
         if !bayer {
@@ -181,7 +172,7 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
         );
         assert_eq!(shift, (0, 0), "{name}: the crop moved");
         assert!(
-            de_mean <= max_mean && de_p95 <= max_p95,
+            de_mean <= MAX_MEAN && de_p95 <= MAX_P95,
             "{name}: the colour moved"
         );
         assert!(cast <= MAX_CAST, "{name}: the colour shifted");
@@ -193,19 +184,26 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
     }
 }
 
-// RAWmakase's gates (`half_check.rs` @ 183e09fd): blocks of 16 half-size
-// pixels, here 8 preview pixels, about as many photosites. A file is held to
-// its own reference plus 0.1, or without one to 0.3 (mean) and 1.0 (95th).
-const BLOCK: usize = 8;
-const SYNTHETIC_MEAN: f64 = 0.3;
-const SYNTHETIC_P95: f64 = 1.0;
-/// A real photo's reference: a 32 MP CR3 measured 0.456 and 1.047 on
-/// 2026-10-19, all of it fine-scale - blocks of 16 halve it and of 32 take it
-/// to a third, the demosaics and the noise differing within a block - and
-/// none of it a colour shift (`MAX_CAST`).
-const PHOTO_MEAN: f64 = 0.456 + 0.1;
-const PHOTO_P95: f64 = 1.047 + 0.1;
-/// The most the photo's mean L*, a* or b* may move: measured 0.08 at most.
+// RAWmakase's gates (`half_check.rs` @ 183e09fd): a file is held to its own
+// reference plus 0.1, or without one to 0.3 (mean) and 1.0 (95th). Here every
+// source is held to the second pair, over blocks of 32 preview pixels.
+//
+// Not RAWmakase's 16 half-size pixels (8 preview pixels here): at that size
+// the colour gate measured the two develops' fine texture, not their colour.
+// The half-size develop is resized to the preview by the engine and the full
+// one box-averaged here, so a block of 8 holds two different textures of the
+// same detail and noise. Fitted to one photo (a 32 MP CR3: 0.456 and 1.047 on
+// 2026-10-19, plus 0.1), the gate failed a noisier R6 Mark III frame at 0.406
+// and 1.216 with no colour shift at all (cast 0.045). Blocks of 32 average the
+// texture out and keep the colour: on 2026-10-25, eight photos of five bodies
+// (R6 Mark III, R5 Mark II, Z 9, ILCE-7M4, K-5 II s) measured at most 0.247 and
+// 0.665; a colour shift still moves every block, and `MAX_CAST` holds the
+// photo's mean.
+const BLOCK: usize = 32;
+const MAX_MEAN: f64 = 0.3;
+const MAX_P95: f64 = 1.0;
+/// The most the photo's mean L*, a* or b* may move: measured 0.08 at most on
+/// 2026-10-19, 0.116 on an ILCE-7M4 frame on 2026-10-25.
 const MAX_CAST: f64 = 0.2;
 const DETAIL: std::ops::RangeInclusive<f64> = 0.8..=1.25;
 const MAX_TIME: f64 = 1.1;
@@ -236,92 +234,6 @@ fn laplacian_energy(v: &[[f32; 3]], w: usize, h: usize) -> f64 {
         }
     }
     e / n
-}
-
-// Copied from RAWmakase `crates/rawmakase-decode/src/half_check.rs`
-// @ 183e09fd (pch/rawmakase#526, MIT): `lab` and `delta_e2000`, on f32
-// pixels here.
-/// CIELAB (D65) of linear sRGB.
-fn lab([r, g, b]: [f32; 3]) -> [f64; 3] {
-    let [r, g, b] = [r as f64, g as f64, b as f64];
-    let x = (0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047;
-    let y = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    let z = (0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883;
-    let f = |t: f64| {
-        if t > 216. / 24389. {
-            t.cbrt()
-        } else {
-            (24389. / 27. * t + 16.) / 116.
-        }
-    };
-    let (fx, fy, fz) = (f(x), f(y), f(z));
-    [116. * fy - 16., 500. * (fx - fy), 200. * (fy - fz)]
-}
-
-/// CIEDE2000 colour difference (Sharma, Wu and Dalal 2005).
-fn delta_e2000(lab1: [f64; 3], lab2: [f64; 3]) -> f64 {
-    let [l1, a1, b1] = lab1;
-    let [l2, a2, b2] = lab2;
-    let c_bar = (a1.hypot(b1) + a2.hypot(b2)) / 2.;
-    let g = 0.5 * (1. - (c_bar.powi(7) / (c_bar.powi(7) + 25f64.powi(7))).sqrt());
-    let (a1p, a2p) = ((1. + g) * a1, (1. + g) * a2);
-    let (c1p, c2p) = (a1p.hypot(b1), a2p.hypot(b2));
-    let hue = |b: f64, a: f64| {
-        if a == 0. && b == 0. {
-            0.
-        } else {
-            b.atan2(a).to_degrees().rem_euclid(360.)
-        }
-    };
-    let (h1p, h2p) = (hue(b1, a1p), hue(b2, a2p));
-    let dl = l2 - l1;
-    let dc = c2p - c1p;
-    let dh = if c1p * c2p == 0. {
-        0.
-    } else if (h2p - h1p).abs() <= 180. {
-        h2p - h1p
-    } else if h2p - h1p > 180. {
-        h2p - h1p - 360.
-    } else {
-        h2p - h1p + 360.
-    };
-    let dhh = 2. * (c1p * c2p).sqrt() * (dh / 2.).to_radians().sin();
-    let l_bar = (l1 + l2) / 2.;
-    let cp_bar = (c1p + c2p) / 2.;
-    let hp_bar = if c1p * c2p == 0. {
-        h1p + h2p
-    } else if (h1p - h2p).abs() <= 180. {
-        (h1p + h2p) / 2.
-    } else if h1p + h2p < 360. {
-        (h1p + h2p + 360.) / 2.
-    } else {
-        (h1p + h2p - 360.) / 2.
-    };
-    let t = 1. - 0.17 * (hp_bar - 30.).to_radians().cos()
-        + 0.24 * (2. * hp_bar).to_radians().cos()
-        + 0.32 * (3. * hp_bar + 6.).to_radians().cos()
-        - 0.20 * (4. * hp_bar - 63.).to_radians().cos();
-    let d_theta = 30. * (-((hp_bar - 275.) / 25.).powi(2)).exp();
-    let rc = 2. * (cp_bar.powi(7) / (cp_bar.powi(7) + 25f64.powi(7))).sqrt();
-    let sl = 1. + 0.015 * (l_bar - 50.).powi(2) / (20. + (l_bar - 50.).powi(2)).sqrt();
-    let sc = 1. + 0.045 * cp_bar;
-    let sh = 1. + 0.015 * cp_bar * t;
-    let rt = -(2. * d_theta).to_radians().sin() * rc;
-    ((dl / sl).powi(2) + (dc / sc).powi(2) + (dhh / sh).powi(2) + rt * (dc / sc) * (dhh / sh))
-        .sqrt()
-}
-
-#[test]
-fn ciede2000_matches_published_pairs() {
-    // Sharma, Wu and Dalal's test data, pairs 1, 7 and 17 (RAWmakase's test).
-    for (a, b, want) in [
-        ([50., 2.6772, -79.7751], [50., 0., -82.7485], 2.0425),
-        ([50., 0., 0.], [50., -1., 2.], 2.3669),
-        ([50., 2.5, 0.], [73., 25., -18.], 27.1492),
-    ] {
-        let got = delta_e2000(a, b);
-        assert!((got - want).abs() < 1e-4, "{got} for {want}");
-    }
 }
 
 /// The shift of `a` against `b`, within three pixels, that matches best.

@@ -26,6 +26,8 @@ import { useAgTranslation } from './locales';
 interface Camera {
   make: string;
   model: string;
+  /** The profile new photos from it open with; absent, built-in (mods/profiles.rs). */
+  defaultProfile?: string;
 }
 
 interface Installed {
@@ -123,6 +125,11 @@ export default function MyCameras() {
     refresh();
   };
 
+  const setDefaultProfile = async (model: string, file: string) => {
+    await ag('set_camera_default_profile', { model, file: file || null }).catch(() => {});
+    refresh();
+  };
+
   const forgetCamera = async (model: string) => {
     await ag('forget_camera', { model }).catch(() => {});
     refresh();
@@ -196,6 +203,23 @@ export default function MyCameras() {
                       </li>
                     ))}
                   </ul>
+                )}
+                {(profiles[c.model]?.profiles.length ?? 0) > 0 && (
+                  <label className="mt-2 flex items-center gap-2 text-xs text-text-secondary">
+                    <span className="shrink-0">{t('gearNewPhotosProfile')}</span>
+                    <select
+                      value={c.defaultProfile ?? ''}
+                      onChange={(e) => setDefaultProfile(c.model, e.target.value)}
+                      className="min-w-0 flex-1 text-xs bg-bg-secondary text-text-primary rounded px-2 py-1.5 truncate"
+                    >
+                      <option value="">{t('profileBuiltIn')}</option>
+                      {profiles[c.model].profiles.map((p) => (
+                        <option key={p.file} value={p.file}>
+                          {p.name ?? p.file}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
               </div>
 
