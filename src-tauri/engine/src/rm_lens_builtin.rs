@@ -705,8 +705,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn reads_fujifilm_raf_tables() {
+    /// A RAF with vignetting, CA on red and an identity distortion.
+    fn fuji_file() -> Vec<u8> {
         let knots: Vec<f64> = (0..=10).map(|i| i as f64 / 10.).collect();
         let mut vig = vec![327.7];
         vig.extend(&knots);
@@ -720,12 +720,16 @@ mod tests {
         ca.extend(&knots);
         ca.extend((0..=10).map(|i| i as f64 * 1e-4));
         ca.extend(std::iter::repeat_n(0., 11));
-        let file = raf(vec![
+        raf(vec![
             (FUJI_DISTORTION, 10, 23, rationals(&dist)),
             (FUJI_CHROMATIC, 10, 34, rationals(&ca)),
             (FUJI_VIGNETTING, 10, 23, rationals(&vig)),
-        ]);
-        let c = read(&file).unwrap();
+        ])
+    }
+
+    #[test]
+    fn reads_fujifilm_raf_tables() {
+        let c = read(&fuji_file()).unwrap();
         assert!(c.default_on);
         assert!(c.distortion.is_none(), "identity distortion is omitted");
         let v = c.vignetting.as_ref().unwrap();
@@ -792,14 +796,14 @@ mod tests {
         assert!(vignette(&be(&[0.2, 0., 0., 0., 0., 0.3, 0.5])).is_none());
     }
 
-    #[test]
-    fn reads_a_dngs_opcodes_with_the_vignetting_in_either_list() {
+    /// A DNG as DJI writes it: vignetting and warp in OpcodeList3, a gain map
+    /// after them.
+    fn dji_file() -> Vec<u8> {
         let vig = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
         let mut w = 1u32.to_be_bytes().to_vec();
         w.extend(be(&[1., -0.06, 0., 0., 0., 0., 0.5, 0.5]));
-        // As DJI writes it: both in OpcodeList3, a gain map after them.
-        let list3 = opcode_list(&[(3, vig.clone()), (1, w.clone()), (9, vec![0; 8])]);
-        let dng = tiff(&[
+        let list3 = opcode_list(&[(3, vig), (1, w), (9, vec![0; 8])]);
+        tiff(&[
             vec![
                 (SUB_IFDS, 4, 1, vec![0; 4]),
                 (50706, 1, 4, vec![1, 4, 0, 0]),
@@ -808,8 +812,12 @@ mod tests {
                 (254, 4, 1, vec![0; 4]),
                 (51022, 7, list3.len() as u32, list3),
             ],
-        ]);
-        let c = read(&dng).unwrap();
+        ])
+    }
+
+    #[test]
+    fn reads_a_dngs_opcodes_with_the_vignetting_in_either_list() {
+        let c = read(&dji_file()).unwrap();
         assert_eq!(c.source, "DNG");
         assert!(c.default_on);
         assert!((c.vignetting.as_ref().unwrap().eval(1.) - 1.67).abs() < 0.01);
@@ -1040,5 +1048,59 @@ mod tests {
             map.fill,
             c.fill_scale_with(Amounts::FULL)
         );
+    }
+
+    /// What `c` serializes to, every number to seven significant digits, as
+    /// one FNV-1a hash: exact enough to catch any change to a reader, loose
+    /// enough to ignore a platform's last-bit difference in `powf`.
+    fn digest(c: &Option<LensCorrection>) -> u64 {
+        fn walk(v: &serde_json::Value, out: &mut String) {
+            match v {
+                serde_json::Value::Number(n) => {
+                    out.push_str(&format!("{:.6e}", n.as_f64().unwrap()))
+                }
+                serde_json::Value::Array(a) => {
+                    out.push('[');
+                    for x in a {
+                        walk(x, out);
+                        out.push(',');
+                    }
+                    out.push(']');
+                }
+                serde_json::Value::Object(o) => {
+                    out.push('{');
+                    for (k, x) in o {
+                        out.push_str(k);
+                        out.push(':');
+                        walk(x, out);
+                        out.push(',');
+                    }
+                    out.push('}');
+                }
+                other => out.push_str(&other.to_string()),
+            }
+        }
+        let mut text = String::new();
+        walk(&serde_json::to_value(c).unwrap(), &mut text);
+        text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
+        })
+    }
+
+    /// Today's readers, pinned: what each test file reads as. A change meant
+    /// to move a reader updates its line here; any other change fails.
+    #[test]
+    fn todays_readers_are_pinned() {
+        for (name, file, want) in [
+            ("fujifilm", fuji_file(), 9_132_833_245_852_271_612),
+            ("dji dng", dji_file(), 17_364_010_675_930_012_272),
+            (
+                "zv-1",
+                sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST),
+                16_060_793_216_672_783_479,
+            ),
+        ] {
+            assert_eq!(digest(&read(&file)), want, "{name}");
+        }
     }
 }

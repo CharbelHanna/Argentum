@@ -88,9 +88,31 @@ const ask = (path: string): Promise<Found> => {
   return answer;
 };
 
+/**
+ * The edit with the file's tables filled in, or `null` when it needs nothing.
+ * An edit whose switch is on keeps the tables it was saved with, so a newer
+ * reader never moves a photo already corrected, and the preview stays what
+ * an export of the saved edit renders. Any other edit takes the file's.
+ */
+export const filled = (
+  adjustments: Adjustments,
+  correction: LensCorrection,
+  defaultOn: boolean,
+): Adjustments | null => {
+  const current = edit(adjustments);
+  if (current.lensBuiltin === true && current.lensBuiltinParams) return null;
+  const same = JSON.stringify(current.lensBuiltinParams ?? null) === JSON.stringify(correction);
+  if (same && current.lensBuiltin !== undefined) return null;
+  return {
+    ...adjustments,
+    lensBuiltinParams: correction,
+    lensBuiltin: current.lensBuiltin ?? defaultOn,
+  } as Adjustments;
+};
+
 /** Fills the open photo's edit in, once it is this photo's and when it lacks either key. */
 const fillFor = (path: string, found: Found & { correction: LensCorrection }) => {
-  // The tables last found equal to the photo's, so most changes compare a reference.
+  // The tables last found to need nothing, so most changes compare a reference.
   let checked: unknown = null;
   return () => {
     const { selectedImage, adjustments, setEditor } = useEditorStore.getState();
@@ -98,19 +120,13 @@ const fillFor = (path: string, found: Found & { correction: LensCorrection }) =>
     if (selectedImage?.path !== path || !selectedImage.isReady) return;
     const current = edit(adjustments);
     if (current.lensBuiltin !== undefined && current.lensBuiltinParams === checked) return;
-    const same = JSON.stringify(current.lensBuiltinParams ?? null) === JSON.stringify(found.correction);
-    if (same && current.lensBuiltin !== undefined) {
+    const next = filled(adjustments, found.correction, found.defaultOn);
+    if (!next) {
       checked = current.lensBuiltinParams;
       return;
     }
     checked = found.correction;
-    setEditor({
-      adjustments: {
-        ...adjustments,
-        lensBuiltinParams: found.correction,
-        lensBuiltin: current.lensBuiltin ?? found.defaultOn,
-      } as Adjustments,
-    });
+    setEditor({ adjustments: next });
   };
 };
 
