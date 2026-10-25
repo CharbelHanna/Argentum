@@ -2,7 +2,7 @@ use crate::as_shot::AsShot;
 use crate::image_processing::apply_orientation;
 use crate::white_balance::WhiteBalance;
 use anyhow::{Result, anyhow};
-use image::{DynamicImage, ImageBuffer, Rgba};
+use image::{DynamicImage, ImageBuffer, Rgb};
 use rawler::{
     decoders::{Decoder, Orientation, RawDecodeParams},
     imgop::{
@@ -218,12 +218,15 @@ fn develop_internal(
 
     check_cancel()?;
 
+    // RapidRAW 346a49ea: src-tauri/src/raw_processing.rs. RGB, not RGBA: a
+    // quarter less memory per developed photo, and the RGB pixels are moved
+    // into the image rather than copied.
     let dynamic_image = match developed_intermediate {
         Intermediate::ThreeColor(pixels) => {
-            DynamicImage::ImageRgba32F(rgb_pixels_to_rgba(&pixels.data, width, height)?)
+            DynamicImage::ImageRgb32F(rgb_pixels_to_rgb(pixels.data, width, height)?)
         }
         Intermediate::Monochrome(pixels) => {
-            DynamicImage::ImageRgba32F(mono_pixels_to_rgba(&pixels.data, width, height)?)
+            DynamicImage::ImageRgb32F(mono_pixels_to_rgb(&pixels.data, width, height)?)
         }
         _ => {
             return Err(anyhow!("Unsupported intermediate format for conversion"));
@@ -273,29 +276,25 @@ fn as_shot_white_balance(raw_image: &RawImage, file_bytes: &[u8]) -> Option<Whit
     WhiteBalance::from_camera_neutral(color_matrix, &neutral)
 }
 
-fn rgb_pixels_to_rgba(
-    data: &[[f32; 3]],
+fn rgb_pixels_to_rgb(
+    data: Vec<[f32; 3]>,
     width: u32,
     height: u32,
-) -> Result<ImageBuffer<Rgba<f32>, Vec<f32>>> {
-    let mut rgba = vec![0.0f32; data.len() * 4];
-    rgba.par_chunks_exact_mut(4)
-        .zip(data.par_iter())
-        .for_each(|(dst, p)| dst.copy_from_slice(&[p[0], p[1], p[2], 1.0]));
-    ImageBuffer::from_raw(width, height, rgba)
+) -> Result<ImageBuffer<Rgb<f32>, Vec<f32>>> {
+    ImageBuffer::from_raw(width, height, data.into_flattened())
         .ok_or_else(|| anyhow!("Developed image size does not match its dimensions"))
 }
 
-fn mono_pixels_to_rgba(
+fn mono_pixels_to_rgb(
     data: &[f32],
     width: u32,
     height: u32,
-) -> Result<ImageBuffer<Rgba<f32>, Vec<f32>>> {
-    let mut rgba = vec![0.0f32; data.len() * 4];
-    rgba.par_chunks_exact_mut(4)
+) -> Result<ImageBuffer<Rgb<f32>, Vec<f32>>> {
+    let mut rgb = vec![0.0f32; data.len() * 3];
+    rgb.par_chunks_exact_mut(3)
         .zip(data.par_iter())
-        .for_each(|(dst, &p)| dst.copy_from_slice(&[p, p, p, 1.0]));
-    ImageBuffer::from_raw(width, height, rgba)
+        .for_each(|(dst, &p)| dst.fill(p));
+    ImageBuffer::from_raw(width, height, rgb)
         .ok_or_else(|| anyhow!("Developed image size does not match its dimensions"))
 }
 
@@ -324,7 +323,7 @@ pub fn get_fast_demosaic_scale_factor(
 
 #[cfg(test)]
 mod tests {
-    use super::decode_clamp_limit;
+    use super::{decode_clamp_limit, mono_pixels_to_rgb, rgb_pixels_to_rgb};
 
     #[test]
     fn full_quality_decode_keeps_headroom_to_the_v164_limit() {
@@ -334,5 +333,19 @@ mod tests {
     #[test]
     fn fast_decode_keeps_its_existing_one_white_limit() {
         assert_eq!(decode_clamp_limit(true), 1.0);
+    }
+
+    /// The develop's RGB keeps every value the RGBA it replaced held in its
+    /// first three channels, in the same order.
+    #[test]
+    fn the_rgb_develop_keeps_every_value() {
+        let rgb = rgb_pixels_to_rgb(vec![[0.1, 0.2, 0.3], [4.0, -0.5, 1e-6]], 2, 1).unwrap();
+        assert_eq!(rgb.as_raw(), &[0.1, 0.2, 0.3, 4.0, -0.5, 1e-6]);
+        let mono = mono_pixels_to_rgb(&[0.25, 7.5], 1, 2).unwrap();
+        assert_eq!(mono.as_raw(), &[0.25, 0.25, 0.25, 7.5, 7.5, 7.5]);
+        assert!(
+            rgb_pixels_to_rgb(vec![[0.; 3]], 2, 1).is_err(),
+            "too few pixels"
+        );
     }
 }

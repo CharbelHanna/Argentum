@@ -127,6 +127,11 @@ Newest first.
 
 ### Changed
 
+- **A quarter less memory per open RAW.** The develop now hands the photo on as RGB instead of
+  RGBA, whose fourth channel was always 1 (on a 24-megapixel photo, 288 MB instead of 384 MB), and
+  moves its pixels rather than copying them; the lens warp and the artifact removal read it in
+  place. The pixels are the same: every step that needs four channels already adds the fourth.
+  From RapidRAW `346a49ea`: `src-tauri/src/raw_processing.rs` and `image_processing.rs`.
 - **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
   RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
   commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,
