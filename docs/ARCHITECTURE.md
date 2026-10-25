@@ -1,10 +1,11 @@
 # Architecture
 
-Argentum began as a fork of RapidRAW. It is becoming an application of its
-own, one piece at a time, and it keeps working at every step:
+Argentum was forked from RapidRAW at 1.6.6. It is an application of its own,
+changed one piece at a time, and it keeps working at every step:
 
-> **New code goes in the engine. The render path is ours. RapidRAW is a source
-> we take from, reviewed once per release - not a base we merge forever.**
+> **New code goes in the engine. Everything inherited from RapidRAW is ours to
+> change. RapidRAW is a source we harvest from, like darktable, and is never
+> merged again.**
 
 ---
 
@@ -23,20 +24,23 @@ per-commit decisions, 84% of them "not applicable". The effort went into
 saying that unrelated commits were unrelated, while the code that renders a
 photo, where Argentum differs most, was the code we were least free to change.
 
-So the line moved:
+So the line moved: the code that renders a photo and the interface became ours
+to change, and only their other files were still merged, once per release.
+
+On 2026-10-25 that ended too. RapidRAW 1.6.7 rewrote its render path, and their
+other files (export, files, AI, LUTs, masks) now call it. Over our render path a
+merge gave about ninety compile errors, and taking it would have meant porting
+some five thousand lines with their pixel changes mixed into the speed work.
+Argentum stopped merging RapidRAW for good:
 
 | Where | Rule |
 |---|---|
 | `src-tauri/engine/` | New tools: one file in `tools/`, one line in `registry.rs` (see its README) |
-| `src-tauri/src/mods/`, `shaders/modules.wgsl`, `src/argentum/` | Ours, as before, until moved into the engine |
-| The render path: `gpu_processing.rs`, `lib.rs`, `image_processing.rs` | Ours to change. RapidRAW's changes here are read at each release and copied in by hand when wanted, never merged |
-| Today's interface: `App.tsx`, `components/panel/` (`Editor.tsx` and the panels), `components/adjustments/`, `components/views/` | Ours to change in place: for a layout switch built from today's panels, and for swapping panels one at a time for ones built from the engine's tool registry. RapidRAW's changes here are read at each release and copied when wanted, never merged blind |
-| Their other files | Still merged, once per release. Our lines in them may only go down |
+| Everything else: the files inherited at 1.6.6, `src-tauri/src/mods/`, the shaders, `src/argentum/`, the interface | Ours to change. New code still goes in a module of ours with one job, rather than growing an inherited file |
 
-Nothing of theirs is deleted while something still uses it. Once nothing does,
-it is deleted and noted in that release's review. RapidRAW stops being merged
-at all when none of their files runs while previewing, exporting or masking,
-none of their panels is shown, and the sidecar format is ours.
+Inherited code is replaced only when it is dead or measurably worse, and what
+nothing uses is deleted, one small change at a time. RapidRAW's later releases
+are read and harvested by hand (see "Harvesting from RapidRAW" below).
 
 ---
 
@@ -48,35 +52,31 @@ engine instead (`src-tauri/engine/README.md`).
 RapidRAW's image engine is one file, `src-tauri/src/shaders/shader.wgsl`.
 Every tool is a function; `main()` calls them in order.
 
-The naive approach — writing our functions into that file — means every
-upstream update to it is a merge conflict.
-
-Instead: the shader is pulled in with Rust's `include_str!`, so we can glue
-two files together at build time.
+Our tools do not go into that file: it is pulled in with Rust's `include_str!`,
+and our own shader file is glued in front of it at build time, so each tool of
+ours lives in one place.
 
 ```rust
 // gpu_processing.rs — on the render path, ours
 source: wgpu::ShaderSource::Wgsl(
     concat!(
         include_str!("shaders/modules.wgsl"),   // ours
-        include_str!("shaders/shader.wgsl"),       // theirs, untouched
+        include_str!("shaders/shader.wgsl"),       // inherited from RapidRAW
     ).into()
 )
 ```
 
-**`modules.wgsl` is ours alone.** Every function we harvest
-goes in there. Upstream never sees it, never conflicts with it.
-
-The only mark we leave in their shader is one call line per stage, and every
-tool of ours runs inside a stage (see THE PIPELINE ANCHOR in `modules.wgsl`):
+**`modules.wgsl` holds every function we harvest.** The main shader calls it
+once per stage, and every tool of ours runs inside a stage (see THE PIPELINE
+ANCHOR in `modules.wgsl`):
 
 ```wgsl
-// in main(), theirs:
-composite_rgb_linear = ag_stage_scene_linear(composite_rgb_linear, /* profile rows */);  // ← our one line
+// in main():
+composite_rgb_linear = ag_stage_scene_linear(composite_rgb_linear, /* profile rows */);
 ```
 
-A one-line change is a trivial conflict to resolve, in the rare case upstream
-edits nearby.
+Those calls are among the wiring `npm run check:sources` guards: if one goes,
+a stage's tools stop running without any error.
 
 ---
 
@@ -87,28 +87,19 @@ src-tauri/
   engine/                OURS    — the processing engine: a tool registry, one file per tool
   src/
     shaders/
-      shader.wgsl        THEIRS  — one call line per stage
-      modules.wgsl       OURS    — harvested math for the current pipeline
-    mods/                OURS    — our Rust code, until it moves into the engine
-    gpu_processing.rs    RENDER PATH — came from RapidRAW, ours to change
-    image_processing.rs  RENDER PATH
-    lib.rs               RENDER PATH
-    *.rs                 THEIRS  — merged once per release
+      shader.wgsl        INHERITED — the main shader, one call per stage into ours
+      modules.wgsl       OURS      — harvested math for the current pipeline
+    mods/                OURS      — our Rust code, until it moves into the engine
+    *.rs                 INHERITED — came from RapidRAW 1.6.6, ours to change
 
 src/
-  App.tsx                INTERFACE — came from RapidRAW, ours to change in place
   argentum/              OURS
-  components/
-    panel/               INTERFACE — Editor.tsx and every panel
-    adjustments/         INTERFACE — the adjustment sections
-    views/               INTERFACE — the editor and library layouts
-    ui/, modals/, ...    THEIRS  — merged once per release
+  App.tsx, components/   INHERITED — the app shell, editor, panels and views
 ```
 
-**Rule of thumb:** a file of ours takes anything. A file on the render path or
-in today's interface is ours to change, a piece at a time. A file of theirs
-takes no new lines: what a feature needs goes into a file of ours, and the line
-count in theirs only goes down.
+**Rule of thumb:** everything is ours to change, and new code goes in a module
+of ours with one job. An inherited file gets the smallest change that calls
+into it, so the 4,000-line files shrink over time instead of growing.
 
 ---
 
@@ -149,8 +140,8 @@ not the only one.
 
 ## Data and storage
 
-- **Edits** — JSON sidecar next to each photo (`IMG_1234.CR3.rrdata`).
-  Upstream's format; we add fields to it. Original RAW never modified.
+- **Edits** — JSON sidecar next to each photo (`IMG_1234.CR3.agdata`).
+  RapidRAW's format, renamed; we add fields to it. Original RAW never modified.
 - **Catalog** — SQLite in the data folder. Ours entirely. Lets you browse
   photos whose drive is unplugged.
 - **Thumbnails** — JPEGs in the data folder. Already exists upstream; we make
@@ -160,78 +151,22 @@ All of it in one user-chosen folder. See [README](README.md#everything-in-one-fo
 
 ---
 
-## What the next feature costs
+## Where a new feature goes
 
-The question that decides whether this fork is alive in two years is not "how
-much of their code have we touched". It is **what does feature number one
-hundred cost?**
+1. **A tool that changes pixels** goes in the engine: one file, one registry line,
+   its tests (`src-tauri/engine/README.md`).
+2. **Anything else of ours** goes in a module with one job: `src-tauri/src/mods/`
+   for Rust, `src/argentum/` for the interface, `shaders/modules.wgsl` for math
+   in today's pipeline.
+3. **The inherited file** that has to reach it gets the smallest change that calls
+   into ours: a call, an import, a mount point. Inherited files are ours to change,
+   so this is a choice for clarity, not a rule about someone else's code.
 
-If every feature adds a line to one of their files, the answer is a hundred
-lines in the files upstream also edits, and the merge stops being worth doing.
-Four features looks free. That is the trap.
-
-So each of their files gets a **fixed** number of hooks into our code — an
-anchor — and everything after that routes through it on our side. An anchor is
-not a budget to spend. It does not go up when a feature is added, because a
-feature must not need it to.
-
-| Their file | Anchor | A new feature instead |
-|---|---|---|
-| `shader.wgsl` | one call each to `ag_stage_scene_linear`, `ag_stage_tone` and `ag_stage_display` | add your tool inside one of those functions in `modules.wgsl` |
-| `raw_processing.rs` | one call to `mods::decode::on_raw_decoded` | add a step in `mods/decode.rs` |
-| 13 locale files | nothing | add a string to `argentum/locales/en.json` |
-
-`scripts/check-mergeability.mjs` enforces this. It knows the difference between
-a hook (a call, an import, a mount point — their code depending on ours) and the
-rebrand (`.agdata`, "Argentum" inside a sentence they already had). The rebrand
-happened once and does not grow, so it is not counted.
-
-Add a hook to one of their files and the build fails, naming the anchor and what
-to do instead. The render path and today's interface have no anchor counts:
-they are ours to change. The `data-argentum` markers in the panels and the
-single `<Argentum />` in `App.tsx` stay as the way our components mount, and
-the wiring checks on them stay. New tools need no anchor at all, because they
-go into the engine.
-
-### The one category that is not free
-
-Portals add UI. They cannot change what happens when the user clicks something
-of *theirs*. Two anchors in their Rust files exist for that: reading the lens
-from the maker note (`exif_processing.rs`) and the lens profile match in
-`lens_correction.rs`. (Lens auto-detection on load, in `CropPanel.tsx`, is in
-today's interface now, which is ours to change.)
-
-Each replaces the body of an existing handler, so each was a one-time
-replacement rather than something a later feature adds to. **If one of these
-ever needs a second hook, the injection is in the wrong place** — it should
-become an event our code listens for, not another line of theirs.
-
-### A mask tool, with no anchor at all
-
-The object brush (26.41.4) needed three things that look as if they need
-hooks: a tile in their masks toolbox, a mask type their renderer can draw, and
-a canvas that paints instead of drawing a box. It had none. It was removed in
-26.41.5, because their Subject box selected better than our paint, and its
-code is in git at `c15e53f0`. The pattern stands, for the next mask tool:
-
-1. **The tile is data.** Their grid renders `MASK_AI_TYPES`, an exported
-   array it reads on every render. `objectMask.ts` splices an entry into it at
-   startup. The type string is chosen so their fallback label reads right:
-   `object` becomes "Object".
-2. **The type does not survive.** Nothing of theirs can draw an `object`
-   mask, so a store subscription turns it into an ordinary `ai-subject` the
-   moment their panel creates it, with `objectStrokes` in its parameters as
-   the mark that it is ours. From there on, rendering, export, Grow and Feather
-   are theirs, unchanged.
-3. **The canvas is intercepted, not changed.** A capture-phase listener on the
-   window takes a press aimed at their Konva stage before their handler hears
-   it. Their box tool never starts, and moves and releases with no press are
-   ignored by their own code.
-
-What it costs is coupling, not lines: if their grid stops reading the array
-live, or their fallback label changes, the tool degrades without a conflict.
-Every one of those dependencies is listed in the `object-brush` registry entry,
-retired now but kept as the checklist for the next tool built this way.
+Some of the early features were built without touching an inherited file at all
+(a component mounted through a `data-argentum` marker, a store patched at import,
+an entry spliced into an exported array). With merging over, that indirection
+buys nothing: a direct, readable change is preferred, and the old workarounds are
+replaced by direct edits one at a time, each with its test.
 
 ---
 
@@ -265,21 +200,9 @@ more models are a list entry, not new machinery. SAM needs a box; we would be
 handing it one we computed instead of one the user drew, which is the same
 argument it takes today.
 
-**Where the cost actually is.** Not the models — the mount point. A picker has to
-appear inside their masks panel, and `MasksPanel.tsx` has no `data-argentum`
-marker. So this feature wants a **new anchor in one of their files**, which the
-rule above says a feature must not need, and `check-mergeability.mjs` will fail
-the build until someone decides. Three ways out, in order of preference:
-
-1. Put the picker in a panel we already have a marker in, and have it *create*
-   the mask rather than live inside the mask UI. No new anchor.
-2. One new marker in `MasksPanel.tsx`, as a one-time mount point in the same
-   category as `color-tools`. The ratchet counts it as a line of ours in their
-   file, so it has to be paid for by removing one elsewhere in that file.
-3. Our own window. No anchor at all and the worst place for it to be.
-
-Decide that before writing any of the model code, because it decides where the
-code goes.
+**Where the picker goes.** In the Masks tab, which is ours to change. It
+*creates* the mask rather than living inside the mask list, so the list keeps one
+job.
 
 **Open, and not to be guessed at.** Model licences and sizes (two more downloads
 on top of SAM's). Whether the tags are worth storing per photo — they would make
@@ -288,126 +211,33 @@ catalogue index is the obvious place and does not exist yet.
 
 ---
 
-## Staying mergeable
+## Harvesting from RapidRAW
 
-RapidRAW is merged once per release, after a review of that release. Between
-releases nothing of theirs is merged.
+RapidRAW is read once per release and nothing is merged. `npm run check:sources`
+warns when a release newer than the one named on the CHANGELOG's "read up to"
+line is out.
 
-```bash
-git fetch upstream
-```
+1. **Read the release** from the last one read to the new tag: the release
+   notes, the commit list, and their shader changes first, the most valuable
+   and the easiest to copy.
+2. **One line per feature** with a verdict: **copy** (into a file of ours, with
+   the source commit in a comment), **skip** (not wanted: cloud, sync, their
+   library), or **decide** (they built something we have).
+3. **Measure pixel changes.** A change to how photos look is rendered on a set
+   of test RAWs against today's render and compared per pixel (CIEDE2000); the
+   numbers decide.
+4. **Each copy is its own pull request,** with its tests and a CHANGELOG entry
+   naming the source file and commit. Then the "read up to" line moves.
 
-```bash
-npm run review:upstream
-```
+Three lessons from the merging years still hold:
 
-The review covers the range from the last reviewed release to their newest
-release tag, in the order it is read:
-
-1. **Their shader changes first**, as a diff: the most valuable changes and the
-   easiest to copy.
-2. **Their changes to the render path and today's interface**, to read. What
-   is wanted is copied in by hand, with the source commit in a comment; nothing
-   there is merged.
-3. **Their changes to files our registry entries depend on**
-   (`scripts/upstream-registry.mjs`), with the entries that rely on each one.
-4. **One line per feature**, grouped from their pull requests, with a verdict
-   to fill in: **take** (merge it as it is), **copy** (into a file of ours,
-   naming it), **skip** (not wanted: their library, cloud, or an interface
-   being replaced), or **decide** (they built something we already have).
-
-It ends with the register entry to paste into
-`scripts/upstream-decisions.mjs` and the merge commands. The review is meant
-to take under a day, and the entry records how long it took.
-
-### What `npm run check:merge` holds
-
-It runs in CI as a required check, and on demand. It takes about a second:
-each question is asked of git once, by one streamed command.
-
-- **The ratchet.** For every file of theirs outside the render path and today's
-  interface, the number of lines we have added to it is recorded in
-  `scripts/upstream-ratchet.json`.
-  A file above its number fails the build. A file below it lowers the number:
-  the check writes it locally, and CI fails until it is committed. The file is
-  also compared with the one on `main`, so a number raised by hand fails too.
-- **Coverage.** A file from RapidRAW that we changed, render path and interface
-  included, must be claimed by a registry entry saying what depends on it and
-  what proves it works. That is all a pull request owes for touching one:
-  overlaps with upstream are handled once, at the release review.
-- **Integrity.** Registry entries are retired, never deleted, and a retirement
-  names the release review that decided it. Borrowed upstream fixes carry
-  `// upstream #NNNN` markers that the registry must agree with.
-- **Anchors.** Calls from their files into ours stay at a fixed count, and the
-  wiring an anchor exists for is still there.
-- **Shadows.** Code of theirs we leave in place and step around, outside the
-  render path and the interface, must still exist in the release we merged.
-  Its disappearance from their main is a warning for the next review.
-- **The release reviews.** One unbroken chain of reviews; upstream merged in
-  exactly up to the newest one; every commit of that release in some feature;
-  every change of theirs to the render path or the interface marked copy, skip
-  or decide, never take; `sameAsOurs` saying whether they built something we have; and
-  `stillLive`, the list of their files still used when previewing, exporting
-  or masking, never longer than at the review before.
-
-The reviews before 2026-10-18 were per commit. They stay in the register as
-history and are still checked for shape, but no new per-commit overlaps are
-derived.
-
-### A clean merge is not the same as a safe one
-
-On 2026-09-13 ten upstream commits merged with no conflict in application
-code, and that was written up as proof the architecture works. It was not
-proof of anything.
-
-`git merge` answers one question: *do these texts collide?* It cannot answer
-the one that matters: *has upstream now built, moved or renamed the thing we
-built around?* Those changes conflict with nothing:
-
-- **Upstream fixes a function we shadow.** We left it in place and stopped
-  calling it. Their fix lands in code that never runs.
-- **Upstream edits a file we carry one of their own fixes in.** Most RapidRAW
-  commits are the maintainer's own and name no pull request, so nothing marks
-  it.
-- **Upstream changes a key we re-typed.** `showClipping` is 0..4 here and still
-  a boolean in their `Waveform.tsx`. The day they write `=== true`, our control
-  reads as off and nothing errors.
-- **Upstream builds the feature we built**, in files we have never touched.
-  Nothing detects that: not a diff, not a file match, not a pattern over commit
-  subjects.
-
-The registry and the review's third section cover the first three. The last
-one is a sentence: every release review carries `sameAsOurs`, saying what the
-release was read for and what was concluded, with a `decide` line for each
-duplicate found. Nothing verifies that sentence. It is required so that the
-claim is made explicitly by someone rather than implied by a green check.
-
-### Review the interface separately from the processing
-
-For the exact merged boundary, pending updates, reasons and resumption steps,
-read [UPSTREAM_CATCHUP.md](UPSTREAM_CATCHUP.md). Update that handoff when a
-temporary deferral is resolved; do not infer a permanent rejection from it.
-
-**Keeping our implementation does not mean rejecting RapidRAW's interface.**
-Whenever upstream changes a feature we also have, review both how it works
-underneath and how a person uses it: controls, layout, shortcuts, feedback and
-the steps needed to finish an edit.
-
-We may have good reasons to keep Argentum's processing while adopting
-RapidRAW's better controls or workflow. For example, keeping our highlight
-recovery would not prevent us from adopting a useful upstream highlight
-control, provided that control makes sense for our recovery method.
-
-Prefer reusing their interface through the existing anchors over maintaining
-a second interface of our own. Check that labels, ranges, defaults, saved
-settings and undo still mean what the interface promises when connected to our
-logic. If the combination requires extensive changes to upstream files, weigh
-that maintenance cost before adopting it.
-
-Record both conclusions in the upstream review: what happens to the processing,
-and what happens to the interface and workflow. A decision to keep ours must
-still say whether upstream's UI/UX offers anything worth taking; if it does not,
-say why. A feature is not an all-or-nothing choice between two implementations.
+- **They may build what we built.** When a release changes a feature we also
+  have, say so and decide between the two on evidence. No diff detects it.
+- **Review the interface as well as the processing.** Keeping our processing
+  does not mean rejecting a better control or workflow of theirs.
+- **A paired change comes over whole.** When their change removes something and
+  adds its replacement elsewhere (a new event shape, a renamed setting), copy
+  both halves or neither.
 
 ---
 
@@ -453,7 +283,7 @@ replaced a `node_modules` junction with a real directory (reparse tag
 (239MB), and held them locked while uploading, so they could not be removed
 until the sync client was stopped. A bare repository in a synced folder works
 as a backup remote; it needs `receive.shallowUpdate true`, because this repo
-is shallow at RapidRAW's root (see the upstream section).
+is shallow at RapidRAW's root.
 
 **Leave Rust's `target/` where Tauri puts it.** A `.cargo/config.toml` once
 redirected `target-dir`, and the redirect put `target/` at the repository

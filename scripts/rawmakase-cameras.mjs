@@ -8,7 +8,7 @@
 //   * the rows are generated, never edited by hand;
 //   * a value of ours that differs from RAWmakase's is one entry in EXCEPTIONS
 //     below, with the reason and what removes it;
-//   * check:merge warns when RAWmakase releases past the version named.
+//   * check:sources warns when RAWmakase releases past the version named.
 //
 // The table's other comments are ours and kept as they are.
 //
@@ -157,9 +157,9 @@ export async function fetchCameras(sha) {
   return response.text();
 }
 
-/** RAWmakase's release tags (vX.Y.Z), oldest first, each with its commit. */
-export async function releases() {
-  const { stdout } = await promisify(execFile)('git', ['ls-remote', '--tags', `${REPO}.git`], {
+/** A repository's release tags (vX.Y.Z), oldest first, each with its commit; RAWmakase's by default. */
+export async function releases(repo = REPO) {
+  const { stdout } = await promisify(execFile)('git', ['ls-remote', '--tags', `${repo}.git`], {
     timeout: 15000,
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
   });
@@ -172,7 +172,7 @@ export async function releases() {
   return new Map([...tags].sort(([a], [b]) => a.localeCompare(b, 'en', { numeric: true })));
 }
 
-/** For check:merge: a warning when RAWmakase has released past the table, else null. */
+/** For check:sources: a warning when RAWmakase has released past the table, else null. */
 export async function tableWarning(root) {
   // A checkout without the table (the e2e test's throwaway forks) has nothing to check.
   if (!existsSync(join(root, TABLE))) return null;

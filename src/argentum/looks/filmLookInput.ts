@@ -11,7 +11,7 @@
  *
  * Installed at import: the mark joins their LUT copy group, so Copy settings,
  * Paste and a saved preset carry it with the LUT, and no line of theirs
- * changes. See the `film-look-input` entry in scripts/upstream-registry.mjs.
+ * changes.
  */
 
 import { ADJUSTMENT_GROUPS, COPYABLE_ADJUSTMENT_KEYS } from '../../utils/adjustments';

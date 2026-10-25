@@ -9,6 +9,7 @@ import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
 import { useLibraryActions } from './useLibraryActions';
+import { rowNeighbour } from '../argentum/modern/gridRows';
 
 const getParentFolder = (path: string) => {
   const physicalPath = path.split('?vc=')[0];
@@ -657,9 +658,22 @@ export const useKeyboardShortcuts = ({
           s.ui.activeView === 'library' && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code),
         execute: (e: KeyboardEvent, s: any) => {
           e.preventDefault();
-          const isNext = e.code === 'ArrowRight' || e.code === 'ArrowDown';
           const activePath = s.library.libraryActivePath;
           if (!activePath || sortedListRef.current.length === 0) return;
+          const selectPath = (path: string) => {
+            s.library.setLibrary({ libraryActivePath: path, multiSelectedPaths: [path] });
+            handleImageSelect(path, false);
+          };
+          // RapidRAW ecf7730f: src/hooks/useKeyboardShortcuts.ts. Up and Down move a row in the grid,
+          // and stay put on its top and bottom rows; previous and next only where no grid shows the photo.
+          if (e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+            const target = rowNeighbour(s.library.libraryGridRows, activePath, e.code === 'ArrowDown' ? 1 : -1);
+            if (target !== null) {
+              if (target !== activePath) selectPath(target);
+              return;
+            }
+          }
+          const isNext = e.code === 'ArrowRight' || e.code === 'ArrowDown';
           const recursive = s.settings.appSettings?.libraryViewMode === LibraryViewMode.Recursive;
           const navigationList = recursive
             ? sortedListRef.current.filter((img) => getParentFolder(img.path) === getParentFolder(activePath))
@@ -670,10 +684,7 @@ export const useKeyboardShortcuts = ({
           if (nextIndex >= navigationList.length) nextIndex = 0;
           if (nextIndex < 0) nextIndex = navigationList.length - 1;
           const nextImage = navigationList[nextIndex];
-          if (nextImage) {
-            s.library.setLibrary({ libraryActivePath: nextImage.path, multiSelectedPaths: [nextImage.path] });
-            handleImageSelect(nextImage.path, false);
-          }
+          if (nextImage) selectPath(nextImage.path);
         },
       },
     ];
