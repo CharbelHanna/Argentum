@@ -14,6 +14,19 @@ Newest first.
   GitHub is asked at start and every six hours; nothing is downloaded. Classic's library header
   did this until it was deleted with the Classic layout (#117). The comparison and timing are
   Shoebox's (`src-tauri/src/updates.rs`), in `src/argentum/updates.ts`.
+- **Sony photos get the lens correction Lightroom applies from the camera, on by default.** An
+  ARW stores the lens's distortion, colour fringing (lateral chromatic aberration) and corner
+  shading for the shot. Lightroom always applies the colour fringing from it, on every Sony body
+  that stores these tables, and the distortion too on the fixed-lens compacts (RX100, RX10, RX0,
+  HX95 and HX99, ZV-1; not the RX1 series), but never the shading. So the camera's switch in
+  Crop > Lens Correction now starts on for a Sony photo with no edit yet and corrects those parts
+  from the camera; the other parts come from the lensfun profile, or from the camera's own tables
+  on Auto when lensfun has none. Before, Sony's correction started off and, switched on, replaced
+  lensfun for all three parts. Sony's distortion is now drawn as a smooth curve through its stored
+  points (a natural cubic spline) rather than straight lines between them, closer to Adobe's. An
+  edited photo keeps its switch where it was. From RAWmakase `44b21d5` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Sony reader, `sony_applies_distortion` and
+  `spline`), in `src-tauri/engine/src/rm_lens_builtin/sony.rs` and `fit.rs`.
 
 ### Changed
 

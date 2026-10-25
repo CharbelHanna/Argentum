@@ -123,11 +123,20 @@ fn shorts(v: &[i16]) -> Vec<u8> {
     v.iter().flat_map(|x| x.to_le_bytes()).collect()
 }
 
-/// An ARW-like TIFF whose first SubIFD holds Sony's three tables.
+/// A ZV-1's ARW-like TIFF whose first SubIFD holds Sony's three tables.
 pub(super) fn sony_file(vig: &[i16], ca: &[i16], dist: &[i16]) -> Vec<u8> {
+    sony_model_file("ZV-1", vig, ca, dist)
+}
+
+/// As `sony_file`, for the camera `model` (IFD0's Model).
+pub(super) fn sony_model_file(model: &str, vig: &[i16], ca: &[i16], dist: &[i16]) -> Vec<u8> {
     let entry = |tag, v: &[i16]| (tag, 8, v.len() as u32, shorts(v));
+    let model = [model.as_bytes(), b"\0"].concat();
     tiff(&[
-        vec![(SUB_IFDS, 4, 1, vec![0; 4])],
+        vec![
+            (SUB_IFDS, 4, 1, vec![0; 4]),
+            (0x0110, 2, model.len() as u32, model),
+        ],
         vec![
             entry(SONY_VIGNETTING, vig),
             entry(SONY_CHROMATIC, ca),

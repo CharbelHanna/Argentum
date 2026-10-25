@@ -8,7 +8,10 @@
 //!
 //! - `fuji.rs`: the tables Fujifilm writes into every RAF, on by default.
 //! - `dng.rs`: a DNG's lens opcodes, on by default.
-//! - `sony.rs`: the tables Sony writes into an ARW, off by default.
+//! - `sony.rs`: the tables Sony writes into an ARW, on by default for the
+//!   parts Lightroom applies (lateral CA, and a compact's distortion).
+//!
+//! `fit.rs` holds the maths more than one reader samples its tables with.
 //!
 //! FROM RAWMAKASE
 //!
@@ -35,10 +38,16 @@
 //!   crops an ARW to its DefaultCrop, which is the camera's aspect-ratio crop
 //!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
 //!   `camera_crop` describes; the sensor beyond it is not there to sample.
+//! - Since RAWmakase `44b21d5` a reader there can give two corrections
+//!   (`lens::embedded::Builtin`): what Lightroom applies from the file
+//!   whatever its profile setting, and the camera's fuller data standing in
+//!   for a profile. Here they are one correction, its `always` naming the
+//!   first (`LensCorrection::always_correcting`).
 
 use serde::{Deserialize, Serialize};
 
 mod dng;
+mod fit;
 mod fuji;
 mod sony;
 #[cfg(test)]
@@ -155,6 +164,25 @@ impl LensCorrection {
         self.vignetting.iter().all(Radial::valid)
             && self.distortion.iter().all(Radial::valid)
             && self.chromatic.iter().flatten().all(Radial::valid)
+    }
+
+    /// The correction with the camera always correcting those of `parts` it
+    /// has tables for, as Lightroom applies them from the file: on by
+    /// default, its other tables standing in for a profile. With none of
+    /// them, the whole correction only stands in for a profile: off by
+    /// default, and correcting all of it once switched on.
+    fn always_correcting(self, parts: Parts) -> Self {
+        let always = Parts {
+            distortion: parts.distortion && self.distortion.is_some(),
+            chromatic: parts.chromatic && self.chromatic.is_some(),
+            vignetting: parts.vignetting && self.vignetting.is_some(),
+        };
+        let any = always.distortion || always.chromatic || always.vignetting;
+        Self {
+            default_on: any,
+            always: any.then_some(always),
+            ..self
+        }
     }
 
     /// Source radius scale for red, green and blue at output radius `r`.
@@ -554,7 +582,7 @@ mod tests {
             (
                 "zv-1",
                 sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST),
-                16_060_793_216_672_783_479,
+                11_026_883_439_338_406_697,
             ),
         ] {
             assert_eq!(digest(&read(&file)), want, "{name}");
