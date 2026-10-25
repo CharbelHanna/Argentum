@@ -369,7 +369,6 @@
     "src/argentum/RenderStatus.tsx",
     "src/argentum/WhiteBalanceUpgrade.tsx",
     "src/argentum/knownIssues.ts",
-    "src/argentum/releases.ts",
     "src/argentum/roadmap.ts",
     "src/argentum/useThresholdPreview.ts",
     "src/components/panel/SettingsPanel.tsx",
