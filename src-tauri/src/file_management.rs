@@ -3621,9 +3621,8 @@ pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Resu
 
     let final_paths_to_delete: Vec<PathBuf> = files_to_trash.into_iter().collect();
 
-    // Argentum: the trash only; when it refuses, nothing is deleted for good (mods/file_ops.rs).
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    file_ops::move_to_trash(&final_paths_to_delete).map_err(|e| e.to_string())?;
+    file_ops::trash_or_delete(&final_paths_to_delete);
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     for path in final_paths_to_delete {
@@ -3660,9 +3659,8 @@ pub fn delete_files_with_associated(
         return Ok(());
     }
 
-    // Argentum: the trash only; when it refuses, nothing is deleted for good (mods/file_ops.rs).
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-    file_ops::move_to_trash(&final_paths_to_delete).map_err(|e| e.to_string())?;
+    file_ops::trash_or_delete(&final_paths_to_delete);
 
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     for path in final_paths_to_delete {

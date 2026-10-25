@@ -98,8 +98,6 @@ Newest first.
     kept the old path. Renaming the photo shown in the grid opened the editor.
   - Where files cannot be locked (the Flatpak document portal), every photo was treated as locked:
     thumbnails decoded the whole RAW and white balance started from the wrong point.
-  - A delete the trash refuses now says so and deletes nothing. Before, it deleted the files
-    permanently.
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
   above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the

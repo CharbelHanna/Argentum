@@ -14,7 +14,7 @@
 //! - [`same_folder_copy`]: the names of a photo duplicated in its own folder.
 //! - [`paths_after_rename`]: the selection after a rename, one path per input.
 //! - [`xmp_text`] and [`xmp_text_read`]: tag and label text as XMP stores it.
-//! - [`move_to_trash`]: the only way a library delete removes a file.
+//! - [`trash_or_delete`]: how a library delete removes a file.
 //!
 //! The rules follow RapidRAW 1.6.7's fixes to `src-tauri/src/file_management.rs`
 //! (fefb6a1b, 4f64511a); each copied rule names its commit.
@@ -28,8 +28,7 @@ use std::path::{Path, PathBuf};
 use crate::file_management::{parse_sidecar_name, parse_virtual_path};
 use crate::formats::is_supported_image_file;
 
-/// Why a file operation stopped before writing anything, or why a delete did
-/// not happen.
+/// Why a file operation stopped before writing anything.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FileOpError {
     /// A file is already at the destination. Nothing is overwritten.
@@ -43,8 +42,6 @@ pub enum FileOpError {
     },
     /// The path has no file name to build a new one from.
     NoFileName(PathBuf),
-    /// The system trash refused. Nothing is deleted for good in its place.
-    Trash(String),
 }
 
 impl fmt::Display for FileOpError {
@@ -67,10 +64,6 @@ impl fmt::Display for FileOpError {
             Self::NoFileName(path) => {
                 write!(f, "Could not read the file name of {}", path.display())
             }
-            Self::Trash(reason) => write!(
-                f,
-                "Could not move to the trash: {reason}. Nothing was deleted permanently."
-            ),
         }
     }
 }
@@ -307,12 +300,27 @@ pub fn xmp_text_read(raw: &str) -> String {
     quick_xml::escape::unescape(raw).map_or_else(|_| raw.to_string(), Cow::into_owned)
 }
 
-/// Moves `paths` to the system trash: the only way a library delete removes a
-/// file. When the trash refuses (a drive without one, no permission), the
-/// error comes back and nothing is deleted for good in its place.
+/// Moves `paths` to the system trash. Where the trash refuses (a drive or
+/// share without one), deletes them permanently instead and logs it, as the
+/// library always has; the delete dialog says the delete is permanent.
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-pub fn move_to_trash(paths: &[PathBuf]) -> Result<(), FileOpError> {
-    trash::delete_all(paths).map_err(|error| FileOpError::Trash(error.to_string()))
+pub fn trash_or_delete(paths: &[PathBuf]) {
+    let Err(trash_error) = trash::delete_all(paths) else {
+        return;
+    };
+    log::warn!("Failed to move files to trash: {trash_error}. Falling back to permanent delete.");
+    for path in paths {
+        let deleted = if path.is_dir() {
+            fs::remove_dir_all(path)
+        } else if path.is_file() {
+            fs::remove_file(path)
+        } else {
+            continue;
+        };
+        if let Err(e) = deleted {
+            log::warn!("Failed to delete {}: {}", path.display(), e);
+        }
+    }
 }
 
 #[cfg(test)]
