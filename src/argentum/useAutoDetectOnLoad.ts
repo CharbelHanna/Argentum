@@ -18,17 +18,6 @@
  * `selectedImage.exif` and gives up with "not found" if it is missing, with no
  * retry — so firing early would produce exactly the failure it is meant to fix.
  *
- * WHY IT ALSO WRITES TO MY LENSES
- *
- * Detection already knows the lens; the user should not have to add it to their
- * own gear list by hand afterwards. Adding it means the manual dropdown offers
- * it next time, including for a photo where detection fails — which is the case
- * that most needs a shortcut.
- *
- * Only lenses that were *detected* are added. A lens picked by hand is already
- * a deliberate choice and the user can add it themselves; recording those too
- * would fill the list with anything ever tried.
- *
  * WHY IT ASKS THE FILE FOR THE LENS
  *
  * EXIF is cached beside the photo, keyed on the photo rather than the app. A
@@ -42,7 +31,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { ag } from './ag';
 import { useEditorStore } from '../store/useEditorStore';
-import { useSettingsStore } from '../store/useSettingsStore';
 
 /** Read the lens from the file, and put it into the EXIF if one is there. */
 async function readLensFromFile(path: string) {
@@ -59,36 +47,10 @@ async function readLensFromFile(path: string) {
   });
 }
 
-/** Add a lens to My Lenses if it is not already there. */
-function rememberLens(maker?: string | null, model?: string | null) {
-  if (!maker || !model) {
-    return;
-  }
-
-  const { appSettings, handleSettingsChange } = useSettingsStore.getState();
-  if (!appSettings) {
-    return;
-  }
-
-  const known: { maker: string; model: string }[] = (appSettings as any).myLenses || [];
-  const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
-  if (known.some((l) => same(l.maker, maker) && same(l.model, model))) {
-    return;
-  }
-
-  const next = [...known, { maker, model }].sort(
-    (a, b) => a.maker.localeCompare(b.maker) || a.model.localeCompare(b.model),
-  );
-  handleSettingsChange({ ...(appSettings as any), myLenses: next });
-}
-
 export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect: () => void) {
   // Detection is idempotent but not free, and it writes to the adjustments —
   // which would re-run this effect. One attempt per image.
   const attempted = useRef<string | null>(null);
-  // The image detection last ran for, so a lens that appears afterwards is
-  // known to have been found rather than chosen by hand.
-  const detectedFor = useRef<string | null>(null);
   // The photo whose lens was asked of the file, and the one the answer is in for.
   const lensAskedFor = useRef<string | null>(null);
   const [lensReadFor, setLensReadFor] = useState<string | null>(null);
@@ -128,7 +90,6 @@ export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect
     }
 
     attempted.current = path;
-    detectedFor.current = path;
     detect();
   }, [
     selectedImage?.path,
@@ -138,16 +99,4 @@ export function useAutoDetectOnLoad(selectedImage: any, adjustments: any, detect
     lensReadFor,
     detect,
   ]);
-
-  // A lens appearing on the image detection just ran for was found by it.
-  useEffect(() => {
-    if (detectedFor.current !== (selectedImage?.path ?? null)) {
-      return;
-    }
-    if (!adjustments?.lensModel) {
-      return;
-    }
-    detectedFor.current = null;
-    rememberLens(adjustments?.lensMaker, adjustments?.lensModel);
-  }, [selectedImage?.path, adjustments?.lensMaker, adjustments?.lensModel]);
 }

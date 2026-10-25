@@ -8,6 +8,13 @@ Newest first.
 
 ### Added
 
+- **Correct new photos, per lens.** Settings > My Gear > My Lenses has a "Correct new photos"
+  switch on each lens. Every photo opened now adds its lens to the list (before, only Auto did),
+  switched off. Switched on, a RAW photo from that lens with no saved edit opens as if Auto had
+  been pressed in Crop > Lens Correction: the lens database's profile when it knows the lens, and
+  the camera's own correction when the file has one. Off is the app as before, and a photo with an
+  edit is never touched. `src/argentum/lensDefault.ts`; the backend's `lens_builtin` now says
+  whether the photo has a saved edit (`fresh`), and `MyLens` keeps the switch (`correctNew`).
 - **The version beside the Settings gear, and a new release when there is one.** A quiet
   "v26.43.4" sits by the gear; when a newer release is published, "Argentum 26.43.5 is out" shows
   there in the accent colour and opens its release page, and Settings > About says the same.
