@@ -23,7 +23,8 @@
 //! So reading and writing go through here: load the object, change one key, put
 //! it back. Nothing else in the file is touched.
 //!
-//! A missing, empty or corrupt file reads as "no value" rather than an error.
+//! A missing, empty or corrupt file reads as "no value" rather than an error;
+//! a corrupt one is copied aside first (mods/salvage.rs).
 //! The preference is a convenience; it is not worth failing a startup over, and
 //! every caller has a sensible default already.
 
@@ -36,18 +37,31 @@ fn path(library: &Path) -> PathBuf {
     library.join("argentum-processing.json")
 }
 
-/// Everything currently stored, or an empty object.
+/// Everything currently stored, or an empty object. A file that does not
+/// read is kept aside first (mods/salvage.rs): the next `set` writes over it.
 fn read_all(library: &Path) -> Map<String, Value> {
-    std::fs::read_to_string(path(library))
-        .ok()
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|value| match value {
-            Value::Object(map) => Some(map),
-            // A file holding a JSON array or a bare string is as unusable as a
-            // corrupt one, and starting from empty is what a missing file does.
-            _ => None,
-        })
-        .unwrap_or_default()
+    let path = path(library);
+    let text = match std::fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Map::new(),
+        Err(e) => {
+            crate::mods::salvage::keep_copy(&path, &e);
+            return Map::new();
+        }
+    };
+    match serde_json::from_str::<Value>(&text) {
+        Ok(Value::Object(map)) => map,
+        // A file holding a JSON array or a bare string is as unusable as a
+        // corrupt one, and starting from empty is what a missing file does.
+        Ok(_) => {
+            crate::mods::salvage::keep_copy(&path, &"not a JSON object");
+            Map::new()
+        }
+        Err(e) => {
+            crate::mods::salvage::keep_copy(&path, &e);
+            Map::new()
+        }
+    }
 }
 
 /// One preference, or `None` if it has never been set.
@@ -140,9 +154,15 @@ mod tests {
         std::fs::write(path(&dir), "this is not json").expect("write");
         assert_eq!(get(&dir, "highlightRecovery"), None);
 
-        // And writing over it recovers, rather than failing forever.
+        // And writing over it recovers, rather than failing forever, with the
+        // unreadable file kept beside it.
         set(&dir, "highlightRecovery", Value::from(true)).expect("write");
         assert_eq!(get(&dir, "highlightRecovery"), Some(Value::from(true)));
+        let kept = crate::mods::salvage::backup_path(&path(&dir));
+        assert_eq!(
+            std::fs::read_to_string(kept).expect("kept"),
+            "this is not json"
+        );
     }
 
     #[test]

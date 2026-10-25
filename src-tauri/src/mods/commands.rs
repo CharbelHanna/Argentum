@@ -534,3 +534,11 @@ pub fn add_recent_folder(folder: &str) -> Result<Vec<String>, String> {
     list.retain(|f| std::path::Path::new(f).is_dir());
     Ok(list)
 }
+
+/// The Recent list after the folder `old` was renamed to `new`. Returns the
+/// list, without the folders that are not there now.
+pub fn rename_recent_folder(old: &str, new: &str) -> Result<Vec<String>, String> {
+    let mut list = crate::mods::recent_folders::renamed(profile_library()?, old, new)?;
+    list.retain(|f| std::path::Path::new(f).is_dir());
+    Ok(list)
+}

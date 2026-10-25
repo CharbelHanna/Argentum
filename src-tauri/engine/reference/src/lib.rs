@@ -52,6 +52,7 @@ pub mod mods {
     pub mod highlight_protection;
     pub mod profiles;
     pub mod raw_tone;
+    pub mod salvage;
 
     /// `mods::decode`: the decode hook and the profile's daylight matrix,
     /// neither of which the tests reach.

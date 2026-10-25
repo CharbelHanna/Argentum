@@ -103,6 +103,22 @@ Newest first.
 
 ### Fixed
 
+- **A RAW and its JPEG keep the XMP they share, and renamed photos take theirs.** `IMG.xmp` is
+  the XMP of `IMG.CR2` and `IMG.jpg` alike. Deleting only the RAW trashed it and moving only the
+  RAW took it away, so the JPEG lost its rating and labels for other programs; now a delete leaves
+  it while one of them stays, and a move copies it. Renaming a photo left its XMP under the old
+  name; now it goes with the new one, copied when a photo that kept the old name still uses it
+  (`src-tauri/src/mods/file_ops.rs`).
+- **Recent folders follow a renamed folder.** The Recent list in the folder column kept the old
+  path of a renamed folder (and of the folders inside it) until it dropped off; now they keep their
+  place under the new name (`src-tauri/src/mods/recent_folders.rs`).
+- **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
+  of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
+  made the whole file read as defaults, and the next save wrote them over it: every setting gone,
+  or a photo's whole edit at its next rating. Now the file is copied to `<name>.bak` before
+  anything can write over it, the failure is logged, and every key that still reads is kept; only
+  the ones that do not fall back. Covers `settings.json`, `.agdata` sidecars and
+  `argentum-processing.json` (`src-tauri/src/mods/salvage.rs`).
 - **Deleting, copying, moving and renaming photos touch only the files they should.** RapidRAW
   1.6.7's fixes (`src-tauri/src/file_management.rs` @ `fefb6a1b`, `4f64511a`, `f9899ca9`;
   `src/hooks/useFileOperations.ts` @ `3c0a0082`), with the rules in
@@ -139,6 +155,15 @@ Newest first.
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
   optimizer as off. Only the value used is read now, with `get_i64`, in
   `mods/highlight_protection.rs`; a test covers a maker note with `u32::MAX` beside it.
+- **Highlight Tone Priority is given back on the Canon EOS R6 Mark III, R50, R10 and R50 V.** The
+  same maker-note value (4294967295 at index 13 of LightingOpt) made the highlight-preservation
+  reader in `src-tauri/src/baseline_exposure.rs` panic, since it read every LightingOpt value with
+  `get_i32`; the panic was caught and the camera counted as holding nothing back, so DNG Standard
+  rendered those photos a stop dark and the Profile note did not name the mode. It now reads only
+  the values it uses, with `get_i64`, for every maker (Canon, Fujifilm, Nikon, Olympus);
+  `mods/highlight_protection.rs` reads through the same function instead of a copy of it. RapidRAW
+  1.6.7 still reads with `get_i32`. Tests cover a maker note with 4294967295 at index 13 and the
+  stop given back with Highlight Tone Priority on.
 - **Community presets, opened from the Looks tab, gives the photo back.** Picking a look while the
   page is up returns to the photo with the look on it, as one History step; before, the page
   stayed, and the look was written to the photo's file behind the open editor, which never showed
@@ -164,6 +189,13 @@ Newest first.
   remembered by a sample of the photo's own pixels as well, the key the sharpened picture already
   used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
   Thumbnails and 8-bit exports were not affected: their key already named the photo.
+- **A photo corrected with its camera's lens tables keeps the tables it was saved with.** Opening
+  it read the file again and, when a newer reader read the tables differently, replaced them in
+  the edit: the photo moved on screen while an export of the saved edit did not. An edit whose
+  switch is on now keeps its tables; one that is off takes the file's, so turning it on uses them.
+  `filled` in `src/argentum/lensBuiltin.ts`, with its tests. Tests also pin what today's readers
+  return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
+  camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
 
 ## 26.43.3 — 2026-10-23
 
