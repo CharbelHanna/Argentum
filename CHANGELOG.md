@@ -4,7 +4,7 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
-## 26.43.4 — 2026-10-23
+## 26.43.4 — 2026-10-25
 
 ### Added
 
@@ -149,6 +149,11 @@ Newest first.
   @ `cc8200a9` and `c756671d`, and `src/hooks/useImageProcessing.ts` @ `e1a86bc1` and
   `c756671d`. Not taken: their move of the analytics to a Channel with ImageBitmap waveforms
   (`707a78d6`), which changes the waveform panel as well.
+- **A quarter less memory per open RAW.** The develop now hands the photo on as RGB instead of
+  RGBA, whose fourth channel was always 1 (on a 24-megapixel photo, 288 MB instead of 384 MB), and
+  moves its pixels rather than copying them; the lens warp and the artifact removal read it in
+  place. The pixels are the same: every step that needs four channels already adds the fourth.
+  From RapidRAW `346a49ea`: `src-tauri/src/raw_processing.rs` and `image_processing.rs`.
 - **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
   RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
   commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,
@@ -216,6 +221,11 @@ Newest first.
 
 ### Fixed
 
+- **Community preset previews no longer download cloud-only photos.** The previews were drawn on
+  photos picked from the open folder, cloud-only ones (a OneDrive placeholder) included, which
+  downloaded them just to make a thumbnail. Only photos on disk are used now, and the default
+  image when the folder has none. From RapidRAW `9e518220`:
+  `src/components/panel/CommunityPage.tsx`.
 - **AI masks and Show Original follow the camera's lens correction.** On a photo whose camera's
   lens correction is on (Fujifilm and DNG by default), Subject, Sky, Foreground and Depth masks
   were computed on the photo without it, so they could sit a few pixels off the corrected photo

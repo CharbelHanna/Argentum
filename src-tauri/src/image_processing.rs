@@ -845,7 +845,16 @@ fn compute_lens_auto_crop_scale(params: &GeometryParams, width: f32, height: f32
 }
 
 pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> DynamicImage {
-    let src_img = image.to_rgb32f();
+    // RapidRAW 346a49ea: src-tauri/src/image_processing.rs. An RGB image is
+    // read in place, not copied.
+    let converted;
+    let src_img = match image.as_rgb32f() {
+        Some(buffer) => buffer,
+        None => {
+            converted = image.to_rgb32f();
+            &converted
+        }
+    };
     let (width, height) = src_img.dimensions();
     let mut out_buffer = vec![0.0f32; (width * height * 3) as usize];
 
@@ -1035,7 +1044,15 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
 }
 
 pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams) -> DynamicImage {
-    let src_img = warped_image.to_rgb32f();
+    // RapidRAW 346a49ea: as in warp_image_geometry.
+    let converted;
+    let src_img = match warped_image.as_rgb32f() {
+        Some(buffer) => buffer,
+        None => {
+            converted = warped_image.to_rgb32f();
+            &converted
+        }
+    };
     let (width, height) = src_img.dimensions();
     let mut out_buffer = vec![0.0f32; (width * height * 3) as usize];
 
@@ -2958,7 +2975,9 @@ fn yc_to_rgb(y: f32, cb: f32, cr: f32) -> (f32, f32, f32) {
     (r, g, b)
 }
 
-fn to_rgb32f_parallel(image: &DynamicImage) -> image::Rgb32FImage {
+// RapidRAW 346a49ea: src-tauri/src/image_processing.rs. Takes the image, so an
+// RGB develop moves into the buffer instead of being copied.
+fn into_rgb32f_parallel(image: DynamicImage) -> image::Rgb32FImage {
     match image {
         DynamicImage::ImageRgba32F(rgba) => {
             let (w, h) = rgba.dimensions();
@@ -2968,7 +2987,7 @@ fn to_rgb32f_parallel(image: &DynamicImage) -> image::Rgb32FImage {
                 .for_each(|(dst, src)| dst.copy_from_slice(&src[..3]));
             image::ImageBuffer::from_raw(w, h, rgb).expect("RGB buffer matches image dimensions")
         }
-        other => other.to_rgb32f(),
+        other => other.into_rgb32f(),
     }
 }
 
@@ -2977,7 +2996,7 @@ pub fn remove_raw_artifacts_and_enhance(
     color_nr_inv_sigma: f32,
     sharpening_amount: f32,
 ) {
-    let mut buffer = to_rgb32f_parallel(image);
+    let mut buffer = into_rgb32f_parallel(std::mem::take(image));
     let w = buffer.width() as usize;
     let h = buffer.height() as usize;
 
