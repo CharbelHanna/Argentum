@@ -15,6 +15,8 @@
 //!   every RW2, on by default.
 //! - `samsung.rs`: the distortion and CA models Samsung NX bodies write into
 //!   an SRW, on by default.
+//! - `canon.rs`: the tables an EOS R5 Mark II or R6 Mark III writes into a
+//!   CR3, off by default.
 //!
 //! `fit.rs` holds what more than one reader shares. A reader whose radii
 //! depend on the developed image's size asks for it (`developed_size_px`).
@@ -49,6 +51,7 @@ use rawler::decoders::RawDecodeParams;
 use rawler::rawsource::RawSource;
 use serde::{Deserialize, Serialize};
 
+mod canon;
 mod dng;
 mod fit;
 mod fuji;
@@ -369,7 +372,8 @@ fn read_sized(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<Len
         .or_else(|| samsung::read(file, size_px))
         .or_else(|| sony::read(file))
         .or_else(|| olympus::read(file, size_px))
-        .or_else(|| panasonic::read(file, size_px))?;
+        .or_else(|| panasonic::read(file, size_px))
+        .or_else(|| canon::read(file, size_px))?;
     (!c.is_empty() && c.validate()).then_some(c)
 }
 

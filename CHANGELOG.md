@@ -53,6 +53,17 @@ Newest first.
   0.1 px (the tests). From RAWmakase @ `0b7d217` (MIT): the Samsung reader in
   `crates/rawmakase-model/src/lens/embedded.rs`, in
   `src-tauri/engine/src/rm_lens_builtin/samsung.rs`.
+- **Canon EOS R5 Mark II and R6 Mark III photos can use the camera's own lens correction.**
+  Their CR3s carry the lens's vignetting, colour fringing and distortion tables in record 14 of
+  the timed metadata, which Adobe turns into a "Camera Settings" lens profile that Lightroom
+  applies only with profile corrections on, and for these two bodies alone. So the switch in
+  Crop > Lens Correction is there and starts off; switched on, it corrects all three, the
+  distortion as Adobe fits it. Other Canon bodies, including the R50 V, which stores the same
+  record, get nothing from it, as in Lightroom. Against the profiles and warps Adobe DNG Converter
+  18.7 writes for an R6 Mark III and an R5 Mark II photo, the correction is within 0.2 px and
+  the light kept within 0.001 (the tests). From RAWmakase @ `37ea972` (MIT): the Canon reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/canon.rs`,
+  the CR3's boxes read with rawler's.
 
 ### Changed
 
