@@ -104,6 +104,14 @@ struct PathArgs {
     path: String,
 }
 
+/// A folder's path before and after a rename.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct FolderRenameArgs {
+    old_path: String,
+    new_path: String,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct PathsArgs {
@@ -711,6 +719,15 @@ async fn json(
             let list = tokio::task::spawn_blocking(move || commands::add_recent_folder(&a.path))
                 .await
                 .map_err(|e| e.to_string())??;
+            serde_json::to_value(list).map_err(|e| e.to_string())
+        }
+        "rename_recent_folder" => {
+            let a: FolderRenameArgs = args_for(&name, args)?;
+            let list = tokio::task::spawn_blocking(move || {
+                commands::rename_recent_folder(&a.old_path, &a.new_path)
+            })
+            .await
+            .map_err(|e| e.to_string())??;
             serde_json::to_value(list).map_err(|e| e.to_string())
         }
         "super_resolution_preview" => {

@@ -2,10 +2,13 @@
 // These run the hook itself, with the backend answering, to prove it acts on the answer.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const backend = vi.hoisted(() => ({ answers: new Map<string, unknown>() }));
+const backend = vi.hoisted(() => ({ answers: new Map<string, unknown>(), calls: [] as unknown[][] }));
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: (command: string) => Promise.resolve(backend.answers.get(command)),
+  invoke: (command: string, args?: unknown) => {
+    backend.calls.push([command, args]);
+    return Promise.resolve(backend.answers.get(command));
+  },
 }));
 
 // The hook uses no React hook but useCallback, so it can be called outside a component.
@@ -20,6 +23,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useUIStore } from '../store/useUIStore';
+import { useModernFolders } from './modern/folders';
 import { Invokes, type SelectedImage } from '../components/ui/AppProperties';
 
 const shown = ['/p/a.CR2', '/p/b.CR2', '/p/b.CR2?vc=a1b2c3', '/p/c.CR2'];
@@ -37,6 +41,7 @@ const fileOperations = () =>
 describe('the library after a file operation', () => {
   beforeEach(() => {
     backend.answers.clear();
+    backend.calls.length = 0;
     handleImageSelect.mockReset();
     handleBackToLibrary.mockReset();
     useUIStore.setState({ activeView: 'library' });
@@ -79,5 +84,22 @@ describe('the library after a file operation', () => {
     expect(handleSettingsChange).toHaveBeenCalledWith(
       expect.objectContaining({ pinnedFolders: ['/photos/rome/day 1', '/photos/trip2'] }),
     );
+  });
+
+  it('renames the folder in the Recent list too', async () => {
+    useSettingsStore.setState({ appSettings: {} as never, handleSettingsChange: vi.fn(async () => {}) });
+    useLibraryStore.setState({ rootPaths: ['/photos'], currentFolderPath: '/photos/trip' });
+    useUIStore.setState({ folderActionTarget: '/photos/trip' });
+    useModernFolders.setState({ recent: ['/photos/trip', '/photos/x'] });
+    backend.answers.set('ag', ['/photos/rome', '/photos/x']);
+
+    await fileOperations().handleRenameFolder('rome');
+
+    expect(backend.calls).toContainEqual([
+      'ag',
+      { name: 'rename_recent_folder', args: { oldPath: '/photos/trip', newPath: '/photos/rome' } },
+    ]);
+    expect(useModernFolders.getState().recent).toEqual(['/photos/rome', '/photos/x']);
+    expect(useLibraryStore.getState().currentFolderPath).toBe('/photos/rome');
   });
 });
