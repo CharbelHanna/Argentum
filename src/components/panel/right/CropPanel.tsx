@@ -72,7 +72,7 @@ interface OverlayOption {
   tooltip: string;
 }
 
-const parseExifNumber = (val: any): number => {
+export const parseExifNumber = (val: any): number => {
   if (val === undefined || val === null) return 0;
   const parsed = parseFloat(val);
   return isNaN(parsed) ? 0 : parsed;

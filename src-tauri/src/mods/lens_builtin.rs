@@ -111,19 +111,34 @@ pub fn with_lensfun(
     let auto = adjustments["lensCorrectionMode"].as_str() == Some("auto");
     let c = &builtin.correction;
     let parts = [
-        (always.distortion, c.distortion.is_some(), &mut builtin.amounts.distortion),
-        (always.chromatic, c.chromatic.is_some(), &mut builtin.amounts.chromatic),
-        (always.vignetting, c.vignetting.is_some(), &mut builtin.amounts.vignetting),
+        (
+            always.distortion,
+            c.distortion.is_some(),
+            &mut builtin.amounts.distortion,
+        ),
+        (
+            always.chromatic,
+            c.chromatic.is_some(),
+            &mut builtin.amounts.chromatic,
+        ),
+        (
+            always.vignetting,
+            c.vignetting.is_some(),
+            &mut builtin.amounts.vignetting,
+        ),
     ];
     for ((owned, camera_has, amount), (keys, neutral)) in parts.into_iter().zip(LENSFUN_PARTS) {
         let profile_has = lensfun.as_ref().is_some_and(|p| {
-            keys.iter()
-                .any(|k| p.get(*k).and_then(|v| v.as_f64()).is_some_and(|v| (v - neutral).abs() > 1e-9))
+            keys.iter().any(|k| {
+                p.get(*k)
+                    .and_then(|v| v.as_f64())
+                    .is_some_and(|v| (v - neutral).abs() > 1e-9)
+            })
         });
-        if owned || !profile_has {
-            if let Some(p) = lensfun.as_mut() {
-                keys.iter().for_each(|k| drop(p.remove(*k)));
-            }
+        if (owned || !profile_has)
+            && let Some(p) = lensfun.as_mut()
+        {
+            keys.iter().for_each(|k| drop(p.remove(*k)));
         }
         if !owned && (profile_has || !(auto && camera_has)) {
             *amount = 0.;
@@ -159,6 +174,9 @@ pub struct Found {
     pub correction: Option<LensCorrection>,
     /// The switch's starting position, for an edit that has none yet.
     pub default_on: bool,
+    /// The photo has no saved edit, so My Lenses' "Correct new photos"
+    /// decides how it opens (argentum/lensDefault.ts).
+    pub fresh: bool,
 }
 
 /// The `ag` command `lens_builtin`: the photo's correction, read from its
@@ -169,16 +187,16 @@ pub fn lens_builtin(path: &str) -> Result<Found, String> {
         let bytes = crate::file_management::read_file_mapped(&source).map_err(|e| e.to_string())?;
         argentum_engine::rm_lens_builtin::read(&bytes)
     };
-    let edited_before = || {
-        let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
-        saved.as_object().is_some_and(|edit| {
-            !edit.is_empty() && edit.get("is_null").is_none() && !edit.contains_key(KEYS[0])
-        })
-    };
-    let default_on = correction.as_ref().is_some_and(|c| c.default_on) && !edited_before();
+    let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+    let edit = saved
+        .as_object()
+        .filter(|edit| !edit.is_empty() && edit.get("is_null").is_none());
+    let edited_before = edit.is_some_and(|edit| !edit.contains_key(KEYS[0]));
+    let default_on = correction.as_ref().is_some_and(|c| c.default_on) && !edited_before;
     Ok(Found {
         correction,
         default_on,
+        fresh: edit.is_none(),
     })
 }
 
@@ -351,7 +369,8 @@ mod tests {
             "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0,
             "tca_vr": 1.0004, "tca_vb": 0.9997, "vig_k1": -0.3, "vig_k2": 0.0, "vig_k3": 0.0,
         });
-        let distortion_only = json!({ "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0, "tca_vr": 1.0, "tca_vb": 1.0 });
+        let distortion_only =
+            json!({ "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0, "tca_vr": 1.0, "tca_vb": 1.0 });
         let resolve = |always: Option<Parts>, lensfun: Option<&serde_json::Value>, mode: &str| {
             let mut edit = json!({ "lensBuiltin": true, "lensBuiltinParams": camera(always), "lensCorrectionMode": mode });
             if let Some(l) = lensfun {
@@ -359,18 +378,26 @@ mod tests {
             }
             let (builtin, lensfun) = with_lensfun(&edit);
             let a = builtin.unwrap().amounts;
-            let mut keys: Vec<String> = lensfun.map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            let mut keys: Vec<String> = lensfun
+                .map(|m| m.keys().cloned().collect())
+                .unwrap_or_default();
             keys.sort();
             ([a.distortion, a.chromatic, a.vignetting], keys)
         };
         let keys = |k: &[&str]| k.iter().map(|s| s.to_string()).collect::<Vec<_>>();
 
         // Stored before `always`: the camera decides all three, lensfun none.
-        assert_eq!(resolve(None, Some(&full), "auto"), ([1., 1., 1.], keys(&["model"])));
+        assert_eq!(
+            resolve(None, Some(&full), "auto"),
+            ([1., 1., 1.], keys(&["model"]))
+        );
         // CA from the camera; distortion and vignetting from lensfun.
         assert_eq!(
             resolve(ca_only, Some(&full), "auto"),
-            ([0., 1., 0.], keys(&["k1", "k2", "k3", "model", "vig_k1", "vig_k2", "vig_k3"]))
+            (
+                [0., 1., 0.],
+                keys(&["k1", "k2", "k3", "model", "vig_k1", "vig_k2", "vig_k3"])
+            )
         );
         // No profile asked for: the camera's other tables stay unused.
         assert_eq!(resolve(ca_only, None, "manual"), ([0., 1., 0.], keys(&[])));
@@ -386,6 +413,33 @@ mod tests {
         let (builtin, lensfun) = with_lensfun(&off);
         assert!(builtin.is_none());
         assert_eq!(serde_json::Value::Object(lensfun.unwrap()), full);
+    }
+
+    /// A photo is fresh while its sidecar holds no edit: no sidecar, an
+    /// empty edit, or a reset one. Any saved value makes it edited.
+    #[test]
+    fn a_photo_without_a_saved_edit_is_fresh() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("a.jpg");
+        std::fs::write(&photo, b"not a raw").unwrap();
+        let path = photo.to_string_lossy().into_owned();
+        let sidecar = crate::file_management::parse_virtual_path(&path).1;
+        let fresh = |adjustments: Option<serde_json::Value>| {
+            match adjustments {
+                Some(a) => std::fs::write(
+                    &sidecar,
+                    json!({ "version": 1, "rating": 0, "adjustments": a }).to_string(),
+                )
+                .unwrap(),
+                None => drop(std::fs::remove_file(&sidecar)),
+            }
+            lens_builtin(&path).unwrap().fresh
+        };
+        assert!(fresh(None));
+        assert!(fresh(Some(json!({}))));
+        assert!(fresh(Some(json!({ "is_null": true }))));
+        assert!(!fresh(Some(json!({ "exposure": 0.5 }))));
+        assert!(!fresh(Some(json!({ "lensBuiltin": false }))));
     }
 
     #[test]

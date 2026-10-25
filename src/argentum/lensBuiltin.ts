@@ -49,9 +49,11 @@ export interface LensCorrection {
 }
 
 /** What `lens_builtin` answers. */
-interface Found {
+export interface Found {
   correction: LensCorrection | null;
   defaultOn: boolean;
+  /** The photo has no saved edit (argentum/lensDefault.ts). */
+  fresh: boolean;
 }
 
 /** The edit's keys for it (mods/lens_builtin.rs). */
@@ -90,7 +92,8 @@ export const LENS_BUILTIN_RESET = { lensBuiltin: undefined } as Partial<Adjustme
 /** Per path, for the session: a file's tables do not change while the app runs. */
 const asked = new Map<string, Promise<Found>>();
 
-const ask = (path: string): Promise<Found> => {
+/** What `lens_builtin` answers for `path`, asked once per session. */
+export const ask = (path: string): Promise<Found> => {
   let answer = asked.get(path);
   if (!answer) {
     answer = ag<Found>('lens_builtin', { path });
