@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next';
 import { useEditorStore } from '../../../store/useEditorStore';
 import type { OverlayMode } from '../right/CropPanel';
 import CompositionOverlays from './overlays/CompositionOverlays';
+import { GUIDE_EDGE, GUIDE_LINE } from '../../../argentum/guideStroke';
 import { type RelightBasis } from './overlays/RelightLightShape';
 import { CENTER_MARKERS } from './overlays/CenterMarkerShape';
 import { calculateStraightenAngle, resolveAspectRatio } from '../../../utils/cropUtils';
@@ -165,8 +166,8 @@ const WbSampleOutline = ({ x, y, width, height, zoomScale, dashed = false }: WbS
       y={y}
       width={width}
       height={height}
-      stroke="rgba(0, 0, 0, 0.6)"
-      strokeWidth={3 / zoomScale}
+      stroke={GUIDE_EDGE.color}
+      strokeWidth={GUIDE_EDGE.widthPx / zoomScale}
       listening={false}
     />
     <Rect
@@ -174,8 +175,8 @@ const WbSampleOutline = ({ x, y, width, height, zoomScale, dashed = false }: WbS
       y={y}
       width={width}
       height={height}
-      stroke="#ffffff"
-      strokeWidth={1.5 / zoomScale}
+      stroke={GUIDE_LINE.color}
+      strokeWidth={GUIDE_LINE.widthPx / zoomScale}
       dash={dashed ? [4 / zoomScale, 4 / zoomScale] : undefined}
       listening={false}
     />
