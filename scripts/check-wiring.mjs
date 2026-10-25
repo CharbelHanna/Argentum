@@ -16,6 +16,7 @@
 //   node scripts/check-wiring.mjs --dist            also check dist/ (after `npm run build`)
 //   node scripts/check-wiring.mjs --update [--dist] rewrite the baseline from the tree
 
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join, relative, sep } from 'node:path';
@@ -215,6 +216,13 @@ function main() {
 
   if (process.argv.includes('--update')) {
     writeFileSync(baselinePath, `${JSON.stringify({ ...now, dist: now.dist ?? before.dist }, null, 2)}\n`);
+    // As Prettier writes it, or the frontend check counts it as unformatted.
+    // Only --update needs it, and only where node_modules is installed.
+    spawnSync(process.execPath, [
+      join(root, 'node_modules', 'prettier', 'bin', 'prettier.cjs'),
+      '--write',
+      baselinePath,
+    ]);
     console.log('Wrote scripts/wiring-baseline.json.');
     return;
   }
