@@ -120,6 +120,15 @@ Newest first.
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
   optimizer as off. Only the value used is read now, with `get_i64`, in
   `mods/highlight_protection.rs`; a test covers a maker note with `u32::MAX` beside it.
+- **Highlight Tone Priority is given back on the Canon EOS R6 Mark III, R50, R10 and R50 V.** The
+  same maker-note value (4294967295 at index 13 of LightingOpt) made the highlight-preservation
+  reader in `src-tauri/src/baseline_exposure.rs` panic, since it read every LightingOpt value with
+  `get_i32`; the panic was caught and the camera counted as holding nothing back, so DNG Standard
+  rendered those photos a stop dark and the Profile note did not name the mode. It now reads only
+  the values it uses, with `get_i64`, for every maker (Canon, Fujifilm, Nikon, Olympus);
+  `mods/highlight_protection.rs` reads through the same function instead of a copy of it. RapidRAW
+  1.6.7 still reads with `get_i32`. Tests cover a maker note with 4294967295 at index 13 and the
+  stop given back with Highlight Tone Priority on.
 - **Community presets, opened from the Looks tab, gives the photo back.** Picking a look while the
   page is up returns to the photo with the look on it, as one History step; before, the page
   stayed, and the look was written to the photo's file behind the open editor, which never showed

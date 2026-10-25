@@ -14,6 +14,7 @@
 //! (decided 2026-10-20). The Canon reading is theirs, cut down to that one
 //! value.
 
+use crate::baseline_exposure::integer;
 use rawler::decoders::{Decoder, FormatHint};
 use rawler::formats::bmff::Bmff;
 use rawler::formats::tiff::reader::TiffReader;
@@ -122,13 +123,6 @@ fn tiff_makernote(bytes: &[u8]) -> Option<IFD> {
         .cloned()?
         .parse_makernote(&mut cursor, OffsetMode::Absolute, &[])
         .ok()?
-}
-
-/// One value of a tag, as i64, which holds every TIFF integer: rawler's
-/// `get_i32` panics on a value above `i32::MAX` instead of failing, and
-/// Canon's LightingOpt carries such values beside the one read here.
-fn integer(ifd: &IFD, tag: u16, index: usize) -> Option<i64> {
-    ifd.get_entry(tag)?.value.get_i64(index).ok().flatten()
 }
 
 #[cfg(test)]
