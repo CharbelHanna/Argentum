@@ -111,19 +111,34 @@ pub fn with_lensfun(
     let auto = adjustments["lensCorrectionMode"].as_str() == Some("auto");
     let c = &builtin.correction;
     let parts = [
-        (always.distortion, c.distortion.is_some(), &mut builtin.amounts.distortion),
-        (always.chromatic, c.chromatic.is_some(), &mut builtin.amounts.chromatic),
-        (always.vignetting, c.vignetting.is_some(), &mut builtin.amounts.vignetting),
+        (
+            always.distortion,
+            c.distortion.is_some(),
+            &mut builtin.amounts.distortion,
+        ),
+        (
+            always.chromatic,
+            c.chromatic.is_some(),
+            &mut builtin.amounts.chromatic,
+        ),
+        (
+            always.vignetting,
+            c.vignetting.is_some(),
+            &mut builtin.amounts.vignetting,
+        ),
     ];
     for ((owned, camera_has, amount), (keys, neutral)) in parts.into_iter().zip(LENSFUN_PARTS) {
         let profile_has = lensfun.as_ref().is_some_and(|p| {
-            keys.iter()
-                .any(|k| p.get(*k).and_then(|v| v.as_f64()).is_some_and(|v| (v - neutral).abs() > 1e-9))
+            keys.iter().any(|k| {
+                p.get(*k)
+                    .and_then(|v| v.as_f64())
+                    .is_some_and(|v| (v - neutral).abs() > 1e-9)
+            })
         });
-        if owned || !profile_has {
-            if let Some(p) = lensfun.as_mut() {
-                keys.iter().for_each(|k| drop(p.remove(*k)));
-            }
+        if (owned || !profile_has)
+            && let Some(p) = lensfun.as_mut()
+        {
+            keys.iter().for_each(|k| drop(p.remove(*k)));
         }
         if !owned && (profile_has || !(auto && camera_has)) {
             *amount = 0.;
@@ -351,7 +366,8 @@ mod tests {
             "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0,
             "tca_vr": 1.0004, "tca_vb": 0.9997, "vig_k1": -0.3, "vig_k2": 0.0, "vig_k3": 0.0,
         });
-        let distortion_only = json!({ "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0, "tca_vr": 1.0, "tca_vb": 1.0 });
+        let distortion_only =
+            json!({ "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0, "tca_vr": 1.0, "tca_vb": 1.0 });
         let resolve = |always: Option<Parts>, lensfun: Option<&serde_json::Value>, mode: &str| {
             let mut edit = json!({ "lensBuiltin": true, "lensBuiltinParams": camera(always), "lensCorrectionMode": mode });
             if let Some(l) = lensfun {
@@ -359,18 +375,26 @@ mod tests {
             }
             let (builtin, lensfun) = with_lensfun(&edit);
             let a = builtin.unwrap().amounts;
-            let mut keys: Vec<String> = lensfun.map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            let mut keys: Vec<String> = lensfun
+                .map(|m| m.keys().cloned().collect())
+                .unwrap_or_default();
             keys.sort();
             ([a.distortion, a.chromatic, a.vignetting], keys)
         };
         let keys = |k: &[&str]| k.iter().map(|s| s.to_string()).collect::<Vec<_>>();
 
         // Stored before `always`: the camera decides all three, lensfun none.
-        assert_eq!(resolve(None, Some(&full), "auto"), ([1., 1., 1.], keys(&["model"])));
+        assert_eq!(
+            resolve(None, Some(&full), "auto"),
+            ([1., 1., 1.], keys(&["model"]))
+        );
         // CA from the camera; distortion and vignetting from lensfun.
         assert_eq!(
             resolve(ca_only, Some(&full), "auto"),
-            ([0., 1., 0.], keys(&["k1", "k2", "k3", "model", "vig_k1", "vig_k2", "vig_k3"]))
+            (
+                [0., 1., 0.],
+                keys(&["k1", "k2", "k3", "model", "vig_k1", "vig_k2", "vig_k3"])
+            )
         );
         // No profile asked for: the camera's other tables stay unused.
         assert_eq!(resolve(ca_only, None, "manual"), ([0., 1., 0.], keys(&[])));
