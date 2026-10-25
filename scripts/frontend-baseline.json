@@ -1,0 +1,401 @@
+{
+  "tsc": {
+    "src/components/modals/CopyPasteSettingsModal.tsx": {
+      "TS2345": 1
+    },
+    "src/components/modals/CullingModal.tsx": {
+      "TS18048": 1,
+      "TS2339": 1
+    },
+    "src/components/panel/SettingsPanel.tsx": {
+      "TS2322": 2
+    },
+    "src/components/panel/editor/Waveform.tsx": {
+      "TS2345": 1
+    },
+    "src/components/panel/library/CullingView.tsx": {
+      "TS2322": 1
+    },
+    "src/components/panel/library/LibraryGrid.tsx": {
+      "TS2322": 1
+    },
+    "src/components/panel/right/AIPanel.tsx": {
+      "TS2339": 1,
+      "TS7053": 3
+    },
+    "src/components/panel/right/ControlsPanel.tsx": {
+      "TS2322": 1,
+      "TS2345": 2
+    },
+    "src/components/panel/right/FolderTree.tsx": {
+      "TS2322": 3
+    },
+    "src/components/panel/right/Masks.tsx": {
+      "TS2345": 1
+    },
+    "src/components/panel/right/MasksPanel.tsx": {
+      "TS18047": 1,
+      "TS2322": 1,
+      "TS2339": 8,
+      "TS2345": 3,
+      "TS2740": 1,
+      "TS7053": 1
+    },
+    "src/components/panel/right/MetadataPanel.tsx": {
+      "TS2345": 1
+    },
+    "src/context/TaggingSubMenu.tsx": {
+      "TS2322": 1
+    },
+    "src/hooks/useAiMasking.ts": {
+      "TS2698": 4
+    },
+    "src/hooks/useAppContextMenus.ts": {
+      "TS2345": 2
+    },
+    "src/hooks/useAppInitialization.ts": {
+      "TS2322": 1
+    },
+    "src/hooks/useAppNavigation.ts": {
+      "TS18048": 12,
+      "TS2345": 1
+    },
+    "src/hooks/useEditorActions.ts": {
+      "TS2339": 2
+    },
+    "src/hooks/useImageProcessing.ts": {
+      "TS18047": 2
+    },
+    "src/hooks/useLibraryActions.ts": {
+      "TS2322": 1
+    }
+  },
+  "eslint": {
+    "src/App.tsx": {
+      "@typescript-eslint/no-explicit-any": 20
+    },
+    "src/argentum/CameraProfile.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/argentum/LocalSharpening.tsx": {
+      "@typescript-eslint/no-explicit-any": 13
+    },
+    "src/argentum/MyCameras.tsx": {
+      "no-useless-assignment": 1
+    },
+    "src/argentum/MyGear.tsx": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/argentum/RawToneRendering.tsx": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/argentum/RefreshMetadataButton.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/argentum/RenderStatus.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/argentum/RgbReadout.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/argentum/Sharpening.tsx": {
+      "@typescript-eslint/no-explicit-any": 7
+    },
+    "src/argentum/editSections.ts": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/argentum/layout/historyNames.ts": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/argentum/sharpenSettings.ts": {
+      "@typescript-eslint/no-explicit-any": 7
+    },
+    "src/argentum/useAutoDetectOnLoad.ts": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/argentum/useThresholdPreview.ts": {
+      "@typescript-eslint/no-explicit-any": 5,
+      "react-hooks/exhaustive-deps": 1
+    },
+    "src/components/adjustments/Basic.tsx": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/components/adjustments/Color.tsx": {
+      "@typescript-eslint/no-explicit-any": 10
+    },
+    "src/components/adjustments/Curves.tsx": {
+      "@typescript-eslint/no-explicit-any": 32
+    },
+    "src/components/adjustments/Details.tsx": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/components/adjustments/Effects.tsx": {
+      "@typescript-eslint/no-explicit-any": 15
+    },
+    "src/components/managers/ImageLoaderManager.tsx": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/components/managers/ImageProcessingManager.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/modals/AppModals.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/modals/CollageModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/components/modals/ConfigurePresetModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/components/modals/ConfirmModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/components/modals/CreateFolderModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/modals/CullingModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/components/modals/DenoiseModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 1,
+      "react-hooks/exhaustive-deps": 1
+    },
+    "src/components/modals/ImportSettingsModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/components/modals/NegativeConversionModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/modals/RenameFileModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/components/modals/RenameFolderModal.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/panel/CommunityPage.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/panel/Editor.tsx": {
+      "@typescript-eslint/no-explicit-any": 16,
+      "prefer-const": 9,
+      "react-hooks/exhaustive-deps": 1
+    },
+    "src/components/panel/Filmstrip.tsx": {
+      "@typescript-eslint/no-explicit-any": 17
+    },
+    "src/components/panel/MainLibrary.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/components/panel/SettingsPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 36
+    },
+    "src/components/panel/editor/ImageCanvas.tsx": {
+      "@typescript-eslint/no-explicit-any": 72,
+      "prefer-const": 1
+    },
+    "src/components/panel/editor/Waveform.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/panel/library/CullingView.tsx": {
+      "@typescript-eslint/no-explicit-any": 7
+    },
+    "src/components/panel/library/LibraryGrid.tsx": {
+      "@typescript-eslint/no-explicit-any": 21,
+      "@typescript-eslint/no-unused-expressions": 1
+    },
+    "src/components/panel/library/LibraryItems.tsx": {
+      "@typescript-eslint/no-explicit-any": 8
+    },
+    "src/components/panel/right/AIPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 26,
+      "no-useless-assignment": 4
+    },
+    "src/components/panel/right/ControlsPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 8
+    },
+    "src/components/panel/right/CropPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 9
+    },
+    "src/components/panel/right/ExportPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/components/panel/right/FolderTree.tsx": {
+      "@typescript-eslint/no-explicit-any": 22
+    },
+    "src/components/panel/right/Masks.tsx": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/components/panel/right/MasksPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 45
+    },
+    "src/components/panel/right/MetadataPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/panel/right/PresetsPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 41,
+      "no-useless-assignment": 1
+    },
+    "src/components/panel/right/TetheringPanel.tsx": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/components/ui/AppProperties.tsx": {
+      "@typescript-eslint/no-explicit-any": 9
+    },
+    "src/components/ui/Input.tsx": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/components/ui/Switch.tsx": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/components/views/LibraryView.tsx": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/context/ContextMenuContext.tsx": {
+      "@typescript-eslint/no-explicit-any": 17,
+      "no-useless-assignment": 1
+    },
+    "src/context/TaggingSubMenu.tsx": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/hooks/useAiMasking.ts": {
+      "@typescript-eslint/no-explicit-any": 10
+    },
+    "src/hooks/useAndroidBackHandler.ts": {
+      "@typescript-eslint/no-explicit-any": 5
+    },
+    "src/hooks/useAppContextMenus.ts": {
+      "@typescript-eslint/no-explicit-any": 20
+    },
+    "src/hooks/useAppInitialization.ts": {
+      "@typescript-eslint/no-explicit-any": 10,
+      "react-hooks/exhaustive-deps": 1
+    },
+    "src/hooks/useAppNavigation.ts": {
+      "@typescript-eslint/no-explicit-any": 18
+    },
+    "src/hooks/useEditorActions.ts": {
+      "@typescript-eslint/no-explicit-any": 9
+    },
+    "src/hooks/useFileOperations.ts": {
+      "@typescript-eslint/no-explicit-any": 4,
+      "no-useless-assignment": 2
+    },
+    "src/hooks/useImageLoader.ts": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/hooks/useImageProcessing.ts": {
+      "@typescript-eslint/no-explicit-any": 7,
+      "react-hooks/exhaustive-deps": 2
+    },
+    "src/hooks/useKeyboardShortcuts.ts": {
+      "@typescript-eslint/no-explicit-any": 125
+    },
+    "src/hooks/useLibraryActions.ts": {
+      "@typescript-eslint/no-explicit-any": 4
+    },
+    "src/hooks/usePresets.ts": {
+      "@typescript-eslint/no-explicit-any": 21
+    },
+    "src/hooks/useSortedLibrary.ts": {
+      "@typescript-eslint/no-explicit-any": 8,
+      "no-useless-assignment": 1
+    },
+    "src/hooks/useTauriListeners.ts": {
+      "@typescript-eslint/no-explicit-any": 34
+    },
+    "src/store/useCloudStore.ts": {
+      "@typescript-eslint/no-explicit-any": 1,
+      "no-useless-assignment": 1
+    },
+    "src/store/useEditorStore.ts": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/store/useLibraryStore.ts": {
+      "@typescript-eslint/no-explicit-any": 2
+    },
+    "src/store/useSettingsStore.ts": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/utils/ImageLRUCache.ts": {
+      "@typescript-eslint/no-explicit-any": 3
+    },
+    "src/utils/adjustments.ts": {
+      "@typescript-eslint/no-explicit-any": 10
+    },
+    "src/utils/cropUtils.ts": {
+      "no-useless-assignment": 1,
+      "prefer-const": 2
+    },
+    "src/utils/formatBytes.ts": {
+      "@typescript-eslint/no-explicit-any": 1
+    },
+    "src/utils/frontendLogBridge.ts": {
+      "@typescript-eslint/no-unsafe-function-type": 1
+    },
+    "src/utils/themes.ts": {
+      "@typescript-eslint/no-explicit-any": 1
+    }
+  },
+  "prettier": [
+    ".github/ISSUE_TEMPLATE/bug_template.yml",
+    ".github/ISSUE_TEMPLATE/config.yml",
+    ".github/ISSUE_TEMPLATE/feature_request.yml",
+    "CHANGELOG.md",
+    "CREDITS.md",
+    "README.md",
+    "bench/README.md",
+    "bench/analyze.mjs",
+    "bench/replay.js",
+    "docs/ADDING_A_TOOL.md",
+    "docs/ARCHITECTURE.md",
+    "docs/FEASIBILITY.md",
+    "docs/MENU.md",
+    "docs/RELEASING.md",
+    "docs/ROADMAP.md",
+    "index.html",
+    "packaging/cargo-sources.json",
+    "packaging/node-sources.json",
+    "scripts/check-identity.mjs",
+    "scripts/check-mergeability.mjs",
+    "scripts/rawmakase-cameras.mjs",
+    "scripts/rawmakase-grade-curves.mjs",
+    "scripts/rawmakase-gray-chart.mjs",
+    "scripts/test-rawmakase-cameras.mjs",
+    "scripts/test-rawmakase-grade-curves.mjs",
+    "scripts/test-rawmakase-gray-chart.mjs",
+    "scripts/test-upstream-checks.mjs",
+    "scripts/test-upstream-e2e.mjs",
+    "scripts/upstream-anchors.mjs",
+    "scripts/upstream-borrows.mjs",
+    "scripts/upstream-decisions.mjs",
+    "scripts/upstream-diff.mjs",
+    "scripts/upstream-git.mjs",
+    "scripts/upstream-ratchet.mjs",
+    "scripts/upstream-registry.mjs",
+    "scripts/upstream-releases.mjs",
+    "scripts/upstream-review.mjs",
+    "src-tauri/engine/README.md",
+    "src/argentum/AboutPanel.tsx",
+    "src/argentum/ExportPrecision.tsx",
+    "src/argentum/HighlightRecovery.tsx",
+    "src/argentum/MyGear.tsx",
+    "src/argentum/RenderStatus.tsx",
+    "src/argentum/WhiteBalanceUpgrade.tsx",
+    "src/argentum/knownIssues.ts",
+    "src/argentum/releases.ts",
+    "src/argentum/roadmap.ts",
+    "src/argentum/useThresholdPreview.ts",
+    "src/components/panel/SettingsPanel.tsx",
+    "src/components/panel/editor/Waveform.tsx",
+    "src/components/panel/editor/overlays/CompositionOverlays.tsx",
+    "src/components/panel/right/ControlsPanel.tsx",
+    "src/components/panel/right/FolderTree.tsx",
+    "src/components/panel/right/MasksPanel.tsx",
+    "src/components/ui/LUTControl.tsx",
+    "src/components/views/LibraryView.tsx",
+    "src/hooks/useAndroidBackHandler.ts",
+    "src/utils/CollageVariants.tsx",
+    "src/utils/frontendLogBridge.ts",
+    "src/utils/maskUtils.ts"
+  ]
+}
