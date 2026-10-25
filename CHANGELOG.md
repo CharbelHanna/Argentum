@@ -2,7 +2,7 @@
 
 Newest first.
 
-**Based on RapidRAW `1.6.6` @ `52138689`** — updated whenever upstream is merged.
+**Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
 ## 26.43.4 — 2026-10-23
 
@@ -17,6 +17,13 @@ Newest first.
 
 ### Changed
 
+- **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
+  RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
+  commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,
+  the anchors and the release register, about 7,500 lines of scripts) are replaced by `npm run
+  check:sources` (`scripts/check-sources.mjs`): it fails only when a call a feature depends on is
+  gone (13 of them, kept from the anchors), and warns when RapidRAW or RAWmakase has a release to
+  review. The required CI job keeps its name and no longer needs the full history.
 - **Crop guides show on bright photos.** Every composition overlay (thirds, spiral, armature and
   the others, and the grid while rotating) is a white line on a thin dark edge, so it reads on a
   white sky as well as in shadow; before, it was white at 49% and vanished on high-key photos.
