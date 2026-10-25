@@ -79,6 +79,10 @@ Newest first.
   Community, and the Looks tab now reads its list again. Before, the tab kept its old list: the
   new preset did not show, and the tab's next preset change (a new folder, a rename, a saved
   preset) wrote the old list back and deleted it. `src/argentum/looks/community.ts`.
+- **Holding an arrow key in the grid ends on the photo it stopped on.** A photo opened earlier in
+  the session is checked with the app's backend before it is selected; when a later key press
+  finished first, that earlier answer selected its photo again. The latest choice wins now. From
+  RapidRAW `src/hooks/useAppNavigation.ts` @ `ecf7730f`.
 
 ## 26.43.3 — 2026-10-23
 
