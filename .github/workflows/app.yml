@@ -140,4 +140,13 @@ jobs:
             echo "::error::golden photos: LEDGER.tsv is append-only"
             exit 1
           fi
-          cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
+          # The test binary the step above built, run as cargo runs it. Through
+          # cargo it would compile the app crate again (about a minute): the
+          # first build's build script downloads the ONNX runtime into
+          # resources/, which the next build then sees as changed.
+          bin=$(ls -t target/debug/deps/argentum_lib-* 2>/dev/null | grep -v '\.d$' | head -n 1)
+          if [ -x "$bin" ]; then
+            "$bin" mods::look_check::golden_photos --ignored --exact --nocapture
+          else
+            cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
+          fi

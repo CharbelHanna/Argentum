@@ -63,8 +63,10 @@ use reference::{Blessing, Case, SampleRef};
 use render_tier::{NO_RECOVERY, RENDER_LONG};
 
 /// How long a run may take, on the adapter it was measured on: twice the
-/// first measurement (CLAUDE.md rule 5).
-const TIME_BUDGET: (&str, f64) = ("llvmpipe", 0.0);
+/// first measurement (CLAUDE.md rule 5), 113 s on CI's lavapipe on
+/// 2026-10-25 (ten samples, 41 renders, and one more on an export's own
+/// processor).
+const TIME_BUDGET: (&str, f64) = ("llvmpipe", 226.0);
 
 /// One sample: where it is and what it should be.
 struct Sample {

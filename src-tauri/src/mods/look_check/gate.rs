@@ -48,18 +48,22 @@ pub const BOARD: Limits = Limits {
     blown_chroma_rise: 2.0,
 };
 
-/// The most the same commit moved between adapters (lavapipe, WARP, an
-/// Intel Arc), measured on the samples' references: see `limits`.
+/// The most the same commit moved between adapters, measured 2026-10-25 on
+/// the ten samples' 41 renders against references blessed on an integrated
+/// GPU (Vulkan): on lavapipe (CI), WARP (DirectX 12) and the same GPU through
+/// DirectX 12. A few cells moved by one stored step (cell dE at most 0.093);
+/// everything else stayed below what the summary prints, given here as that
+/// resolution. See `limits`.
 pub const SPREAD: Limits = Limits {
-    cell_de: 0.0,
-    frame_de_mean: 0.0,
-    frame_de_p99: 0.0,
-    frame_de_over_2: 0.0,
-    midtone_ev: 0.0,
-    clipped: 0.0,
-    top_bin: 0.0,
-    p999_ev: 0.0,
-    blown_chroma_rise: 0.0,
+    cell_de: 0.093,
+    frame_de_mean: 0.0005,
+    frame_de_p99: 0.0005,
+    frame_de_over_2: 0.000005,
+    midtone_ev: 0.00005,
+    clipped: 0.000005,
+    top_bin: 0.000005,
+    p999_ev: 0.00005,
+    blown_chroma_rise: 0.005,
 };
 
 /// What the check holds a render to: each of the board's numbers, or twice
