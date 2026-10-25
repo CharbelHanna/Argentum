@@ -45,7 +45,7 @@ fn read_all(library: &Path) -> Map<String, Value> {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Map::new(),
         Err(e) => {
-            super::salvage::keep_copy(&path, &e);
+            crate::mods::salvage::keep_copy(&path, &e);
             return Map::new();
         }
     };
@@ -54,11 +54,11 @@ fn read_all(library: &Path) -> Map<String, Value> {
         // A file holding a JSON array or a bare string is as unusable as a
         // corrupt one, and starting from empty is what a missing file does.
         Ok(_) => {
-            super::salvage::keep_copy(&path, &"not a JSON object");
+            crate::mods::salvage::keep_copy(&path, &"not a JSON object");
             Map::new()
         }
         Err(e) => {
-            super::salvage::keep_copy(&path, &e);
+            crate::mods::salvage::keep_copy(&path, &e);
             Map::new()
         }
     }
@@ -158,7 +158,7 @@ mod tests {
         // unreadable file kept beside it.
         set(&dir, "highlightRecovery", Value::from(true)).expect("write");
         assert_eq!(get(&dir, "highlightRecovery"), Some(Value::from(true)));
-        let kept = super::super::salvage::backup_path(&path(&dir));
+        let kept = crate::mods::salvage::backup_path(&path(&dir));
         assert_eq!(
             std::fs::read_to_string(kept).expect("kept"),
             "this is not json"

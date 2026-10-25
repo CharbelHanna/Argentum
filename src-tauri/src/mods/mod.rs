@@ -64,13 +64,13 @@ pub mod raw_tone;
 pub mod recent_folders;
 pub mod redecode;
 pub mod restore;
+pub mod salvage;
 pub mod selection;
 pub mod selection_models;
 pub mod shader_check;
 pub mod sharpen;
 pub mod sharpen_gpu;
 pub mod shell_photos;
-pub mod salvage;
 pub mod sigmoid;
 pub mod snapshots;
 #[cfg(test)]
