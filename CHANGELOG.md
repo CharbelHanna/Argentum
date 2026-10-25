@@ -84,6 +84,15 @@ Newest first.
 
 ### Fixed
 
+- **A RAW and its JPEG keep the XMP they share, and renamed photos take theirs.** `IMG.xmp` is
+  the XMP of `IMG.CR2` and `IMG.jpg` alike. Deleting only the RAW trashed it and moving only the
+  RAW took it away, so the JPEG lost its rating and labels for other programs; now a delete leaves
+  it while one of them stays, and a move copies it. Renaming a photo left its XMP under the old
+  name; now it goes with the new one, copied when a photo that kept the old name still uses it
+  (`src-tauri/src/mods/file_ops.rs`).
+- **Recent folders follow a renamed folder.** The Recent list in the folder column kept the old
+  path of a renamed folder (and of the folders inside it) until it dropped off; now they keep their
+  place under the new name (`src-tauri/src/mods/recent_folders.rs`).
 - **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
   of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
   made the whole file read as defaults, and the next save wrote them over it: every setting gone,

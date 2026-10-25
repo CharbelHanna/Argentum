@@ -9,6 +9,8 @@
 //!
 //! - [`is_sidecar_of`]: which `.agdata` files hold a photo's edits.
 //! - [`files_to_delete_with_associated`]: what "Delete with associated" trashes.
+//! - [`xmp_still_used`] and [`xmp_after_rename`]: the XMP a RAW and its JPEG
+//!   share stays with the one that stays (ours).
 //! - [`Destinations`]: no file of one copy or move lands on a file already
 //!   there or on another file of the same operation.
 //! - [`same_folder_copy`]: the names of a photo duplicated in its own folder.
@@ -139,6 +141,72 @@ pub fn files_to_delete_with_associated(paths: &[String]) -> Vec<PathBuf> {
     files.sort();
     files.dedup();
     files
+}
+
+/// Whether `file` is an XMP, `IMG.xmp`: named after the photo's stem, so
+/// `IMG.CR2` and `IMG.jpg` share it.
+pub fn is_xmp(file: &Path) -> bool {
+    file.extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("xmp"))
+}
+
+/// Whether a photo other than those in `leaving` still uses `xmp`: a photo
+/// in its folder with its stem. Deleting, moving or renaming the RAW of a
+/// RAW + JPEG pair leaves the JPEG its XMP. Names compare without case, and a
+/// folder that cannot be read counts as using it: keeping the XMP is the safe
+/// side.
+pub fn xmp_still_used(xmp: &Path, leaving: &HashSet<PathBuf>) -> bool {
+    let (Some(folder), Some(stem)) = (xmp.parent(), xmp.file_stem().and_then(|s| s.to_str()))
+    else {
+        return false;
+    };
+    let Ok(entries) = fs::read_dir(folder) else {
+        return true;
+    };
+    entries.filter_map(Result::ok).any(|entry| {
+        let path = entry.path();
+        entry
+            .file_name()
+            .to_str()
+            .is_some_and(is_supported_image_file)
+            && path
+                .file_stem()
+                .and_then(|s| s.to_str())
+                .is_some_and(|s| s.eq_ignore_ascii_case(stem))
+            && !leaving.contains(&path)
+    })
+}
+
+/// How an XMP reaches one of its photos' new names.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Carry {
+    Copy,
+    Move,
+}
+
+/// What renaming photos does to the XMP they share: one file at each of
+/// `targets`, the new names in order. Each but the last is a copy; the last
+/// takes the file itself, unless a photo that kept the old name still uses it.
+pub fn xmp_after_rename(targets: &[PathBuf], still_used: bool) -> Vec<(PathBuf, Carry)> {
+    let mut unique: Vec<&PathBuf> = Vec::new();
+    for target in targets {
+        if !unique.contains(&target) {
+            unique.push(target);
+        }
+    }
+    let last = unique.len().saturating_sub(1);
+    unique
+        .into_iter()
+        .enumerate()
+        .map(|(i, target)| {
+            let carry = if i == last && !still_used {
+                Carry::Move
+            } else {
+                Carry::Copy
+            };
+            (target.clone(), carry)
+        })
+        .collect()
 }
 
 /// The files one copy or move will write, by destination. Each destination
@@ -327,8 +395,8 @@ pub fn trash_or_delete(paths: &[PathBuf]) {
 mod tests {
     use super::*;
     use crate::file_management::{
-        copy_files, find_all_associated_files, move_files_on_disk, rename_files_on_disk,
-        sync_metadata_from_xmp, sync_metadata_to_xmp,
+        copy_files, files_to_delete_from_disk, find_all_associated_files, move_files_on_disk,
+        rename_files_on_disk, sync_metadata_from_xmp, sync_metadata_to_xmp,
     };
     use crate::image_processing::ImageMetadata;
 
@@ -684,6 +752,130 @@ mod tests {
 
         assert_eq!(new_paths, [photo]);
         assert_eq!(names_in(folder), ["IMG.CR2", "IMG.CR2.agdata"]);
+    }
+
+    /// A RAW and its JPEG share `IMG.xmp`: deleting one leaves it to the other.
+    #[test]
+    fn deleting_the_raw_of_a_pair_leaves_the_jpeg_its_xmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.agdata",
+            "IMG.CR2.agexif",
+            "IMG.jpg",
+            "IMG.xmp",
+            "OTHER.CR2",
+            "OTHER.xmp",
+        ] {
+            write(&folder.join(name), name);
+        }
+        let files =
+            |names: &[&str]| -> Vec<PathBuf> { names.iter().map(|n| folder.join(n)).collect() };
+
+        assert_eq!(
+            files_to_delete_from_disk(&[text(&folder.join("IMG.CR2"))]),
+            files(&["IMG.CR2", "IMG.CR2.agdata", "IMG.CR2.agexif"])
+        );
+        assert_eq!(
+            files_to_delete_from_disk(&[
+                text(&folder.join("IMG.CR2")),
+                text(&folder.join("IMG.jpg"))
+            ]),
+            files(&[
+                "IMG.CR2",
+                "IMG.CR2.agdata",
+                "IMG.CR2.agexif",
+                "IMG.jpg",
+                "IMG.xmp"
+            ])
+        );
+        assert_eq!(
+            files_to_delete_from_disk(&[text(&folder.join("OTHER.CR2"))]),
+            files(&["OTHER.CR2", "OTHER.xmp"])
+        );
+    }
+
+    #[test]
+    fn moving_the_raw_of_a_pair_copies_the_xmp_it_shares() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.jpg"), "jpeg");
+        write(&folder.join("IMG.xmp"), "xmp");
+        fs::create_dir_all(&target).unwrap();
+
+        move_files_on_disk(&[text(&folder.join("IMG.CR2"))], &text(&target)).unwrap();
+
+        assert_eq!(names_in(&target), ["IMG.CR2", "IMG.xmp"]);
+        assert_eq!(names_in(&folder), ["IMG.jpg", "IMG.xmp"]);
+        assert_eq!(read(&target.join("IMG.xmp")), "xmp");
+    }
+
+    #[test]
+    fn a_renamed_photo_takes_its_xmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.xmp"), "xmp");
+
+        rename_files_on_disk(&[text(&folder.join("IMG.CR2"))], "trip").unwrap();
+
+        assert_eq!(names_in(folder), ["trip.CR2", "trip.xmp"]);
+        assert_eq!(read(&folder.join("trip.xmp")), "xmp");
+    }
+
+    #[test]
+    fn renaming_the_raw_of_a_pair_copies_the_xmp_and_leaves_it_to_the_jpeg() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.jpg"), "jpeg");
+        write(&folder.join("IMG.xmp"), "xmp");
+
+        rename_files_on_disk(&[text(&folder.join("IMG.CR2"))], "trip").unwrap();
+
+        assert_eq!(
+            names_in(folder),
+            ["IMG.jpg", "IMG.xmp", "trip.CR2", "trip.xmp"]
+        );
+        assert_eq!(read(&folder.join("trip.xmp")), "xmp");
+    }
+
+    #[test]
+    fn a_pair_renamed_apart_gives_each_photo_the_xmp() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.jpg"), "jpeg");
+        write(&folder.join("IMG.xmp"), "xmp");
+
+        rename_files_on_disk(
+            &[text(&folder.join("IMG.CR2")), text(&folder.join("IMG.jpg"))],
+            "trip_{sequence}",
+        )
+        .unwrap();
+
+        assert_eq!(
+            names_in(folder),
+            ["trip_1.CR2", "trip_1.xmp", "trip_2.jpg", "trip_2.xmp"]
+        );
+        assert_eq!(read(&folder.join("trip_2.xmp")), "xmp");
+    }
+
+    #[test]
+    fn the_last_new_name_takes_the_xmp_unless_the_old_one_is_still_used() {
+        let (a, b) = (PathBuf::from("a.xmp"), PathBuf::from("b.xmp"));
+        assert_eq!(
+            xmp_after_rename(&[a.clone(), a.clone(), b.clone()], false),
+            [(a.clone(), Carry::Copy), (b.clone(), Carry::Move)]
+        );
+        assert_eq!(
+            xmp_after_rename(&[a.clone(), b.clone()], true),
+            [(a, Carry::Copy), (b, Carry::Copy)]
+        );
+        assert!(xmp_after_rename(&[], false).is_empty());
     }
 
     #[test]
