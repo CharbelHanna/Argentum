@@ -13,8 +13,7 @@
  * double-click reset) keeps their 500 ms.
  *
  * Installed at import by replacing the store's pushHistory, which only their
- * debounce calls, so no line of theirs changes. See the `history-on-release`
- * entry in scripts/upstream-registry.mjs.
+ * debounce calls, so no line of theirs changes.
  */
 
 import { useEditorStore } from '../store/useEditorStore';

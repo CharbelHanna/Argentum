@@ -8,9 +8,6 @@ name: App
 #
 # The tests that need a GPU or test photos are #[ignore]d and skipped here;
 # dx12.yml runs the shaders on a software GPU.
-#
-# A workflow of its own rather than a step in lint.yml's clippy job: lint.yml is
-# RapidRAW's file, and our lines in it only go down (scripts/upstream-ratchet.json).
 on:
   push:
     branches:
