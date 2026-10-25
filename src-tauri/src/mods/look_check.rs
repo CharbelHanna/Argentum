@@ -117,7 +117,11 @@ fn setup() -> Result<Option<Setup>, String> {
         return Ok(None);
     };
     let only = std::env::var("AG_LOOK_ONLY").unwrap_or_default();
-    let only: Vec<&str> = only.split(',').map(str::trim).filter(|s| !s.is_empty()).collect();
+    let only: Vec<&str> = only
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect();
     if !only.is_empty() {
         samples.retain(|s| only.contains(&s.id.as_str()));
     }
@@ -212,8 +216,10 @@ impl Run {
             if let Some(want) = &sample.sha256
                 && *want != sha
             {
-                self.failures
-                    .push(format!("{}: sha256 {sha}, samples.tsv says {want}", sample.id));
+                self.failures.push(format!(
+                    "{}: sha256 {sha}, samples.tsv says {want}",
+                    sample.id
+                ));
                 continue;
             }
             let ref_path = setup.refs.join(format!("{}.txt", sample.id));
@@ -262,7 +268,12 @@ impl Run {
     }
 
     /// Tier 1: every state of every sample, on one kept renderer.
-    fn render_tier(&mut self, opened: &[Opened], renderer: &HighPrecisionRenderer, ctx: &crate::image_processing::GpuContext) {
+    fn render_tier(
+        &mut self,
+        opened: &[Opened],
+        renderer: &HighPrecisionRenderer,
+        ctx: &crate::image_processing::GpuContext,
+    ) {
         let settings = AppSettings::default();
         let film_look = render_tier::film_look();
         let lut = Arc::new(
@@ -380,7 +391,12 @@ impl Run {
         if !self.failures.is_empty() {
             panic!("not blessed: the run failed:\n{}", self.failures.join("\n"));
         }
-        for o in self.outcomes.values().flatten().filter(|o| !o.breaches.is_empty()) {
+        for o in self
+            .outcomes
+            .values()
+            .flatten()
+            .filter(|o| !o.breaches.is_empty())
+        {
             let moved = Moved {
                 case: o.case.clone(),
                 blessed: o
@@ -495,7 +511,10 @@ fn golden_photos() {
     let opened = run.decode_tier(&setup);
     match render_tier::device() {
         Ok((ctx, adapter)) => {
-            eprintln!("golden_photos: {} samples on {adapter}", setup.samples.len());
+            eprintln!(
+                "golden_photos: {} samples on {adapter}",
+                setup.samples.len()
+            );
             run.adapter = adapter;
             // One processor for every render: building one compiles every
             // pipeline, which on a software adapter takes longer than a render.
@@ -508,7 +527,9 @@ fn golden_photos() {
             );
             run.render_tier(&opened, &renderer, &ctx);
         }
-        Err(e) => run.failures.push(format!("the render tier did not run: {e}")),
+        Err(e) => run
+            .failures
+            .push(format!("the render tier did not run: {e}")),
     }
     run.seconds = started.elapsed().as_secs_f64();
 

@@ -26,7 +26,12 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    fn new(case: String, values: Vec<(String, String)>, adapter: &str, reference: Option<&Case>) -> Self {
+    fn new(
+        case: String,
+        values: Vec<(String, String)>,
+        adapter: &str,
+        reference: Option<&Case>,
+    ) -> Self {
         Outcome {
             case,
             values,
@@ -52,7 +57,12 @@ pub fn of_render(
     reference: Option<&Case>,
     limits: &Limits,
 ) -> Outcome {
-    let mut out = Outcome::new(case, reference::stats_lines(&look.stats), adapter, reference);
+    let mut out = Outcome::new(
+        case,
+        reference::stats_lines(&look.stats),
+        adapter,
+        reference,
+    );
     out.thumb = Some(look.thumb.clone());
     let Some(r) = reference else {
         return out;

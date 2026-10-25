@@ -1,25 +1,26 @@
 //! A sample's reference file: one per sample in `src-tauri/tests/look/`,
-//! plain text, written by the check and never by hand.
+//! plain text, written by the check and never by hand. Keys and values are
+//! separated by a tab:
 //!
 //! ```text
-//! sample	7882
-//! camera	Canon EOS R5 Mark II
-//! sha256	b3c08a5c...
+//! sample 7882
+//! camera Canon EOS R5 Mark II
+//! sha256 b3c08a5c...
 //!
 //! [decode]
-//! blessed	1	2026-10-25	9	-
-//! baseline_ev	+0.250
+//! blessed 1 2026-10-25 9 -
+//! baseline_ev +0.250
 //! ...
-//! anchor.baseline_ev	+0.250
+//! anchor.baseline_ev +0.250
 //!
 //! [defaults]
-//! blessed	1	2026-10-25	9	llvmpipe (LLVM 19.1.1, 256 bits) (Vulkan, Mesa 25.0.7)
-//! luma	0.00121 0.00873 ...
+//! blessed 1 2026-10-25 9 llvmpipe (LLVM 19.1.1, 256 bits) (Vulkan, Mesa 25.0.7)
+//! luma 0.00121 0.00873 ...
 //! ...
-//! thumb	32	21
+//! thumb 32 21
 //! 7a37a37a3...   (21 rows of 32 cells, RRRGGGBBB in tenths of an 8-bit level, hex)
-//! anchor	2026-10-25
-//! anchor.luma	0.00121 0.00873 ...
+//! anchor 2026-10-25
+//! anchor.luma 0.00121 0.00873 ...
 //! ```
 //!
 //! `blessed` names the ledger row that blessed the case (LEDGER.tsv), its
@@ -334,7 +335,10 @@ mod tests {
                 assert!((a[c] - b[c]).abs() <= 0.51 / CELL_STEPS, "{a:?} {b:?}");
             }
         }
-        assert_eq!(back.cases["decode"].anchor_value("baseline_ev"), Some("+0.300"));
+        assert_eq!(
+            back.cases["decode"].anchor_value("baseline_ev"),
+            Some("+0.300")
+        );
         assert_eq!(back.cases["defaults"].blessed.row, 3);
     }
 
@@ -365,7 +369,11 @@ mod tests {
         };
         let kept = look_of(&parse(&write(&sample)).unwrap().cases["defaults"]).unwrap();
         let d = super::super::gate::drift(&kept, &look);
-        assert!(d.breaches(&super::super::gate::BOARD).is_empty(), "{}", d.line());
+        assert!(
+            d.breaches(&super::super::gate::BOARD).is_empty(),
+            "{}",
+            d.line()
+        );
         assert_eq!(d.cell_de, 0.0, "{}", d.line());
         assert!(d.midtone_ev < 1e-5 && d.p999_ev < 1e-5, "{}", d.line());
     }

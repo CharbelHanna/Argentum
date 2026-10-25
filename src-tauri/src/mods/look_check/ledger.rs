@@ -64,7 +64,10 @@ pub fn read(path: &Path) -> Result<Vec<Row>, String> {
         .map(|line| {
             let fields: Vec<&str> = line.splitn(4, '\t').collect();
             let [date, pr, cases, reason] = fields[..] else {
-                return Err(format!("{}: a row without four fields: {line:?}", path.display()));
+                return Err(format!(
+                    "{}: a row without four fields: {line:?}",
+                    path.display()
+                ));
             };
             Ok(Row {
                 date: date.to_string(),
@@ -159,7 +162,12 @@ pub struct Moved {
 
 /// Whether a blessing may go ahead, given the cases that moved beyond the
 /// limits, the pipeline version now and the adapter now.
-pub fn may_bless(bless: &Bless, moved: &[Moved], pipeline: u32, adapter: &str) -> Result<(), String> {
+pub fn may_bless(
+    bless: &Bless,
+    moved: &[Moved],
+    pipeline: u32,
+    adapter: &str,
+) -> Result<(), String> {
     let unnamed: Vec<&str> = moved
         .iter()
         .filter(|m| !bless.names(&m.case))
@@ -271,7 +279,10 @@ mod tests {
         };
         assert_eq!(append(&path, &row("2026-09-01", "*")).unwrap(), 1);
         assert_eq!(append(&path, &row("2026-10-20", "7882/*")).unwrap(), 2);
-        assert_eq!(append(&path, &row("2026-10-21", "7882/defaults")).unwrap(), 3);
+        assert_eq!(
+            append(&path, &row("2026-10-21", "7882/defaults")).unwrap(),
+            3
+        );
         assert_eq!(append(&path, &row("2026-10-22", "*/defaults")).unwrap(), 4);
         let rows = read(&path).unwrap();
         assert_eq!(rows[1], row("2026-10-20", "7882/*"));

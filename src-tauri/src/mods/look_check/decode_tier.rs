@@ -80,11 +80,14 @@ pub fn values(bytes: &[u8], path: &str) -> Result<(Lines, bool), String> {
             ),
             line(
                 "ceilings",
-                report.ceilings.map_or_else(none, |c| {
-                    c.map(|v| format!("{v:.2}")).join(" ")
-                }),
+                report
+                    .ceilings
+                    .map_or_else(none, |c| c.map(|v| format!("{v:.2}")).join(" ")),
             ),
-            line("proven_white", proven.map_or_else(none, |w| format!("{w:.0}"))),
+            line(
+                "proven_white",
+                proven.map_or_else(none, |w| format!("{w:.0}")),
+            ),
             line(
                 "recovery",
                 if report.rebuilt {
@@ -145,13 +148,25 @@ mod tests {
     #[test]
     fn an_offset_may_move_by_a_thousandth_and_nothing_else_may_move() {
         let then = lines(&[("baseline_ev", "+0.250"), ("recovered_photosites", "364")]);
-        assert!(drift(&then, &lines(&[("baseline_ev", "+0.251"), ("recovered_photosites", "364")])).is_empty());
+        assert!(
+            drift(
+                &then,
+                &lines(&[("baseline_ev", "+0.251"), ("recovered_photosites", "364")])
+            )
+            .is_empty()
+        );
         assert_eq!(
-            drift(&then, &lines(&[("baseline_ev", "+0.252"), ("recovered_photosites", "364")])),
+            drift(
+                &then,
+                &lines(&[("baseline_ev", "+0.252"), ("recovered_photosites", "364")])
+            ),
             ["baseline_ev: +0.250 -> +0.252"]
         );
         assert_eq!(
-            drift(&then, &lines(&[("baseline_ev", "+0.250"), ("recovered_photosites", "365")])),
+            drift(
+                &then,
+                &lines(&[("baseline_ev", "+0.250"), ("recovered_photosites", "365")])
+            ),
             ["recovered_photosites: 364 -> 365"]
         );
         assert_eq!(
