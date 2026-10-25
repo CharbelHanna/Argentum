@@ -59,7 +59,9 @@ use std::path::{Path, PathBuf};
 ///    full size, and were pasted unscaled onto the half-size RAW a thumbnail
 ///    decodes; a photo with any now decodes at full size for its thumbnail
 ///    (`image_loader::load_and_composite`).
-pub const PIPELINE: u32 = 8;
+/// 8. RapidRAW 1.6.7's Highlights (no jump when the slider leaves zero) and
+///    Whites (more range), in `shaders/shader.wgsl`.
+pub const PIPELINE: u32 = 9;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";
