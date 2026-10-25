@@ -50,7 +50,7 @@ export interface LensCorrection {
 export interface Found {
   correction: LensCorrection | null;
   defaultOn: boolean;
-  /** The photo has no saved edit (argentum/lensDefault.ts). */
+  /** The photo has no saved edit (argentum/newPhotoDefaults.ts). */
   fresh: boolean;
 }
 

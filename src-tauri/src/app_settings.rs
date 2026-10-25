@@ -76,7 +76,7 @@ pub struct LastFolderState {
 pub struct MyLens {
     pub maker: String,
     pub model: String,
-    /// Argentum: new photos from this lens open corrected (argentum/lensDefault.ts).
+    /// Argentum: new photos from this lens open corrected (argentum/newPhotoDefaults.ts).
     #[serde(default, rename = "correctNew", skip_serializing_if = "Option::is_none")]
     pub correct_new: Option<bool>,
 }

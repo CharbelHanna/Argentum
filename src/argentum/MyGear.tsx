@@ -31,7 +31,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useAgTranslation } from './locales';
 import MyCameras from './MyCameras';
 import Switch from '../components/ui/Switch';
-import type { MyLens } from './lensDefault';
+import type { MyLens } from './newPhotoDefaults';
 
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="p-6 bg-surface rounded-xl shadow-md">{children}</div>;

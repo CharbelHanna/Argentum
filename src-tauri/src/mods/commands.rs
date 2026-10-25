@@ -295,6 +295,20 @@ pub fn forget_camera(model: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Choose the profile new photos from a camera open with (My Cameras).
+pub fn set_camera_default_profile(model: String, file: Option<String>) -> Result<(), String> {
+    crate::mods::profiles::set_default_profile(profile_library()?, &model, file);
+    Ok(())
+}
+
+/// The profile a new photo with this EXIF model opens with, if one is chosen.
+pub fn camera_default_profile(model: String) -> Result<Option<String>, String> {
+    Ok(crate::mods::profiles::default_profile(
+        profile_library()?,
+        &model,
+    ))
+}
+
 /// Look for a published profile for this camera and install it.
 ///
 /// One step on purpose: "is there one" and "get it" are not a decision the user

@@ -13,8 +13,15 @@ Newest first.
   switched off. Switched on, a RAW photo from that lens with no saved edit opens as if Auto had
   been pressed in Crop > Lens Correction: the lens database's profile when it knows the lens, and
   the camera's own correction when the file has one. Off is the app as before, and a photo with an
-  edit is never touched. `src/argentum/lensDefault.ts`; the backend's `lens_builtin` now says
+  edit is never touched. `src/argentum/newPhotoDefaults.ts`; the backend's `lens_builtin` now says
   whether the photo has a saved edit (`fresh`), and `MyLens` keeps the switch (`correctNew`).
+- **A camera profile for new photos, per camera.** Settings > My Gear > My Cameras has "New photos
+  open with" on each camera that has profiles: Built-in, or one of its profiles. A RAW photo from
+  that camera with no saved edit opens with it; a photo with an edit keeps its own, so choosing
+  one never changes a photo already worked on. Removing the profile sets the camera back to
+  Built-in. Kept in the camera list (`cameras.json`, `defaultProfile`); matched to a photo's EXIF
+  model the way profiles are (`src-tauri/src/mods/profiles.rs`), applied in
+  `src/argentum/newPhotoDefaults.ts`, with a test.
 - **The version beside the Settings gear, and a new release when there is one.** A quiet
   "v26.43.4" sits by the gear; when a newer release is published, "Argentum 26.43.5 is out" shows
   there in the accent colour and opens its release page, and Settings > About says the same.

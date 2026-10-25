@@ -54,7 +54,7 @@ import { useTruncatedTooltips } from './useTruncatedTooltips';
 import { useThresholdPreview } from './useThresholdPreview';
 import { useAutoWhiteBalanceFollows } from './autoWhiteBalance';
 import { useLensBuiltinOnOpen } from './lensBuiltin';
-import { useLensDefaultOnOpen } from './lensDefault';
+import { useNewPhotoDefaults } from './newPhotoDefaults';
 import SuperResolutionModal from './SuperResolutionModal';
 
 /**
@@ -125,7 +125,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
   // The camera's built-in lens correction, filled into each photo's edit as it opens.
   useLensBuiltinOnOpen();
   // My Lenses' "Correct new photos": each lens joins as its photo opens.
-  useLensDefaultOnOpen();
+  useNewPhotoDefaults();
 
   // Ctrl while dragging Whites or Blacks empties the picture and shows only
   // what is being blown or crushed, which is how those two are actually set.
