@@ -65,6 +65,8 @@ pub mod profiles_online;
 pub mod raw_tone;
 pub mod recent_folders;
 pub mod redecode;
+#[cfg(test)]
+mod render_check;
 pub mod restore;
 pub mod salvage;
 pub mod selection;

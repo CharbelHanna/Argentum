@@ -127,6 +127,19 @@ Newest first.
 
 ### Changed
 
+- **Faster slider moves with Glow, Halation, masks or a LUT, same pixels.** What a render leaves on
+  the GPU is kept for the next one when it still holds: the Glow and Halation blurs while the
+  photo, the region and sharpening are unchanged (sharpening rewrites the texture the blurs read,
+  so its writes are part of the key), the mask bitmaps while their pixels are the same, and the
+  LUT while it is the same one. Each tile reads back only its own part, not its overlap; the two
+  full-size display textures are made by the first render that draws to the screen, so a
+  processor that never does (an export, the JPEG preview path) no longer holds them; and a GPU
+  device lost to the driver is replaced on the next render instead of failing every render after
+  it. A slider tick at the default 1920 px preview with Glow, Halation, a mask and a LUT went from
+  16.9 to 8.0 ms on the reference laptop; renders are byte-identical on five RAWs
+  (`src-tauri/src/mods/render_check.rs`). From RapidRAW `src-tauri/src/gpu_processing.rs` @
+  `7d6dd5c0`, `c756671d`, `707a78d6` and `cc480a4e`. Not taken: their tiled blur shader
+  (`shaders/blur.wgsl` @ `cc8200a9`), which measured slower here (a 3200 px tick 59 to 76 ms).
 - **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
   RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
   commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,
