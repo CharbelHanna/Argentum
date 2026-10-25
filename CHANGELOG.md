@@ -140,6 +140,15 @@ Newest first.
   (`src-tauri/src/mods/render_check.rs`). From RapidRAW `src-tauri/src/gpu_processing.rs` @
   `7d6dd5c0`, `c756671d`, `707a78d6` and `cc480a4e`. Not taken: their tiled blur shader
   (`shaders/blur.wgsl` @ `cc8200a9`), which measured slower here (a 3200 px tick 59 to 76 ms).
+- **The histogram and waveform keep up with a slider.** They are counted straight from the GPU's
+  readback buffer, which is reused from a small pool, on one thread that drops a frame a newer one
+  has overtaken; the waveform is counted in bands of rows on every core. Before, each frame was
+  copied into an image on a thread of its own, and the editor asked for them at most 30 times a
+  second while dragging; it now asks on every frame. The same histogram and waveform, checked on
+  five RAWs. From RapidRAW `src-tauri/src/gpu_processing.rs`, `image_processing.rs` and `lib.rs`
+  @ `cc8200a9` and `c756671d`, and `src/hooks/useImageProcessing.ts` @ `e1a86bc1` and
+  `c756671d`. Not taken: their move of the analytics to a Channel with ImageBitmap waveforms
+  (`707a78d6`), which changes the waveform panel as well.
 - **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
   RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
   commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,

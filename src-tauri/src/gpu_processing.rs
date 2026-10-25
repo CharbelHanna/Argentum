@@ -10,7 +10,9 @@ use std::num::NonZero;
 use tauri::Manager;
 use wgpu::util::{DeviceExt, TextureDataOrder};
 
-use crate::image_processing::{AllAdjustments, GpuContext, MAX_MASKS, MaskAdjustments};
+use crate::image_processing::{
+    AllAdjustments, AnalyticsFrame, AnalyticsPixels, GpuContext, MAX_MASKS, MaskAdjustments,
+};
 use crate::lut_processing::Lut;
 use crate::mods::export_precision::Precision;
 use crate::{AppState, GpuImageCache};
@@ -730,6 +732,113 @@ pub struct GpuProcessor {
     pub tile_output_texture_view: wgpu::TextureView,
     full_image_size: wgpu::Extent3d,
     display_textures: std::sync::OnceLock<DisplayTextures>,
+    readback_pool: ReadbackPool,
+}
+
+// RapidRAW c756671d, cc480a4e: src-tauri/src/gpu_processing.rs - the histogram's readback
+// buffers are reused, and one thread maps them, the newest first: a frame that a newer one
+// overtook goes back to the pool unread.
+type ReadbackPool = Arc<std::sync::Mutex<Vec<wgpu::Buffer>>>;
+
+const READBACK_POOL_SIZE: usize = 3;
+
+fn recycle_readback_buffer(pool: &ReadbackPool, buffer: wgpu::Buffer) {
+    let mut pool = pool.lock().unwrap_or_else(|e| e.into_inner());
+    if pool.len() >= READBACK_POOL_SIZE {
+        pool.remove(0);
+    }
+    pool.push(buffer);
+}
+
+/// A mapped readback buffer, unmapped and handed back to its pool when dropped.
+pub struct PooledReadback {
+    view: Option<wgpu::BufferView>,
+    buffer: wgpu::Buffer,
+    pool: ReadbackPool,
+}
+
+impl std::ops::Deref for PooledReadback {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        self.view.as_deref().unwrap_or(&[])
+    }
+}
+
+impl Drop for PooledReadback {
+    fn drop(&mut self) {
+        drop(self.view.take());
+        self.buffer.unmap();
+        recycle_readback_buffer(&self.pool, self.buffer.clone());
+    }
+}
+
+struct AnalyticsReadback {
+    device: Arc<wgpu::Device>,
+    buffer: wgpu::Buffer,
+    pool: ReadbackPool,
+    submission: wgpu::SubmissionIndex,
+    analytics: crate::AnalyticsConfig,
+    width: u32,
+    height: u32,
+    row_stride: usize,
+}
+
+fn analytics_readback_sender() -> &'static std::sync::mpsc::Sender<AnalyticsReadback> {
+    static SENDER: std::sync::OnceLock<std::sync::mpsc::Sender<AnalyticsReadback>> =
+        std::sync::OnceLock::new();
+    SENDER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<AnalyticsReadback>();
+        std::thread::spawn(move || {
+            while let Ok(mut readback) = rx.recv() {
+                while let Ok(newer) = rx.try_recv() {
+                    recycle_readback_buffer(&readback.pool, readback.buffer);
+                    readback = newer;
+                }
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    complete_analytics_readback(readback)
+                }));
+            }
+        });
+        tx
+    })
+}
+
+fn complete_analytics_readback(readback: AnalyticsReadback) {
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), wgpu::BufferAsyncError>>();
+    readback
+        .buffer
+        .slice(..)
+        .map_async(wgpu::MapMode::Read, move |result| {
+            let _ = tx.send(result);
+        });
+
+    if let Err(e) = readback.device.poll(wgpu::PollType::Wait {
+        submission_index: Some(readback.submission),
+        timeout: Some(std::time::Duration::from_secs(60)),
+    }) {
+        log::error!("Async analytics readback poll failed: {}", e);
+        return;
+    }
+
+    if let Ok(Ok(())) = rx.recv() {
+        let analytics = readback.analytics;
+        let _ = analytics.sender.send(crate::AnalyticsJob {
+            path: analytics.path,
+            frame: AnalyticsFrame {
+                data: AnalyticsPixels::Mapped(PooledReadback {
+                    view: Some(readback.buffer.slice(..).get_mapped_range()),
+                    buffer: readback.buffer,
+                    pool: readback.pool,
+                }),
+                width: readback.width,
+                height: readback.height,
+                row_stride: readback.row_stride,
+            },
+            compute_waveform: analytics.compute_waveform,
+            active_waveform_channel: analytics.active_waveform_channel,
+        });
+    }
 }
 
 const FLARE_MAP_SIZE: u32 = 512;
@@ -1401,6 +1510,25 @@ impl GpuProcessor {
             tile_output_texture_view,
             full_image_size,
             display_textures: std::sync::OnceLock::new(),
+            readback_pool: Arc::new(std::sync::Mutex::new(Vec::new())),
+        })
+    }
+
+    // RapidRAW c756671d: src-tauri/src/gpu_processing.rs
+    fn readback_buffer(&self, size: u64) -> wgpu::Buffer {
+        let pooled = {
+            let mut pool = self.readback_pool.lock().unwrap_or_else(|e| e.into_inner());
+            pool.iter()
+                .position(|buffer| buffer.size() == size)
+                .map(|index| pool.swap_remove(index))
+        };
+        pooled.unwrap_or_else(|| {
+            self.context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Async Analytics Readback Buffer"),
+                size,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
         })
     }
 
@@ -2503,7 +2631,6 @@ fn process_and_get_dynamic_image_inner(
 
     let mut async_readback_buffer: Option<wgpu::Buffer> = None;
     let mut async_padded_bpr: u32 = 0;
-    let mut async_unpadded_bpr: u32 = 0;
 
     if analytics_config.is_some() && output_to_display {
         let unpadded_bytes_per_row = 4 * out_w;
@@ -2511,12 +2638,7 @@ fn process_and_get_dynamic_image_inner(
         let padded_bytes_per_row = (unpadded_bytes_per_row + align - 1) & !(align - 1);
         let output_buffer_size = (padded_bytes_per_row * out_h) as u64;
 
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Async Analytics Readback Buffer"),
-            size: output_buffer_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let output_buffer = processor.readback_buffer(output_buffer_size); // RapidRAW c756671d
 
         final_encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
@@ -2546,7 +2668,6 @@ fn process_and_get_dynamic_image_inner(
 
         async_readback_buffer = Some(output_buffer);
         async_padded_bpr = padded_bytes_per_row;
-        async_unpadded_bpr = unpadded_bytes_per_row;
         submit_final_encoder = true;
     }
 
@@ -2581,75 +2702,33 @@ fn process_and_get_dynamic_image_inner(
         submit_final_encoder = true;
     }
 
-    if submit_final_encoder {
-        queue.submit(Some(final_encoder.finish()));
-    }
+    // RapidRAW cc8200a9, c756671d: src-tauri/src/gpu_processing.rs - the readback waits for
+    // this submission only, on the one readback thread, and hands the mapped buffer itself on.
+    let final_submission = submit_final_encoder.then(|| queue.submit(Some(final_encoder.finish())));
 
     if let Some(analytics) = analytics_config {
-        if let Some(buffer) = async_readback_buffer {
-            let output_buffer: wgpu::Buffer = buffer;
-            let padded_bytes_per_row: u32 = async_padded_bpr;
-            let unpadded_bytes_per_row: u32 = async_unpadded_bpr;
-            let device_clone = context.device.clone();
-
-            std::thread::spawn(move || {
-                let buffer_slice = output_buffer.slice(..);
-                let (tx, rx) = std::sync::mpsc::channel::<Result<(), wgpu::BufferAsyncError>>();
-
-                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                    let _ = tx.send(result);
-                });
-
-                if let Err(e) = device_clone.poll(wgpu::PollType::Wait {
-                    submission_index: None,
-                    timeout: Some(std::time::Duration::from_secs(60)),
-                }) {
-                    log::error!("Async analytics readback poll failed: {}", e);
-                    return;
-                }
-
-                if let Ok(Ok(())) = rx.recv() {
-                    let padded_data = buffer_slice.get_mapped_range().to_vec();
-                    output_buffer.unmap();
-
-                    let mut unpadded_data =
-                        Vec::with_capacity((unpadded_bytes_per_row * out_h) as usize);
-                    if padded_bytes_per_row == unpadded_bytes_per_row {
-                        unpadded_data = padded_data;
-                    } else {
-                        for chunk in padded_data.chunks(padded_bytes_per_row as usize) {
-                            unpadded_data
-                                .extend_from_slice(&chunk[..unpadded_bytes_per_row as usize]);
-                        }
-                    }
-
-                    if let Some(img_buf) =
-                        ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, unpadded_data)
-                    {
-                        let dynamic_img = DynamicImage::ImageRgba8(img_buf);
-                        let _ = analytics.sender.send(crate::AnalyticsJob {
-                            path: analytics.path,
-                            image: std::sync::Arc::new(dynamic_img),
-                            compute_waveform: analytics.compute_waveform,
-                            active_waveform_channel: analytics.active_waveform_channel,
-                        });
-                    }
-                }
+        if let (Some(buffer), Some(submission)) = (async_readback_buffer, final_submission) {
+            let _ = analytics_readback_sender().send(AnalyticsReadback {
+                device: Arc::clone(&context.device),
+                buffer,
+                pool: Arc::clone(&processor.readback_pool),
+                submission,
+                analytics,
+                width: out_w,
+                height: out_h,
+                row_stride: async_padded_bpr as usize,
             });
         } else {
-            let pixels_clone = processed_pixels.clone();
-            std::thread::spawn(move || {
-                if let Some(img_buf) =
-                    ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, pixels_clone)
-                {
-                    let dynamic_img = DynamicImage::ImageRgba8(img_buf);
-                    let _ = analytics.sender.send(crate::AnalyticsJob {
-                        path: analytics.path,
-                        image: std::sync::Arc::new(dynamic_img),
-                        compute_waveform: analytics.compute_waveform,
-                        active_waveform_channel: analytics.active_waveform_channel,
-                    });
-                }
+            let _ = analytics.sender.send(crate::AnalyticsJob {
+                path: analytics.path,
+                frame: AnalyticsFrame {
+                    data: AnalyticsPixels::Owned(processed_pixels.clone()),
+                    width: out_w,
+                    height: out_h,
+                    row_stride: out_w as usize * 4,
+                },
+                compute_waveform: analytics.compute_waveform,
+                active_waveform_channel: analytics.active_waveform_channel,
             });
         }
     }

@@ -301,6 +301,31 @@ fn hash(bytes: &[u8]) -> String {
     blake3::hash(bytes).to_hex()[..16].to_string()
 }
 
+/// The histogram's and the waveform's hashes for RGBA8 `pixels`, laid out
+/// `row_stride` bytes per row as the analytics worker is given them.
+fn analytics(pixels: &[u8], w: u32, h: u32, row_stride: usize) -> (String, String) {
+    use crate::image_processing::{AnalyticsFrame, AnalyticsPixels};
+    let mut data = vec![0u8; row_stride * h as usize];
+    for (row, out) in pixels
+        .chunks_exact(w as usize * 4)
+        .zip(data.chunks_exact_mut(row_stride))
+    {
+        out[..row.len()].copy_from_slice(row);
+    }
+    let frame = AnalyticsFrame {
+        data: AnalyticsPixels::Owned(data),
+        width: w,
+        height: h,
+        row_stride,
+    };
+    let histogram = crate::image_processing::calculate_histogram(&frame).expect("histogram");
+    let waveform = crate::image_processing::calculate_waveform(&frame, None).expect("waveform");
+    (
+        hash(serde_json::to_string(&histogram).unwrap().as_bytes()),
+        hash(serde_json::to_string(&waveform).unwrap().as_bytes()),
+    )
+}
+
 /// Every render of the sequence below, hashed, for each RAW at each size, and
 /// the histogram and waveform of the first. A step that moves only an
 /// exposure is a frame whose blurs, masks and LUT are the last one's.
@@ -390,19 +415,16 @@ fn same_pixels() {
                 let pixels = bench.render(request, false);
                 println!("photo {} {w}x{h} {name}: {}", n + 1, hash(&pixels));
                 if *name == "base" {
-                    let image = DynamicImage::ImageRgba8(
-                        image::RgbaImage::from_raw(w, h, pixels).expect("rgba"),
-                    );
-                    let histogram = crate::image_processing::calculate_histogram_from_image(&image)
-                        .expect("histogram");
-                    let waveform =
-                        crate::image_processing::calculate_waveform_from_image(&image, None)
-                            .expect("waveform");
+                    // As the CPU readback hands the frame on, and with rows padded the way
+                    // the GPU's readback buffer pads them: the same histogram and waveform.
+                    let tight = analytics(&pixels, w, h, w as usize * 4);
+                    let padded = analytics(&pixels, w, h, (w as usize * 4).next_multiple_of(256));
+                    assert_eq!(tight, padded, "padded rows change the analytics");
                     println!(
                         "photo {} {w}x{h} histogram: {}, waveform: {}",
                         n + 1,
-                        hash(serde_json::to_string(&histogram).unwrap().as_bytes()),
-                        hash(serde_json::to_string(&waveform).unwrap().as_bytes())
+                        tight.0,
+                        tight.1
                     );
                 }
             }
