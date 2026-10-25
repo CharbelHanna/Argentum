@@ -104,6 +104,9 @@ pub struct Found {
     pub correction: Option<LensCorrection>,
     /// The switch's starting position, for an edit that has none yet.
     pub default_on: bool,
+    /// The photo has no saved edit, so My Lenses' "Correct new photos"
+    /// decides how it opens (argentum/lensDefault.ts).
+    pub fresh: bool,
 }
 
 /// The `ag` command `lens_builtin`: the photo's correction, read from its
@@ -114,16 +117,16 @@ pub fn lens_builtin(path: &str) -> Result<Found, String> {
         let bytes = crate::file_management::read_file_mapped(&source).map_err(|e| e.to_string())?;
         argentum_engine::rm_lens_builtin::read(&bytes)
     };
-    let edited_before = || {
-        let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
-        saved.as_object().is_some_and(|edit| {
-            !edit.is_empty() && edit.get("is_null").is_none() && !edit.contains_key(KEYS[0])
-        })
-    };
-    let default_on = correction.as_ref().is_some_and(|c| c.default_on) && !edited_before();
+    let saved = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+    let edit = saved
+        .as_object()
+        .filter(|edit| !edit.is_empty() && edit.get("is_null").is_none());
+    let edited_before = edit.is_some_and(|edit| !edit.contains_key(KEYS[0]));
+    let default_on = correction.as_ref().is_some_and(|c| c.default_on) && !edited_before;
     Ok(Found {
         correction,
         default_on,
+        fresh: edit.is_none(),
     })
 }
 
@@ -257,6 +260,33 @@ mod tests {
             pinned(fuji),
             "the camera's tables replace lensfun's"
         );
+    }
+
+    /// A photo is fresh while its sidecar holds no edit: no sidecar, an
+    /// empty edit, or a reset one. Any saved value makes it edited.
+    #[test]
+    fn a_photo_without_a_saved_edit_is_fresh() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("a.jpg");
+        std::fs::write(&photo, b"not a raw").unwrap();
+        let path = photo.to_string_lossy().into_owned();
+        let sidecar = crate::file_management::parse_virtual_path(&path).1;
+        let fresh = |adjustments: Option<serde_json::Value>| {
+            match adjustments {
+                Some(a) => std::fs::write(
+                    &sidecar,
+                    json!({ "version": 1, "rating": 0, "adjustments": a }).to_string(),
+                )
+                .unwrap(),
+                None => drop(std::fs::remove_file(&sidecar)),
+            }
+            lens_builtin(&path).unwrap().fresh
+        };
+        assert!(fresh(None));
+        assert!(fresh(Some(json!({}))));
+        assert!(fresh(Some(json!({ "is_null": true }))));
+        assert!(!fresh(Some(json!({ "exposure": 0.5 }))));
+        assert!(!fresh(Some(json!({ "lensBuiltin": false }))));
     }
 
     #[test]
