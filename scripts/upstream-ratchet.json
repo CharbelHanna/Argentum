@@ -3,7 +3,7 @@
   "files": {
     ".github/workflows/build.yml": 2,
     ".github/workflows/ci.yml": 3,
-    ".github/workflows/lint.yml": 5,
+    ".github/workflows/lint.yml": 14,
     ".github/workflows/pr-ci.yml": 7,
     ".prettierignore": 2,
     "index.html": 1,

@@ -21,13 +21,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Check Formatting
-        run: npm run format:check
-        continue-on-error: true
+      - name: Build
+        run: npm run build
 
-      - name: Run ESLint
-        run: npm run lint
-        continue-on-error: true
+      - name: Tests
+        run: npm run test:frontend
+
+      # Types, lint and formatting against scripts/frontend-baseline.json:
+      # nothing may get worse than main already was.
+      - name: Types, lint and formatting
+        run: npm run check:frontend
 
       - name: Check Translation Sync
         run: npm run i18n:check
