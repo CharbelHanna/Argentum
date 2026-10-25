@@ -8,7 +8,14 @@
 //!
 //! - `fuji.rs`: the tables Fujifilm writes into every RAF, on by default.
 //! - `dng.rs`: a DNG's lens opcodes, on by default.
-//! - `sony.rs`: the tables Sony writes into an ARW, off by default.
+//! - `sony.rs`: the tables Sony writes into an ARW, on by default for the
+//!   parts Lightroom applies (lateral CA, and a compact's distortion).
+//! - `nikon.rs`: the model a Nikon Z writes into a NEF's NEFInfo, on by
+//!   default for a lens that needs it, off for one whose correction is
+//!   optional; and the tables a Coolpix P950, P1000 or P1100 writes there,
+//!   on by default.
+//!
+//! `fit.rs` holds the maths more than one reader samples its tables with.
 //!
 //! FROM RAWMAKASE
 //!
@@ -35,11 +42,18 @@
 //!   crops an ARW to its DefaultCrop, which is the camera's aspect-ratio crop
 //!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
 //!   `camera_crop` describes; the sensor beyond it is not there to sample.
+//! - Since RAWmakase `44b21d5` a reader there can give two corrections
+//!   (`lens::embedded::Builtin`): what Lightroom applies from the file
+//!   whatever its profile setting, and the camera's fuller data standing in
+//!   for a profile. Here they are one correction, its `always` naming the
+//!   first (`LensCorrection::always_correcting`).
 
 use serde::{Deserialize, Serialize};
 
 mod dng;
+mod fit;
 mod fuji;
+mod nikon;
 mod sony;
 #[cfg(test)]
 mod test_files;
@@ -155,6 +169,25 @@ impl LensCorrection {
         self.vignetting.iter().all(Radial::valid)
             && self.distortion.iter().all(Radial::valid)
             && self.chromatic.iter().flatten().all(Radial::valid)
+    }
+
+    /// The correction with the camera always correcting those of `parts` it
+    /// has tables for, as Lightroom applies them from the file: on by
+    /// default, its other tables standing in for a profile. With none of
+    /// them, the whole correction only stands in for a profile: off by
+    /// default, and correcting all of it once switched on.
+    fn always_correcting(self, parts: Parts) -> Self {
+        let always = Parts {
+            distortion: parts.distortion && self.distortion.is_some(),
+            chromatic: parts.chromatic && self.chromatic.is_some(),
+            vignetting: parts.vignetting && self.vignetting.is_some(),
+        };
+        let any = always.distortion || always.chromatic || always.vignetting;
+        Self {
+            default_on: any,
+            always: any.then_some(always),
+            ..self
+        }
     }
 
     /// Source radius scale for red, green and blue at output radius `r`.
@@ -328,23 +361,46 @@ impl<'a> LensMap<'a> {
 /// The built-in correction a RAW carries. `None` for a file of another
 /// format, one that stored no correction, or tables that do not parse.
 /// One line per make, asked in this order; each reader answers only for
-/// its own format.
+/// its own format. Nikon's asks a NEF's Make before Sony's, which reads any
+/// other TIFF's SubIFD.
 pub fn read(file: &[u8]) -> Option<LensCorrection> {
     let c = fuji::read(file)
         .or_else(|| dng::read(file))
+        .or_else(|| nikon::read(file))
         .or_else(|| sony::read(file))?;
     (!c.is_empty() && c.validate()).then_some(c)
 }
 
-/// A TIFF's first bytes, little- or big-endian: how a DNG and an ARW begin.
+/// A TIFF's first bytes, little- or big-endian: how a DNG, an ARW and a NEF
+/// begin.
 fn is_tiff(file: &[u8]) -> bool {
     file.starts_with(b"II*\0") || file.starts_with(b"MM\0*")
+}
+
+/// SubIFDs, in IFD0: an ARW's and a NEF's raw image directory is one.
+const SUB_IFDS: u16 = 0x14a;
+
+/// The width and height in pixels of the image `develop` makes of `file`:
+/// rawler's raw image at its default crop (`develop::developed_size_px`),
+/// read from the file's geometry without decoding a pixel. `None` for a
+/// file rawler does not read.
+fn developed_size_px(file: &[u8]) -> Option<(usize, usize)> {
+    use rawler::decoders::RawDecodeParams;
+    use rawler::rawsource::RawSource;
+
+    let source = RawSource::new_from_slice(file);
+    // The loader's decode, which turns a decoder's panic into an error.
+    let raw = (rawler::global_loader())
+        .decode(&source, &RawDecodeParams::default(), true)
+        .ok()?;
+    Some(crate::develop::developed_size_px(&raw))
 }
 
 #[cfg(test)]
 mod tests {
     use super::test_files::{
-        ZV1_CA, ZV1_DIST, ZV1_VIG, digest, dji_file, fuji_file, raf, sony_file,
+        P1100, Z7, Z8, ZV1_CA, ZV1_DIST, ZV1_VIG, coolpix_file, digest, dji_file, fuji_file,
+        nikon_file, raf, sony_file,
     };
     use super::*;
 
@@ -554,7 +610,22 @@ mod tests {
             (
                 "zv-1",
                 sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST),
-                16_060_793_216_672_783_479,
+                11_026_883_439_338_406_697,
+            ),
+            (
+                "nikon z 7",
+                nikon_file("NIKON Z 7", [8288, 5520], Z7),
+                10_872_948_652_969_926_546,
+            ),
+            (
+                "nikon z 8",
+                nikon_file("NIKON Z 8", [8280, 5520], Z8),
+                642_717_243_549_425_641,
+            ),
+            (
+                "coolpix p1100",
+                coolpix_file(P1100),
+                1_898_652_106_414_007_459,
             ),
         ] {
             assert_eq!(digest(&read(&file)), want, "{name}");
