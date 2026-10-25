@@ -1,5 +1,7 @@
 /**
- * "Correct new photos", per lens, in Settings > My Gear > My Lenses. Ours.
+ * How a new photo opens: My Gear's choices for photos with no saved edit. Ours.
+ *
+ * PER LENS: "Correct new photos", in My Lenses.
  *
  * Every photo opened adds its lens to My Lenses: by the lens database's name
  * when it knows the lens, otherwise by the camera's maker and the lens (or,
@@ -13,6 +15,10 @@
  * while it is on, see argentum/lensBuiltin.ts). That is a change to the
  * photo, so it is saved like any other. A photo with an edit is never
  * touched, whatever its lens's switch says.
+ *
+ * PER CAMERA: "New photos open with", in My Cameras: the camera profile a
+ * RAW photo with no saved edit opens with (mods/profiles.rs). Unset, the
+ * built-in matrix, as before. A photo with an edit keeps its own.
  */
 
 import { useEffect } from 'react';
@@ -54,6 +60,27 @@ export function rememberLens(maker: string, model: string): MyLens | null {
 const handled = new Set<string>();
 
 async function onOpen(path: string, exif: Record<string, string>, isRaw: boolean) {
+  const found = await ask(path);
+  await Promise.all([lensOnOpen(path, exif, isRaw, found), profileOnOpen(path, exif, isRaw, found)]);
+}
+
+/** The edit as it is now, when `path` is still the open photo. */
+function stillOpen(path: string) {
+  const { selectedImage, adjustments, setEditor } = useEditorStore.getState();
+  return selectedImage?.path === path ? { adjustments, setEditor } : null;
+}
+
+async function profileOnOpen(path: string, exif: Record<string, string>, isRaw: boolean, found: Found) {
+  const model = exif.Model?.trim();
+  if (!found.fresh || !isRaw || !model) {
+    return;
+  }
+  const file = await ag<string | null>('camera_default_profile', { model }).catch(() => null);
+  const open = file ? stillOpen(path) : null;
+  open?.setEditor({ adjustments: { ...open.adjustments, cameraProfile: file } as Adjustments });
+}
+
+async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boolean, found: Found) {
   const make = exif.Make?.trim();
   if (!make) {
     return;
@@ -61,14 +88,11 @@ async function onOpen(path: string, exif: Record<string, string>, isRaw: boolean
   // An EXIF cached before CR3 lenses were read has none: ask the file, as Auto does.
   const lensName =
     exif.LensModel?.trim() || (await ag<string | null>('recover_lens_name', { path }).catch(() => null)) || '';
-  const [found, detected] = await Promise.all([
-    ask(path),
-    invoke<[string, string] | null>('autodetect_lens', {
-      maker: make,
-      model: lensName,
-      cameraModel: exif.Model ?? '',
-    }).catch(() => null),
-  ]);
+  const detected = await invoke<[string, string] | null>('autodetect_lens', {
+    maker: make,
+    model: lensName,
+    cameraModel: exif.Model ?? '',
+  }).catch(() => null);
   const name = detected ?? [make, lensName || exif.Model?.trim()];
   if (!name[1]) {
     return;
@@ -86,12 +110,13 @@ async function onOpen(path: string, exif: Record<string, string>, isRaw: boolean
         distance: parseExifNumber(exif.SubjectDistance),
       }).catch(() => null)
     : null;
-  const { selectedImage, adjustments, setEditor } = useEditorStore.getState();
-  if (selectedImage?.path !== path) {
-    return;
-  }
-  setEditor({
-    adjustments: corrected(adjustments, detected && profile ? { lens: detected, profile } : null, !!found.correction),
+  const open = stillOpen(path);
+  open?.setEditor({
+    adjustments: corrected(
+      open.adjustments,
+      detected && profile ? { lens: detected, profile } : null,
+      !!found.correction,
+    ),
   });
 }
 
@@ -122,7 +147,7 @@ export const corrected = (
   }) as Adjustments;
 
 /** Mounted once, in Argentum.tsx. */
-export function useLensDefaultOnOpen() {
+export function useNewPhotoDefaults() {
   const path = useEditorStore((s) => s.selectedImage?.path);
   const ready = useEditorStore((s) => s.selectedImage?.isReady === true && !!s.selectedImage?.exif?.Make);
 
@@ -133,7 +158,7 @@ export function useLensDefaultOnOpen() {
     handled.add(path);
     const { selectedImage } = useEditorStore.getState();
     onOpen(path, selectedImage?.exif ?? {}, selectedImage?.isRaw === true).catch((err) =>
-      console.error('Lens default could not be applied:', path, err),
+      console.error('New photo defaults could not be applied:', path, err),
     );
   }, [path, ready]);
 }

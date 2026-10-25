@@ -23,6 +23,23 @@ A release is a merge commit on `main`, published in this order.
    row over budget: row, size, backend, measured and budget. **A breach blocks
    the release** until the slowdown is fixed. GitHub's runners have no real GPU,
    so this cannot run in CI.
+
+   Then, on its own, **the golden photos on your own RAWs**: the check CI runs
+   on ten public samples (`src-tauri/src/mods/look_check.rs`), on the RAWs you
+   judge the app by, against references kept in `drafts.local/look`, never in
+   the repository:
+
+   ```bash
+   AG_RAWS="a.CR3;b.NEF" AG_LOOK_REFS=../drafts.local/look \
+     cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
+   ```
+
+   A case that moved fails with what moved. If the release's notes say why,
+   bless it: the same command with `AG_LOOK_BLESS="<why>"` and
+   `AG_LOOK_CASES="<the cases>"`, which adds a row to
+   `drafts.local/look/LEDGER.tsv`. If they do not, it blocks the release like a
+   speed breach. The first run has no references: bless every case with
+   `AG_LOOK_CASES="*"`.
 4. **Publish.** `gh release create <version> --target <merge sha> --title
    "Argentum <version> — <summary>" --notes-file <notes>`, with no `v` in the
    tag. Creating the release starts `.github/workflows/release.yml`, which builds

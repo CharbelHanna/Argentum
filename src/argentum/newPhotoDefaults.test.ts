@@ -1,6 +1,6 @@
-// How a new photo opens from My Lenses' "Correct new photos" (argentum/lensDefault.ts).
+// How a new photo opens from My Lenses' "Correct new photos" (argentum/newPhotoDefaults.ts).
 import { describe, expect, it } from 'vitest';
-import { corrected, correctsOnOpen } from './lensDefault';
+import { corrected, correctsOnOpen } from './newPhotoDefaults';
 import type { Found } from './lensBuiltin';
 import type { Adjustments } from '../utils/adjustments';
 
