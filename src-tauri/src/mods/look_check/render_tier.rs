@@ -66,8 +66,12 @@ pub fn film_look() -> std::path::PathBuf {
 /// A device as the app opens one (`gpu_processing::get_or_init_gpu_context`),
 /// without a window: the backends `WGPU_BACKEND` allows (on Windows the
 /// primary ones otherwise), the adapter `WGPU_ADAPTER_NAME` names or the
-/// high-performance one, every limit the adapter has. With the adapter's
-/// name, backend and driver.
+/// high-performance one, every limit the adapter has.
+///
+/// With the adapter as references record it: a software adapter (lavapipe,
+/// WARP) by name, backend and driver, which are the same on every machine; a
+/// graphics card by backend and kind only, so a reference names no one's
+/// hardware. The full name is printed.
 pub fn device() -> Result<(GpuContext, String), String> {
     #[allow(unused_mut)]
     let mut desc = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
@@ -85,11 +89,17 @@ pub fn device() -> Result<(GpuContext, String), String> {
         })
         .map_err(|e| format!("no GPU adapter: {e}"))?;
     let info = adapter.get_info();
-    let name = format!(
+    let full = format!(
         "{} ({:?}, {} {})",
         info.name, info.backend, info.driver, info.driver_info
     )
     .replace(['\t', '\n'], " ");
+    eprintln!("look check: adapter {full}");
+    let name = if info.device_type == wgpu::DeviceType::Cpu {
+        full
+    } else {
+        format!("{:?} ({:?})", info.device_type, info.backend)
+    };
     let mut required_features = wgpu::Features::empty();
     if adapter
         .features()
