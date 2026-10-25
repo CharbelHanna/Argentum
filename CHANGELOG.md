@@ -41,6 +41,18 @@ Newest first.
   the correction is within 0.1 px (the tests). From RAWmakase @ `af35e25` and `d04ef4f` (MIT):
   the Panasonic reader in `crates/rawmakase-model/src/lens/embedded.rs`, in
   `src-tauri/engine/src/rm_lens_builtin/panasonic.rs`.
+- **Samsung photos get the camera's own lens correction.** The NX200 and later NX bodies, the NX
+  mini, the Galaxy NX and the EX2F store the camera's distortion and colour fringing models in
+  the SRW's maker note (0xA050 and 0xA051, offset by its EncryptionKey). Adobe writes them into
+  its DNGs as a warp that always applies, so the switch in Crop > Lens Correction starts on for
+  an SRW with no edit yet, and the camera's data corrects what it stores; vignetting stays with
+  the lensfun profile. As Adobe does, the data is not used for the lenses and compacts Adobe has
+  its own profiles for (NX 30mm F2, 18-55mm and 50-200mm; EX1, WB2000) nor on the first bodies
+  (NX5, NX10, NX100, NX11): there the lensfun profile corrects everything, as before. Against
+  Adobe DNG Converter 18.7's warps of NX200, EX2F and NX mini photos the correction is within
+  0.1 px (the tests). From RAWmakase @ `0b7d217` (MIT): the Samsung reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/samsung.rs`.
 
 ### Changed
 

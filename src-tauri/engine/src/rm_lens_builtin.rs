@@ -13,6 +13,8 @@
 //!   into every ORF, on by default.
 //! - `panasonic.rs`: the distortion and CA corrections Panasonic writes into
 //!   every RW2, on by default.
+//! - `samsung.rs`: the distortion and CA models Samsung NX bodies write into
+//!   an SRW, on by default.
 //!
 //! `fit.rs` holds what more than one reader shares. A reader whose radii
 //! depend on the developed image's size asks for it (`developed_size_px`).
@@ -52,6 +54,7 @@ mod fit;
 mod fuji;
 mod olympus;
 mod panasonic;
+mod samsung;
 mod sony;
 #[cfg(test)]
 mod test_files;
@@ -362,6 +365,8 @@ pub fn read(file: &[u8]) -> Option<LensCorrection> {
 fn read_sized(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<LensCorrection> {
     let c = fuji::read(file)
         .or_else(|| dng::read(file))
+        // Before Sony, whose reader answers for any TIFF.
+        .or_else(|| samsung::read(file, size_px))
         .or_else(|| sony::read(file))
         .or_else(|| olympus::read(file, size_px))
         .or_else(|| panasonic::read(file, size_px))?;
@@ -382,7 +387,8 @@ fn developed_size_px(file: &[u8]) -> Option<[f64; 2]> {
     (w > 0 && h > 0).then_some([w as f64, h as f64])
 }
 
-/// A TIFF's first bytes, little- or big-endian: how a DNG and an ARW begin.
+/// A TIFF's first bytes, little- or big-endian: how a DNG, an ARW and an
+/// SRW begin.
 fn is_tiff(file: &[u8]) -> bool {
     file.starts_with(b"II*\0") || file.starts_with(b"MM\0*")
 }
