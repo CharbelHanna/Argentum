@@ -81,6 +81,34 @@ open "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFo
 No Terminal command can grant this access; it has to be allowed in System
 Settings.
 
+### macOS: folders made by an import script
+
+On Windows a new folder takes its permissions from the folder it is made in.
+macOS does not do that: a new folder gets whatever permissions the program that
+made it gives it. Folders created by an import script, or by one run with
+`sudo`, can end up where Argentum may not read the photos or save their
+`.agdata` edit files.
+
+**Fix the folders already there.** In Finder, select the parent folder, choose
+*File → Get Info*, unlock with the padlock, give your account *Read & Write*
+under *Sharing & Permissions*, then choose *Apply to enclosed items* from the
+⋯ (or gear) menu below the list. This is a one-time copy: folders made later do not get
+it.
+
+**Make new folders inherit it.** Run this once on the parent folder; every
+folder and file created inside it afterwards gets the same access:
+
+```bash
+chmod -R +a "$(whoami) allow list,add_file,search,delete,add_subdirectory,delete_child,readattr,writeattr,readextattr,writeextattr,readsecurity,file_inherit,directory_inherit" "/path/to/your/photos"
+```
+
+If the script ran with `sudo`, its folders belong to another user and the
+command above is refused. Take them back first:
+
+```bash
+sudo chown -R "$(whoami)" "/path/to/your/photos"
+```
+
 ---
 
 ## What Argentum adds
