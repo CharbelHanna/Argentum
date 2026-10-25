@@ -853,13 +853,39 @@ fn auto_contrast_threshold(l: &[f32], w: usize, h: usize) -> f32 {
     0.0
 }
 
-/// The last few automatic thresholds, by the image they were measured on.
+/// Which picture a measurement, or a texture sharpened from it, is of.
+///
+/// The buffer's address tells two live images apart, but once one is freed a
+/// later image of the same size can be given the same address - the next
+/// photo of an export, or the next photo opened - and a key of address and
+/// size alone then hands it the first photo's result. So the transform, the
+/// size, the address and a sample of the bytes (4096 of them, spread over the
+/// buffer) go in together.
+pub fn picture_key(image: &DynamicImage, transform_hash: u64) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let bytes = image.as_bytes();
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    transform_hash.hash(&mut h);
+    (
+        image.width(),
+        image.height(),
+        bytes.len(),
+        bytes.as_ptr() as usize,
+    )
+        .hash(&mut h);
+    let step = (bytes.len() / 4096).max(1);
+    for b in bytes.iter().step_by(step) {
+        b.hash(&mut h);
+    }
+    h.finish().max(1)
+}
+
+/// The last few automatic thresholds, by the picture they were measured on.
 ///
 /// A measurement is a full pass over the photo, so it is made once per photo
-/// and crop and not on every frame. Keyed by what identifies the pixels to a
-/// render - their transform hash and size - and the image buffer itself, so a
-/// re-decode of the same photo at the same size is measured again.
-type ContrastKey = (u64, u32, u32, usize);
+/// and crop and not on every frame. Keyed by `picture_key`, and by whether the
+/// pixels are a RAW's linear light, which changes the measurement.
+type ContrastKey = (u64, bool);
 static AUTO_CONTRAST: Mutex<Vec<(ContrastKey, f32)>> = Mutex::new(Vec::new());
 
 /// The masks' thresholds (0..1) for a render - capture's, Sharpen's and each
@@ -911,12 +937,7 @@ pub fn thresholds(
 }
 
 fn measured_threshold(image: &DynamicImage, transform_hash: u64, is_raw: bool) -> f32 {
-    let key = (
-        transform_hash,
-        image.width(),
-        image.height(),
-        image.as_bytes().as_ptr() as usize,
-    );
+    let key = (picture_key(image, transform_hash), is_raw);
     if let Ok(known) = AUTO_CONTRAST.lock()
         && let Some((_, value)) = known.iter().find(|(k, _)| *k == key)
     {
@@ -1343,5 +1364,64 @@ mod tests {
             color(gy, gx - 1) != 1 && color(gy, gx + 1) != 1,
             "and a solitary one"
         );
+    }
+
+    /// Mid-grey with noise of the given strength, as a RAW's linear light.
+    fn grey_with_noise(strength: f32, seed: u32) -> image::Rgb32FImage {
+        let (w, h) = (400u32, 300u32);
+        let mut seed = seed;
+        let samples = (0..w * h)
+            .flat_map(|_| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                let n = (seed >> 8) as f32 / (1u32 << 24) as f32 - 0.5;
+                [0.18 * (1.0 + n * strength); 3]
+            })
+            .collect();
+        image::Rgb32FImage::from_raw(w, h, samples).expect("w x h x 3 samples")
+    }
+
+    /// A photo decoded into the buffer of one measured before it - the same
+    /// size, the same transform (an export passes 0), the same address - is
+    /// measured again rather than handed the first photo's threshold.
+    #[test]
+    fn a_photo_in_a_reused_buffer_gets_its_own_threshold() {
+        let (calm, busy) = (grey_with_noise(0.06, 7), grey_with_noise(0.15, 11));
+        let alone = |buf: &image::Rgb32FImage| {
+            let (l, w, h) = luminance_plane(&DynamicImage::ImageRgb32F(buf.clone()), true);
+            auto_contrast_threshold(&l, w, h)
+        };
+        let (calm_alone, busy_alone) = (alone(&calm), alone(&busy));
+        assert_ne!(
+            calm_alone, busy_alone,
+            "the test is meaningless unless the two photos have different thresholds"
+        );
+
+        let mut photo = DynamicImage::ImageRgb32F(calm);
+        assert_eq!(measured_threshold(&photo, 0, true), calm_alone);
+        let address = photo.as_bytes().as_ptr();
+        // The next photo of the same size lands in the freed buffer.
+        photo
+            .as_mut_rgb32f()
+            .expect("an f32 RGB image")
+            .copy_from_slice(&busy);
+        assert_eq!(
+            photo.as_bytes().as_ptr(),
+            address,
+            "the test is meaningless unless the buffer is the same"
+        );
+        assert_eq!(
+            measured_threshold(&photo, 0, true),
+            busy_alone,
+            "the second photo got the first photo's threshold"
+        );
+    }
+
+    /// The same picture, unchanged, keeps its key, so the cache still serves
+    /// it on every frame; another transform of it does not.
+    #[test]
+    fn the_same_picture_keeps_its_key() {
+        let photo = DynamicImage::ImageRgb32F(grey_with_noise(0.05, 3));
+        assert_eq!(picture_key(&photo, 5), picture_key(&photo, 5));
+        assert_ne!(picture_key(&photo, 5), picture_key(&photo, 6));
     }
 }
