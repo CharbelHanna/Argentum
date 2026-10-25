@@ -83,6 +83,9 @@ Newest first.
   the session is checked with the app's backend before it is selected; when a later key press
   finished first, that earlier answer selected its photo again. The latest choice wins now. From
   RapidRAW `src/hooks/useAppNavigation.ts` @ `ecf7730f`.
+- **Copy settings (Ctrl+C) in the grid copies the active photo,** the one whose settings the Edit
+  tab shows. Before, it copied the photo last clicked or arrowed to, even after that photo was
+  Ctrl-clicked out of the selection. From RapidRAW `src/hooks/useEditorActions.ts` @ `d14e19da`.
 
 ## 26.43.3 — 2026-10-23
 
