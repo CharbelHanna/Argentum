@@ -161,7 +161,8 @@ function MyLenses() {
                 <p className="text-xs text-text-secondary truncate">{lens.maker}</p>
               </div>
               <Switch
-                className="shrink-0"
+                className="shrink-0 gap-3"
+                id={`lens-correct-new-${lens.maker}-${lens.model}`}
                 label={t('gearCorrectNew')}
                 checked={lens.correctNew === true}
                 onChange={(on) => setCorrectNew(i, on)}
