@@ -38,6 +38,16 @@ Newest first.
   `crates/rawmakase-model/src/lens/embedded.rs` (the Nikon reader and its tests), in
   `src-tauri/engine/src/rm_lens_builtin/nikon.rs`; the photo's size, which places the radius, is
   read with rawler.
+- **Nikon Coolpix P950, P1000 and P1100 photos get the camera's own lens correction, on by
+  default.** These cameras store distortion and colour-fringing tables in the NRW (records 2 and 3
+  of its NEFInfo), which Adobe DNG Converter writes as opcodes and Lightroom always applies. The
+  camera's switch in Crop > Lens Correction starts on for such a photo with no edit yet and
+  corrects those two parts from the camera; corner shading comes from the lensfun profile when it
+  has one. The distortion is drawn as a smooth curve through the stored points and scaled to
+  Adobe's framing. The A1000 stores another layout, which is not read. A photo edited before keeps
+  its look until the switch is turned on. From RAWmakase `d37942f` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (`coolpix_tables` and its test), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`.
 
 ### Changed
 

@@ -214,6 +214,34 @@ pub(super) fn nikon_file(model: &str, size: [u32; 2], records: [&str; 4]) -> Vec
     nef(model, size, &records)
 }
 
+/// A P1100's NRW whose NEFInfo holds the Coolpix tables, records 2 and 3.
+pub(super) fn coolpix_file(records: [&str; 2]) -> Vec<u8> {
+    let records: Vec<(u16, Vec<u8>)> = (2..).zip(records).map(|(tag, r)| (tag, hex(r))).collect();
+    nef("COOLPIX P1100", [4624, 3470], &records)
+}
+
+/// DSCN0173.NRW (raw.pixls.us, COOLPIX P1100): NEFInfo records 2 and 3.
+/// RAWmakase's records, as written.
+pub(super) const P1100: [&str; 2] = [
+    "30 31 30 30 03 03 11 01 00 00 00 00 a0 86 01 00 96 03 00 00 a0 86 01 00 58 0e 00 00
+     a0 86 01 00 4c 20 00 00 a0 86 01 00 77 39 00 00 a0 86 01 00 e3 59 00 00 a0 86 01 00
+     9d 81 00 00 a0 86 01 00 b2 b0 00 00 a0 86 01 00 33 e7 00 00 a0 86 01 00 33 25 01 00
+     a0 86 01 00 c7 6a 01 00 a0 86 01 00 06 b8 01 00 a0 86 01 00 06 0d 02 00 a0 86 01 00
+     e1 69 02 00 a0 86 01 00 b0 ce 02 00 a0 86 01 00 8d 3b 03 00 a0 86 01 00 90 b0 03 00
+     a0 86 01 00 00 00 07 91",
+    "30 31 30 30 03 22 01 00 00 00 00 00 64 00 00 00 11 00 00 00 64 00 00 00 23 00 00 00
+     64 00 00 00 34 00 00 00 64 00 00 00 45 00 00 00 64 00 00 00 56 00 00 00 64 00 00 00
+     67 00 00 00 64 00 00 00 78 00 00 00 64 00 00 00 89 00 00 00 64 00 00 00 9a 00 00 00
+     64 00 00 00 aa 00 00 00 64 00 00 00 bb 00 00 00 64 00 00 00 cc 00 00 00 64 00 00 00
+     dd 00 00 00 64 00 00 00 ed 00 00 00 64 00 00 00 ff 00 00 00 64 00 00 00 10 01 00 00
+     64 00 00 00 00 00 00 00 64 00 00 00 08 00 00 00 64 00 00 00 11 00 00 00 64 00 00 00
+     19 00 00 00 64 00 00 00 22 00 00 00 64 00 00 00 2b 00 00 00 64 00 00 00 34 00 00 00
+     64 00 00 00 3d 00 00 00 64 00 00 00 46 00 00 00 64 00 00 00 50 00 00 00 64 00 00 00
+     59 00 00 00 64 00 00 00 63 00 00 00 64 00 00 00 6d 00 00 00 64 00 00 00 77 00 00 00
+     64 00 00 00 80 00 00 00 64 00 00 00 8a 00 00 00 64 00 00 00 93 00 00 00 64 00 00 00
+     00 00 aa 73",
+];
+
 /// 1-Nikon-Z7-RAW-14bit-uncompressed-L.NEF (raw.pixls.us, Z 7, NIKKOR Z
 /// 24-70mm f/4 S at 56mm f/5.6): a lens that needs the correction (mode 3).
 /// RAWmakase's records, as written.

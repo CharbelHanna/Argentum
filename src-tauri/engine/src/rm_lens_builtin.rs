@@ -12,7 +12,8 @@
 //!   parts Lightroom applies (lateral CA, and a compact's distortion).
 //! - `nikon.rs`: the model a Nikon Z writes into a NEF's NEFInfo, on by
 //!   default for a lens that needs it, off for one whose correction is
-//!   optional.
+//!   optional; and the tables a Coolpix P950, P1000 or P1100 writes there,
+//!   on by default.
 //!
 //! `fit.rs` holds the maths more than one reader samples its tables with.
 //!
@@ -398,7 +399,8 @@ fn developed_size_px(file: &[u8]) -> Option<(usize, usize)> {
 #[cfg(test)]
 mod tests {
     use super::test_files::{
-        Z7, Z8, ZV1_CA, ZV1_DIST, ZV1_VIG, digest, dji_file, fuji_file, nikon_file, raf, sony_file,
+        P1100, Z7, Z8, ZV1_CA, ZV1_DIST, ZV1_VIG, coolpix_file, digest, dji_file, fuji_file,
+        nikon_file, raf, sony_file,
     };
     use super::*;
 
@@ -619,6 +621,11 @@ mod tests {
                 "nikon z 8",
                 nikon_file("NIKON Z 8", [8280, 5520], Z8),
                 642_717_243_549_425_641,
+            ),
+            (
+                "coolpix p1100",
+                coolpix_file(P1100),
+                1_898_652_106_414_007_459,
             ),
         ] {
             assert_eq!(digest(&read(&file)), want, "{name}");

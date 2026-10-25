@@ -1,4 +1,4 @@
-//! Nikon's built-in lens correction, read from a NEF.
+//! Nikon's built-in lens correction, read from a NEF or a Coolpix NRW.
 //!
 //! Nikon Z bodies store the camera's distortion, vignetting and lateral CA
 //! model in the raw SubIFD's NEFInfo (tag 0xC7D5, ExifTool's NikonNEFInfo):
@@ -22,26 +22,40 @@
 //! all when the camera's Auto Distortion Control was off. RAWmakase measured
 //! it against Adobe's opcodes and profiles on 101 NEFs, to within 0.4 px.
 //!
+//! A Coolpix P950, P1000 or P1100 NRW's NEFInfo holds distortion and
+//! lateral CA tables in records 2 and 3 instead (`coolpix_tables`), which
+//! Adobe writes as opcodes: on, the camera correcting both. RAWmakase
+//! matched Adobe's warp within 0.55 to 1.2 px on the three bodies' samples.
+//!
 //! FROM RAWMAKASE
 //!
 //! RAWmakase `ae29938` (MIT), `crates/rawmakase-model/src/lens/embedded.rs`:
 //! - the Nikon reader (`nikon`, `descending`, and `make`, IFD0's Make), its
 //!   units, and its tests.
 //!
+//! RAWmakase `d37942f` (MIT), the same file:
+//! - the Coolpix reader (`coolpix_tables`, `COOLPIX_CA_UNIT`), the records
+//!   it is read from, and its test.
+//!
 //! WHAT CHANGED IN THE COPY
 //!
 //! - The NEFInfo and its records are read with rawler's TIFF reader in place
 //!   of `rawmakase-tiff`, and from the file's bytes rather than its path.
-//! - RAWmakase's `default_on` (mode bit 1) becomes this correction's
-//!   `default_on` and `always` (`LensCorrection::always_correcting`): every
-//!   part it has for a lens that needs it, none for an optional one.
+//! - RAWmakase's `default_on` (mode bit 1, and always for the Coolpix
+//!   tables) becomes this correction's `default_on` and `always`
+//!   (`LensCorrection::always_correcting`): every part it has, for a lens
+//!   that needs it and for the Coolpix; none for an optional one.
 //! - Radius 1 is the developed image's half diagonal, as in the other
 //!   readers. The developed image is rawler's raw image at its default crop,
-//!   so its size, read with rawler (`developed_size_px`), stands for both
-//!   RAWmakase's decoded image and its default crop; on the Z 7 and Z 8 they
-//!   are the same 8256 x 5504 crop.
-//! - As in RAWmakase at this commit, the correction is centred on the image;
-//!   the optical centre only sets where radius 1 is.
+//!   so it stands for both RAWmakase's decoded image and its default crop:
+//!   rawler's crops of the Z 7 and Z 8 (8256 x 5504) and of the P950, P1000
+//!   and P1100 (8 and 7 pixels off each side) are the default crops
+//!   RAWmakase's tests use. The Z reader
+//!   reads the size with rawler (`developed_size_px`), which places the
+//!   optical centre's offset; the Coolpix tables are spread to the default
+//!   crop's corner, radius 1 here, and need no size.
+//! - As in RAWmakase at these commits, the correction is centred on the
+//!   image; the optical centre only sets where a Z body's radius 1 is.
 
 use std::io::Cursor;
 
@@ -49,11 +63,17 @@ use rawler::bits::Endian;
 use rawler::formats::tiff::{Entry, IFD, Value};
 use rawler::tags::TiffCommonTag;
 
-use super::fit::knots;
+use super::fit::{knots, spline};
 use super::{LensCorrection, Parts, Radial, SUB_IFDS};
 
 /// NEFInfo, in the raw image's SubIFD.
 pub(super) const NEF_INFO: u16 = 0xc7d5;
+
+/// Red's and blue's displacement from green in a Coolpix CA table, as a
+/// fraction of the half diagonal: measured by RAWmakase against Adobe's
+/// warps of the P950, P1000 and P1100, where it is the same to within 1%.
+// RAWmakase d37942f: crates/rawmakase-model/src/lens/embedded.rs
+const COOLPIX_CA_UNIT: f64 = 1. / 3792.;
 
 /// The value of a polynomial whose coefficients are for descending powers
 /// of `q`, the last for q^1, as Nikon stores them.
@@ -97,11 +117,14 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         (n.get_entry(tag).and_then(stored)).filter(|b| b.len() >= len && b.starts_with(b"0100"))
     };
     let (d, v, ca, centre) = (
-        record(5, 0x48)?,
+        record(5, 0x48),
         record(6, 0x68),
         record(7, 0x58),
         record(8, 0x14),
     );
+    // RAWmakase d37942f: crates/rawmakase-model/src/lens/embedded.rs
+    // Coolpix NRW files hold tables in records 2 and 3 instead.
+    let coolpix = (record(2, 8 + 8 * 17), record(3, 8 + 8 * 34));
     let little = n.endian == Endian::Little;
     let int = |b: &[u8], at: usize| {
         let c = b.get(at..at + 4)?.try_into().ok()?;
@@ -123,6 +146,13 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         (0..n as usize)
             .map(|i| rational(b, at + 4 + 8 * i))
             .collect()
+    };
+    // RAWmakase d37942f: crates/rawmakase-model/src/lens/embedded.rs
+    let Some(d) = d else {
+        let (Some(distortion), Some(ca)) = coolpix else {
+            return None;
+        };
+        return coolpix_tables(distortion, ca, &rational);
     };
     // Bit 0 of the mode is the camera's Auto Distortion Control, bit 1 a lens
     // that needs the correction. Adobe applies nothing, not even vignetting,
@@ -189,9 +219,72 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
     Some(lens.always_correcting(always))
 }
 
+/// A Coolpix NRW's tables (P950, P1000, P1100): record 2, after "0100" and
+/// the header bytes 3 3 17 1, holds 17 rationals, the distortion in percent
+/// at radii spread evenly from the centre to the default crop's corner
+/// (green's source radius over the output radius is 1 + d/100, through a
+/// natural spline); record 3, after 3 34 1 0, red's and then blue's
+/// displacement from green at the same radii, 17 each. The A1000's record 2
+/// has another header and is not read.
+// RAWmakase d37942f: crates/rawmakase-model/src/lens/embedded.rs
+fn coolpix_tables(
+    distortion: &[u8],
+    ca: &[u8],
+    rational: &dyn Fn(&[u8], usize) -> Option<f64>,
+) -> Option<LensCorrection> {
+    let table = |b: &[u8], header: [u8; 4], n: usize| -> Option<Vec<f64>> {
+        if b.get(4..8)? != header {
+            return None;
+        }
+        (0..n).map(|i| rational(b, 8 + 8 * i)).collect()
+    };
+    let d: Vec<f64> = table(distortion, [3, 3, 17, 1], 17)?
+        .iter()
+        .map(|d| 1. + d / 100.)
+        .collect();
+    let ca = table(ca, [3, 34, 1, 0], 34);
+    // The tables' radius 1, the default crop's corner, is the developed
+    // image's.
+    let curve = |f: &dyn Fn(f64) -> f64| {
+        let values = knots().into_iter().map(|r| f(f64::from(r)) as f32);
+        Radial::new(knots(), values.collect())
+    };
+    let ratio = spline(&d);
+    // Scaled, as Adobe's warp is, so the widest ratio out to the corner is 1.
+    let widest = (0..=64)
+        .map(|i| ratio(f64::from(i) / 64.))
+        .fold(1., f64::max);
+    let changes = |r: &Radial, by: f32| r.values.iter().any(|v| (v - 1.).abs() > by);
+    let distortion = curve(&|q| ratio(q) / widest).filter(|r| changes(r, 1e-6));
+    // A displacement at green's source radius, as a scale of it at the output
+    // radius.
+    let chromatic = ca
+        .and_then(|ca| {
+            let plane = |t: &[f64]| {
+                let shift = spline(t);
+                curve(&|q| {
+                    let q = q.max(1. / 64.);
+                    1. + shift(q) * COOLPIX_CA_UNIT / (q * ratio(q))
+                })
+            };
+            Some([plane(&ca[..17])?, plane(&ca[17..])?])
+        })
+        .filter(|[a, b]| changes(a, 1e-7) || changes(b, 1e-7));
+    let lens = LensCorrection {
+        source: "Nikon built-in".into(),
+        default_on: false,
+        vignetting: None,
+        distortion,
+        chromatic,
+        always: None,
+    };
+    // Adobe writes them as its DNGs' opcodes, which always apply.
+    Some(lens.always_correcting(Parts::ALL))
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::rm_lens_builtin::test_files::{Z7, Z8, nikon_file};
+    use crate::rm_lens_builtin::test_files::{P1100, Z7, Z8, coolpix_file, nikon_file};
     // The registry's `read`, as the app calls it.
     use crate::rm_lens_builtin::{Amounts, LensCorrection, Parts, developed_size_px, read};
 
@@ -323,6 +416,51 @@ mod tests {
                 1. / ours
             );
         }
+    }
+
+    /// Against the warp Adobe DNG Converter 18.7 writes for the P1100 file,
+    /// radius 1 at the 4624 x 3470 image's corner. rawler develops its
+    /// 4608 x 3456 default crop, centred on the same point.
+    #[test]
+    fn reads_coolpix_tables_as_adobe_does() {
+        let c = read(&coolpix_file(P1100)).unwrap();
+        assert!(c.default_on && c.vignetting.is_none());
+        // The camera corrects both parts it stores; lensfun the shading.
+        assert_eq!(
+            c.always,
+            Some(Parts {
+                vignetting: false,
+                ..Parts::ALL
+            })
+        );
+        // Only red's CA, past the corner as in Adobe's warp, zooms in at all.
+        assert!(c.fill_scale_with(Amounts::FULL) > 0.999);
+        let warp = [
+            [
+                0.9770807182516118,
+                0.02199974273005716,
+                0.0017052145920701364,
+                9.575715160584196e-05,
+            ],
+            [
+                0.9763794594830819,
+                0.02202587112403992,
+                0.0016701011495196144,
+                0.00010085923996837375,
+            ],
+            [
+                0.9767193908434475,
+                0.022103375850249615,
+                0.0016335961178098911,
+                0.00010094050312599621,
+            ],
+        ];
+        let unit = 2312f64.hypot(1735.);
+        let off = largest_difference(&c, [4608., 3456.], &|ch, px| adobe(warp[ch], unit, px));
+        assert!(off < 0.75, "{off} px from Adobe's warp");
+        // The A1000's layout (header 3 2 17 1) is not read.
+        let a1000 = P1100[0].replacen("03 03 11 01", "03 02 11 01", 1);
+        assert!(read(&coolpix_file([&a1000, P1100[1]])).is_none());
     }
 
     #[test]
