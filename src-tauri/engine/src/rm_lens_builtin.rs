@@ -1,24 +1,14 @@
 //! A camera's built-in lens correction: the per-shot tables it stores in the
 //! RAW for the lens on the camera, at the focal length and aperture used.
 //!
-//! Fujifilm writes distortion, lateral chromatic aberration and vignetting
-//! into every RAF (FujiIFD tags 0xF00B, 0xF00F and 0xF010), and Lightroom
-//! applies them by default as the "built-in lens profile". rawler reads the
-//! FujiIFD for its own decode and none of these, so without this a Fujifilm
-//! photo keeps the darker corners and the colour fringes the camera's JPEG
-//! has already corrected.
+//! This file holds the model (`Radial`, `LensCorrection`, `Amounts`,
+//! `LensMap`) and `read`, which asks each make's reader in turn. A make is
+//! one file in `rm_lens_builtin/`, naming its own source, and one line in
+//! `read`:
 //!
-//! Sony writes the same three into an ARW's raw SubIFD (0x7032 vignetting,
-//! 0x7035 CA, 0x7037 distortion). Lightroom has not been shown to apply
-//! them, so they start off. Sony's tables carry the camera's own framing
-//! (a ZV-1's distortion is 1.077 at the centre), so they are filled only as
-//! far as the photo's edge needs, which keeps the camera's crop.
-//!
-//! A DNG records the corrections Lightroom applies as opcodes:
-//! FixVignetteRadial (a gain over radius) and WarpRectilinear (a radial
-//! remap per colour plane). Cameras that write DNGs (Leica, DJI's drones,
-//! phones) and Lightroom's own DNGs carry them. On, as Lightroom applies
-//! them.
+//! - `fuji.rs`: the tables Fujifilm writes into every RAF, on by default.
+//! - `dng.rs`: a DNG's lens opcodes, on by default.
+//! - `sony.rs`: the tables Sony writes into an ARW, off by default.
 //!
 //! FROM RAWMAKASE
 //!
@@ -26,12 +16,6 @@
 //! - `crates/rawmakase-model/src/optics/mod.rs`: `Radial`, `LensCorrection`,
 //!   `radial_scale_with`, `fill_scale_with` and `fill_scale_within`, as
 //!   written.
-//! - `crates/rawmakase-model/src/lens/embedded.rs`: the Fujifilm and Sony
-//!   readers, their units, the 0.85 Fujifilm vignetting strength, and their
-//!   tests.
-//! - `crates/rawmakase-model/src/dng.rs`: the FixVignetteRadial and
-//!   WarpRectilinear readers (radial terms only, centred within 0.02,
-//!   sampled at 33 radii), and their test.
 //! - `crates/rawmakase-engine/src/develop/image_space.rs`: `LensMap`'s
 //!   position map, its Newton inverse, and which fill each source takes
 //!   (RAWmakase #533).
@@ -41,9 +25,6 @@
 //!
 //! WHAT CHANGED IN THE COPY
 //!
-//! - The tables are read with rawler's TIFF reader, as `raf.rs` reads the
-//!   FujiIFD, in place of `rawmakase-tiff`, and from the file's bytes rather
-//!   than its path.
 //! - The amounts are the app's three Lens Correction sliders: distortion and
 //!   vignetting as RAWmakase applies Lightroom's (the radial scale moved by
 //!   the amount, the gain raised to it), and lateral CA moved the same way as
@@ -54,43 +35,14 @@
 //!   crops an ARW to its DefaultCrop, which is the camera's aspect-ratio crop
 //!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
 //!   `camera_crop` describes; the sensor beyond it is not there to sample.
-//! - FixVignetteRadial is read from OpcodeList2 and, when that has none,
-//!   from OpcodeList3: DJI's drones write it there, where RAWmakase does not
-//!   look. Both lists apply before the warp, and a gain is the same in
-//!   either. The lists come through `dng_opcodes.rs`, shared with the gain
-//!   maps.
-//! - A DNG's `source` is "DNG", the word the switch shows, where RAWmakase
-//!   writes "DNG opcodes".
-//! - A DNG's radius is over its raw image; the developed image here is its
-//!   DefaultCrop, a few pixels smaller on the files seen.
 
-use std::io::Cursor;
-
-use rawler::formats::tiff::IFD;
-use rawler::tags::DngTag;
 use serde::{Deserialize, Serialize};
 
-/// FujiIFD, in the TIFF a RAF's header points to.
-const FUJI_IFD: u16 = 0xf000;
-const FUJI_DISTORTION: u16 = 0xf00b;
-const FUJI_CHROMATIC: u16 = 0xf00f;
-const FUJI_VIGNETTING: u16 = 0xf010;
-/// Where a RAF's header holds the offset of that TIFF, big-endian.
-const RAF_TIFF_POINTER: usize = 100;
-/// SubIFDs: an ARW's raw image directory is the first.
-const SUB_IFDS: u16 = 0x14a;
-const SONY_VIGNETTING: u16 = 0x7032;
-const SONY_CHROMATIC: u16 = 0x7035;
-const SONY_DISTORTION: u16 = 0x7037;
-
-/// Lightroom renders Fujifilm's vignetting table about 15% weaker in log
-/// gain: corners of three X100F photos match Camera Raw at this exponent
-/// (+0.08 EV at the corner at full strength). RAWmakase's measurement.
-const FUJI_VIGNETTE_STRENGTH: f32 = 0.85;
-
-/// DNG opcode IDs (DNG Specification 1.7.1.0, chapter 7).
-const WARP_RECTILINEAR: u32 = 1;
-const FIX_VIGNETTE_RADIAL: u32 = 3;
+mod dng;
+mod fuji;
+mod sony;
+#[cfg(test)]
+mod test_files;
 
 /// A radial function sampled at increasing radii. Radius 0 is the image
 /// centre and 1 is half of the image diagonal. Values are linearly
@@ -351,298 +303,26 @@ impl<'a> LensMap<'a> {
 
 /// The built-in correction a RAW carries. `None` for a file of another
 /// format, one that stored no correction, or tables that do not parse.
+/// One line per make, asked in this order; each reader answers only for
+/// its own format.
 pub fn read(file: &[u8]) -> Option<LensCorrection> {
-    let c = if file.starts_with(b"FUJIFILMCCD-RAW") {
-        fuji(file)
-    } else if file.starts_with(b"II*\0") || file.starts_with(b"MM\0*") {
-        dng(file).or_else(|| sony(file))
-    } else {
-        None
-    }?;
+    let c = fuji::read(file)
+        .or_else(|| dng::read(file))
+        .or_else(|| sony::read(file))?;
     (!c.is_empty() && c.validate()).then_some(c)
 }
 
-/// Fujifilm's tables are signed rationals. The first value is a pixel scale;
-/// knots are fractions of the half diagonal, distortion is in percent, CA a
-/// radius fraction, vignetting the remaining illumination in percent.
-fn fuji(file: &[u8]) -> Option<LensCorrection> {
-    let pointer = file.get(RAF_TIFF_POINTER..RAF_TIFF_POINTER + 4)?;
-    let base = u32::from_be_bytes(pointer.try_into().ok()?);
-    let mut reader = Cursor::new(file);
-    let root = IFD::new_root_with_correction(&mut reader, 0, base, 0, 1, &[]).ok()?;
-    // Fujifilm writes the FujiIFD pointer as TIFF type 13 (IFD), which rawler
-    // keeps as a single byte. The offset is the entry's four bytes.
-    let at = base as usize + root.get_entry(FUJI_IFD)?.offset()?;
-    file.get(at..at + 4)?;
-    let offset = root.endian.read_u32(file, at);
-    let fuji = IFD::new(&mut reader, offset, base, 0, root.endian, &[]).ok()?;
-    let numbers = |tag: u16| -> Option<Vec<f32>> {
-        let v = &fuji.get_entry(tag)?.value;
-        (0..v.count())
-            .map(|i| v.get_f32(i).ok().flatten())
-            .collect()
-    };
-    // [scale, n knots, n values]
-    let pairs = |v: &[f32], f: &dyn Fn(f32) -> f32| {
-        let n = v.len().checked_sub(1)? / 2;
-        (n >= 2 && v.len() == 2 * n + 1).then(|| {
-            Radial::new(
-                v[1..=n].to_vec(),
-                v[n + 1..].iter().map(|x| f(*x)).collect(),
-            )
-        })?
-    };
-    let vignetting = numbers(FUJI_VIGNETTING)
-        .and_then(|v| pairs(&v, &|p| (100. / p).powf(FUJI_VIGNETTE_STRENGTH)))
-        .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-4));
-    let distortion = numbers(FUJI_DISTORTION)
-        .and_then(|v| pairs(&v, &|p| 1. + p / 100.))
-        .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-6));
-    // [scale, n knots, n red, n blue]
-    let chromatic = numbers(FUJI_CHROMATIC).and_then(|v| {
-        let n = v.len().checked_sub(1)? / 3;
-        if n < 2 || v.len() != 3 * n + 1 {
-            return None;
-        }
-        let knots = v[1..=n].to_vec();
-        let red = Radial::new(
-            knots.clone(),
-            v[n + 1..=2 * n].iter().map(|x| 1. + x).collect(),
-        )?;
-        let blue = Radial::new(knots, v[2 * n + 1..].iter().map(|x| 1. + x).collect())?;
-        [&red, &blue]
-            .iter()
-            .any(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-7))
-            .then_some([red, blue])
-    });
-    Some(LensCorrection {
-        source: "Fujifilm built-in".into(),
-        default_on: true,
-        vignetting,
-        distortion,
-        chromatic,
-    })
-}
-
-/// Sony's tables are signed shorts led by the number of values and padded
-/// with zeros to a fixed length (ZV-1: 11 distortion knots in 16 slots).
-/// Knots are spread evenly from the centre to the corner. Distortion is in
-/// 2^-14, CA in 2^-21 units; vignetting v restores 2^(2^(v/8192 - 1) - 0.5).
-fn sony(file: &[u8]) -> Option<LensCorrection> {
-    let root =
-        IFD::new_root_with_correction(&mut Cursor::new(file), 0, 0, 0, 1, &[SUB_IFDS]).ok()?;
-    let sub = root.get_sub_ifd_all(SUB_IFDS)?.first()?;
-    let numbers = |tag: u16| -> Option<Vec<f32>> {
-        let v = &sub.get_entry(tag)?.value;
-        (0..v.count())
-            .map(|i| v.get_f32(i).ok().flatten())
-            .collect()
-    };
-    let knots = |n: usize| {
-        (0..n)
-            .map(|i| i as f32 / (n - 1) as f32)
-            .collect::<Vec<_>>()
-    };
-    // The count's values, from storage that may be longer: a ZV-1 stores 11
-    // distortion knots in 16 slots. Anything stored past the count must be
-    // zero padding.
-    let counted = |v: Option<Vec<f32>>, per_count: usize| {
-        let v = v?;
-        let count = *v.first()? as usize;
-        let values = v.get(1..=count)?;
-        (count >= 2 * per_count
-            && count.is_multiple_of(per_count)
-            && v[count + 1..].iter().all(|x| *x == 0.))
-        .then(|| values.to_vec())
-    };
-    let single = |v: Option<Vec<f32>>, f: &dyn Fn(f32) -> f32| {
-        let v = counted(v, 1)?;
-        Radial::new(knots(v.len()), v.iter().map(|x| f(*x)).collect())
-    };
-    let vignetting = single(numbers(SONY_VIGNETTING), &|v| {
-        (2f32.powf(v / 8192. - 1.) - 0.5).exp2()
-    })
-    .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-4));
-    let distortion = single(numbers(SONY_DISTORTION), &|d| 1. + d / 16384.)
-        .filter(|r| r.values.iter().any(|v| (v - 1.).abs() > 1e-6));
-    let chromatic = counted(numbers(SONY_CHROMATIC), 2).and_then(|v| {
-        let n = v.len() / 2;
-        let scale = |s: &[f32]| s.iter().map(|x| 1. + x / 2_097_152.).collect();
-        Some([
-            Radial::new(knots(n), scale(&v[..n]))?,
-            Radial::new(knots(n), scale(&v[n..]))?,
-        ])
-    });
-    Some(LensCorrection {
-        source: LensCorrection::SONY_BUILTIN.into(),
-        // Not yet compared with Lightroom, which may apply its own profile instead.
-        default_on: false,
-        vignetting,
-        distortion,
-        chromatic,
-    })
-}
-
-/// A DNG's FixVignetteRadial and WarpRectilinear; `None` for a file that is
-/// not a DNG or has neither.
-fn dng(file: &[u8]) -> Option<LensCorrection> {
-    let first = |tag: DngTag, id: u32| -> Option<Vec<u8>> {
-        let list = crate::dng_opcodes::list(file, tag)?;
-        let ops = crate::dng_opcodes::opcodes(&list)?;
-        ops.into_iter()
-            .find(|op| op.id == id)
-            .map(|op| op.params.to_vec())
-    };
-    let vignetting = [DngTag::OpcodeList2, DngTag::OpcodeList3]
-        .into_iter()
-        .find_map(|tag| first(tag, FIX_VIGNETTE_RADIAL))
-        .and_then(|p| vignette(&p));
-    let (distortion, chromatic) = first(DngTag::OpcodeList3, WARP_RECTILINEAR)
-        .and_then(|p| warp(&p))
-        .unwrap_or((None, None));
-    let lens = LensCorrection {
-        source: "DNG".into(),
-        default_on: true,
-        vignetting,
-        distortion,
-        chromatic,
-    };
-    (!lens.is_empty()).then_some(lens)
-}
-
-fn doubles(p: &[u8]) -> Vec<f64> {
-    p.as_chunks::<8>()
-        .0
-        .iter()
-        .map(|c| f64::from_be_bytes(*c))
-        .collect()
-}
-
-/// Radius samples; the opcode radius, like ours, is 1 at the farthest corner
-/// from the optical centre, which must be near the image centre.
-fn dng_knots() -> Vec<f32> {
-    (0..=32).map(|i| i as f32 / 32.).collect()
-}
-
-fn centred(cx: f64, cy: f64) -> bool {
-    (cx - 0.5).abs() < 0.02 && (cy - 0.5).abs() < 0.02
-}
-
-/// FixVignetteRadial: gain 1 + k0 r^2 + k1 r^4 + k2 r^6 + k3 r^8 + k4 r^10.
-fn vignette(p: &[u8]) -> Option<Radial> {
-    let v = doubles(p);
-    if v.len() != 7 || !centred(v[5], v[6]) {
-        return None;
-    }
-    let values = dng_knots()
-        .iter()
-        .map(|r| {
-            let r2 = f64::from(*r * *r);
-            (1. + (0..5).map(|i| v[i] * r2.powi(i as i32 + 1)).sum::<f64>()) as f32
-        })
-        .collect();
-    let r = Radial {
-        knots: dng_knots(),
-        values,
-    };
-    r.values.iter().any(|g| (g - 1.).abs() > 1e-4).then_some(r)
-}
-
-/// WarpRectilinear: source radius ratio kr0 + kr1 r^2 + kr2 r^4 + kr3 r^6 per
-/// plane. Tangential terms are ignored.
-fn warp(p: &[u8]) -> Option<(Option<Radial>, Option<[Radial; 2]>)> {
-    let planes = u32::from_be_bytes(p.get(..4)?.try_into().ok()?) as usize;
-    let v = doubles(p.get(4..)?);
-    if !matches!(planes, 1 | 3)
-        || v.len() != planes * 6 + 2
-        || !centred(v[planes * 6], v[planes * 6 + 1])
-    {
-        return None;
-    }
-    let ratio = |plane: usize, r: f32| {
-        let k = &v[plane * 6..plane * 6 + 4];
-        let r2 = f64::from(r * r);
-        (k[0] + k[1] * r2 + k[2] * r2 * r2 + k[3] * r2 * r2 * r2) as f32
-    };
-    let green = if planes == 3 { 1 } else { 0 };
-    let curve = |f: &dyn Fn(f32) -> f32| Radial {
-        knots: dng_knots(),
-        values: dng_knots().into_iter().map(f).collect(),
-    };
-    let distortion = curve(&|r| ratio(green, r));
-    let chromatic = (planes == 3).then(|| {
-        [
-            curve(&|r| ratio(0, r) / ratio(1, r)),
-            curve(&|r| ratio(2, r) / ratio(1, r)),
-        ]
-    });
-    let changes = |r: &Radial| r.values.iter().any(|v| (v - 1.).abs() > 1e-6);
-    Some((
-        Some(distortion).filter(changes),
-        chromatic.filter(|[a, b]| changes(a) || changes(b)),
-    ))
+/// A TIFF's first bytes, little- or big-endian: how a DNG and an ARW begin.
+fn is_tiff(file: &[u8]) -> bool {
+    file.starts_with(b"II*\0") || file.starts_with(b"MM\0*")
 }
 
 #[cfg(test)]
 mod tests {
+    use super::test_files::{
+        ZV1_CA, ZV1_DIST, ZV1_VIG, digest, dji_file, fuji_file, raf, sony_file,
+    };
     use super::*;
-
-    /// (tag, type, count, data)
-    type Entry = (u16, u16, u32, Vec<u8>);
-
-    /// Little-endian TIFF with the given directories, each pointed to by the
-    /// previous one's first entry. RAWmakase's builder, as written.
-    fn tiff(dirs: &[Vec<Entry>]) -> Vec<u8> {
-        let mut out = b"II*\0\x08\0\0\0".to_vec();
-        for (d, entries) in dirs.iter().enumerate() {
-            let start = out.len();
-            let data_start = start + 2 + entries.len() * 12 + 4;
-            let mut data: Vec<u8> = Vec::new();
-            out.extend((entries.len() as u16).to_le_bytes());
-            for (tag, kind, count, bytes) in entries {
-                out.extend(tag.to_le_bytes());
-                out.extend(kind.to_le_bytes());
-                out.extend(count.to_le_bytes());
-                if bytes.len() <= 4 {
-                    let mut v = bytes.clone();
-                    v.resize(4, 0);
-                    out.extend(v);
-                } else {
-                    out.extend(((data_start + data.len()) as u32).to_le_bytes());
-                    data.extend(bytes);
-                }
-            }
-            out.extend(0u32.to_le_bytes());
-            out.extend(data);
-            // A pointer entry value of 0 is patched to the next directory.
-            if d + 1 < dirs.len() {
-                let next = out.len() as u32;
-                let value = start + 2 + 8;
-                out[value..value + 4].copy_from_slice(&next.to_le_bytes());
-            }
-        }
-        out
-    }
-
-    fn rationals(v: &[f64]) -> Vec<u8> {
-        v.iter()
-            .flat_map(|x| {
-                let n = (*x * 1_000_000.).round() as i32;
-                [n.to_le_bytes(), 1_000_000i32.to_le_bytes()].concat()
-            })
-            .collect()
-    }
-
-    /// A RAF whose FujiIFD holds `entries`, its pointer of type 13 (IFD) as
-    /// Fujifilm writes it.
-    fn raf(entries: Vec<Entry>) -> Vec<u8> {
-        let fuji = tiff(&[vec![(FUJI_IFD, 13, 1, vec![0; 4])], entries]);
-        let mut raf = b"FUJIFILMCCD-RAW 0201FF383501".to_vec();
-        raf.resize(128, 0);
-        raf[RAF_TIFF_POINTER..RAF_TIFF_POINTER + 4].copy_from_slice(&128u32.to_be_bytes());
-        raf.extend(fuji);
-        raf
-    }
 
     #[test]
     fn radial_interpolates_and_clamps() {
@@ -705,42 +385,6 @@ mod tests {
         }
     }
 
-    /// A RAF with vignetting, CA on red and an identity distortion.
-    fn fuji_file() -> Vec<u8> {
-        let knots: Vec<f64> = (0..=10).map(|i| i as f64 / 10.).collect();
-        let mut vig = vec![327.7];
-        vig.extend(&knots);
-        vig.extend([
-            100., 99.5, 98.8, 97.5, 95.4, 92.2, 87.7, 82.4, 75.8, 68.3, 60.4,
-        ]);
-        let mut dist = vec![327.7];
-        dist.extend(&knots);
-        dist.extend(std::iter::repeat_n(0., 11));
-        let mut ca = vec![327.7];
-        ca.extend(&knots);
-        ca.extend((0..=10).map(|i| i as f64 * 1e-4));
-        ca.extend(std::iter::repeat_n(0., 11));
-        raf(vec![
-            (FUJI_DISTORTION, 10, 23, rationals(&dist)),
-            (FUJI_CHROMATIC, 10, 34, rationals(&ca)),
-            (FUJI_VIGNETTING, 10, 23, rationals(&vig)),
-        ])
-    }
-
-    #[test]
-    fn reads_fujifilm_raf_tables() {
-        let c = read(&fuji_file()).unwrap();
-        assert!(c.default_on);
-        assert!(c.distortion.is_none(), "identity distortion is omitted");
-        let v = c.vignetting.as_ref().unwrap();
-        let gain = |p: f32| (100. / p).powf(FUJI_VIGNETTE_STRENGTH);
-        assert!((v.eval(1.) - gain(60.4)).abs() < 1e-4);
-        assert!((v.eval(0.85) - (gain(75.8) + gain(68.3)) / 2.).abs() < 1e-4);
-        let [red, blue] = c.chromatic.as_ref().unwrap();
-        assert!((red.eval(1.) - 1.001).abs() < 1e-6);
-        assert_eq!(blue.eval(1.), 1.);
-    }
-
     #[test]
     fn unsupported_or_truncated_files_have_no_correction() {
         let mut header_only = b"FUJIFILMCCD-RAW 0201FF383501".to_vec();
@@ -755,180 +399,6 @@ mod tests {
         }
         // A RAF whose FujiIFD has no tables.
         assert!(read(&raf(vec![(0xf001, 4, 1, vec![1, 0, 0, 0])])).is_none());
-    }
-
-    /// A real RAF (AG_RAW): its tables at a few radii, and the zoom that
-    /// keeps the corners inside. Prints; asserts only that one was read.
-    /// An opcode list holding `ops` (id, parameters), big-endian.
-    fn opcode_list(ops: &[(u32, Vec<u8>)]) -> Vec<u8> {
-        let mut b = (ops.len() as u32).to_be_bytes().to_vec();
-        for (id, params) in ops {
-            for v in [*id, 0x0103_0000, 0, params.len() as u32] {
-                b.extend(v.to_be_bytes());
-            }
-            b.extend(params);
-        }
-        b
-    }
-
-    fn be(v: &[f64]) -> Vec<u8> {
-        v.iter().flat_map(|x| x.to_be_bytes()).collect()
-    }
-
-    #[test]
-    fn decodes_vignette_and_warp_opcodes() {
-        // DSCF7853's FixVignetteRadial from Lightroom's DNG (RAWmakase's test).
-        let p = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
-        let v = vignette(&p).unwrap();
-        assert!((v.eval(1.) - 1.67).abs() < 0.01);
-        assert!((v.eval(0.5) - 1.087).abs() < 0.002);
-        let mut w = 3u32.to_be_bytes().to_vec();
-        w.extend(be(&[1.0002, 0.0005, 0., 0., 0., 0.]));
-        w.extend(be(&[1., 0., 0., 0., 0., 0.]));
-        w.extend(be(&[1., 0., 0., 0., 0., 0.]));
-        w.extend(be(&[0.5, 0.5]));
-        let (distortion, chromatic) = warp(&w).unwrap();
-        assert!(distortion.is_none());
-        let [red, blue] = chromatic.unwrap();
-        assert!((red.eval(1.) - 1.0007).abs() < 1e-5);
-        assert_eq!(blue.eval(1.), 1.);
-        // Off-centre corrections are not representable and are skipped.
-        assert!(vignette(&be(&[0.2, 0., 0., 0., 0., 0.3, 0.5])).is_none());
-    }
-
-    /// A DNG as DJI writes it: vignetting and warp in OpcodeList3, a gain map
-    /// after them.
-    fn dji_file() -> Vec<u8> {
-        let vig = be(&[0.2599, 0.3424, 0.0630, 0.0346, -0.0300, 0.5, 0.5]);
-        let mut w = 1u32.to_be_bytes().to_vec();
-        w.extend(be(&[1., -0.06, 0., 0., 0., 0., 0.5, 0.5]));
-        let list3 = opcode_list(&[(3, vig), (1, w), (9, vec![0; 8])]);
-        tiff(&[
-            vec![
-                (SUB_IFDS, 4, 1, vec![0; 4]),
-                (50706, 1, 4, vec![1, 4, 0, 0]),
-            ],
-            vec![
-                (254, 4, 1, vec![0; 4]),
-                (51022, 7, list3.len() as u32, list3),
-            ],
-        ])
-    }
-
-    #[test]
-    fn reads_a_dngs_opcodes_with_the_vignetting_in_either_list() {
-        let c = read(&dji_file()).unwrap();
-        assert_eq!(c.source, "DNG");
-        assert!(c.default_on);
-        assert!((c.vignetting.as_ref().unwrap().eval(1.) - 1.67).abs() < 0.01);
-        assert!((c.distortion.as_ref().unwrap().eval(1.) - 0.94).abs() < 1e-5);
-        assert!(c.chromatic.is_none(), "one plane has no CA");
-        // The whole frame's corners, not Sony's camera frame.
-        assert_eq!(
-            LensMap::new(&c, 300., 200., Amounts::FULL).fill,
-            c.fill_scale_with(Amounts::FULL)
-        );
-        // Without its DNGVersion it is not a DNG, and has no Sony tables either.
-        let not_dng = tiff(&[
-            vec![(SUB_IFDS, 4, 1, vec![0; 4])],
-            vec![(51022, 7, 4, vec![0; 4])],
-        ]);
-        assert!(read(&not_dng).is_none());
-    }
-
-    fn shorts(v: &[i16]) -> Vec<u8> {
-        v.iter().flat_map(|x| x.to_le_bytes()).collect()
-    }
-
-    /// An ARW-like TIFF whose first SubIFD holds Sony's three tables.
-    fn sony_file(vig: &[i16], ca: &[i16], dist: &[i16]) -> Vec<u8> {
-        let entry = |tag, v: &[i16]| (tag, 8, v.len() as u32, shorts(v));
-        tiff(&[
-            vec![(SUB_IFDS, 4, 1, vec![0; 4])],
-            vec![
-                entry(SONY_VIGNETTING, vig),
-                entry(SONY_CHROMATIC, ca),
-                entry(SONY_DISTORTION, dist),
-            ],
-        ])
-    }
-
-    /// A ZV-1 stores fewer knots than its fixed 16 (CA: 32) slots, padded
-    /// with zeros (RAWmakase #403).
-    const ZV1_VIG: [i16; 17] = [
-        16, 0, 0, 0, 15, 63, 193, 413, 715, 1107, 1576, 2126, 2749, 3443, 4523, 5509, 6639,
-    ];
-    const ZV1_CA: [i16; 33] = [
-        22, 0, 256, 384, 128, 128, 256, 384, 640, 896, 1152, 1408, 0, 1280, 1664, 1664, 1280, 896,
-        512, 256, 128, 0, 256, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
-    const ZV1_DIST: [i16; 17] = [
-        11, 1265, 1218, 1083, 860, 562, 209, -179, -580, -972, -1353, -1725, 0, 0, 0, 0, 0,
-    ];
-
-    #[test]
-    fn reads_sony_subifd_tables() {
-        let mut vig = vec![16i16];
-        vig.extend((0..16).map(|i| i * 800));
-        let mut dist = vec![16i16];
-        dist.extend((0..16).map(|i| i * 10));
-        let mut ca = vec![32i16];
-        ca.extend(std::iter::repeat_n(-384, 16));
-        ca.extend(std::iter::repeat_n(0, 16));
-        let c = read(&sony_file(&vig, &ca, &dist)).unwrap();
-        assert!(!c.default_on);
-        assert_eq!(c.source, LensCorrection::SONY_BUILTIN);
-        let v = c.vignetting.as_ref().unwrap();
-        assert!((v.eval(0.) - 1.).abs() < 1e-6);
-        let corner = 2f32.powf(2f32.powf(12000. / 8192. - 1.) - 0.5);
-        assert!((v.eval(1.) - corner).abs() < 1e-5);
-        assert!((c.distortion.as_ref().unwrap().eval(1.) - (1. + 150. / 16384.)).abs() < 1e-6);
-        let [red, blue] = c.chromatic.as_ref().unwrap();
-        assert!((red.eval(0.5) - (1. - 384. / 2_097_152.)).abs() < 1e-7);
-        assert_eq!(blue.eval(0.5), 1.);
-    }
-
-    #[test]
-    fn reads_sony_tables_padded_to_fixed_slots() {
-        let c = read(&sony_file(&ZV1_VIG, &ZV1_CA, &ZV1_DIST)).unwrap();
-        let dist = c.distortion.as_ref().unwrap();
-        assert_eq!(dist.knots.len(), 11);
-        assert_eq!(dist.knots[1], 0.1);
-        assert!((dist.eval(0.) - (1. + 1265. / 16384.)).abs() < 1e-6);
-        assert!((dist.eval(1.) - (1. - 1725. / 16384.)).abs() < 1e-6);
-        let [red, blue] = c.chromatic.as_ref().unwrap();
-        assert_eq!(red.knots.len(), 11);
-        assert!((red.eval(1.) - (1. + 1408. / 2_097_152.)).abs() < 1e-7);
-        assert!((blue.eval(0.1) - (1. + 1280. / 2_097_152.)).abs() < 1e-7);
-        assert!((blue.eval(1.) - (1. + 256. / 2_097_152.)).abs() < 1e-7);
-        assert_eq!(c.vignetting.as_ref().unwrap().knots.len(), 16);
-    }
-
-    #[test]
-    fn rejects_malformed_sony_tables() {
-        fn with<const N: usize>(mut v: [i16; N], i: usize, x: i16) -> [i16; N] {
-            v[i] = x;
-            v
-        }
-        for (name, dist, ca) in [
-            (
-                "data past the count",
-                with(ZV1_DIST, 16, 1),
-                with(ZV1_CA, 32, 1),
-            ),
-            (
-                "count past the stored values",
-                with(ZV1_DIST, 0, 17),
-                with(ZV1_CA, 0, 34),
-            ),
-            ("a single knot", with(ZV1_DIST, 0, 1), with(ZV1_CA, 0, 2)),
-        ] {
-            let c = read(&sony_file(&ZV1_VIG, &ca, &dist)).unwrap();
-            assert!(c.distortion.is_none() && c.chromatic.is_none(), "{name}");
-        }
-        let odd = with(ZV1_CA, 0, 21);
-        let c = read(&sony_file(&ZV1_VIG, &odd, &ZV1_DIST)).unwrap();
-        assert!(c.chromatic.is_none(), "odd CA count");
     }
 
     #[test]
@@ -1048,43 +518,6 @@ mod tests {
             map.fill,
             c.fill_scale_with(Amounts::FULL)
         );
-    }
-
-    /// What `c` serializes to, every number to seven significant digits, as
-    /// one FNV-1a hash: exact enough to catch any change to a reader, loose
-    /// enough to ignore a platform's last-bit difference in `powf`.
-    fn digest(c: &Option<LensCorrection>) -> u64 {
-        fn walk(v: &serde_json::Value, out: &mut String) {
-            match v {
-                serde_json::Value::Number(n) => {
-                    out.push_str(&format!("{:.6e}", n.as_f64().unwrap()))
-                }
-                serde_json::Value::Array(a) => {
-                    out.push('[');
-                    for x in a {
-                        walk(x, out);
-                        out.push(',');
-                    }
-                    out.push(']');
-                }
-                serde_json::Value::Object(o) => {
-                    out.push('{');
-                    for (k, x) in o {
-                        out.push_str(k);
-                        out.push(':');
-                        walk(x, out);
-                        out.push(',');
-                    }
-                    out.push('}');
-                }
-                other => out.push_str(&other.to_string()),
-            }
-        }
-        let mut text = String::new();
-        walk(&serde_json::to_value(c).unwrap(), &mut text);
-        text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
-            (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
-        })
     }
 
     /// Today's readers, pinned: what each test file reads as. A change meant
