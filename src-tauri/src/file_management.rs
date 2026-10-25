@@ -2499,7 +2499,11 @@ pub(crate) fn move_files_on_disk(
                     .claim(file_to_move, &dest_file_path)
                     .map_err(|e| format!("Move aborted: {}", e))?
                 {
-                    operations_to_perform.push((file_to_move.clone(), dest_file_path));
+                    // Argentum: the XMP a RAW and its JPEG share is copied
+                    // when the other stays behind (mods/file_ops.rs).
+                    let keep_source = file_ops::is_xmp(file_to_move)
+                        && file_ops::xmp_still_used(file_to_move, &unique_source_images);
+                    operations_to_perform.push((file_to_move.clone(), dest_file_path, keep_source));
                 }
             }
         }
@@ -2514,7 +2518,12 @@ pub(crate) fn move_files_on_disk(
         );
     }
 
-    for (source, dest) in operations_to_perform {
+    for (source, dest, keep_source) in operations_to_perform {
+        if keep_source {
+            fs::copy(&source, &dest)
+                .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
+            continue;
+        }
         if fs::rename(&source, &dest).is_err() {
             fs::copy(&source, &dest)
                 .map_err(|e| format!("Move failed during copy for {}: {}", source.display(), e))?;
@@ -3582,14 +3591,15 @@ pub fn show_in_finder(path: String) -> Result<(), String> {
     Ok(())
 }
 
-#[tauri::command]
-pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Result<(), String> {
+/// The files a plain delete of `paths` removes: each photo with its own files,
+/// or a virtual copy's edits alone. The XMP a RAW and its JPEG share stays
+/// while one of them does (mods/file_ops.rs).
+pub(crate) fn files_to_delete_from_disk(paths: &[String]) -> Vec<PathBuf> {
     let mut files_to_trash = HashSet::new();
-    let mut deletions = HashSet::new();
+    let mut leaving = HashSet::new();
 
     for path_str in paths {
-        let (source_path, sidecar_path) = parse_virtual_path(&path_str);
-        deletions.insert(path_str.clone());
+        let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
         if path_str.contains("?vc=") {
             if sidecar_path.exists() {
@@ -3611,15 +3621,27 @@ pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Resu
                         );
                     }
                 }
+                leaving.insert(source_path);
             }
         }
     }
 
-    if files_to_trash.is_empty() {
+    let mut files: Vec<PathBuf> = files_to_trash
+        .into_iter()
+        .filter(|file| !(file_ops::is_xmp(file) && file_ops::xmp_still_used(file, &leaving)))
+        .collect();
+    files.sort();
+    files
+}
+
+#[tauri::command]
+pub fn delete_files_from_disk(paths: Vec<String>, app_handle: AppHandle) -> Result<(), String> {
+    let deletions: HashSet<String> = paths.iter().cloned().collect();
+    let final_paths_to_delete = files_to_delete_from_disk(&paths);
+
+    if final_paths_to_delete.is_empty() {
         return Ok(());
     }
-
-    let final_paths_to_delete: Vec<PathBuf> = files_to_trash.into_iter().collect();
 
     #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
     file_ops::trash_or_delete(&final_paths_to_delete);
@@ -4187,6 +4209,19 @@ pub(crate) fn rename_files_on_disk(
         }
     }
 
+    // Argentum: the XMP is named after the photo's stem (IMG.xmp), so it is
+    // carried to each renamed photo's new stem, and kept or copied when a
+    // photo that kept the old name shares it (mods/file_ops.rs).
+    let mut xmp_targets: Vec<(PathBuf, PathBuf, PathBuf)> = Vec::new();
+    for (original_path, new_path) in &operations {
+        if let Some(xmp) = resolve_xmp_path(original_path) {
+            let target = new_path.with_extension(xmp.extension().unwrap_or_default());
+            if target != xmp {
+                xmp_targets.push((original_path.clone(), xmp, target));
+            }
+        }
+    }
+
     let mut rename = |old_path: &Path, new_path: &Path| -> bool {
         if let Err(e) = fs::rename(old_path, new_path) {
             log::warn!(
@@ -4215,6 +4250,33 @@ pub(crate) fn rename_files_on_disk(
     for (photo, old_path, new_path) in &sidecar_operations {
         if renamed_photos.contains(photo) {
             rename(old_path, new_path);
+        }
+    }
+    let mut xmps: Vec<&PathBuf> = Vec::new();
+    for (_, xmp, _) in &xmp_targets {
+        if !xmps.contains(&xmp) {
+            xmps.push(xmp);
+        }
+    }
+    for xmp in xmps {
+        let targets: Vec<PathBuf> = xmp_targets
+            .iter()
+            .filter(|(photo, from, _)| from == xmp && renamed_photos.contains(photo))
+            .map(|(_, _, target)| target.clone())
+            .collect();
+        let still_used = file_ops::xmp_still_used(xmp, &HashSet::new());
+        for (target, carry) in file_ops::xmp_after_rename(&targets, still_used) {
+            if target.exists() {
+                log::warn!("Not carrying {} to {}: a file is there", xmp.display(), target.display());
+                continue;
+            }
+            let carried = match carry {
+                file_ops::Carry::Copy => fs::copy(xmp, &target).map(|_| ()),
+                file_ops::Carry::Move => fs::rename(xmp, &target),
+            };
+            if let Err(e) = carried {
+                log::warn!("Failed to carry {} to {}: {}", xmp.display(), target.display(), e);
+            }
         }
     }
 

@@ -91,6 +91,15 @@ Newest first.
   Both now take the camera's switch and tables with the rest of the photo's geometry
   (`builtinKeys` in `src/argentum/lensBuiltin.ts`), and the AI masks' cached embeddings are
   keyed on them too (`src-tauri/src/ai_commands.rs`). Masks already made keep their shape.
+- **A RAW and its JPEG keep the XMP they share, and renamed photos take theirs.** `IMG.xmp` is
+  the XMP of `IMG.CR2` and `IMG.jpg` alike. Deleting only the RAW trashed it and moving only the
+  RAW took it away, so the JPEG lost its rating and labels for other programs; now a delete leaves
+  it while one of them stays, and a move copies it. Renaming a photo left its XMP under the old
+  name; now it goes with the new one, copied when a photo that kept the old name still uses it
+  (`src-tauri/src/mods/file_ops.rs`).
+- **Recent folders follow a renamed folder.** The Recent list in the folder column kept the old
+  path of a renamed folder (and of the folders inside it) until it dropped off; now they keep their
+  place under the new name (`src-tauri/src/mods/recent_folders.rs`).
 - **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
   of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
   made the whole file read as defaults, and the next save wrote them over it: every setting gone,
@@ -168,6 +177,13 @@ Newest first.
   remembered by a sample of the photo's own pixels as well, the key the sharpened picture already
   used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
   Thumbnails and 8-bit exports were not affected: their key already named the photo.
+- **A photo corrected with its camera's lens tables keeps the tables it was saved with.** Opening
+  it read the file again and, when a newer reader read the tables differently, replaced them in
+  the edit: the photo moved on screen while an export of the saved edit did not. An edit whose
+  switch is on now keeps its tables; one that is off takes the file's, so turning it on uses them.
+  `filled` in `src/argentum/lensBuiltin.ts`, with its tests. Tests also pin what today's readers
+  return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
+  camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
 
 ## 26.43.3 — 2026-10-23
 

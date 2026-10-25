@@ -11,6 +11,8 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { ImageFlag, Invokes } from '../components/ui/AppProperties';
 import { Status } from '../components/ui/ExportImportProperties';
 import { activePathAfterDelete, isInFolder, pathAfterFolderRename, shownAfterRename } from '../argentum/fileOps';
+import { ag } from '../argentum/ag';
+import { useModernFolders } from '../argentum/modern/folders';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -192,6 +194,14 @@ export function useFileOperations(
           const parentDir = getParentDir(oldPath);
           const separator = oldPath.includes('/') ? '/' : '\\';
           const newPath = parentDir ? `${parentDir}${separator}${trimmedNewName}` : trimmedNewName;
+
+          // Argentum: the Recent list follows the folder (mods/recent_folders.rs), before
+          // the folder on show changes and is added to it under its new name.
+          try {
+            useModernFolders.setState({ recent: await ag<string[]>('rename_recent_folder', { oldPath, newPath }) });
+          } catch (err) {
+            console.warn('Recent folders not renamed:', err);
+          }
 
           const newAppSettings = { ...appSettings } as any;
           let settingsChanged = false;

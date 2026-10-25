@@ -34,6 +34,31 @@ pub fn add(library: &Path, folder: &str) -> Result<Vec<String>, String> {
     Ok(list)
 }
 
+/// The list once the folder `old` is renamed to `new`: it and every folder
+/// inside it keep their place under the new name, as `pathAfterFolderRename`
+/// (src/argentum/fileOps.ts) moves the library's own paths. A folder listed
+/// under both names (opened again under the new one first) is listed once, in
+/// its newer place. Returns the list as saved.
+pub fn renamed(library: &Path, old: &str, new: &str) -> Result<Vec<String>, String> {
+    let list = stored(library);
+    let mut after: Vec<String> = Vec::with_capacity(list.len());
+    for folder in &list {
+        let folder = match folder.strip_prefix(old) {
+            Some(rest) if rest.is_empty() || rest.starts_with(['/', '\\']) => {
+                format!("{new}{rest}")
+            }
+            _ => folder.clone(),
+        };
+        if !after.iter().any(|kept| same_folder(kept, &folder)) {
+            after.push(folder);
+        }
+    }
+    if after != list {
+        ag_settings::set(library, KEY, Value::from(after.clone()))?;
+    }
+    Ok(after)
+}
+
 /// The same folder written two ways: a trailing separator, and on Windows
 /// the case of the letters and the direction of the slashes, do not count.
 fn same_folder(a: &str, b: &str) -> bool {
@@ -72,6 +97,39 @@ mod tests {
         let list = add(&dir, "/photos/a/").expect("add");
         assert_eq!(list, vec!["/photos/a/", "/photos/b"]);
         assert_eq!(stored(&dir), list);
+    }
+
+    #[test]
+    fn a_renamed_folder_and_those_inside_it_keep_their_place() {
+        let dir = scratch("renamed");
+        for folder in [
+            "/photos/x",
+            "/photos/trip2",
+            "/photos/trip/day 1",
+            "/photos/trip",
+        ] {
+            add(&dir, folder).expect("add");
+        }
+        let list = renamed(&dir, "/photos/trip", "/photos/rome").expect("rename");
+        assert_eq!(
+            list,
+            vec![
+                "/photos/rome",
+                "/photos/rome/day 1",
+                "/photos/trip2",
+                "/photos/x"
+            ]
+        );
+        assert_eq!(stored(&dir), list);
+    }
+
+    #[test]
+    fn a_folder_opened_again_under_its_new_name_is_listed_once() {
+        let dir = scratch("renamed-twice");
+        add(&dir, "/photos/trip").expect("add");
+        add(&dir, "/photos/rome").expect("add");
+        let list = renamed(&dir, "/photos/trip", "/photos/rome").expect("rename");
+        assert_eq!(list, vec!["/photos/rome"]);
     }
 
     #[test]
