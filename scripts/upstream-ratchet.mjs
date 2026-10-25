@@ -41,6 +41,14 @@ export const RAISES = [
       + 'files, so the check that keeps a sidecar holding snapshots has to be the one line in theirs. '
       + 'Without it, resetting a photo that has snapshots deletes them.',
   },
+  {
+    file: '.github/workflows/lint.yml',
+    to: 14,
+    on: '2026-10-25',
+    why: 'RapidRAW is no longer merged (DEC-38), and the frontend job is the only required check that can '
+      + 'build and test the frontend: it now blocks on the build, the vitest tests and check-frontend.mjs. '
+      + 'The ratchet itself is retired once the merge checks are replaced.',
+  },
 ];
 
 const ABOUT =

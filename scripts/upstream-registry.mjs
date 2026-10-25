@@ -1004,7 +1004,10 @@ export const REGISTRY = [
           + 'what catches the cheap mistakes. Run by hand when the build itself changes.' },
       { file: '.github/workflows/release.yml', how: 'replaces' },
       { file: '.github/workflows/lint.yml', how: 'extends',
-        note: 'rustfmt runs over mods/ only: reformatting their files would cost lines against the anchors.' },
+        note: 'rustfmt runs over mods/ only: reformatting their files would cost lines against the anchors. '
+          + 'The frontend job blocks: the build, the vitest tests, and scripts/check-frontend.mjs '
+          + '(types, lint and formatting no worse than scripts/frontend-baseline.json) replace their '
+          + 'format and ESLint steps, which never blocked.' },
     ],
     tests: ['the workflows themselves'],
     keywords: /workflow|android|aarch64|matrix|github.?action|release.?build/i,
