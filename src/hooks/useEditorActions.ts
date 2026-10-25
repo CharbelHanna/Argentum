@@ -22,6 +22,7 @@ import {
 import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cropUtils';
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import { builtinKeys } from '../argentum/lensBuiltin';
 
 export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
   useEditorStore.getState().pushHistory(newAdj);
@@ -218,6 +219,7 @@ export function useEditorActions() {
         preservedKeys.forEach((key) => {
           (override as any)[key] = state.adjustments[key];
         });
+        Object.assign(override, builtinKeys(state.adjustments)); // Argentum: argentum/lensBuiltin.ts
 
         return { showOriginal: true, previewOverride: override };
       } else {

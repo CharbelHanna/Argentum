@@ -84,6 +84,13 @@ Newest first.
 
 ### Fixed
 
+- **AI masks and Show Original follow the camera's lens correction.** On a photo whose camera's
+  lens correction is on (Fujifilm and DNG by default), Subject, Sky, Foreground and Depth masks
+  were computed on the photo without it, so they could sit a few pixels off the corrected photo
+  toward its edges, and Show Original dropped it, so the frame moved between before and after.
+  Both now take the camera's switch and tables with the rest of the photo's geometry
+  (`builtinKeys` in `src/argentum/lensBuiltin.ts`), and the AI masks' cached embeddings are
+  keyed on them too (`src-tauri/src/ai_commands.rs`). Masks already made keep their shape.
 - **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
   of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
   made the whole file read as defaults, and the next save wrote them over it: every setting gone,
