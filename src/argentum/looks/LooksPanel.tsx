@@ -21,6 +21,9 @@
  * their presets, as in the photo grid; a right-click on them moves or deletes
  * them all, and Esc lets them go. Folders are listed A to Z.
  *
+ * Community presets, opened over the photo, leaves the tab working on that
+ * photo; a change to it goes back to the photo first (community.ts).
+ *
  * Every part is today's: a LUT goes on and previews as their handleLutSelect
  * and setLutPreviewOverride do it, with the mark that feeds a film look what
  * its file declares (filmLookInput.ts), swatches come from their
@@ -61,6 +64,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
 import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { type AgKey, useAgTranslation } from '../locales';
+import { leaveCommunity, openCommunity, useCommunity, useCommunityOverPhoto } from './community';
 import { lutKeys } from './filmLookInput';
 import { presetAt } from './presetAmount';
 import { type LutEntry, useLooks } from './looksStore';
@@ -167,9 +171,15 @@ function userGroups(items: UserPreset[]): { root: Look[]; folders: Group[] } {
 export default function LooksPanel({ editing }: { editing: boolean }) {
   const t = useAgTranslation();
   const { showContextMenu } = useContextMenu();
-  const { setAdjustments } = useEditorActions();
+  const { setAdjustments: setPhotoAdjustments } = useEditorActions();
+  const overCommunity = useCommunityOverPhoto();
+  /** Every change to the photo; over Community presets it goes back to the photo first, so the change shows. */
+  const setAdjustments: typeof setPhotoAdjustments = (change) => {
+    if (overCommunity) leaveCommunity();
+    setPhotoAdjustments(change);
+  };
   const adjustments = useEditorStore((s) => s.adjustments);
-  const photo = useEditorStore((s) => (editing ? s.selectedImage : null));
+  const photo = useEditorStore((s) => (editing || overCommunity ? s.selectedImage : null));
   const setEditor = useEditorStore((s) => s.setEditor);
   const { builtin, luts, libraries, favourites, applied, load, refreshLuts, toggleFavourite, setApplied } = useLooks();
   const {
@@ -202,6 +212,17 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   useEffect(() => {
     load();
   }, [load]);
+
+  // A preset saved on Community presets is in the user's list now: read it
+  // again, and show My presets, where its Community folder is.
+  const communitySaves = useCommunity((s) => s.saved);
+  const seenSaves = useRef(communitySaves);
+  useEffect(() => {
+    if (communitySaves === seenSaves.current) return;
+    seenSaves.current = communitySaves;
+    refreshPresets();
+    setOpen((was) => new Set([...was, 'mine']));
+  }, [communitySaves, refreshPresets]);
 
   // A preset on another photo is not this photo's.
   const onPhoto = applied && photo && applied.photo === photo.path ? applied : null;
@@ -314,7 +335,8 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const leaveLook = () => window.clearTimeout(hover.current);
 
   const startPreview = (look: Look) => {
-    if (!photo) return;
+    // Under Community presets the photo is out of sight.
+    if (!photo || overCommunity) return;
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
       const now = useEditorStore.getState().adjustments;
@@ -775,8 +797,9 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         label: t('looksSaveLut'),
         disabled: !photo,
         onClick: () => {
-          // The Export tab, set to CUBE (ExportPanel.tsx reads this once).
+          // The Export tab, set to CUBE (ExportPanel.tsx reads this once), on the photo.
           useLooks.setState({ wantLutExport: true });
+          if (overCommunity) leaveCommunity();
           useUIStore.getState().setUI({ activePanel: Panel.Export, renderedPanel: Panel.Export });
         },
       },
@@ -788,7 +811,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     showContextMenu(rect.left, rect.bottom, [
       { label: t('looksNewFolder'), onClick: () => setModal({ kind: 'newFolder' }) },
       { label: t('looksNewLutFolder'), onClick: () => setModal({ kind: 'newLutFolder' }) },
-      { label: t('looksCommunity'), onClick: () => useUIStore.getState().setUI({ activeView: 'community' }) },
+      { label: t('looksCommunity'), onClick: () => openCommunity(!!photo) },
     ]);
   };
 

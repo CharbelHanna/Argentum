@@ -12,6 +12,7 @@ import Text from '../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../types/typography';
 import Dropdown from '../ui/Dropdown';
 import { useUIStore } from '../../store/useUIStore';
+import { noteCommunitySave } from '../../argentum/looks/community';
 
 const DEFAULT_PREVIEW_IMAGE_URL = 'https://raw.githubusercontent.com/CyberTimon/RapidRAW-Presets/main/sample-image.jpg';
 
@@ -192,6 +193,7 @@ const CommunityPage = ({ onBackToLibrary, imageList, currentFolderPath }: Commun
         presetType: preset.presetType || 'style',
       });
       setDownloadStatus((prev) => ({ ...prev, [preset.name]: 'success' }));
+      noteCommunitySave();
     } catch (error) {
       console.error(`Failed to download preset ${preset.name}:`, error);
       setDownloadStatus((prev) => ({ ...prev, [preset.name]: 'idle' }));

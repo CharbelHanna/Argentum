@@ -61,6 +61,15 @@ Newest first.
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
   optimizer as off. Only the value used is read now, with `get_i64`, in
   `mods/highlight_protection.rs`; a test covers a maker note with `u32::MAX` beside it.
+- **Community presets, opened from the Looks tab, gives the photo back.** Picking a look while the
+  page is up returns to the photo with the look on it, as one History step; before, the page
+  stayed, and the look was written to the photo's file behind the open editor, which never showed
+  it. The page's back arrow returns to the photo it was opened over (to the grid when opened from
+  there, as before).
+- **A Community preset saved from that page shows in Looks, and stays.** It goes into My presets >
+  Community, and the Looks tab now reads its list again. Before, the tab kept its old list: the
+  new preset did not show, and the tab's next preset change (a new folder, a rename, a saved
+  preset) wrote the old list back and deleted it. `src/argentum/looks/community.ts`.
 
 ## 26.43.3 — 2026-10-23
 
