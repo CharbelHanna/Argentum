@@ -24,6 +24,12 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Every call the interface makes reaches a command, every shortcut a
+      # handler; dependency counts and the built size against
+      # scripts/wiring-baseline.json, so a removal or a new package shows.
+      - name: Wiring, dependencies and size
+        run: npm run check:wiring -- --dist
+
       - name: Tests
         run: npm run test:frontend
 
