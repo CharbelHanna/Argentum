@@ -299,13 +299,10 @@ impl Default for GeometryParams {
 }
 
 pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> GeometryParams {
-    // Argentum: the camera's own correction replaces the lensfun profile, so
-    // nothing is corrected twice.
-    let lens_builtin = crate::mods::lens_builtin::Builtin::from_adjustments(adjustments);
-    let lens_params = adjustments
-        .get("lensDistortionParams")
-        .and_then(|v| v.as_object())
-        .filter(|_| lens_builtin.is_none());
+    // Argentum: the camera's own correction and lensfun's profile, one per
+    // part, so nothing is corrected twice (mods/lens_builtin.rs).
+    let (lens_builtin, lens_params) = crate::mods::lens_builtin::with_lensfun(adjustments);
+    let lens_params = lens_params.as_ref();
 
     let guided = adjustments.get("guidedPerspective");
     let guided_perspective_enabled = guided
@@ -1099,6 +1096,14 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
                     }
                 }
 
+                // Argentum: the camera's correction is undone before lensfun's,
+                // as the forward warp applies lensfun's first.
+                if let Some(map) = &builtin {
+                    let [dx, dy] = map.inverse(current_x - cx, current_y - cy);
+                    current_x = cx + dx;
+                    current_y = cy + dy;
+                }
+
                 if has_lens_correction {
                     let dx = (current_x - cx) as f64;
                     let dy = (current_y - cy) as f64;
@@ -1154,12 +1159,6 @@ pub fn unwarp_image_geometry(warped_image: &DynamicImage, params: GeometryParams
                         current_x = cx + (dx * scale) as f32;
                         current_y = cy + (dy * scale) as f32;
                     }
-                }
-
-                if let Some(map) = &builtin {
-                    let [dx, dy] = map.inverse(current_x - cx, current_y - cy);
-                    current_x = cx + dx;
-                    current_y = cy + dy;
                 }
 
                 if auto_crop_scale > 1.0 {

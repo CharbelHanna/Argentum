@@ -59,6 +59,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         vignetting,
         distortion,
         chromatic,
+        always: None,
     };
     (!lens.is_empty()).then_some(lens)
 }

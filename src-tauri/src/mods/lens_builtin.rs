@@ -11,10 +11,12 @@
 //! | `lensBuiltinParams` | the photo's own tables, as `rm_lens_builtin::LensCorrection` |
 //!
 //! `argentum/lensBuiltin.ts` fills both in when a photo opens, from
-//! `lens_builtin` below. While the switch is on, the tables replace the
-//! lensfun profile (`get_geometry_params_from_json` in `image_processing.rs`),
-//! so nothing is corrected twice, and the panel's Distortion, Chromatic
-//! Aberration and Vignetting switches and amounts act on them.
+//! `lens_builtin` below. While the switch is on, each part (distortion,
+//! lateral CA, vignetting) comes from one source, the camera's tables or
+//! lensfun's profile (`with_lensfun`, used by `get_geometry_params_from_json`
+//! in `image_processing.rs`), so nothing is corrected twice, and the panel's
+//! Distortion, Chromatic Aberration and Vignetting switches and amounts act
+//! on whichever corrects it.
 //!
 //! WHICH PHOTOS START WITH IT ON
 //!
@@ -28,7 +30,7 @@
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use argentum_engine::rm_lens_builtin::{Amounts, LensCorrection, LensMap};
+use argentum_engine::rm_lens_builtin::{Amounts, LensCorrection, LensMap, Parts};
 use serde::Serialize;
 
 /// The edit's keys for it, which the preview's geometry caches must see.
@@ -75,6 +77,59 @@ impl Builtin {
     pub fn map(&self, width: f32, height: f32) -> LensMap<'_> {
         LensMap::new(&self.correction, width, height, self.amounts)
     }
+}
+
+/// Each part's keys in lensfun's numbers (`lensDistortionParams`), and the
+/// value that corrects nothing.
+const LENSFUN_PARTS: [(&[&str], f64); 3] = [
+    (&["k1", "k2", "k3"], 0.),
+    (&["tca_vr", "tca_vb"], 1.),
+    (&["vig_k1", "vig_k2", "vig_k3"], 0.),
+];
+
+/// The camera's correction a render applies and lensfun's numbers beside it,
+/// one source per part (distortion, lateral CA, vignetting): the camera's
+/// own data for a part it always corrects (`LensCorrection::always`, all
+/// three for every correction stored before that field), else lensfun's
+/// profile, else the camera's data standing in for a profile while the edit
+/// asks for one (Auto) and the profile has none for that part. Nothing is
+/// corrected twice.
+pub fn with_lensfun(
+    adjustments: &serde_json::Value,
+) -> (
+    Option<Builtin>,
+    Option<serde_json::Map<String, serde_json::Value>>,
+) {
+    let mut lensfun = adjustments
+        .get("lensDistortionParams")
+        .and_then(|v| v.as_object())
+        .cloned();
+    let Some(mut builtin) = Builtin::from_adjustments(adjustments) else {
+        return (None, lensfun);
+    };
+    let always = builtin.correction.always.unwrap_or(Parts::ALL);
+    let auto = adjustments["lensCorrectionMode"].as_str() == Some("auto");
+    let c = &builtin.correction;
+    let parts = [
+        (always.distortion, c.distortion.is_some(), &mut builtin.amounts.distortion),
+        (always.chromatic, c.chromatic.is_some(), &mut builtin.amounts.chromatic),
+        (always.vignetting, c.vignetting.is_some(), &mut builtin.amounts.vignetting),
+    ];
+    for ((owned, camera_has, amount), (keys, neutral)) in parts.into_iter().zip(LENSFUN_PARTS) {
+        let profile_has = lensfun.as_ref().is_some_and(|p| {
+            keys.iter()
+                .any(|k| p.get(*k).and_then(|v| v.as_f64()).is_some_and(|v| (v - neutral).abs() > 1e-9))
+        });
+        if owned || !profile_has {
+            if let Some(p) = lensfun.as_mut() {
+                keys.iter().for_each(|k| drop(p.remove(*k)));
+            }
+        }
+        if !owned && (profile_has || !(auto && camera_has)) {
+            *amount = 0.;
+        }
+    }
+    (Some(builtin), lensfun)
 }
 
 /// A geometry cache's `hash` with the edit's keys for it folded in. Their
@@ -215,6 +270,7 @@ mod tests {
                 // A ZV-1-like table: 1.077 at the centre, so the fills differ.
                 distortion: Some(radial(vec![1.077, 1.04, 0.93])),
                 chromatic: Some([radial(vec![1., 1., 1.0006]), radial(vec![1., 1., 0.9995])]),
+                always: None,
             })
             .unwrap()
         };
@@ -251,12 +307,85 @@ mod tests {
             assert_eq!(pinned(edit), want, "{name}");
         }
         let mut both = fuji.clone();
-        both["lensDistortionParams"] = lensfun;
+        both["lensDistortionParams"] = lensfun.clone();
         assert_eq!(
             pinned(both),
             pinned(fuji),
             "the camera's tables replace lensfun's"
         );
+        // A camera that always corrects only its CA, beside lensfun's
+        // distortion and vignetting.
+        let mut ca_only = tables("Sony built-in");
+        ca_only["always"] = json!({ "distortion": false, "chromatic": true, "vignetting": false });
+        let edit = json!({ "lensBuiltin": true, "lensBuiltinParams": ca_only, "lensDistortionParams": lensfun });
+        assert_eq!(
+            pinned(edit),
+            [10_808_183_446_704_905_961, 2_460_932_479_767_228_929],
+            "camera CA, lensfun distortion and vignetting"
+        );
+    }
+
+    /// Which source corrects each part, and what is left of lensfun's numbers.
+    #[test]
+    fn each_part_comes_from_one_source() {
+        let radial = |v: f32| Radial {
+            knots: vec![0., 1.],
+            values: vec![1., v],
+        };
+        let camera = |always: Option<Parts>| {
+            serde_json::to_value(LensCorrection {
+                source: "Sony built-in".into(),
+                default_on: true,
+                vignetting: Some(radial(1.4)),
+                distortion: Some(radial(0.98)),
+                chromatic: Some([radial(1.0005), radial(0.9996)]),
+                always,
+            })
+            .unwrap()
+        };
+        let ca_only = Some(Parts {
+            chromatic: true,
+            ..Parts::default()
+        });
+        let full = json!({
+            "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0,
+            "tca_vr": 1.0004, "tca_vb": 0.9997, "vig_k1": -0.3, "vig_k2": 0.0, "vig_k3": 0.0,
+        });
+        let distortion_only = json!({ "k1": -0.02, "k2": 0.0, "k3": 0.0, "model": 0, "tca_vr": 1.0, "tca_vb": 1.0 });
+        let resolve = |always: Option<Parts>, lensfun: Option<&serde_json::Value>, mode: &str| {
+            let mut edit = json!({ "lensBuiltin": true, "lensBuiltinParams": camera(always), "lensCorrectionMode": mode });
+            if let Some(l) = lensfun {
+                edit["lensDistortionParams"] = l.clone();
+            }
+            let (builtin, lensfun) = with_lensfun(&edit);
+            let a = builtin.unwrap().amounts;
+            let mut keys: Vec<String> = lensfun.map(|m| m.keys().cloned().collect()).unwrap_or_default();
+            keys.sort();
+            ([a.distortion, a.chromatic, a.vignetting], keys)
+        };
+        let keys = |k: &[&str]| k.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+
+        // Stored before `always`: the camera decides all three, lensfun none.
+        assert_eq!(resolve(None, Some(&full), "auto"), ([1., 1., 1.], keys(&["model"])));
+        // CA from the camera; distortion and vignetting from lensfun.
+        assert_eq!(
+            resolve(ca_only, Some(&full), "auto"),
+            ([0., 1., 0.], keys(&["k1", "k2", "k3", "model", "vig_k1", "vig_k2", "vig_k3"]))
+        );
+        // No profile asked for: the camera's other tables stay unused.
+        assert_eq!(resolve(ca_only, None, "manual"), ([0., 1., 0.], keys(&[])));
+        // Auto with no profile: they stand in for one.
+        assert_eq!(resolve(ca_only, None, "auto"), ([1., 1., 1.], keys(&[])));
+        // Auto with a profile for distortion only: the camera's vignetting stands in.
+        assert_eq!(
+            resolve(ca_only, Some(&distortion_only), "auto"),
+            ([0., 1., 1.], keys(&["k1", "k2", "k3", "model"]))
+        );
+        // Switched off: lensfun's numbers as they are.
+        let off = json!({ "lensBuiltin": false, "lensBuiltinParams": camera(ca_only), "lensDistortionParams": full });
+        let (builtin, lensfun) = with_lensfun(&off);
+        assert!(builtin.is_none());
+        assert_eq!(serde_json::Value::Object(lensfun.unwrap()), full);
     }
 
     #[test]
