@@ -8,6 +8,7 @@ import { useCloudStore } from '../store/useCloudStore';
 import { Adjustments, AiPatch, MaskContainer, Coord } from '../utils/adjustments';
 import { SubMask } from '../components/panel/right/Masks';
 import { Invokes } from '../components/ui/AppProperties';
+import { builtinKeys } from '../argentum/lensBuiltin';
 
 const getTransformAdjustments = (adj: Adjustments) => ({
   transformDistortion: adj.transformDistortion,
@@ -27,6 +28,7 @@ const getTransformAdjustments = (adj: Adjustments) => ({
   lensDistortionEnabled: adj.lensDistortionEnabled,
   lensTcaEnabled: adj.lensTcaEnabled,
   lensVignetteEnabled: adj.lensVignetteEnabled,
+  ...builtinKeys(adj), // Argentum: the camera's lens correction (argentum/lensBuiltin.ts)
 });
 
 export function useAiMasking() {

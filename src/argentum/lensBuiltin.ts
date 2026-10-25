@@ -74,6 +74,16 @@ export const builtinInUse = (adjustments: Adjustments): LensCorrection | null =>
 export const withBuiltin = (adjustments: Adjustments, on: boolean): Adjustments =>
   ({ ...adjustments, lensBuiltin: on }) as Adjustments;
 
+/**
+ * The edit's two keys for it, to spread wherever the photo's geometry is
+ * copied out of the edit (AI masks, Show Original), so those see the same
+ * correction as the preview.
+ */
+export const builtinKeys = (adjustments: Adjustments): BuiltinEdit => {
+  const { lensBuiltin, lensBuiltinParams } = edit(adjustments);
+  return { lensBuiltin, lensBuiltinParams };
+};
+
 /** Spread into a reset: the switch goes back to the photo's own default. */
 export const LENS_BUILTIN_RESET = { lensBuiltin: undefined } as Partial<Adjustments>;
 

@@ -181,7 +181,9 @@ pub async fn generate_ai_depth_mask(
                 val.to_string().hash(&mut geo_hasher);
             }
         }
-        hasher.update(&geo_hasher.finish().to_le_bytes());
+        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
+        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
+        hasher.update(&geo.to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
@@ -368,7 +370,9 @@ pub async fn generate_ai_subject_mask(
                 val.to_string().hash(&mut geo_hasher);
             }
         }
-        hasher.update(&geo_hasher.finish().to_le_bytes());
+        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
+        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
+        hasher.update(&geo.to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
@@ -546,7 +550,9 @@ pub async fn precompute_ai_subject_mask(
                 val.to_string().hash(&mut geo_hasher);
             }
         }
-        hasher.update(&geo_hasher.finish().to_le_bytes());
+        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
+        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
+        hasher.update(&geo.to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
