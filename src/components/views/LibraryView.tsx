@@ -2,6 +2,7 @@ import { useShallow } from 'zustand/react/shallow';
 
 import CommunityPage from '../panel/CommunityPage';
 import MainLibrary from '../panel/MainLibrary';
+import { leaveCommunity } from '../../argentum/looks/community';
 
 import { useUIStore } from '../../store/useUIStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
@@ -44,10 +45,9 @@ export default function LibraryView({
   handleImportClick,
   requestThumbnails,
 }: LibraryViewProps) {
-  const { activeView, setUI } = useUIStore(
+  const { activeView } = useUIStore(
     useShallow((state) => ({
       activeView: state.activeView,
-      setUI: state.setUI,
     })),
   );
 
@@ -88,7 +88,7 @@ export default function LibraryView({
       <div className="flex-1 flex flex-col min-w-0 gap-2">
         {activeView === 'community' ? (
           <CommunityPage
-            onBackToLibrary={() => setUI({ activeView: 'library' })}
+            onBackToLibrary={leaveCommunity}
             supportedTypes={supportedTypes}
             imageList={sortedImageList}
             currentFolderPath={currentFolderPath}

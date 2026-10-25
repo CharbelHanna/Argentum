@@ -478,6 +478,7 @@ export const REGISTRY = [
     ours: [
       'src/argentum/looks/LooksPanel.tsx',
       'src/argentum/looks/looksStore.ts',
+      'src/argentum/looks/community.ts',
       'src/argentum/looks/presetAmount.ts',
       'src/argentum/looks/suggestions.ts',
       'src-tauri/src/mods/looks.rs',
@@ -498,6 +499,12 @@ export const REGISTRY = [
       { file: 'src/components/panel/right/ExportPanel.tsx', symbol: 'wantLutExport', how: 'extends',
         note: 'Save > As LUT file opens the Export tab with the format set to CUBE, read once from '
           + 'looksStore.' },
+      { file: 'src/components/panel/CommunityPage.tsx', symbol: 'handleDownloadPreset', how: 'extends',
+        note: 'A preset saved on Community presets is counted (community.ts), so the Looks tab reads '
+          + 'the user\'s list again: it writes the whole list back on its next change.' },
+      { file: 'src/components/views/LibraryView.tsx', symbol: 'onBackToLibrary', how: 'extends',
+        note: 'The Community page\'s back arrow goes back where the page was opened from '
+          + '(community.ts): the photo it was opened over, or the grid.' },
       { file: 'src-tauri/src/file_management.rs', symbol: 'apply_adjustments_to_paths', how: 'calls',
         note: 'A look clicked in the grid goes onto the selected photos as their paste does; the '
           + 'Undo puts back each photo\'s own values for the keys the look changed (load_metadata).' },
