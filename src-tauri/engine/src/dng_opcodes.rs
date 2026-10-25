@@ -1,6 +1,6 @@
 //! A DNG's opcode lists: the raw image's OpcodeList1, 2 or 3 as stored, and
 //! the opcodes in one. Shared by the gain maps (`dng_gain_map.rs`) and the
-//! lens corrections (`rm_lens_builtin.rs`); each reads only the opcodes it
+//! lens corrections (`rm_lens_builtin/dng.rs`); each reads only the opcodes it
 //! applies.
 //!
 //! The list's layout is the DNG Specification's (1.7.1.0, chapter 7), as
