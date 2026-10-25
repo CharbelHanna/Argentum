@@ -69,6 +69,18 @@ Newest first.
   as it laid them out, to the keys, so the column count is worked out in one place. From RapidRAW
   `src/components/panel/library/LibraryGrid.tsx` and `src/hooks/useKeyboardShortcuts.ts` @
   `ecf7730f`, in `src/argentum/modern/gridRows.ts`.
+- **Highlights no longer jumps when it leaves zero, and Whites has more range,** from RapidRAW
+  1.6.7. Highlights at -1 or +1 used to flatten or sharpen the fine texture of bright areas all
+  at once, so the first step of the slider, and the soft edge of a mask carrying Highlights,
+  showed a step; the texture now changes gradually with the slider (RapidRAW `faf039cf`). Whites
+  at +100 or -100 moved the brightest tones by only 1 to 4 levels of 255; it now moves them
+  about twice as far, and reaches further into the upper mid-tones (the Whites half of RapidRAW
+  `9fc41e4a`: its pivot, push and ramp; that commit's Dehaze rewrite is not taken). Both are in
+  `src-tauri/src/shaders/shader.wgsl`, and in the engine's `rr_basic_tone` in step. Edits that
+  already use these sliders keep their values and render with the new code: on five test RAWs
+  the move is below what can be seen (Highlights: CIEDE2000 mean at most 0.05, 99th percentile
+  at most 0.8; Whites at ±40: mean at most 0.16, 99th percentile at most 0.9). Thumbnails are
+  redrawn once.
 
 ### Fixed
 
@@ -98,6 +110,11 @@ Newest first.
     kept the old path. Renaming the photo shown in the grid opened the editor.
   - Where files cannot be locked (the Flatpak document portal), every photo was treated as locked:
     thumbnails decoded the whole RAW and white balance started from the wrong point.
+- **Photos hidden by a filter nothing can clear show again.** A rating, flag or colour-label
+  filter saved by the old Classic layout was restored at every start, and the window has no
+  control for those filters, so it hid photos with no visible reason. Only the filters the view
+  menu shows (Show and Types) are restored now, and the others are saved back as "all".
+  `src/argentum/modern/shownFilters.ts`.
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
   above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
