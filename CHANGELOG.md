@@ -14,6 +14,25 @@ Newest first.
   GitHub is asked at start and every six hours; nothing is downloaded. Classic's library header
   did this until it was deleted with the Classic layout (#117). The comparison and timing are
   Shoebox's (`src-tauri/src/updates.rs`), in `src/argentum/updates.ts`.
+- **The golden photos: ten public RAWs through the app's real render, in CI.** A change to how a
+  photo looks now either fails or is logged with its reason. Ten CC0 RAWs from raw.pixls.us, each
+  picked for something the decode or the render does with it (Canon Highlight Tone Priority,
+  sRAW, Nikon Active D-Lighting, an X-Trans mosaic with built-in lens correction, Sony lossy, a
+  phone DNG's gain maps, a drone DNG's opcodes, Pentax and Olympus modes;
+  `src-tauri/tests/look/samples.tsv`), are decoded and rendered with the app's own calls in four
+  states: as they open, Exposure -2, Highlights -100 with Whites +50, and the K-Portra 400 film
+  look. First, with no GPU and exactly: each photo's exposure offset and where it came from, what
+  the camera held back, the highlight ceilings, the photosites recovery and the blown-highlight
+  step rewrote, the gain maps applied and the lens correction found. The renders are held to
+  small text references (`src-tauri/tests/look/`) by robust statistics - colour difference over
+  a 32-cell thumbnail, the mid-tones' exposure, clipping, the top three stops, the blown area's
+  colour - never by single pixels; a one-level shift of the highlights and a change the size of
+  #171's Whites both fail. Every blessing of a new reference is a row of
+  `src-tauri/tests/look/LEDGER.tsv` with its reason, and is refused when a case moved that the
+  row does not name, or when the pixels moved without `cache_version::PIPELINE`. The samples are
+  downloaded by CI and never committed. It runs in the App job on a software GPU, advisory for
+  now. `src-tauri/src/mods/look_check.rs`; the colour difference (`lab`, `delta_e2000`, from
+  RAWmakase `half_check.rs` @ `183e09fd`) is now defined once, in the engine's `colour.rs`.
 
 ### Changed
 

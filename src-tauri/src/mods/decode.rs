@@ -22,6 +22,44 @@ use rawler::rawimage::RawImage;
 /// at this stage is written in the maker's own metadata rather than in anything
 /// rawler exposes.
 pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<&str>) {
+    on_raw_decoded_watched(raw, file_bytes, photo_path, &mut |_, _| {});
+}
+
+/// What the decode did to one photo, as the look check records it
+/// (mods/look_check.rs). Nothing in the app reads it.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[cfg_attr(not(test), allow(dead_code))]
+pub struct Report {
+    /// DNG GainMap opcodes applied (`dng_gain_map::apply`).
+    pub gain_maps: usize,
+    /// Where each colour stopped being data (`highlights::ceilings`).
+    pub ceilings: Option<[f32; 4]>,
+    /// Whether recovery was in charge of the clipped photosites.
+    pub rebuilt: bool,
+}
+
+/// The points between the steps that rewrite photosites, where a watcher is
+/// shown the mosaic as it stands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Watch {
+    /// The ceilings are judged on this; recovery has not run.
+    Judged,
+    /// After `highlights::recover`.
+    Recovered,
+    /// After `highlights::settle_blown`.
+    Settled,
+}
+
+/// `on_raw_decoded`, step for step, with `watch` shown the mosaic between the
+/// steps that rewrite photosites, and what the steps did. The look check
+/// counts what each step rewrote from it; the app passes a watcher that does
+/// nothing. One function, so the order stays defined in one place.
+pub fn on_raw_decoded_watched(
+    raw: &mut RawImage,
+    file_bytes: &[u8],
+    photo_path: Option<&str>,
+    watch: &mut dyn FnMut(Watch, &RawImage),
+) -> Report {
     // Canon sRAW / mRAW: black already subtracted, white level in the file.
     // Must be first — it decides what every pixel value means.
     super::sraw_levels::fix(raw, file_bytes);
@@ -31,7 +69,7 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // works around, before anything reads a sample as light - the highlights
     // below must see a corner the gain pushed to white as clipped. The
     // engine's decode does the same, from the same code.
-    argentum_engine::dng_gain_map::apply(raw, file_bytes);
+    let gain_maps = argentum_engine::dng_gain_map::apply(raw, file_bytes);
 
     // Canon bodies older than ColorData keep their white balance somewhere
     // rawler looks for it but cannot reach. Before the highlights, which read
@@ -48,11 +86,13 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // decoded, before recovery rewrites the ones it is judged on, so recovery
     // and the step after it agree on what is clipped.
     let ceilings = super::highlights::ceilings(raw);
+    watch(Watch::Judged, raw);
 
     // Put back the channels the sensor could not record. After the levels,
     // because it is the levels that say which values are at the ceiling, and
     // before anything reads a pixel as colour.
     let rebuilt = super::highlights::recover(raw, ceilings);
+    watch(Watch::Recovered, raw);
 
     // And make what it could not record at all come out white rather than
     // magenta. Not behind recovery's switch: with recovery off a blown window
@@ -61,9 +101,16 @@ pub fn on_raw_decoded(raw: &mut RawImage, file_bytes: &[u8], photo_path: Option<
     // only neutral after the balance that is actually applied.
     let wb = crate::multi_exposure::neutralize_wb_if_multiexposure(raw.wb_coeffs, file_bytes);
     super::highlights::settle_blown(raw, wb, rebuilt, ceilings);
+    watch(Watch::Settled, raw);
 
     // Remember the matrix rawler will use, so the GPU can correct off it.
     apply_camera_profile(raw, photo_path);
+
+    Report {
+        gain_maps,
+        ceilings,
+        rebuilt,
+    }
 }
 
 /// Record the matrix rawler is about to use, for the profile correction.
