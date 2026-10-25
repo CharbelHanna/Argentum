@@ -81,6 +81,49 @@ Newest first.
   its look until the switch is turned on. From RAWmakase `d37942f` (MIT):
   `crates/rawmakase-model/src/lens/embedded.rs` (`coolpix_tables` and its test), in
   `src-tauri/engine/src/rm_lens_builtin/nikon.rs`.
+- **Olympus and OM System photos get the camera's own lens correction.** Every ORF carries the
+  distortion model of the lens, and its colour fringing (lateral chromatic aberration) where the
+  lens has some, in the maker note (ImageProcessing 0x150A and 0x150C). Lightroom applies it
+  whatever its profile setting, so the switch in Crop > Lens Correction starts on for an ORF with
+  no edit yet, and the camera's data corrects the distortion and fringing it stores; the
+  vignetting, which the file does not store, stays with the lensfun profile. Against the warp
+  Adobe DNG Converter 18.7 writes for an E-M10 Mark III photo, the correction is within 0.1 px
+  (the test). From RAWmakase @ `af35e25` (MIT): the Olympus reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/olympus.rs`,
+  with the model sampling shared by the makers' readers in `rm_lens_builtin/fit.rs`.
+- **Panasonic (and Leica RWL) photos get the camera's own lens correction.** Every RW2 carries
+  the camera's distortion correction (IFD0 0x0119) and, for lenses that have the data, its
+  colour fringing (0x011B, applied as Adobe's smooth fit of it). Lightroom applies both whatever
+  its profile setting, so the switch in Crop > Lens Correction starts on for an RW2 with no edit
+  yet, and the camera's data corrects what it stores; the fringing is corrected even where the
+  distortion correction is off, as Adobe does; vignetting stays with the lensfun profile.
+  Against Adobe DNG Converter 18.7's warps of raw.pixls.us photos (GX9, GM5, G80, TZ202, GH7)
+  the correction is within 0.1 px (the tests). From RAWmakase @ `af35e25` and `d04ef4f` (MIT):
+  the Panasonic reader in `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/panasonic.rs`.
+- **Samsung photos get the camera's own lens correction.** The NX200 and later NX bodies, the NX
+  mini, the Galaxy NX and the EX2F store the camera's distortion and colour fringing models in
+  the SRW's maker note (0xA050 and 0xA051, offset by its EncryptionKey). Adobe writes them into
+  its DNGs as a warp that always applies, so the switch in Crop > Lens Correction starts on for
+  an SRW with no edit yet, and the camera's data corrects what it stores; vignetting stays with
+  the lensfun profile. As Adobe does, the data is not used for the lenses and compacts Adobe has
+  its own profiles for (NX 30mm F2, 18-55mm and 50-200mm; EX1, WB2000) nor on the first bodies
+  (NX5, NX10, NX100, NX11): there the lensfun profile corrects everything, as before. Against
+  Adobe DNG Converter 18.7's warps of NX200, EX2F and NX mini photos the correction is within
+  0.1 px (the tests). From RAWmakase @ `0b7d217` (MIT): the Samsung reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/samsung.rs`.
+- **Canon EOS R5 Mark II and R6 Mark III photos can use the camera's own lens correction.**
+  Their CR3s carry the lens's vignetting, colour fringing and distortion tables in record 14 of
+  the timed metadata, which Adobe turns into a "Camera Settings" lens profile that Lightroom
+  applies only with profile corrections on, and for these two bodies alone. So the switch in
+  Crop > Lens Correction is there and starts off; switched on, it corrects all three, the
+  distortion as Adobe fits it. Other Canon bodies, including the R50 V, which stores the same
+  record, get nothing from it, as in Lightroom. Against the profiles and warps Adobe DNG Converter
+  18.7 writes for an R6 Mark III and an R5 Mark II photo, the correction is within 0.2 px and
+  the light kept within 0.001 (the tests). From RAWmakase @ `37ea972` (MIT): the Canon reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/canon.rs`,
+  the CR3's boxes read with rawler's.
 
 ### Changed
 

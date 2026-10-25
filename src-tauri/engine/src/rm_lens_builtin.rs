@@ -14,8 +14,18 @@
 //!   default for a lens that needs it, off for one whose correction is
 //!   optional; and the tables a Coolpix P950, P1000 or P1100 writes there,
 //!   on by default.
+//! - `olympus.rs`: the distortion and CA model Olympus and OM System write
+//!   into every ORF, on by default.
+//! - `panasonic.rs`: the distortion and CA corrections Panasonic writes into
+//!   every RW2, on by default.
+//! - `samsung.rs`: the distortion and CA models Samsung NX bodies write into
+//!   an SRW, on by default.
+//! - `canon.rs`: the tables an EOS R5 Mark II or R6 Mark III writes into a
+//!   CR3, off by default.
 //!
-//! `fit.rs` holds the maths more than one reader samples its tables with.
+//! `fit.rs` holds the maths and helpers more than one reader shares. A reader
+//! whose radii depend on the developed image's size asks for it
+//! (`developed_size_px`).
 //!
 //! FROM RAWMAKASE
 //!
@@ -50,10 +60,14 @@
 
 use serde::{Deserialize, Serialize};
 
+mod canon;
 mod dng;
 mod fit;
 mod fuji;
 mod nikon;
+mod olympus;
+mod panasonic;
+mod samsung;
 mod sony;
 #[cfg(test)]
 mod test_files;
@@ -163,6 +177,17 @@ impl LensCorrection {
 
     pub fn is_empty(&self) -> bool {
         self.vignetting.is_none() && self.distortion.is_none() && self.chromatic.is_none()
+    }
+
+    /// The parts this correction holds data for: for a camera whose stored
+    /// correction Lightroom applies whatever its profile setting, the parts it
+    /// always corrects (`always`).
+    fn held_parts(&self) -> Parts {
+        Parts {
+            distortion: self.distortion.is_some(),
+            chromatic: self.chromatic.is_some(),
+            vignetting: self.vignetting.is_some(),
+        }
     }
 
     pub fn validate(&self) -> bool {
@@ -361,18 +386,31 @@ impl<'a> LensMap<'a> {
 /// The built-in correction a RAW carries. `None` for a file of another
 /// format, one that stored no correction, or tables that do not parse.
 /// One line per make, asked in this order; each reader answers only for
-/// its own format. Nikon's asks a NEF's Make before Sony's, which reads any
-/// other TIFF's SubIFD.
+/// its own format. Nikon's and Samsung's ask the file's Make before Sony's,
+/// which reads any other TIFF's SubIFD.
 pub fn read(file: &[u8]) -> Option<LensCorrection> {
+    read_sized(file, &|| {
+        developed_size_px(file).map(|(w, h)| [w as f64, h as f64])
+    })
+}
+
+/// `read`, the developed image's width and height in pixels coming from
+/// `size_px`, which only a reader whose radii depend on them calls: the
+/// file's own (`developed_size_px`) in the app, a test file's in the tests.
+fn read_sized(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<LensCorrection> {
     let c = fuji::read(file)
         .or_else(|| dng::read(file))
         .or_else(|| nikon::read(file))
-        .or_else(|| sony::read(file))?;
+        .or_else(|| samsung::read(file, size_px))
+        .or_else(|| sony::read(file))
+        .or_else(|| olympus::read(file, size_px))
+        .or_else(|| panasonic::read(file, size_px))
+        .or_else(|| canon::read(file, size_px))?;
     (!c.is_empty() && c.validate()).then_some(c)
 }
 
-/// A TIFF's first bytes, little- or big-endian: how a DNG, an ARW and a NEF
-/// begin.
+/// A TIFF's first bytes, little- or big-endian: how a DNG, an ARW, a NEF
+/// and an SRW begin.
 fn is_tiff(file: &[u8]) -> bool {
     file.starts_with(b"II*\0") || file.starts_with(b"MM\0*")
 }
@@ -566,11 +604,11 @@ mod tests {
         );
     }
 
-    /// A real RAF or ARW (AG_RAW): its tables at a few radii, and the zoom
-    /// that keeps the corners inside on a 3:2 frame. Prints; asserts only
-    /// that one was read.
+    /// A real RAW with a built-in correction (AG_RAW): its tables at a few
+    /// radii, and the zoom that keeps the corners inside on a 3:2 frame.
+    /// Prints; asserts only that one was read.
     #[test]
-    #[ignore = "reads a local RAF or ARW named by AG_RAW; run by hand"]
+    #[ignore = "reads a local RAW named by AG_RAW; run by hand"]
     fn a_real_files_tables() {
         let path = std::env::var("AG_RAW").expect("AG_RAW");
         let c = read(&std::fs::read(&path).expect("read")).expect("a correction");

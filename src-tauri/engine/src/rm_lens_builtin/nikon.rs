@@ -30,8 +30,8 @@
 //! FROM RAWMAKASE
 //!
 //! RAWmakase `ae29938` (MIT), `crates/rawmakase-model/src/lens/embedded.rs`:
-//! - the Nikon reader (`nikon`, `descending`, and `make`, IFD0's Make), its
-//!   units, and its tests.
+//! - the Nikon reader (`nikon`, `descending`, and `make`, IFD0's Make,
+//!   now in `fit.rs`), its units, and its tests.
 //!
 //! RAWmakase `d37942f` (MIT), the same file:
 //! - the Coolpix reader (`coolpix_tables`, `COOLPIX_CA_UNIT`), the records
@@ -61,9 +61,8 @@ use std::io::Cursor;
 
 use rawler::bits::Endian;
 use rawler::formats::tiff::{Entry, IFD, Value};
-use rawler::tags::TiffCommonTag;
 
-use super::fit::{knots, spline};
+use super::fit::{knots, make, spline};
 use super::{LensCorrection, Parts, Radial, SUB_IFDS};
 
 /// NEFInfo, in the raw image's SubIFD.
@@ -99,11 +98,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
     let root =
         IFD::new_root_with_correction(&mut Cursor::new(file), 0, 0, 0, 1, &[SUB_IFDS]).ok()?;
     // RAWmakase ae29938: crates/rawmakase-model/src/lens/embedded.rs
-    let make = (root.get_entry(TiffCommonTag::Make))
-        .and_then(|e| e.value.as_string())
-        .map(|s| s.to_ascii_lowercase())
-        .unwrap_or_default();
-    if !make.starts_with("nikon") {
+    if !make(&root).starts_with("nikon") {
         return None;
     }
     // In the raw image's SubIFD.
