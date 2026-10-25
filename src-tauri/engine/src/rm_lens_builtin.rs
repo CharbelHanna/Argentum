@@ -9,6 +9,11 @@
 //! - `fuji.rs`: the tables Fujifilm writes into every RAF, on by default.
 //! - `dng.rs`: a DNG's lens opcodes, on by default.
 //! - `sony.rs`: the tables Sony writes into an ARW, off by default.
+//! - `olympus.rs`: the distortion and CA model Olympus and OM System write
+//!   into every ORF, on by default.
+//!
+//! `fit.rs` holds what more than one reader shares. A reader whose radii
+//! depend on the developed image's size asks for it (`developed_size_px`).
 //!
 //! FROM RAWMAKASE
 //!
@@ -36,10 +41,14 @@
 //!   on a 16:9 ZV-1 shot, so the developed image is the frame RAWmakase's
 //!   `camera_crop` describes; the sensor beyond it is not there to sample.
 
+use rawler::decoders::RawDecodeParams;
+use rawler::rawsource::RawSource;
 use serde::{Deserialize, Serialize};
 
 mod dng;
+mod fit;
 mod fuji;
+mod olympus;
 mod sony;
 #[cfg(test)]
 mod test_files;
@@ -149,6 +158,17 @@ impl LensCorrection {
 
     pub fn is_empty(&self) -> bool {
         self.vignetting.is_none() && self.distortion.is_none() && self.chromatic.is_none()
+    }
+
+    /// The parts this correction holds data for: for a camera whose stored
+    /// correction Lightroom applies whatever its profile setting, the parts it
+    /// always corrects (`always`).
+    fn held_parts(&self) -> Parts {
+        Parts {
+            distortion: self.distortion.is_some(),
+            chromatic: self.chromatic.is_some(),
+            vignetting: self.vignetting.is_some(),
+        }
     }
 
     pub fn validate(&self) -> bool {
@@ -330,10 +350,32 @@ impl<'a> LensMap<'a> {
 /// One line per make, asked in this order; each reader answers only for
 /// its own format.
 pub fn read(file: &[u8]) -> Option<LensCorrection> {
+    read_sized(file, &|| developed_size_px(file))
+}
+
+/// `read`, the developed image's width and height in pixels coming from
+/// `size_px`, which only a reader whose radii depend on them calls: the
+/// file's own (`developed_size_px`) in the app, a test file's in the tests.
+fn read_sized(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<LensCorrection> {
     let c = fuji::read(file)
         .or_else(|| dng::read(file))
-        .or_else(|| sony::read(file))?;
+        .or_else(|| sony::read(file))
+        .or_else(|| olympus::read(file, size_px))?;
     (!c.is_empty() && c.validate()).then_some(c)
+}
+
+/// The width and height in pixels of the image `develop` makes of `file`,
+/// the image the radii are fractions of: rawler's geometry alone, from a
+/// dummy decode, which reads no pixel data. `None` for a file rawler does
+/// not open.
+fn developed_size_px(file: &[u8]) -> Option<[f64; 2]> {
+    let source = RawSource::new_from_slice(file);
+    let raw = rawler::get_decoder(&source)
+        .ok()?
+        .raw_image(&source, &RawDecodeParams::default(), true)
+        .ok()?;
+    let (w, h) = crate::develop::developed_size_px(&raw);
+    (w > 0 && h > 0).then_some([w as f64, h as f64])
 }
 
 /// A TIFF's first bytes, little- or big-endian: how a DNG and an ARW begin.
@@ -510,11 +552,11 @@ mod tests {
         );
     }
 
-    /// A real RAF or ARW (AG_RAW): its tables at a few radii, and the zoom
-    /// that keeps the corners inside on a 3:2 frame. Prints; asserts only
-    /// that one was read.
+    /// A real RAW with a built-in correction (AG_RAW): its tables at a few
+    /// radii, and the zoom that keeps the corners inside on a 3:2 frame.
+    /// Prints; asserts only that one was read.
     #[test]
-    #[ignore = "reads a local RAF or ARW named by AG_RAW; run by hand"]
+    #[ignore = "reads a local RAW named by AG_RAW; run by hand"]
     fn a_real_files_tables() {
         let path = std::env::var("AG_RAW").expect("AG_RAW");
         let c = read(&std::fs::read(&path).expect("read")).expect("a correction");

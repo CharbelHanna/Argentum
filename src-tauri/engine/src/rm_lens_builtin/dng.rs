@@ -24,9 +24,14 @@
 //!   writes "DNG opcodes".
 //! - A DNG's radius is over its raw image; the developed image here is its
 //!   DefaultCrop, a few pixels smaller on the files seen.
+//! - The 33 radii the opcodes are sampled at are the makers' readers' own
+//!   (`fit::knots`), the same numbers: the opcode radius, like ours, is 1 at
+//!   the farthest corner from the optical centre, which must be near the
+//!   image centre.
 
 use rawler::tags::DngTag;
 
+use super::fit::knots;
 use super::{LensCorrection, Radial};
 
 /// DNG opcode IDs (DNG Specification 1.7.1.0, chapter 7).
@@ -72,12 +77,6 @@ fn doubles(p: &[u8]) -> Vec<f64> {
         .collect()
 }
 
-/// Radius samples; the opcode radius, like ours, is 1 at the farthest corner
-/// from the optical centre, which must be near the image centre.
-fn dng_knots() -> Vec<f32> {
-    (0..=32).map(|i| i as f32 / 32.).collect()
-}
-
 fn centred(cx: f64, cy: f64) -> bool {
     (cx - 0.5).abs() < 0.02 && (cy - 0.5).abs() < 0.02
 }
@@ -88,7 +87,7 @@ fn vignette(p: &[u8]) -> Option<Radial> {
     if v.len() != 7 || !centred(v[5], v[6]) {
         return None;
     }
-    let values = dng_knots()
+    let values = knots()
         .iter()
         .map(|r| {
             let r2 = f64::from(*r * *r);
@@ -96,7 +95,7 @@ fn vignette(p: &[u8]) -> Option<Radial> {
         })
         .collect();
     let r = Radial {
-        knots: dng_knots(),
+        knots: knots(),
         values,
     };
     r.values.iter().any(|g| (g - 1.).abs() > 1e-4).then_some(r)
@@ -120,8 +119,8 @@ fn warp(p: &[u8]) -> Option<(Option<Radial>, Option<[Radial; 2]>)> {
     };
     let green = if planes == 3 { 1 } else { 0 };
     let curve = |f: &dyn Fn(f32) -> f32| Radial {
-        knots: dng_knots(),
-        values: dng_knots().into_iter().map(f).collect(),
+        knots: knots(),
+        values: knots().into_iter().map(f).collect(),
     };
     let distortion = curve(&|r| ratio(green, r));
     let chromatic = (planes == 3).then(|| {

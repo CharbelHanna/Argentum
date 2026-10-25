@@ -21,6 +21,16 @@ Newest first.
   GitHub is asked at start and every six hours; nothing is downloaded. Classic's library header
   did this until it was deleted with the Classic layout (#117). The comparison and timing are
   Shoebox's (`src-tauri/src/updates.rs`), in `src/argentum/updates.ts`.
+- **Olympus and OM System photos get the camera's own lens correction.** Every ORF carries the
+  distortion model of the lens, and its colour fringing (lateral chromatic aberration) where the
+  lens has some, in the maker note (ImageProcessing 0x150A and 0x150C). Lightroom applies it
+  whatever its profile setting, so the switch in Crop > Lens Correction starts on for an ORF with
+  no edit yet, and the camera's data corrects the distortion and fringing it stores; the
+  vignetting, which the file does not store, stays with the lensfun profile. Against the warp
+  Adobe DNG Converter 18.7 writes for an E-M10 Mark III photo, the correction is within 0.1 px
+  (the test). From RAWmakase @ `af35e25` (MIT): the Olympus reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/olympus.rs`,
+  with the model sampling shared by the makers' readers in `rm_lens_builtin/fit.rs`.
 
 ### Changed
 

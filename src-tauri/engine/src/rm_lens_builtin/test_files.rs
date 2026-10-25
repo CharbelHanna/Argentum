@@ -1,9 +1,15 @@
 //! The small files the readers' tests build, shared by each make's tests
-//! and the pin in `rm_lens_builtin.rs`, and the digest that pin compares.
+//! and the pin in `rm_lens_builtin.rs`, the digest that pin compares, and
+//! the measures the makers' tests take against Adobe's numbers.
+//!
+//! `directory`, `hex`, `adobe` and `largest_difference` are RAWmakase's
+//! (MIT) test helpers @ af35e25 (`crates/rawmakase-model/src/lens/embedded.rs`),
+//! measured out to the developed image's corner where RAWmakase measures to
+//! the default crop's: here they are the same image.
 
-use super::LensCorrection;
 use super::fuji::{FUJI_CHROMATIC, FUJI_DISTORTION, FUJI_IFD, FUJI_VIGNETTING, RAF_TIFF_POINTER};
 use super::sony::{SONY_CHROMATIC, SONY_DISTORTION, SONY_VIGNETTING, SUB_IFDS};
+use super::{Amounts, LensCorrection};
 
 /// (tag, type, count, data)
 pub(super) type Entry = (u16, u16, u32, Vec<u8>);
@@ -119,7 +125,7 @@ pub(super) fn dji_file() -> Vec<u8> {
     ])
 }
 
-fn shorts(v: &[i16]) -> Vec<u8> {
+pub(super) fn shorts(v: &[i16]) -> Vec<u8> {
     v.iter().flat_map(|x| x.to_le_bytes()).collect()
 }
 
@@ -148,6 +154,65 @@ pub(super) const ZV1_CA: [i16; 33] = [
 pub(super) const ZV1_DIST: [i16; 17] = [
     11, 1265, 1218, 1083, 860, 562, 209, -179, -580, -972, -1353, -1725, 0, 0, 0, 0, 0,
 ];
+
+/// The registry's `read` for a test file, which rawler cannot open: its
+/// developed image is `size_px`.
+pub(super) fn read_framed(file: &[u8], size_px: [f64; 2]) -> Option<LensCorrection> {
+    super::read_sized(file, &|| Some(size_px))
+}
+
+/// Little-endian directory of `entries` (tag, type, count, data) at `at`, as a
+/// file's or maker note's offsets count; the data follows it.
+pub(super) fn directory(at: usize, entries: &[Entry]) -> Vec<u8> {
+    let mut data_at = at + 2 + entries.len() * 12 + 4;
+    let (mut out, mut data): (Vec<u8>, Vec<u8>) =
+        ((entries.len() as u16).to_le_bytes().to_vec(), vec![]);
+    for (tag, kind, count, bytes) in entries {
+        out.extend(tag.to_le_bytes());
+        out.extend(kind.to_le_bytes());
+        out.extend(count.to_le_bytes());
+        if bytes.len() <= 4 {
+            out.extend(bytes.iter().chain(&[0; 4]).take(4));
+        } else {
+            out.extend((data_at as u32).to_le_bytes());
+            data.extend(bytes);
+            data_at += bytes.len();
+        }
+    }
+    out.extend(0u32.to_le_bytes());
+    out.extend(data);
+    out
+}
+
+pub(super) fn hex(s: &str) -> Vec<u8> {
+    (s.split_whitespace())
+        .map(|b| u8::from_str_radix(b, 16).unwrap())
+        .collect()
+}
+
+/// Source radius in pixels at output radius `px` from Adobe's WarpRectilinear
+/// coefficients, whose radius 1 is `unit` pixels.
+pub(super) fn adobe(k: [f64; 4], unit: f64, px: f64) -> f64 {
+    let r2 = (px / unit).powi(2);
+    px * (k[0] + r2 * (k[1] + r2 * (k[2] + r2 * k[3])))
+}
+
+/// Largest difference in pixels, out to the corner of a developed image of
+/// `size_px`, between the source radii of `c` and Adobe's warp.
+pub(super) fn largest_difference(
+    c: &LensCorrection,
+    size_px: [f64; 2],
+    adobe: &dyn Fn(usize, f64) -> f64,
+) -> f64 {
+    let half = size_px[0].hypot(size_px[1]) / 2.;
+    (0..=200)
+        .flat_map(|i| {
+            let px = half * f64::from(i) / 200.;
+            let scale = c.radial_scale_with((px / half) as f32, Amounts::FULL);
+            (0..3).map(move |ch| (px * f64::from(scale[ch]) - adobe(ch, px)).abs())
+        })
+        .fold(0., f64::max)
+}
 
 /// What `c` serializes to, every number to seven significant digits, as
 /// one FNV-1a hash: exact enough to catch any change to a reader, loose
