@@ -226,11 +226,23 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
         return ImageMetadata::default();
     }
 
-    let Ok(content) = fs::read_to_string(sidecar_path) else {
-        return ImageMetadata::default();
+    let content = match fs::read_to_string(sidecar_path) {
+        Ok(content) => content,
+        Err(e) => {
+            crate::mods::salvage::keep_copy(sidecar_path, &e);
+            return ImageMetadata::default();
+        }
     };
 
-    let mut meta = serde_json::from_str::<ImageMetadata>(&content).unwrap_or_default();
+    // A sidecar that does not read is kept aside and read key by key, so a
+    // later save cannot write a blank edit over it (mods/salvage.rs).
+    let mut meta: ImageMetadata =
+        crate::mods::salvage::read_or_keep(sidecar_path, &content, || {
+            match serde_json::to_value(ImageMetadata::default()) {
+                Ok(serde_json::Value::Object(base)) => base,
+                _ => serde_json::Map::new(),
+            }
+        });
     let mut healed = false;
 
     if let Some(ref mut exif_map) = meta.exif {

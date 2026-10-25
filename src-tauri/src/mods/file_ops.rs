@@ -332,13 +332,31 @@ mod tests {
     };
     use crate::image_processing::ImageMetadata;
 
+    fn is_sidecar(path: &Path) -> bool {
+        path.extension().is_some_and(|e| e == "agdata")
+    }
+
+    /// A sidecar is written as a real one, carrying `text` as its tag, because a
+    /// sidecar that does not read gets a rescue copy beside it (mods/salvage.rs).
     fn write(path: &Path, text: &str) {
         fs::create_dir_all(path.parent().unwrap()).unwrap();
+        let text = if is_sidecar(path) {
+            serde_json::json!({ "version": 1, "rating": 0, "adjustments": {}, "tags": [text] })
+                .to_string()
+        } else {
+            text.to_string()
+        };
         fs::write(path, text).unwrap();
     }
 
+    /// The text `write` was given.
     fn read(path: &Path) -> String {
-        fs::read_to_string(path).unwrap()
+        let text = fs::read_to_string(path).unwrap();
+        if !is_sidecar(path) {
+            return text;
+        }
+        let meta: ImageMetadata = serde_json::from_str(&text).unwrap();
+        meta.tags.unwrap().remove(0)
     }
 
     fn names_in(folder: &Path) -> Vec<String> {
