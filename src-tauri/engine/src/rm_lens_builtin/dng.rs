@@ -24,10 +24,7 @@
 //!   writes "DNG opcodes".
 //! - A DNG's radius is over its raw image; the developed image here is its
 //!   DefaultCrop, a few pixels smaller on the files seen.
-//! - The 33 radii the opcodes are sampled at are the makers' readers' own
-//!   (`fit::knots`), the same numbers: the opcode radius, like ours, is 1 at
-//!   the farthest corner from the optical centre, which must be near the
-//!   image centre.
+//! - The 33 radii are `fit::knots`, the ones the other readers sample at.
 
 use rawler::tags::DngTag;
 
@@ -77,6 +74,8 @@ fn doubles(p: &[u8]) -> Vec<f64> {
         .collect()
 }
 
+/// The opcode radius, like ours, is 1 at the farthest corner from the
+/// optical centre, which must be near the image centre.
 fn centred(cx: f64, cy: f64) -> bool {
     (cx - 0.5).abs() < 0.02 && (cy - 0.5).abs() < 0.02
 }
@@ -139,7 +138,7 @@ fn warp(p: &[u8]) -> Option<(Option<Radial>, Option<[Radial; 2]>)> {
 #[cfg(test)]
 mod tests {
     use super::{vignette, warp};
-    use crate::rm_lens_builtin::sony::SUB_IFDS;
+    use crate::rm_lens_builtin::SUB_IFDS;
     use crate::rm_lens_builtin::test_files::{be, dji_file, tiff};
     // The registry's `read`, as the app calls it.
     use crate::rm_lens_builtin::{Amounts, LensMap, read};

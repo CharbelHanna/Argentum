@@ -47,6 +47,40 @@ Newest first.
   downloaded by CI and never committed. It runs in the App job on a software GPU, advisory for
   now. `src-tauri/src/mods/look_check.rs`; the colour difference (`lab`, `delta_e2000`, from
   RAWmakase `half_check.rs` @ `183e09fd`) is now defined once, in the engine's `colour.rs`.
+- **Sony photos get the lens correction Lightroom applies from the camera, on by default.** An
+  ARW stores the lens's distortion, colour fringing (lateral chromatic aberration) and corner
+  shading for the shot. Lightroom always applies the colour fringing from it, on every Sony body
+  that stores these tables, and the distortion too on the fixed-lens compacts (RX100, RX10, RX0,
+  HX95 and HX99, ZV-1; not the RX1 series), but never the shading. So the camera's switch in
+  Crop > Lens Correction now starts on for a Sony photo with no edit yet and corrects those parts
+  from the camera; the other parts come from the lensfun profile, or from the camera's own tables
+  on Auto when lensfun has none. Before, Sony's correction started off and, switched on, replaced
+  lensfun for all three parts. Sony's distortion is now drawn as a smooth curve through its stored
+  points (a natural cubic spline) rather than straight lines between them, closer to Adobe's. An
+  edited photo keeps its switch where it was. From RAWmakase `44b21d5` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Sony reader, `sony_applies_distortion` and
+  `spline`), in `src-tauri/engine/src/rm_lens_builtin/sony.rs` and `fit.rs`.
+- **Nikon Z photos get the camera's own lens correction.** A Nikon Z body stores its lens's
+  distortion, colour fringing and corner shading for the shot in the NEF (NEFInfo, tag 0xC7D5).
+  For a lens that needs the correction, Lightroom always applies it (Adobe DNG Converter writes it
+  as opcodes), so the camera's switch in Crop > Lens Correction starts on for such a photo with no
+  edit yet and corrects every part the camera stores. For a lens whose correction is optional,
+  Adobe uses it only as the "Camera Settings" profile, so the switch starts off and, switched on,
+  corrects all of it. Nothing is read when the camera's Auto Distortion Control was off. A photo
+  edited before keeps its look until the switch is turned on. From RAWmakase `ae29938` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Nikon reader and its tests), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`; the photo's size, which places the radius, is
+  read with rawler.
+- **Nikon Coolpix P950, P1000 and P1100 photos get the camera's own lens correction, on by
+  default.** These cameras store distortion and colour-fringing tables in the NRW (records 2 and 3
+  of its NEFInfo), which Adobe DNG Converter writes as opcodes and Lightroom always applies. The
+  camera's switch in Crop > Lens Correction starts on for such a photo with no edit yet and
+  corrects those two parts from the camera; corner shading comes from the lensfun profile when it
+  has one. The distortion is drawn as a smooth curve through the stored points and scaled to
+  Adobe's framing. The A1000 stores another layout, which is not read. A photo edited before keeps
+  its look until the switch is turned on. From RAWmakase `d37942f` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (`coolpix_tables` and its test), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`.
 - **Olympus and OM System photos get the camera's own lens correction.** Every ORF carries the
   distortion model of the lens, and its colour fringing (lateral chromatic aberration) where the
   lens has some, in the maker note (ImageProcessing 0x150A and 0x150C). Lightroom applies it

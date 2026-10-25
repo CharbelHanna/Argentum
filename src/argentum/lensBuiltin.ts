@@ -1,10 +1,11 @@
 /**
  * The camera's built-in lens correction, filled into the open photo's edit. Ours.
  *
- * Fujifilm stores its lens's distortion, colour fringing and corner shading
- * in every RAF, for the focal length and aperture used, and Lightroom applies
- * it by default; Sony stores the same in an ARW, where it starts off, and a
- * DNG (Leica, DJI's drones, phones, Lightroom's own) as opcodes, on.
+ * Cameras store their lens's distortion, colour fringing and corner shading
+ * in the RAW, for the focal length and aperture used: Fujifilm in every RAF,
+ * Sony in an ARW, Nikon in a NEF or NRW, a DNG (Leica, DJI's drones, phones,
+ * Lightroom's own) as opcodes. The engine's reader for each make says which
+ * parts Lightroom applies by default, and so whether the switch starts on.
  * `lens_builtin` (mods/lens_builtin.rs) reads it from the file;
  * this puts it into the edit as `lensBuiltinParams`, with the switch,
  * `lensBuiltin`, at the photo's own default when the edit has none yet. From

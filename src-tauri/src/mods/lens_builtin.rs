@@ -20,12 +20,12 @@
 //!
 //! WHICH PHOTOS START WITH IT ON
 //!
-//! A correction Lightroom applies by default (`default_on`: Fujifilm's) is on
-//! for a photo with no edit yet. A photo edited before this existed keeps the
-//! look it was edited with until the switch is turned on. Sony's is not known
-//! to be applied by Lightroom, so it starts off: the switch is there, off.
-//! A DNG's opcodes are what Lightroom applies, so they start on, as
-//! Fujifilm's do.
+//! A correction Lightroom applies by default (`default_on`: Fujifilm's, a
+//! DNG's opcodes, Sony's lateral CA, Nikon Z's where the lens needs it,
+//! Coolpix's) is on for a photo with no edit yet. One Lightroom uses only in
+//! place of a lens profile (Nikon Z's optional one) starts off: the switch is
+//! there, off. A photo edited before this existed keeps the look it was
+//! edited with until the switch is turned on.
 
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
