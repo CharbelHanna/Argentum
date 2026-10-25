@@ -214,6 +214,28 @@ pub(super) fn largest_difference(
         .fold(0., f64::max)
 }
 
+/// Largest difference in pixels, out to the corner of a developed image of
+/// `size_px`, between red's and blue's displacement from green in `c` and in
+/// Adobe's warp, and Adobe's largest displacement. RAWmakase's @ d04ef4f.
+pub(super) fn largest_ca_difference(
+    c: &LensCorrection,
+    size_px: [f64; 2],
+    adobe: &dyn Fn(usize, f64) -> f64,
+) -> (f64, f64) {
+    let half = size_px[0].hypot(size_px[1]) / 2.;
+    (0..=200)
+        .flat_map(|i| {
+            let px = half * f64::from(i) / 200.;
+            let scale = c.radial_scale_with((px / half) as f32, Amounts::FULL);
+            [0, 2].map(|ch| {
+                let ours = px * f64::from(scale[ch] - scale[1]);
+                let theirs = adobe(ch, px) - adobe(1, px);
+                ((ours - theirs).abs(), theirs.abs())
+            })
+        })
+        .fold((0., 0.), |(a, b), (x, y)| (a.max(x), b.max(y)))
+}
+
 /// What `c` serializes to, every number to seven significant digits, as
 /// one FNV-1a hash: exact enough to catch any change to a reader, loose
 /// enough to ignore a platform's last-bit difference in `powf`.

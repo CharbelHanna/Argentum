@@ -11,6 +11,8 @@
 //! - `sony.rs`: the tables Sony writes into an ARW, off by default.
 //! - `olympus.rs`: the distortion and CA model Olympus and OM System write
 //!   into every ORF, on by default.
+//! - `panasonic.rs`: the distortion and CA corrections Panasonic writes into
+//!   every RW2, on by default.
 //!
 //! `fit.rs` holds what more than one reader shares. A reader whose radii
 //! depend on the developed image's size asks for it (`developed_size_px`).
@@ -49,6 +51,7 @@ mod dng;
 mod fit;
 mod fuji;
 mod olympus;
+mod panasonic;
 mod sony;
 #[cfg(test)]
 mod test_files;
@@ -360,7 +363,8 @@ fn read_sized(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<Len
     let c = fuji::read(file)
         .or_else(|| dng::read(file))
         .or_else(|| sony::read(file))
-        .or_else(|| olympus::read(file, size_px))?;
+        .or_else(|| olympus::read(file, size_px))
+        .or_else(|| panasonic::read(file, size_px))?;
     (!c.is_empty() && c.validate()).then_some(c)
 }
 

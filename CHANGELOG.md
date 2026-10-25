@@ -31,6 +31,16 @@ Newest first.
   (the test). From RAWmakase @ `af35e25` (MIT): the Olympus reader in
   `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/olympus.rs`,
   with the model sampling shared by the makers' readers in `rm_lens_builtin/fit.rs`.
+- **Panasonic (and Leica RWL) photos get the camera's own lens correction.** Every RW2 carries
+  the camera's distortion correction (IFD0 0x0119) and, for lenses that have the data, its
+  colour fringing (0x011B, applied as Adobe's smooth fit of it). Lightroom applies both whatever
+  its profile setting, so the switch in Crop > Lens Correction starts on for an RW2 with no edit
+  yet, and the camera's data corrects what it stores; the fringing is corrected even where the
+  distortion correction is off, as Adobe does; vignetting stays with the lensfun profile.
+  Against Adobe DNG Converter 18.7's warps of raw.pixls.us photos (GX9, GM5, G80, TZ202, GH7)
+  the correction is within 0.1 px (the tests). From RAWmakase @ `af35e25` and `d04ef4f` (MIT):
+  the Panasonic reader in `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/panasonic.rs`.
 
 ### Changed
 
