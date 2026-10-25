@@ -171,6 +171,13 @@ Newest first.
   used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
   Thumbnails and 8-bit exports were not affected: their key already named the photo.
 
+### Removed
+
+- **Render code that could never run:** the old CPU preview encode's 22 lines after the `return`
+  to ours (`apply_cpu_default_raw_processing`, the crate's only `allow(unreachable_code)`), and
+  two tone maps nothing calls in `shader.wgsl` (`legacy_tonemap`, `no_tonemap`). No pixel
+  changes.
+
 ## 26.43.3 — 2026-10-23
 
 ### Added

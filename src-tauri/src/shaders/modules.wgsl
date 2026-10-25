@@ -28,8 +28,9 @@
 //
 // Ours also decoded the RAW a second time before adapting, on the belief that
 // the shader was fed the preview encode. It is not: the render input is the
-// decoder's scene-linear output, which is what theirs assumes. See
-// docs/UPSTREAM_CATCHUP.md, 2026-10-07.
+// decoder's scene-linear output, which is what theirs assumes. See the
+// RapidRAW 1.6.5 review of 2026-10-07 (docs/UPSTREAM_CATCHUP.md, in git
+// history).
 //
 // Auto white balance survives, in mods/auto_wb.rs: it detects the illuminant
 // and hands it to their white_balance::pick_white_balance, so the wand and
