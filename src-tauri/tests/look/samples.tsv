@@ -1,0 +1,13 @@
+# The golden photos (src-tauri/src/mods/look_check.rs): CC0 RAWs from raw.pixls.us,
+# downloaded by CI and checked against these hashes. Never committed, never mirrored.
+id	url	sha256	camera	licence	covers
+1198	https://raw.pixls.us/getfile.php/1198/nice/Pentax%20-%20K-5%20II%20s%20-%2014bit%20(3%3A2).PEF	e579e7360c35e512f9c3a5c0eb9519575b87b489c6f86be82590f7706a7ed17b	Pentax K-5 II s	CC0 1.0	Pentax dynamic-range expansion (+1 EV held back)
+1595	https://raw.pixls.us/getfile.php/1595/nice/Canon%20-%20EOS%205D%20Mark%20II%20-%20sRAW2%20(sRAW)%20(3%3A2).cr2	e8a31e7dfa7d5739f26da1049b1bbe78982d25004e0e857209f32d2e308c4a0c	Canon EOS 5D Mark II	CC0 1.0	Canon sRAW2: three colours a pixel, levels from the file
+4132	https://raw.pixls.us/getfile.php/4132/nice/Olympus%20-%20E-M10%20Mark%20IV%20-%2016bit%20(4%3A3).ORF	77b67d898f85d3d738cb16daf9740c0fcf078ce9662c381994604ac540ce36b4	Olympus E-M10 Mark IV	CC0 1.0	Olympus gradation (+0.33 EV held back)
+4898	https://raw.pixls.us/getfile.php/4898/nice/DJI%20-%20FC7303%20-%2016bit%20(16%3A9).DNG	fb4f294e12cab7b507fd0b7c07f24e5d13e7c0dd127b534ce12c48d644c9363d	DJI FC7303	CC0 1.0	a drone DNG: OpcodeList3 vignette and warp, BaselineExposure -0.75
+5148	https://raw.pixls.us/getfile.php/5148/nice/Nikon%20-%20Z%209%20-%208bit%208bit%20compressed%20(3%3A2).NEF	be91bac25573adf7ec6320a542105d87b4fb9c956d7b620ec90d57ac2ae6c3f0	Nikon Z 9	CC0 1.0	Nikon high-efficiency raw, white level 15892, Active D-Lighting
+5961	https://raw.pixls.us/getfile.php/5961/nice/Google%20-%20Pixel%206%20Pro%20-%2016bit%20(4%3A3).dng	3a859e917a91698a3e15ce3b3721a48a1fb1296873e0697d3bf7c2793297200d	Google Pixel 6 Pro	CC0 1.0	a phone DNG with GainMap opcodes (lens shading)
+6936	https://raw.pixls.us/getfile.php/6936/nice/Sony%20-%20ILCE-7M4%20-%2014bit%20(3%3A2).ARW	639a6d4db881f1359e3ea7e1137b314e59417d24e6d4d862b7202111a2c823b2	Sony ILCE-7M4	CC0 1.0	Sony lossy compressed raw
+7882	https://raw.pixls.us/getfile.php/7882/nice/Canon%20-%20EOS%20R5%20Mark%20II%20-%20CRAW%20(3%3A2).CR3	b3c08a5c7a97299dfd58896a12b939e7b43ec78682761812524825e6e5d087be	Canon EOS R5 Mark II	CC0 1.0	Canon Highlight Tone Priority and Auto Lighting Optimizer
+8771	https://raw.pixls.us/getfile.php/8771/nice/Fujifilm%20-%20X-T30%20III%20-%2014bit%20compressed%20(3%3A2).RAF	1910b95422240f97781fa3296d67a56cc8f62de63144ac11cbf4267a11278042	Fujifilm X-T30 III	CC0 1.0	Fujifilm X-Trans 6x6 mosaic, built-in lens correction
+8964	https://raw.pixls.us/getfile.php/8964/nice/Canon%20-%20EOS%20R6%20Mark%20III%20-%20CRAW%20(3%3A2).CR3	7e1a5d84297a52853b0bbe5a5c03a5d4f5b93e00b7020271523240f9cabfe50e	Canon EOS R6 Mark III	CC0 1.0	the camera table offset for a newer body (#155), its levels shift

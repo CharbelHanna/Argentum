@@ -1,0 +1,3 @@
+# Append-only: one row per blessing, written by AG_LOOK_BLESS (src-tauri/src/mods/look_check.rs).
+date	pr	cases	reason
+2026-10-25	#183	*	First references: ten CC0 samples, their decode and four render states each
