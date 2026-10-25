@@ -170,6 +170,13 @@ Newest first.
   remembered by a sample of the photo's own pixels as well, the key the sharpened picture already
   used, now defined once (`picture_key` in `src-tauri/src/mods/sharpen.rs`), with a test.
   Thumbnails and 8-bit exports were not affected: their key already named the photo.
+- **A photo corrected with its camera's lens tables keeps the tables it was saved with.** Opening
+  it read the file again and, when a newer reader read the tables differently, replaced them in
+  the edit: the photo moved on screen while an export of the saved edit did not. An edit whose
+  switch is on now keeps its tables; one that is off takes the file's, so turning it on uses them.
+  `filled` in `src/argentum/lensBuiltin.ts`, with its tests. Tests also pin what today's readers
+  return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
+  camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
 
 ## 26.43.3 — 2026-10-23
 

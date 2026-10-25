@@ -178,6 +178,87 @@ mod tests {
         );
     }
 
+    /// An image's values, each to five significant digits, as one FNV-1a
+    /// hash: exact enough to catch any change to a warp, loose enough to
+    /// ignore a platform's last-bit difference in the maths.
+    fn digest(image: &image::DynamicImage) -> u64 {
+        let text: String = (image.to_rgb32f().iter())
+            .map(|v| format!("{v:.4e},"))
+            .collect();
+        text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
+        })
+    }
+
+    /// Today's warp and its inverse, pinned on a small gradient, with the
+    /// camera's tables (Fujifilm's fill and Sony's), with lensfun's numbers,
+    /// and with both, where the camera's replace lensfun's. A change meant to
+    /// move one updates its line here; any other change fails.
+    #[test]
+    fn todays_warps_are_pinned() {
+        use crate::image_processing::{
+            get_geometry_params_from_json, unwarp_image_geometry, warp_image_geometry,
+        };
+        let image =
+            image::DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(48, 32, |x, y| {
+                image::Rgb([x as f32 / 48., y as f32 / 32., (x + y) as f32 / 80.])
+            }));
+        let radial = |values: Vec<f32>| Radial {
+            knots: vec![0., 0.5, 1.],
+            values,
+        };
+        let tables = |source: &str| {
+            serde_json::to_value(LensCorrection {
+                source: source.into(),
+                default_on: true,
+                vignetting: Some(radial(vec![1., 1.2, 1.6])),
+                // A ZV-1-like table: 1.077 at the centre, so the fills differ.
+                distortion: Some(radial(vec![1.077, 1.04, 0.93])),
+                chromatic: Some([radial(vec![1., 1., 1.0006]), radial(vec![1., 1., 0.9995])]),
+            })
+            .unwrap()
+        };
+        let lensfun = json!({
+            "k1": -0.02, "k2": 0.004, "k3": 0.0, "model": 0,
+            "tca_vr": 1.0004, "tca_vb": 0.9997, "vig_k1": -0.3, "vig_k2": 0.05, "vig_k3": 0.0,
+        });
+        let pinned = |edit: serde_json::Value| {
+            let params = get_geometry_params_from_json(&edit);
+            let warped = warp_image_geometry(&image, params.clone());
+            [
+                digest(&warped),
+                digest(&unwarp_image_geometry(&warped, params)),
+            ]
+        };
+        let fuji = json!({ "lensBuiltin": true, "lensBuiltinParams": tables("Fujifilm built-in") });
+        for (name, edit, want) in [
+            (
+                "camera",
+                fuji.clone(),
+                [8_378_816_467_656_231_270, 8_125_105_830_291_545_259],
+            ),
+            (
+                "sony",
+                json!({ "lensBuiltin": true, "lensBuiltinParams": tables(LensCorrection::SONY_BUILTIN) }),
+                [6_215_859_517_951_140_240, 12_902_846_181_271_203_747],
+            ),
+            (
+                "lensfun",
+                json!({ "lensDistortionParams": lensfun }),
+                [9_956_633_457_548_040_988, 7_218_553_381_868_940_216],
+            ),
+        ] {
+            assert_eq!(pinned(edit), want, "{name}");
+        }
+        let mut both = fuji.clone();
+        both["lensDistortionParams"] = lensfun;
+        assert_eq!(
+            pinned(both),
+            pinned(fuji),
+            "the camera's tables replace lensfun's"
+        );
+    }
+
     #[test]
     fn its_keys_change_the_geometry_hash() {
         let on = json!({ "lensBuiltin": true, "lensBuiltinParams": correction() });
