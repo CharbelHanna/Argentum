@@ -39,10 +39,8 @@ use rawler::formats::tiff::IFD;
 use rawler::tags::TiffCommonTag;
 
 use super::fit::{knots, spline};
-use super::{LensCorrection, Parts, Radial};
+use super::{LensCorrection, Parts, Radial, SUB_IFDS};
 
-/// SubIFDs: an ARW's raw image directory is the first.
-pub(super) const SUB_IFDS: u16 = 0x14a;
 pub(super) const SONY_VIGNETTING: u16 = 0x7032;
 pub(super) const SONY_CHROMATIC: u16 = 0x7035;
 pub(super) const SONY_DISTORTION: u16 = 0x7037;
@@ -71,6 +69,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
     let model = (root.get_entry(TiffCommonTag::Model))
         .and_then(|e| e.value.as_string().cloned())
         .unwrap_or_default();
+    // An ARW's raw image directory is the first.
     let sub = root.get_sub_ifd_all(SUB_IFDS)?.first()?;
     let numbers = |tag: u16| -> Option<Vec<f32>> {
         let v = &sub.get_entry(tag)?.value;

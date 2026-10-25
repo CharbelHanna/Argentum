@@ -138,7 +138,7 @@ fn warp(p: &[u8]) -> Option<(Option<Radial>, Option<[Radial; 2]>)> {
 #[cfg(test)]
 mod tests {
     use super::{vignette, warp};
-    use crate::rm_lens_builtin::sony::SUB_IFDS;
+    use crate::rm_lens_builtin::SUB_IFDS;
     use crate::rm_lens_builtin::test_files::{be, dji_file, tiff};
     // The registry's `read`, as the app calls it.
     use crate::rm_lens_builtin::{Amounts, LensMap, read};

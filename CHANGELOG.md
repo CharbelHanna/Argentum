@@ -27,6 +27,17 @@ Newest first.
   edited photo keeps its switch where it was. From RAWmakase `44b21d5` (MIT):
   `crates/rawmakase-model/src/lens/embedded.rs` (the Sony reader, `sony_applies_distortion` and
   `spline`), in `src-tauri/engine/src/rm_lens_builtin/sony.rs` and `fit.rs`.
+- **Nikon Z photos get the camera's own lens correction.** A Nikon Z body stores its lens's
+  distortion, colour fringing and corner shading for the shot in the NEF (NEFInfo, tag 0xC7D5).
+  For a lens that needs the correction, Lightroom always applies it (Adobe DNG Converter writes it
+  as opcodes), so the camera's switch in Crop > Lens Correction starts on for such a photo with no
+  edit yet and corrects every part the camera stores. For a lens whose correction is optional,
+  Adobe uses it only as the "Camera Settings" profile, so the switch starts off and, switched on,
+  corrects all of it. Nothing is read when the camera's Auto Distortion Control was off. A photo
+  edited before keeps its look until the switch is turned on. From RAWmakase `ae29938` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Nikon reader and its tests), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`; the photo's size, which places the radius, is
+  read with rawler.
 
 ### Changed
 
