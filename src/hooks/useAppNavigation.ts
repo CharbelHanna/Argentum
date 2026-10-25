@@ -94,6 +94,9 @@ const loadExifForImages = async (
   }
 };
 
+/** Counts handleImageSelect calls, so a call that waited can tell a later one was made. */
+let imageSelectGeneration = 0;
+
 export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationProps) {
   const {
     transformWrapperRef,
@@ -159,8 +162,11 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
   const handleImageSelect = useCallback(
     async (path: string, openInEditor: boolean = true) => {
+      // RapidRAW ecf7730f: src/hooks/useAppNavigation.ts. The latest selection wins: one made
+      // while an earlier one waits on the backend must not be undone when that wait ends.
+      const generation = ++imageSelectGeneration;
       const { selectedImage, isSliderDragging, resetHistory, setEditor } = useEditorStore.getState();
-      const { setLibrary, multiSelectedPaths } = useLibraryStore.getState();
+      const { setLibrary } = useLibraryStore.getState();
       const { setUI } = useUIStore.getState();
 
       if (openInEditor) {
@@ -186,6 +192,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         ? await invoke<boolean>('is_image_cached', { path }).catch(() => false)
         : false;
 
+      if (generation !== imageSelectGeneration) return;
+
       const hasDifferentResolution =
         cached &&
         (useEditorStore.getState().originalSize.width !== cached.originalSize.width ||
@@ -197,6 +205,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
 
       selectedImagePathRef.current = path;
 
+      const { multiSelectedPaths } = useLibraryStore.getState();
       const newMultiSelectedPaths = multiSelectedPaths.includes(path) ? multiSelectedPaths : [path];
 
       setLibrary({

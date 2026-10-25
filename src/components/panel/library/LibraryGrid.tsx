@@ -18,6 +18,7 @@ import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights, TEXT_COLOR_KEYS } from '../../../types/typography';
 import { useProcessStore } from '../../../store/useProcessStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
+import { gridRowsOf } from '../../../argentum/modern/gridRows';
 
 function ListHeader({ widths, setWidths, containerRef, sortCriteria, onSortChange }: any) {
   const { t } = useTranslation();
@@ -506,6 +507,15 @@ export default function LibraryGrid(props: any) {
         : [],
     [gridData],
   );
+
+  // RapidRAW ecf7730f: src/components/panel/library/LibraryGrid.tsx. The rows as laid out, for Up and Down.
+  useEffect(() => {
+    setLibrary({
+      libraryGridRows: gridData ? gridRowsOf(gridData.rows, gridData.itemWidth, gridData.ITEM_GAP) : [],
+    });
+  }, [gridData, setLibrary]);
+
+  useEffect(() => () => setLibrary({ libraryGridRows: [] }), [setLibrary]);
 
   const handleImageClick = useCallback(
     (path: string, e: any) => {

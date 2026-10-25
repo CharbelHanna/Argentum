@@ -60,6 +60,15 @@ Newest first.
   LUT's change is pushed further. The rendering is unchanged; a Look's Amount above 100 already
   took the LUT past 100, and the slider now shows and sets that range. 100 is still the LUT as
   made. `src/argentum/looks/LooksPanel.tsx`.
+- **Up and Down move through the grid a row at a time.** They go to the photo above or below,
+  the one nearest the same place across, in every thumbnail shape (justified rows of different
+  lengths too) and from one folder's group to the next in the Subfolders view; the grid scrolls to
+  keep it in view. On the top or bottom row they stay put. Before, Up and Down did what Left and
+  Right do: the previous and next photo, wrapping round at the ends. Left and Right are unchanged,
+  and nothing changes while a photo is open or while typing in a field. The grid hands its rows,
+  as it laid them out, to the keys, so the column count is worked out in one place. From RapidRAW
+  `src/components/panel/library/LibraryGrid.tsx` and `src/hooks/useKeyboardShortcuts.ts` @
+  `ecf7730f`, in `src/argentum/modern/gridRows.ts`.
 
 ### Fixed
 
@@ -77,6 +86,13 @@ Newest first.
   Community, and the Looks tab now reads its list again. Before, the tab kept its old list: the
   new preset did not show, and the tab's next preset change (a new folder, a rename, a saved
   preset) wrote the old list back and deleted it. `src/argentum/looks/community.ts`.
+- **Holding an arrow key in the grid ends on the photo it stopped on.** A photo opened earlier in
+  the session is checked with the app's backend before it is selected; when a later key press
+  finished first, that earlier answer selected its photo again. The latest choice wins now. From
+  RapidRAW `src/hooks/useAppNavigation.ts` @ `ecf7730f`.
+- **Copy settings (Ctrl+C) in the grid copies the active photo,** the one whose settings the Edit
+  tab shows. Before, it copied the photo last clicked or arrowed to, even after that photo was
+  Ctrl-clicked out of the selection. From RapidRAW `src/hooks/useEditorActions.ts` @ `d14e19da`.
 
 ## 26.43.3 — 2026-10-23
 

@@ -9,6 +9,7 @@ import {
 } from '../components/ui/AppProperties';
 import { Adjustments, INITIAL_ADJUSTMENTS } from '../utils/adjustments';
 import { ColumnWidths } from '../components/panel/MainLibrary';
+import type { GridRows } from '../argentum/modern/gridRows';
 
 export interface NavHistoryItem {
   type: 'folder' | 'album';
@@ -54,6 +55,8 @@ interface LibraryState {
   isViewLoading: boolean;
   libraryScrollTop: number;
   listColumnWidths: ColumnWidths;
+  /** The grid's rows as laid out, for Up and Down (argentum/modern/gridRows.ts). RapidRAW ecf7730f. */
+  libraryGridRows: GridRows;
 
   // Navigation History
   navHistory: NavHistoryItem[];
@@ -93,6 +96,7 @@ export const useLibraryStore = create<LibraryState>((set) => ({
   isTreeLoading: false,
   isViewLoading: false,
   libraryScrollTop: 0,
+  libraryGridRows: [],
   listColumnWidths: {
     thumbnail: 4,
     name: 20,
