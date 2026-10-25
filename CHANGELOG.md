@@ -84,6 +84,13 @@ Newest first.
 
 ### Fixed
 
+- **A settings file or sidecar that does not read is no longer replaced with blanks.** One value
+  of an unexpected type (a key whose type changed between versions, a hand edit, a file cut short)
+  made the whole file read as defaults, and the next save wrote them over it: every setting gone,
+  or a photo's whole edit at its next rating. Now the file is copied to `<name>.bak` before
+  anything can write over it, the failure is logged, and every key that still reads is kept; only
+  the ones that do not fall back. Covers `settings.json`, `.agdata` sidecars and
+  `argentum-processing.json` (`src-tauri/src/mods/salvage.rs`).
 - **Deleting, copying, moving and renaming photos touch only the files they should.** RapidRAW
   1.6.7's fixes (`src-tauri/src/file_management.rs` @ `fefb6a1b`, `4f64511a`, `f9899ca9`;
   `src/hooks/useFileOperations.ts` @ `3c0a0082`), with the rules in

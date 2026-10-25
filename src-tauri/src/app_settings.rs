@@ -757,7 +757,7 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
 
     let mut settings: AppSettings = if path.exists() {
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-        serde_json::from_str(&content).unwrap_or_default()
+        crate::mods::salvage::read_or_keep(&path, &content, serde_json::Map::new)
     } else {
         AppSettings::default()
     };
