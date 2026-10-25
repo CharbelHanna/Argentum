@@ -194,6 +194,11 @@ Newest first.
 
 ### Fixed
 
+- **Community preset previews no longer download cloud-only photos.** The previews were drawn on
+  photos picked from the open folder, cloud-only ones (a OneDrive placeholder) included, which
+  downloaded them just to make a thumbnail. Only photos on disk are used now, and the default
+  image when the folder has none. From RapidRAW `9e518220`:
+  `src/components/panel/CommunityPage.tsx`.
 - **AI masks and Show Original follow the camera's lens correction.** On a photo whose camera's
   lens correction is on (Fujifilm and DNG by default), Subject, Sky, Foreground and Depth masks
   were computed on the photo without it, so they could sit a few pixels off the corrected photo
