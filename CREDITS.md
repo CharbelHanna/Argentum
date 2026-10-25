@@ -103,6 +103,13 @@ linear ProPhoto RGB, kept in Argentum as
 `src-tauri/engine/src/rm_color_grade_curves.tsv` and regenerated from each
 RAWmakase release, which the table names.
 
+**The camera's own lens correction** (Crop > Lens Correction) is read as
+RAWmakase reads it: the distortion, lateral chromatic aberration and vignetting
+tables each camera make stores in its RAW files, their units, and which of them
+Lightroom applies by default (`crates/rawmakase-model/src/lens/embedded.rs`,
+`optics/mod.rs` and `dng.rs`, from v0.4.0). Each make's reader in
+`src-tauri/engine/src/rm_lens_builtin/` names the RAWmakase commit it was copied from.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

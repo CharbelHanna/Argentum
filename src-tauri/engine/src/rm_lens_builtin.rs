@@ -84,6 +84,23 @@ impl Radial {
     }
 }
 
+/// One flag for each part of a lens correction.
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct Parts {
+    pub distortion: bool,
+    pub chromatic: bool,
+    pub vignetting: bool,
+}
+
+impl Parts {
+    pub const ALL: Parts = Parts {
+        distortion: true,
+        chromatic: true,
+        vignetting: true,
+    };
+}
+
 /// Built-in lens correction for one photo.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
@@ -100,6 +117,13 @@ pub struct LensCorrection {
     pub distortion: Option<Radial>,
     /// Additional source radius scale for red and blue relative to green (1 = none).
     pub chromatic: Option<[Radial; 2]>,
+    /// The parts the camera always corrects, as Lightroom applies them from
+    /// the file whatever its profile setting. A lens profile corrects the
+    /// other parts, and the camera's own tables for them only stand in where
+    /// the profile has none. `None`, as in every correction stored before this
+    /// field: all three, so no profile is ever used beside it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub always: Option<Parts>,
 }
 
 /// How much of each part to apply, 1 = all of it: the app's Lens Correction

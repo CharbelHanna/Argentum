@@ -44,6 +44,8 @@ export interface LensCorrection {
   vignetting: Radial | null;
   distortion: Radial | null;
   chromatic: [Radial, Radial] | null;
+  /** The parts the camera always corrects; absent: all three. */
+  always?: { distortion: boolean; chromatic: boolean; vignetting: boolean };
 }
 
 /** What `lens_builtin` answers. */
