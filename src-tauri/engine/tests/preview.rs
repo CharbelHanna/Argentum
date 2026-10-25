@@ -140,7 +140,16 @@ fn a_half_size_preview_is_the_full_develop_made_small() {
         // colours, detail as the energy of the luminance Laplacian, and time
         // against the full develop. Here also: the crop, as the shift that
         // matches best, and the colour's shift over the whole photo.
-        let small = made_small(full, preview.width, preview.height);
+        // The full develop made small the way the preview is: first to the
+        // half-size develop's size, each pixel the 2 x 2 block under it (as
+        // RAWmakase's `half_check.rs` reduces it), then by the same box
+        // filter. Straight from full size, the filter's whole-pixel spans
+        // (4 or 5 full-size pixels, against 2 or 3 half-size ones) fall elsewhere,
+        // and on fine backlit branches that alone moved the colour by 0.20
+        // (mean) and 0.65 (95th) dE2000 with the develops not compared at all.
+        let (half_w, half_h) = (full.width / 2, full.height / 2);
+        let halved = Rgb::new(half_w, half_h, made_small(full, half_w, half_h));
+        let small = made_small(&halved, preview.width, preview.height);
         let shift = best_shift(&preview.pixels, &small, preview.width, preview.height);
         let blocks = |v: &[[f32; 3]]| {
             let rgb = Rgb::new(preview.width, preview.height, v.to_vec());
