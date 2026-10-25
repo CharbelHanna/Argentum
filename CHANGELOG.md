@@ -127,6 +127,28 @@ Newest first.
 
 ### Changed
 
+- **Faster slider moves with Glow, Halation, masks or a LUT, same pixels.** What a render leaves on
+  the GPU is kept for the next one when it still holds: the Glow and Halation blurs while the
+  photo, the region and sharpening are unchanged (sharpening rewrites the texture the blurs read,
+  so its writes are part of the key), the mask bitmaps while their pixels are the same, and the
+  LUT while it is the same one. Each tile reads back only its own part, not its overlap; the two
+  full-size display textures are made by the first render that draws to the screen, so a
+  processor that never does (an export, the JPEG preview path) no longer holds them; and a GPU
+  device lost to the driver is replaced on the next render instead of failing every render after
+  it. A slider tick at the default 1920 px preview with Glow, Halation, a mask and a LUT went from
+  16.9 to 8.0 ms on the reference laptop; renders are byte-identical on five RAWs
+  (`src-tauri/src/mods/render_check.rs`). From RapidRAW `src-tauri/src/gpu_processing.rs` @
+  `7d6dd5c0`, `c756671d`, `707a78d6` and `cc480a4e`. Not taken: their tiled blur shader
+  (`shaders/blur.wgsl` @ `cc8200a9`), which measured slower here (a 3200 px tick 59 to 76 ms).
+- **The histogram and waveform keep up with a slider.** They are counted straight from the GPU's
+  readback buffer, which is reused from a small pool, on one thread that drops a frame a newer one
+  has overtaken; the waveform is counted in bands of rows on every core. Before, each frame was
+  copied into an image on a thread of its own, and the editor asked for them at most 30 times a
+  second while dragging; it now asks on every frame. The same histogram and waveform, checked on
+  five RAWs. From RapidRAW `src-tauri/src/gpu_processing.rs`, `image_processing.rs` and `lib.rs`
+  @ `cc8200a9` and `c756671d`, and `src/hooks/useImageProcessing.ts` @ `e1a86bc1` and
+  `c756671d`. Not taken: their move of the analytics to a Channel with ImageBitmap waveforms
+  (`707a78d6`), which changes the waveform panel as well.
 - **A quarter less memory per open RAW.** The develop now hands the photo on as RGB instead of
   RGBA, whose fourth channel was always 1 (on a 24-megapixel photo, 288 MB instead of 384 MB), and
   moves its pixels rather than copying them; the lens warp and the artifact removal read it in

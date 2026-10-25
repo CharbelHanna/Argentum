@@ -54,6 +54,7 @@
 //! (the 16-bit export) asks for `Target::Fresh`, and gets a texture of its own
 //! that dies with the render.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -554,6 +555,16 @@ struct Kept {
 
 static ENGINE: Mutex<Option<Engine>> = Mutex::new(None);
 
+/// Every write into a result, counted. A texture `run` handed back holds the
+/// same pixels for as long as this has not moved: RapidRAW's blurs, which
+/// read it, are kept between renders on that (`BlurSource`, gpu_processing.rs).
+static WRITES: AtomicU64 = AtomicU64::new(0);
+
+/// How many writes into a result there have been, ever.
+pub fn writes() -> u64 {
+    WRITES.load(Ordering::Acquire)
+}
+
 pub const SHADER: &str = include_str!("../shaders/sharpen.wgsl");
 
 impl Engine {
@@ -800,6 +811,7 @@ impl Engine {
         areas: &[[u32; 4]],
         fill: bool,
     ) {
+        WRITES.fetch_add(1, Ordering::AcqRel);
         let mut entries = vec![
             wgpu::BindGroupEntry {
                 binding: 0,

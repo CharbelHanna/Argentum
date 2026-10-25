@@ -42,7 +42,6 @@ export function useImageProcessing(
   const latestUncroppedJobIdRef = useRef(0);
 
   const inFlightCountRef = useRef(0);
-  const lastAnalyticsTimeRef = useRef<number>(0);
   const pendingApplyRef = useRef<{ adjustments: Adjustments; targetRes?: number } | null>(null);
   const dragIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const activeWaveformChannelRef = useRef(activeWaveformChannel);
@@ -114,18 +113,8 @@ export function useImageProcessing(
       const currentPath = selectedImage?.path;
       if (!currentPath) return;
 
-      let shouldRequestAnalytics = false;
-      if (dragging) {
-        const now = performance.now();
-        if (now - lastAnalyticsTimeRef.current > 33.33) {
-          shouldRequestAnalytics = true;
-          lastAnalyticsTimeRef.current = now;
-        }
-      } else {
-        shouldRequestAnalytics = true;
-        lastAnalyticsTimeRef.current = 0;
-      }
-
+      // RapidRAW e1a86bc1: src/hooks/useImageProcessing.ts - every frame asks for its
+      // histogram; the backend keeps only the newest readback (gpu_processing.rs).
       const payload = structuredClone(currentAdjustments);
       const { patchesSentToBackend } = useEditorStore.getState();
       const newlySentPatches = new Set<string>();
@@ -180,7 +169,7 @@ export function useImageProcessing(
           isInteractive: dragging,
           targetResolution: targetRes || null,
           roi: roi || null,
-          requestAnalytics: shouldRequestAnalytics,
+          requestAnalytics: true,
           computeWaveform: !!isWaveformVisible,
           activeWaveformChannel: activeWaveformChannelRef.current || null,
         });
@@ -198,7 +187,10 @@ export function useImageProcessing(
           const prefix = textDecoder.decode(buffer.slice(0, 11));
           if (prefix === 'WGPU_RENDER') {
             setEditor((state) => {
-              if (state.interactivePatch && state.interactivePatch.url) URL.revokeObjectURL(state.interactivePatch.url);
+              // RapidRAW c756671d: src/hooks/useImageProcessing.ts - no store update on a
+              // frame that has no patch to clear.
+              if (!state.interactivePatch) return state;
+              if (state.interactivePatch.url) URL.revokeObjectURL(state.interactivePatch.url);
               return { interactivePatch: null };
             });
             return;
