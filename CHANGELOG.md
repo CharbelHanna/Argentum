@@ -56,6 +56,34 @@ Newest first.
 
 ### Fixed
 
+- **Deleting, copying, moving and renaming photos touch only the files they should.** RapidRAW
+  1.6.7's fixes (`src-tauri/src/file_management.rs` @ `fefb6a1b`, `4f64511a`, `f9899ca9`;
+  `src/hooks/useFileOperations.ts` @ `3c0a0082`), with the rules in
+  `src-tauri/src/mods/file_ops.rs` and `src/argentum/fileOps.ts`:
+  - Delete with associated files, on photos from two folders, also trashed other photos with the
+    same names in those folders (`IMG_2` in the first when it was picked in the second). Each
+    folder now loses only its own.
+  - Two photos with the same name from different folders, copied or moved into one folder, overwrote
+    each other. The copy or move now stops before writing anything, as it already did when a file
+    of that name was there. A RAW and its JPEG sharing one `.xmp` move and copy together instead of
+    failing halfway.
+  - `IMG.CR2.jpg`'s edits went with `IMG.CR2` when that photo was deleted, copied, moved or renamed.
+  - Duplicating a photo in its own folder copied its `.xmp` onto itself (emptying it on macOS and
+    Linux) and could write over a leftover sidecar. The copy gets its own `IMG_copy_1.xmp`, at the
+    first number where none of its files is taken.
+  - A tag or colour label with `&` or `<` made the `.xmp` invalid, and a `$1` in a tag was replaced
+    by nothing. They are written escaped and read back as typed.
+  - Renaming a photo with its virtual copy skipped a number in the sequence and could select the
+    wrong photos afterwards. A photo another program held open kept its name while its edits took
+    the new one; its edits now stay with it.
+  - After a delete, the next photo shown could be a virtual copy of the deleted one, gone with it.
+  - Renaming a folder while in another whose name starts the same (`trip` while in `trip2`) moved
+    the view to a folder that does not exist; pinned and library folders inside the renamed one
+    kept the old path. Renaming the photo shown in the grid opened the editor.
+  - Where files cannot be locked (the Flatpak document portal), every photo was treated as locked:
+    thumbnails decoded the whole RAW and white balance started from the wrong point.
+  - A delete the trash refuses now says so and deletes nothing. Before, it deleted the files
+    permanently.
 - **Canon's Auto Lighting Optimizer is read on the EOS R6 Mark III.** Its maker note holds a value
   above the 32-bit signed range beside the Lighting Optimizer setting, and rawler's `get_i32`
   panicked on it (`todo!()`): the reader caught the panic, logged a PANIC line and counted the
