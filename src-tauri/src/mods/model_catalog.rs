@@ -29,8 +29,7 @@
 //! for the sake of a settings page, so they are copied here instead, and the
 //! tests below read their file and fail when the copies drift — a renamed
 //! model, or a new one upstream added that this list does not know about yet.
-//! That dependency is registered as `model-manager` in
-//! `scripts/upstream-registry.mjs`. The selection models are not copied: their
+//! The selection models are not copied: their
 //! list is `rm_selection::manifest`, read through `selection_models::files`.
 
 /// One file of a model: where the feature that uses it saves it, fetches it
