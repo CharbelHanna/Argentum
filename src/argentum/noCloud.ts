@@ -15,8 +15,7 @@
  *
  * The Cloud tile is hidden from our side (NoCloudTile.tsx). The rest is in their
  * build files: the Clerk plugin and its permissions are not built in, and the
- * HTTP permission allows no address. See the `no-cloud` entry in
- * scripts/upstream-registry.mjs.
+ * HTTP permission allows no address.
  */
 
 import { useCloudStore } from '../store/useCloudStore';

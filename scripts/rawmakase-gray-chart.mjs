@@ -9,7 +9,7 @@
 //
 //   * one source version at a time, named on the table's "# Source:" line;
 //   * the rows are generated, never edited by hand;
-//   * check:merge warns when RAWmakase releases past the version named.
+//   * check:sources warns when RAWmakase releases past the version named.
 //
 // No exceptions list: a chart is measured as a whole, so a value of ours that
 // differs from theirs would be a different chart. The table's other comments
@@ -96,7 +96,7 @@ export async function fetchChart(sha) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-/** For check:merge: a warning when RAWmakase has released past the chart, else null. */
+/** For check:sources: a warning when RAWmakase has released past the chart, else null. */
 export async function chartWarning(root) {
   // A checkout without the table (the e2e test's throwaway forks) has nothing to check.
   if (!existsSync(join(root, TABLE))) return null;

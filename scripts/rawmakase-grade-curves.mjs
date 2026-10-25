@@ -10,7 +10,7 @@
 //
 //   * one source version at a time, named on the table's "# Source:" line;
 //   * the rows are generated, never edited by hand;
-//   * check:merge warns when RAWmakase releases past the version named.
+//   * check:sources warns when RAWmakase releases past the version named.
 //
 // No exceptions list: the tables are fitted as a whole, so a value of ours
 // that differs from theirs would be a different fit. The table's other
@@ -116,7 +116,7 @@ export async function fetchCurves(sha) {
   return new Uint8Array(await response.arrayBuffer());
 }
 
-/** For check:merge: a warning when RAWmakase has released past the curves, else null. */
+/** For check:sources: a warning when RAWmakase has released past the curves, else null. */
 export async function curvesWarning(root) {
   // A checkout without the table (the e2e test's throwaway forks) has nothing to check.
   if (!existsSync(join(root, TABLE))) return null;
