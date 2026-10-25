@@ -2635,6 +2635,31 @@ export const REGISTRY = [
     ],
     keywords: /history|undo|redo|agHistory/i,
   },
+  {
+    id: 'guides-dark-edge',
+    kind: 'behaviour-change',
+    what:
+      'Composition guides (every crop overlay, the grid while rotating, tethering\'s live view) are a '
+      + 'white line on a dark edge, so they show on bright photos; before, white at 49% vanished on '
+      + 'high-key ones. One pair for every guide, the white-balance sample outline\'s, in guideStroke.ts.',
+    ours: ['src/argentum/guideStroke.ts'],
+    dependsOn: [
+      { file: 'src/components/panel/editor/overlays/CompositionOverlays.tsx', symbol: 'CompositionOverlays',
+        how: 'extends',
+        note: 'Draws its guides twice, the edge then the line; their color and opacity props are gone. '
+          + 'An overlay they add takes both passes as long as its lines spread strokeProps. Interface.' },
+      { file: 'src/components/panel/right/TetheringPanel.tsx', symbol: 'CompositionOverlays', how: 'calls',
+        note: 'Their live view passed a fainter colour and opacity; it shows the same guides as Crop now. '
+          + 'If they pass them again, the build fails on props that no longer exist. Interface.' },
+      { file: 'src/components/panel/editor/ImageCanvas.tsx', symbol: 'WbSampleOutline', how: 'calls',
+        note: 'Its two strokes read GUIDE_EDGE and GUIDE_LINE instead of their own values. Interface.' },
+    ],
+    tests: [
+      'Manual: Crop on a bright photo (snow, sky): the thirds lines are white on a thin dark edge; O '
+        + 'through every overlay, Shift+O on the spiral, and drag the rotation to see the grid.',
+    ],
+    keywords: /overlay|guide|thirds|spiral|armature|composition/i,
+  },
 ];
 
 /**

@@ -1,30 +1,54 @@
 import React from 'react';
 import type { OverlayMode } from '../../right/CropPanel';
+import { GUIDE_EDGE, GUIDE_LINE, type GuideStroke } from '../../../../argentum/guideStroke';
+
+// Opacity of the overlay that is showing; the others fade to 0.
+const SHOWN_OPACITY = 0.7;
+// The rotation grid's 17 lines are thinner than the guides: 1 px on a 2 px edge.
+const DENSE_GRID_SCALE = 2 / 3;
 
 interface CompositionOverlaysProps {
   width: number;
   height: number;
   mode: OverlayMode;
   rotation: number;
-  color?: string;
-  opacity?: number;
   denseVisible?: boolean;
 }
 
-export default function CompositionOverlays({
+export default function CompositionOverlays(props: CompositionOverlaysProps) {
+  if (props.width <= 0 || props.height <= 0) return null;
+
+  return (
+    <svg
+      width={props.width}
+      height={props.height}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        pointerEvents: 'none',
+        zIndex: 50,
+      }}
+    >
+      <Guides {...props} stroke={GUIDE_EDGE} />
+      <Guides {...props} stroke={GUIDE_LINE} />
+    </svg>
+  );
+}
+
+function Guides({
   width,
   height,
   mode,
   rotation,
-  color = 'rgba(255, 255, 255, 0.7)',
-  opacity = 0.7,
   denseVisible = false,
-}: CompositionOverlaysProps) {
-  if (width <= 0 || height <= 0) return null;
-
+  stroke,
+}: CompositionOverlaysProps & { stroke: GuideStroke }) {
   const strokeProps = {
-    stroke: color,
-    strokeWidth: '1.5',
+    stroke: stroke.color,
+    strokeWidth: stroke.widthPx,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
     fill: 'none',
     vectorEffect: 'non-scaling-stroke',
   };
@@ -32,7 +56,7 @@ export default function CompositionOverlays({
   const renderThirds = () => (
     <g
       style={{
-        opacity: mode === 'thirds' ? opacity : 0,
+        opacity: mode === 'thirds' ? SHOWN_OPACITY : 0,
         transition: 'opacity 300ms ease-in-out',
       }}
     >
@@ -46,7 +70,7 @@ export default function CompositionOverlays({
   const renderDenseGrid = () => (
     <g
       style={{
-        opacity: denseVisible ? opacity : 0,
+        opacity: denseVisible ? SHOWN_OPACITY : 0,
         transition: 'opacity 300ms ease-in-out',
       }}
     >
@@ -58,7 +82,7 @@ export default function CompositionOverlays({
           x2={`${(i + 1) * 5.555}%`}
           y2={height}
           {...strokeProps}
-          strokeWidth="1"
+          strokeWidth={stroke.widthPx * DENSE_GRID_SCALE}
         />
       ))}
       {[...Array(17)].map((_, i) => (
@@ -69,14 +93,14 @@ export default function CompositionOverlays({
           x2={width}
           y2={`${(i + 1) * 5.555}%`}
           {...strokeProps}
-          strokeWidth="1"
+          strokeWidth={stroke.widthPx * DENSE_GRID_SCALE}
         />
       ))}
     </g>
   );
 
   const renderDiagonal = () => (
-    <g style={{ opacity: mode === 'diagonal' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
+    <g style={{ opacity: mode === 'diagonal' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
       <line x1={0} y1={0} x2={width * 0.666} y2={height} {...strokeProps} />
       <line x1={width * 0.333} y1={0} x2={width} y2={height} {...strokeProps} />
       <line x1={width} y1={0} x2={width * 0.333} y2={height} {...strokeProps} />
@@ -85,7 +109,7 @@ export default function CompositionOverlays({
   );
 
   const renderCenter = () => (
-    <g style={{ opacity: mode === 'center' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
+    <g style={{ opacity: mode === 'center' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
       <line x1={width / 2} y1={0} x2={width / 2} y2={height} {...strokeProps} />
       <line x1={0} y1={height / 2} x2={width} y2={height / 2} {...strokeProps} />
     </g>
@@ -95,7 +119,7 @@ export default function CompositionOverlays({
     const p1 = 0.382;
     const p2 = 0.618;
     return (
-      <g style={{ opacity: mode === 'phiGrid' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
+      <g style={{ opacity: mode === 'phiGrid' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
         <line x1={width * p1} y1={0} x2={width * p1} y2={height} {...strokeProps} />
         <line x1={width * p2} y1={0} x2={width * p2} y2={height} {...strokeProps} />
         <line x1={0} y1={height * p1} x2={width} y2={height * p1} {...strokeProps} />
@@ -140,7 +164,7 @@ export default function CompositionOverlays({
     const y_int2 = m1 * (x_int2 - mainStart.x) + mainStart.y;
 
     return (
-      <g style={{ opacity: mode === 'goldenTriangle' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
+      <g style={{ opacity: mode === 'goldenTriangle' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
         <line x1={mainStart.x} y1={mainStart.y} x2={mainEnd.x} y2={mainEnd.y} {...strokeProps} />
         <line x1={recipStart.x} y1={recipStart.y} x2={x_int} y2={y_int} {...strokeProps} />
         <line x1={recipStart2.x} y1={recipStart2.y} x2={x_int2} y2={y_int2} {...strokeProps} />
@@ -160,7 +184,7 @@ export default function CompositionOverlays({
     const dashedStrokeProps = { ...strokeProps, strokeDasharray: '5 5' };
 
     return (
-      <g style={{ opacity: mode === 'armature' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
+      <g style={{ opacity: mode === 'armature' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
         <line x1={0} y1={0} x2={width} y2={height} {...strokeProps} />
         <line x1={width} y1={0} x2={0} y2={height} {...strokeProps} />
         <line x1={width} y1={0} x2={0} y2={height / (m * m)} {...strokeProps} />
@@ -184,24 +208,14 @@ export default function CompositionOverlays({
     const transform = `translate(${width / 2} ${height / 2}) rotate(${r * 90}) scale(${r % 2 === 0 ? width / baseW : height / baseW}, ${r % 2 === 0 ? height / baseH : width / baseH}) translate(${-baseW / 2} ${-baseH / 2})`;
 
     return (
-      <g style={{ opacity: mode === 'goldenSpiral' ? opacity : 0, transition: 'opacity 300ms ease-in-out' }}>
-        <path d={pathData} {...strokeProps} strokeLinecap="round" strokeLinejoin="round" transform={transform} />
+      <g style={{ opacity: mode === 'goldenSpiral' ? SHOWN_OPACITY : 0, transition: 'opacity 300ms ease-in-out' }}>
+        <path d={pathData} {...strokeProps} transform={transform} />
       </g>
     );
   };
 
   return (
-    <svg
-      width={width}
-      height={height}
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        pointerEvents: 'none',
-        zIndex: 50,
-      }}
-    >
+    <>
       {renderThirds()}
       {renderDenseGrid()}
       {renderPhiGrid()}
@@ -210,6 +224,6 @@ export default function CompositionOverlays({
       {renderArmature()}
       {renderDiagonal()}
       {renderCenter()}
-    </svg>
+    </>
   );
 }

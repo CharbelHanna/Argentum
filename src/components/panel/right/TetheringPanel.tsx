@@ -684,8 +684,6 @@ export default function TetheringPanel({ onLibraryRefresh, onImageSelect }: Teth
                     height={containerSize.height}
                     mode={activeOverlay}
                     rotation={0}
-                    color="rgba(255, 255, 255, 0.4)"
-                    opacity={0.8}
                   />
                 </div>
 
