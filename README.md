@@ -12,8 +12,9 @@ tool is one file in a registry, with tools taken from
 [RAWmakase](https://github.com/pch/rawmakase) and RapidRAW, each credited to the
 file and commit it came from.
 
-RapidRAW is now a source like the others, reviewed once per release, rather than a
-base merged forever. How and why is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+Argentum was forked at RapidRAW 1.6.6 and no longer merges it: later releases are
+harvested by hand, like the other sources. How and why is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 ![Argentum editing a photo from a Canon EOS R6 Mark III](docs/screenshot.jpg)
 
@@ -248,15 +249,11 @@ npm run tauri build
 
 ## Staying current with RapidRAW
 
-RapidRAW is reviewed once per release, not merged commit by commit. Its changes to
-the code that renders a photo are read and copied in by hand when wanted; the rest
-is merged, and one line per feature records what was taken, copied or skipped.
-`npm run check:merge` checks that Argentum's lines in RapidRAW's files only ever go
-down. The steps are in [ARCHITECTURE.md](docs/ARCHITECTURE.md).
-
-```bash
-git remote add upstream https://github.com/CyberTimon/RapidRAW.git
-```
+Argentum was forked at RapidRAW 1.6.6 and never merges it. Each later release is
+read, and what is worth having is copied by hand, one change at a time, credited
+in [CHANGELOG.md](CHANGELOG.md) with the commit it came from. `npm run
+check:sources` says when a release is waiting to be read. The steps are in
+[ARCHITECTURE.md](docs/ARCHITECTURE.md#harvesting-from-rapidraw).
 
 ---
 
@@ -264,7 +261,7 @@ git remote add upstream https://github.com/CyberTimon/RapidRAW.git
 
 | File | What's in it |
 |---|---|
-| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, the engine, and how RapidRAW is reviewed per release |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Code layout, the engine, and how RapidRAW releases are harvested |
 | [src-tauri/engine/README.md](src-tauri/engine/README.md) | The engine: adding a tool is one file and one registry line |
 | [docs/ADDING_A_TOOL.md](docs/ADDING_A_TOOL.md) | The older recipe, for tools not yet moved into the engine |
 | [docs/ROADMAP.md](docs/ROADMAP.md) | What is planned, in what order |
