@@ -43,6 +43,10 @@ A release is a merge commit on `main`, published in this order.
 4. **Publish.** `gh release create <version> --target <merge sha> --title
    "Argentum <version> — <summary>" --notes-file <notes>`, with no `v` in the
    tag. Creating the release starts `.github/workflows/release.yml`, which builds
-   the installers and attaches them.
+   the installers and attaches them. Once they are attached, the notes open with
+   a **Download** table (Windows, Windows on ARM, Mac with Apple Silicon, Mac with
+   Intel: a direct link to each file; Linux: which file to pick) and three
+   lines: the Windows SmartScreen step, the macOS one-time steps, and what the
+   `_tethering` files are. 26.43.4's notes are the model.
 5. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.

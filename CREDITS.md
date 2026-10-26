@@ -2,10 +2,10 @@
 
 Argentum is other people's work with additions on top.
 
-Two lists live in the app — `src/argentum/credits.ts`, which is Argentum's own,
-and RapidRAW's inherited Special Thanks under *Settings -> About*. This file is
-the whole picture in one place, because a reader on GitHub should not have to
-install the app to find out whose work this is.
+The app shows the same list under *Settings → About → Credits*, from
+`src/argentum/credits.ts`, in the same groups. This file is the whole picture in
+one place, because a reader on GitHub should not have to install the app to find
+out whose work this is.
 
 **The rule:** a project is credited when something of theirs is actually
 shipped — not when we plan to take it, and not when we merely admired it. When
@@ -35,18 +35,46 @@ against. What has actually been taken:
 | What | darktable source | Shipping? |
 |---|---|---|
 | Automatic white balance | `src/iop/channelmixerrgb.c`, `_auto_detect_WB()` @ `98a9ade9` | Yes |
+| The unsharp mask in Sharpening | `src/iop/sharpen.c` @ `39df8424` (`mods/sharpen.rs`) | Yes |
+| Raw-level behaviour, such as highlight recovery before demosaic | method from darktable's highlight reconstruction, noted where it applies in `mods/highlights.rs` and the CHANGELOG | Yes |
 | Sigmoid tone curve | `src/iop/sigmoid.c`, `_generalized_loglogistic_sigmoid` | Ported, then reverted — the code is in the tree at `mods/sigmoid.rs` but nothing calls it |
 
 The sigmoid row is listed because the code is distributed, not because it runs.
 Leaving it uncredited because it is currently disconnected would be the wrong
 way round.
 
-Beyond those two, darktable's *behaviour* is the yardstick — the comparison
+Beyond those, darktable's *behaviour* is the yardstick — the comparison
 harness in `mods/colour_compare.rs` measures Argentum against darktable renders
 of the same files. Method that came from reading darktable, rather than copied
 code, is noted in [CHANGELOG.md](CHANGELOG.md) where it applies.
 
 Licensed GPL-3.0-or-later.
+
+---
+
+## Taken from pull requests
+
+Work by RapidRAW's contributors that Argentum took from their pull requests.
+Each is marked in the source between `// upstream #NNNN` and
+`// end upstream #NNNN`.
+
+| Pull request | What it gave Argentum |
+|---|---|
+| [#1466](https://github.com/CyberTimon/RapidRAW/pull/1466), high-precision export, by dimafa | The idea behind the 16-bit TIFF export: build the export pipeline by rewriting the storage format in the shader source, and switch the 8-bit dither off with a pipeline constant. The code was written here; the 32-bit target and the tests are Argentum's |
+| [#1307](https://github.com/CyberTimon/RapidRAW/pull/1307), the AI patch cache key | Two AI patches of the same length no longer share a cache entry (`cache_utils.rs`) |
+| [#1633](https://github.com/CyberTimon/RapidRAW/pull/1633), the sRGB exponent | sRGB decoding uses the standard's exponent of 2.4 (`raw_processing.rs`) |
+
+---
+
+## Sharpening
+
+### [RawTherapee](https://github.com/RawTherapee/RawTherapee)
+
+Capture sharpening is RawTherapee's, by Ingo Weyrich: the Richardson-Lucy
+deconvolution, the radius it reads from the RAW, and the contrast mask that keeps
+it off flat areas and noise, with its automatic threshold. Ported to the GPU from
+`rtengine/capturesharpening.cc` and `rt_algo.cc` (`mods/sharpen.rs`,
+`mods/sharpen_gpu.rs`). The manual Sharpen beside it is darktable's (above).
 
 ---
 
@@ -73,9 +101,11 @@ formats where its pixels were measured identical to rawler's: Canon CR3 and CR2,
 Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF
 (`src-tauri/engine/src/flashraw.rs`).
 
+---
+
 ## RAW rendering
 
-DNG Standard, under RAW > Rendering, is the default picture of a DNG renderer:
+DNG Standard, under Edit > Profile > Rendering, is the default picture of a DNG renderer:
 the camera's exposure offset and Adobe's default tone curve, applied as Adobe
 applies it. Three sources:
 
@@ -85,7 +115,7 @@ DNG Standard - the look every RAW now starts in - follows RAWmakase's default
 rendering, its *Standard* profile with Lightroom's default sharpening:
 
 - **The exposure offset for each camera body** is RAWmakase's camera table
-  (`data/cameras.toml`), measured by its contributors against Camera Raw - 279
+  (`data/cameras.toml`), measured by its contributors against Camera Raw - 280
   bodies across 10 makes, kept in Argentum as `src-tauri/src/mods/dng_baseline.tsv`
   and regenerated from each RAWmakase release, which the table names.
 - **The approach** - camera matrix, exposure offset, then Adobe's default tone
@@ -154,6 +184,28 @@ trademarks of Adobe Inc.
 
 ---
 
+## AI masks
+
+### [RAWmakase](https://github.com/pch/rawmakase)
+
+Subject, Sky and Background, and Object by clicking, are RAWmakase's selection
+code (`crates/rawmakase-inference` @ `7c3c81a`), taken whole into
+`src-tauri/rm_selection`: DETR finds the people, animals and sky, SAM 2.1 draws
+their outlines, and its edge refinement and its rule for where a sky stops are
+kept as written. MIT.
+
+### [SAM 2.1](https://github.com/facebookresearch/sam2) — Meta AI
+
+Segment Anything Model 2.1, Hiera small, draws the outline of each selection.
+Apache-2.0; ONNX export by the Hugging Face onnx-community.
+
+### [DETR](https://github.com/facebookresearch/detr) — Facebook AI Research
+
+DETR ResNet-50 panoptic, trained on COCO, says where a photo's people, animals and
+sky are. Apache-2.0; ONNX export by Xenova.
+
+---
+
 ## AI enlargement and restoration
 
 ### [Real-ESRGAN](https://github.com/xinntao/Real-ESRGAN)
@@ -172,6 +224,12 @@ Argentum converts it to ONNX, publishes that copy in
 [argentum-models](https://github.com/akhater/argentum-models), and downloads it
 the first time Restore is used. Code and weights are Apache-2.0.
 
+### [ONNX Runtime with DirectML](https://github.com/microsoft/onnxruntime)
+
+Microsoft's DirectML build of the runtime RapidRAW already uses. On Windows it is
+downloaded the first time a photo is enlarged or restored, and runs the model on
+the graphics card. MIT licence.
+
 ---
 
 ## Inherited with RapidRAW
@@ -184,14 +242,14 @@ just as true of this app.
 |---|---|
 | [rawler](https://github.com/dnglab/dnglab) | RAW decoding. The foundation everything else stands on |
 | [lensfun](https://lensfun.github.io/) | The lens correction library and its camera/lens database |
-| [SAM 2](https://github.com/facebookresearch/sam2) | The foundation model behind AI subject detection and click-to-mask |
-| [U²-Net](https://github.com/xuebinqin/U-2-Net) | The architecture behind sky and foreground detection |
+| [Segment Anything (SAM)](https://github.com/facebookresearch/segment-anything) | The model that cuts out what a box is drawn around, for Quick Erase and Inpainting |
+| [U²-Net](https://github.com/xuebinqin/U-2-Net) | The architecture behind Foreground detection |
 | [LaMa](https://github.com/advimman/lama) | Inpainting — content-aware fill and object removal |
-| Depth Anything | Monocular depth estimation, which drives depth-based masking and lens blur |
+| Depth Anything | Depth estimation, which drives the Depth mask, Lens blur and Fog |
 | NIND | The models behind AI noise reduction |
 | [NegPy](https://github.com/marcinz606/NegPy) | The approach the film-negative conversion is based on |
 | Spektrafilm — Andrea Volpato | The spectrally-based film emulation LUTs. Licensed CC BY-SA 4.0 |
-| [libgphoto2](https://github.com/gphoto/libgphoto2) | Camera communication for tethering and remote capture. Feature-gated: `default = []`, so it is only in builds made with `--features tethering` |
+| [libgphoto2](https://github.com/gphoto/libgphoto2) | Camera communication for tethering, in the `_tethering` builds for macOS and Linux (`--features tethering`) |
 
 Two entries are deliberately named without a link: **Depth Anything** and
 **NIND** have several plausible upstreams and none is cited in the code, so

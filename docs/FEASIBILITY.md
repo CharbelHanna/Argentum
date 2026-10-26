@@ -1,5 +1,10 @@
 # Own RAW tool — feasibility check
 
+> **Historical (2026-09-08), kept as written.** Its plan to keep merging
+> RapidRAW's updates held until RapidRAW 1.6.7, then ended: RapidRAW is no
+> longer merged, and its releases are harvested by hand. See
+> [ARCHITECTURE.md](ARCHITECTURE.md).
+
 **Date:** 2026-09-08
 **Question:** Fork RapidRAW, pull darktable's better tools in one at a time. Doable and maintainable?
 **Answer: Yes. Green light.**

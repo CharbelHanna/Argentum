@@ -1,5 +1,5 @@
 name: Bug Report
-description: Report a bug or issue with RapidRAW
+description: Report a bug or issue with Argentum
 title: "BUG: "
 labels: ["bug"]
 body:
@@ -8,7 +8,7 @@ body:
       value: |
         Thanks for taking the time to report a bug! Please fill out the information below to help us understand and fix the issue.
 
-        > **Note:** This template is for reporting bugs and issues only. For feature requests, please use the [Discussions page](discussions) instead.
+        > **Note:** This template is for reporting bugs and issues only. For an idea, use the Feature Request template.
 
   - type: textarea
     id: what-happened
@@ -59,11 +59,11 @@ body:
       required: true
 
   - type: input
-    id: rapidraw-version
+    id: argentum-version
     attributes:
-      label: RapidRAW Version
-      description: What version of RapidRAW are you using?
-      placeholder: e.g., v1.4.3
+      label: Argentum Version
+      description: The number beside the Settings gear, or in Settings > About.
+      placeholder: e.g., 26.43.4
     validations:
       required: true
 
@@ -79,7 +79,7 @@ body:
       value: |
         ### Lenses & Camera Support
 
-        RapidRAW relies on external libraries for lens corrections and raw file decoding. If your camera or lens is unsupported, please open an issue directly with the relevant project:
+        Argentum relies on external libraries for lens corrections and raw file decoding. If your camera or lens is unsupported, please open an issue directly with the relevant project:
 
         | Feature | Library | Request addition |
         |---|---|---|

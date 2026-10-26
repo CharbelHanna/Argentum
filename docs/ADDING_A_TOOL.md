@@ -23,7 +23,7 @@ files of ours and touches an inherited file only to call it:
 
 | Piece | Where it goes |
 |---|---|
-| The math | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_tone` or `ag_stage_display` |
+| The math | `src-tauri/src/shaders/modules.wgsl` (ours), called from one of the existing stages: `ag_stage_scene_linear`, `ag_stage_color`, `ag_stage_tone`, `ag_stage_grade` or `ag_stage_display` |
 | A whole-image GPU pass on the input | inside `src-tauri/src/mods/input_stage.rs` |
 | A setting the render needs | a field in the adjustments struct (`image_processing.rs`) and the matching WGSL struct in `shader.wgsl`, kept in step; a tool that needs many new settings belongs in the engine |
 | The control | today's panels (`src/components/panel/`, `src/components/adjustments/`) are ours to change in place; a component of its own goes in `src/argentum/`. Strings go in `src/argentum/locales/` |
@@ -43,16 +43,16 @@ Translate it to WGSL and add it to our file. Wrap it in the color conversion:
 ```wgsl
 // from darktable src/iop/<name>.c @ <commit>
 fn dt_something(color: vec3<f32>, ...) -> vec3<f32> {
-    let xyz = AG_SRGB_TO_XYZ * color;    // in
+    let wide = AG_SRGB_TO_PROPHOTO * color;    // in
     // darktable's math here
-    return AG_XYZ_TO_SRGB * xyz;         // out
+    return AG_PROPHOTO_TO_SRGB * wide;         // out
 }
 ```
 
-The matrices already exist in `modules.wgsl`: sRGB ↔ XYZ, and XYZ ↔ Bradford
-cone space (`AG_XYZ_TO_LMS` / `AG_LMS_TO_XYZ`) for anything that adapts between
-illuminants. If a module needs a space we don't have yet, add the matrix pair
-there — don't convert inline.
+The matrices in `modules.wgsl` today are sRGB ↔ ProPhoto and sRGB → V-Gamut.
+The XYZ and Bradford (LMS) pairs were retired with our white balance in
+`26.41.6`. If a module needs a space that is not there, add the matrix pair
+beside the others — don't convert inline.
 
 OpenCL → WGSL is mostly mechanical:
 
@@ -66,7 +66,7 @@ OpenCL → WGSL is mostly mechanical:
 
 ## 2. Turn it on → inside a stage in `modules.wgsl` (ours)
 
-Their `main()` already calls our three stages, one line each. Call your
+The inherited `main()` already calls our five stages, one line each. Call your
 function inside the stage where it belongs:
 
 ```wgsl
@@ -78,14 +78,14 @@ fn ag_stage_scene_linear(color: vec3<f32>, ...) -> vec3<f32> {
 }
 ```
 
-No line in their `shader.wgsl`. Their functions stay where they are while
+No new line in `shader.wgsl` is needed. Its functions stay where they are while
 anything still uses them.
 
 ## 3. The settings
 
-Only if the tool needs settings the app doesn't already have. See the table
-above: a field in their WGSL struct is paid for with a line removed from that
-file, so a tool with settings of its own is usually an engine tool.
+Only if the tool needs settings the app doesn't already have. A setting or two
+is a field in the adjustments struct; a tool with many settings of its own
+belongs in the engine.
 
 When a field is added, the Rust struct in `image_processing.rs` and the WGSL
 struct must match exactly — same fields, same order — or the GPU reads garbage.
@@ -93,10 +93,11 @@ struct must match exactly — same fields, same order — or the GPU reads garba
 ## 4. The control → today's panels, or `src/argentum/` (both ours)
 
 Today's interface is ours to change in place, and its panels are being swapped
-one at a time for ones built from the engine's tool registry. A control can go
-straight into the panel it belongs in, or be a component of ours placed through
-an existing `data-argentum` marker (see `src/argentum/Argentum.tsx`). Strings go
-in `src/argentum/locales/en.json`, not in their locale files.
+one at a time for ones built from the engine's tool registry. A control goes
+straight into the panel it belongs in; a component of its own goes in
+`src/argentum/` and is imported there. The older `data-argentum` markers
+(`src/argentum/Argentum.tsx`) are being replaced by direct edits, so don't add
+new ones. Strings go in `src/argentum/locales/en.json`.
 
 ---
 

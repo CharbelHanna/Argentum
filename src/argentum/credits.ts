@@ -6,17 +6,19 @@
  * different kind of debt and belongs under its own heading rather than diluting
  * theirs.
  *
- * WHAT DOES NOT GO HERE
+ * WHAT CAME WITH RAPIDRAW
  *
- * The models and libraries that came with RapidRAW. Those are RapidRAW's to
- * credit and it does, inside the app, in its own list. Repeating them under
- * Argentum's name would be taking credit for assembling something we inherited.
- * A dependency earns an entry here when *Argentum* brought it in.
+ * The models and libraries RapidRAW brought have a group of their own, last,
+ * headed as inherited: RapidRAW's own list of them is no longer shown since its
+ * acknowledgements left the General tab, and they ship here just the same.
+ * Under any other heading, a dependency earns an entry when *Argentum* brought
+ * it in. CREDITS.md says the same things, in the same groups.
  */
 
 export interface Credit {
   name: string;
-  href: string;
+  /** Left out where the code cites no one upstream, rather than guessing one. */
+  href?: string;
   what: string;
 }
 
@@ -116,7 +118,7 @@ export const CREDITS: CreditGroup[] = [
         what:
           'DNG Standard, the look every RAW now starts in, follows RAWmakase’s default rendering: ' +
           'each camera’s exposure offset, from RAWmakase’s camera table, which its contributors ' +
-          'measured against Camera Raw (230 bodies across 10 makes); Adobe’s default tone curve, ' +
+          'measured against Camera Raw (280 bodies across 10 makes); Adobe’s default tone curve, ' +
           'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
           'output. B&W’s black and white mix is RAWmakase’s too: the grey Camera Raw makes of each ' +
           'colour, measured on a colour chart; and Color Grading for new edits and Looks is ' +
@@ -124,8 +126,9 @@ export const CREDITS: CreditGroup[] = [
           'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
           'stores in its RAW files, and which of them Lightroom applies. Some RAW files are read as ' +
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
-          'matrices and white levels. RAWmakase is also where the comparison ' +
-          'started. MIT.',
+          'matrices and white levels. The presets that come with Argentum (Color, Creative, B&W, ' +
+          'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
+          'unchanged. RAWmakase is also where the comparison started. MIT.',
       },
       {
         name: 'RawTherapee',
@@ -215,6 +218,61 @@ export const CREDITS: CreditGroup[] = [
           'Microsoft’s DirectML build of the runtime RapidRAW already uses. On Windows it is ' +
           'downloaded the first time you enlarge or restore a photo, and runs it on the ' +
           'graphics card. MIT licence.',
+      },
+    ],
+  },
+  {
+    heading: 'Inherited with RapidRAW',
+    blurb:
+      'Argentum ships all of RapidRAW, so everything RapidRAW depends on, Argentum depends ' +
+      'on too. These are its credits, repeated because they are just as true of this app.',
+    entries: [
+      {
+        name: 'rawler',
+        href: 'https://github.com/dnglab/dnglab',
+        what: 'RAW decoding. The foundation everything else stands on.',
+      },
+      {
+        name: 'lensfun',
+        href: 'https://lensfun.github.io/',
+        what: 'The lens correction library and its camera and lens database.',
+      },
+      {
+        name: 'Segment Anything (SAM)',
+        href: 'https://github.com/facebookresearch/segment-anything',
+        what: 'The model that cuts out what a box is drawn around, for Quick Erase and Inpainting.',
+      },
+      {
+        name: 'U²-Net',
+        href: 'https://github.com/xuebinqin/U-2-Net',
+        what: 'The architecture behind Foreground detection.',
+      },
+      {
+        name: 'LaMa',
+        href: 'https://github.com/advimman/lama',
+        what: 'Inpainting: content-aware fill and object removal.',
+      },
+      {
+        name: 'Depth Anything',
+        what: 'Depth estimation, which drives the Depth mask, Lens blur and Fog.',
+      },
+      {
+        name: 'NIND',
+        what: 'The models behind AI noise reduction.',
+      },
+      {
+        name: 'NegPy',
+        href: 'https://github.com/marcinz606/NegPy',
+        what: 'The approach the film-negative conversion is based on.',
+      },
+      {
+        name: 'Spektrafilm — Andrea Volpato',
+        what: 'The spectrally-based film emulation LUTs. Licensed CC BY-SA 4.0.',
+      },
+      {
+        name: 'libgphoto2',
+        href: 'https://github.com/gphoto/libgphoto2',
+        what: 'Camera communication for tethering, in the tethering builds for macOS and Linux.',
       },
     ],
   },

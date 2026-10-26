@@ -1,31 +1,37 @@
 # Argentum
 
-**A RAW photo editor** that opens a RAW the way Lightroom does, built from the
-best parts of open-source photo editing, harvested one tool at a time.
-
-Argentum began as a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by
-Timon Käch, whose GPU pipeline, catalogue and editing panels are still most of the
-application. It is becoming an editor of its own: a processing engine where every
-tool is one file in a registry, with tools taken from
+**A free RAW photo editor that opens your photos the way Lightroom does.** Fast on
+the graphics card, with AI masks and your camera's own lens corrections, built from
+the best of [RapidRAW](https://github.com/CyberTimon/RapidRAW),
 [darktable](https://github.com/darktable-org/darktable),
-[RawTherapee](https://github.com/RawTherapee/RawTherapee),
-[RAWmakase](https://github.com/pch/rawmakase) and RapidRAW, each credited to the
-file and commit it came from.
+[RawTherapee](https://github.com/RawTherapee/RawTherapee) and
+[RAWmakase](https://github.com/pch/rawmakase).
 
-Argentum was forked at RapidRAW 1.6.6 and no longer merges it: later releases are
-harvested by hand, like the other sources. How and why is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[![Latest release](https://img.shields.io/github/v/release/akhater/Argentum?label=download)](https://github.com/akhater/Argentum/releases/latest)
+[![Licence: AGPL-3.0](https://img.shields.io/github/license/akhater/Argentum)](LICENSE)
 
 ![Argentum editing a photo from a Canon EOS R6 Mark III](docs/screenshot.jpg)
 
-> **Early preview.** Argentum is developed and used on Windows, and runs on
-> macOS (Apple Silicon); Linux is not yet proven. Editing is non-destructive —
-> your RAW files are never written to — but keep your own backups, as you would
-> with any young tool.
+**[Download for Windows or macOS](https://github.com/akhater/Argentum/releases/latest)**
+(Linux builds too, not yet tried) · open source · no account, no subscription
 
-> Argentum is independently maintained and is **not affiliated with, nor endorsed
-> by, RapidRAW or darktable.** It is a fork, and it says so because their work
-> deserves the credit, not because they have any part in this one.
+- **Looks right the moment it opens.** RAWs start the way Lightroom's default shows
+  them: each camera's own exposure offset (280 bodies), Adobe's tone curve and
+  Lightroom's default sharpening.
+- **Your camera's own lens correction**, read from the file for Fujifilm, Sony,
+  Nikon, Olympus and OM System, Panasonic, Samsung, recent Canon bodies and DNG,
+  with lensfun's database for the rest.
+- **AI masks in one click:** Subject, Sky and Background, or click any object.
+  The models run on your computer.
+- **Fast:** edits render on the graphics card, and a faster RAW decoder is one
+  setting away for Canon, Fujifilm, Olympus, Panasonic and Pentax files.
+- **Looks:** presets, LUTs and film emulations in one tab, and Lightroom presets
+  can be imported.
+- **Your photos stay yours:** edits live in a small file next to each photo, and
+  the RAW itself is never changed.
+
+> **Early preview.** Used daily on Windows and run on macOS. Keep your own
+> backups, as you would with any young tool.
 
 ---
 
@@ -35,8 +41,8 @@ harvested by hand, like the other sources. How and why is in
 
 | Platform | State |
 |---|---|
-| **Windows** | Tested. The platform it is developed on |
-| **macOS** | Tested on Apple Silicon, after the two one-time steps below |
+| **Windows** | Tested on x64, the platform it is developed on. ARM64 is built, not yet tried |
+| **macOS** | Tested on Apple Silicon, after the two one-time steps below. Intel is built, not yet tried |
 | **Linux** | Builds in CI, never run by anyone. Reports welcome |
 
 It is cross-platform because RapidRAW is, and nothing Argentum added breaks that.
@@ -47,14 +53,29 @@ nobody has checked.
 
 ## Install
 
-Grab an installer from [**Releases**](https://github.com/akhater/Argentum/releases)
-— Windows `.exe`, macOS `.dmg`, Linux `.AppImage` and `.deb`.
+Grab an installer from [**Releases**](https://github.com/akhater/Argentum/releases):
 
-Nothing else to install. The AI models are downloaded on first use, not shipped
-in the binary, so the download stays small.
+| | Files |
+|---|---|
+| **Windows** | `.exe` (installer) or `.msi`, for x64 or ARM64 |
+| **macOS** | `.dmg`, for Apple Silicon (`aarch64`) or Intel (`x64`) |
+| **Linux** | `.AppImage`, `.deb` or `.rpm`, for x64 or ARM64 |
+
+Nothing else to install. The AI models are not shipped in the installer, so it
+stays small: each one is downloaded the first time a feature needs it, or all at
+once from *Settings → AI and models*.
+
+Files whose names contain `_tethering` are the same app with camera tethering
+added; see [Tethering](#tethering-macos-and-linux). Everyone else wants the plain
+one.
 
 *(Building from source is further down, and only needed if you want to change
 the code.)*
+
+### Windows: the first start
+
+The installer is not code-signed yet, so Windows SmartScreen may say "Windows
+protected your PC" the first time. Choose **More info**, then **Run anyway**.
 
 ### macOS: two one-time steps
 
@@ -110,6 +131,16 @@ command above is refused. Take them back first:
 sudo chown -R "$(whoami)" "/path/to/your/photos"
 ```
 
+### Tethering (macOS and Linux)
+
+Tethering, RapidRAW's feature for shooting with a camera on USB straight into the
+app (live view, camera controls, captures saved into the open folder), comes as
+separate `_tethering` downloads. It is built on
+[libgphoto2](http://gphoto.org/proj/libgphoto2/support.php), and those builds do
+not start unless libgphoto2 is installed: `brew install libgphoto2` on macOS, your
+distribution's libgphoto2 package on Linux. A Camera section then appears in the
+left column. There is no tethering on Windows.
+
 ---
 
 ## What Argentum adds
@@ -117,17 +148,24 @@ sudo chown -R "$(whoami)" "/path/to/your/photos"
 **The picture**
 
 - **RAWs open looking like Lightroom's default** (DNG Standard): each camera's own
-  exposure offset (RAWmakase's table, 279 bodies), Adobe's default tone curve and
-  Lightroom's default sharpening. The earlier look is one setting away.
+  exposure offset (RAWmakase's table, 280 bodies), Adobe's default tone curve and
+  Lightroom's default sharpening. Photos shot in a mode that holds highlights back
+  (Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active D-Lighting,
+  Olympus gradation, Pentax D-Range) get those stops back. The earlier renderings
+  are still in *Edit → Profile → Rendering*.
+- **Colour built the way the DNG specification builds it**, for new edits: the
+  camera's matrices are mixed for the light the photo was taken in, so tungsten and
+  stage light lose the magenta a daylight-only matrix gave them (from RapidRAW
+  1.6.7). Edits made before keep the colour they had.
 - **B&W** with Lightroom's measured black-and-white mix, an Auto mix per photo, and
   **Color Grading** that tints as strongly as Lightroom's, both from RAWmakase.
-- **White balance rebuilt on real colour science.** Kelvin and tint, scene-linear
-  Bradford adaptation, and a picker that settles on one answer instead of drifting
-  each time you click.
-- **Automatic white balance**, ported from darktable's illuminant detection.
+- **White balance presets** as Lightroom has them (As Shot, Auto, Daylight,
+  Cloudy, Shade, Tungsten, Fluorescent, Flash, with Camera Raw's numbers), and an
+  **Auto** ported from darktable's illuminant detection.
 - **Camera profiles.** A profile describes how your particular camera sees colour.
   Argentum reads DCP profiles, fetches one for your body, and keeps the cameras
-  you shoot with under *My Gear*.
+  you shoot with under *Settings → My Gear*, where each can be given the profile
+  its new photos open with.
 - **Highlight recovery.** When a bright area clips in one channel, the two that
   survived say what colour it was — so the channel is rebuilt before demosaic
   rather than smeared to white.
@@ -146,25 +184,40 @@ sudo chown -R "$(whoami)" "/path/to/your/photos"
   works. Every mask has a Sharpen of its own.
 - **Restore** makes a lens that is soft wide open look closer to its sharpest, at
   the photo's own size (OmniLens, downloaded on first use).
-- **The camera's own lens correction**, read from the file: Fujifilm, Sony and the
-  corrections a DNG carries. Phone DNGs get their corner shading corrected.
+- **The camera's own lens correction**, read from the file and applied the way
+  Lightroom applies it: Fujifilm, Sony, Nikon Z and Coolpix P950/P1000/P1100,
+  Olympus and OM System, Panasonic and Leica, Samsung NX, Canon EOS R5 Mark II and
+  R6 Mark III, and the corrections a DNG carries (the readers are RAWmakase's).
+  Phone DNGs get their corner shading corrected.
 - **Automatic lens detection on every RAW format**, so lensfun's corrections apply
-  without picking the lens by hand.
+  without picking the lens by hand. Under *Settings → My Gear → My Lenses*, a lens
+  can be set to correct every new photo taken with it.
+- **A faster RAW decoder to choose.** *Settings → Processing → RAW decoder*, or per
+  photo in *Edit → Profile*: FlashRaw reads Canon CR3 and CR2, Fujifilm compressed
+  RAF, Olympus, Panasonic and Pentax files 1.5 to 3.4 times faster than rawler, with
+  identical pixels. Every other file still opens with rawler, the default.
 - **Canon sRAW and mRAW fixed** (they came out green with crushed shadows), and
   Nikon High Efficiency RAWs open.
 
 **Editing**
 
-- **One window** for the photos, the folders and the editor, with the Edit panel
-  in the order a photo is corrected in.
+- **One window** for the photos, the folders and the editor, in Lightroom
+  Classic's neutral greys, with the Edit panel in the order a photo is corrected in.
 - **AI masks**: Subject, Sky and Background in one click, and Object by clicking on
   it, on SAM 2.1 as RAWmakase runs it.
-- **Looks**: presets, LUTs and film looks in one place, applied to one photo or to
-  every photo selected. **Snapshots** keep versions of an edit beside it.
+- **Looks**: presets, LUTs and film looks in one place, with LUTs suggested for each
+  photo, applied to one photo or to every photo selected.
+- **History and Snapshots stay with the photo.** Undo still works after opening
+  another photo or restarting the app, and Snapshots keep named versions of an edit
+  beside it, in its `.agdata` file.
+- **Says when a new release is out**, beside the Settings gear. Nothing is
+  downloaded or installed by itself.
 
-RapidRAW's own features (its AI tools, Relight, Fog, panorama, HDR, healing,
-export) are all still here. Full detail, with the source file and commit for every
-harvested tool, is in [CHANGELOG.md](CHANGELOG.md). What is planned is in
+RapidRAW's own features (its AI tools, Relight, Fog, panorama, HDR, focus
+stacking, negative conversion, healing, export, and tethering in the tethering
+builds) are all still here; RapidRAW Cloud, their paid service, is not. Full
+detail, with the source file and commit for every harvested tool, is in
+[CHANGELOG.md](CHANGELOG.md). What is planned is in
 [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
@@ -192,8 +245,9 @@ In the operating system's own application-data folder, under
 
 | | Windows | macOS | Linux |
 |---|---|---|---|
-| Settings, AI models, presets | `%APPDATA%\co.argentum.editor` | `~/Library/Application Support/co.argentum.editor` | `~/.config/co.argentum.editor` |
+| Settings, AI models, presets, My Gear | `%APPDATA%\co.argentum.editor` | `~/Library/Application Support/co.argentum.editor` | `~/.local/share/co.argentum.editor` |
 | Thumbnail cache | `%LOCALAPPDATA%\co.argentum.editor` | `~/Library/Caches/co.argentum.editor` | `~/.cache/co.argentum.editor` |
+| Log (`app.log`, for bug reports) | `%LOCALAPPDATA%\co.argentum.editor\logs` | `~/Library/Logs/co.argentum.editor` | `~/.local/share/co.argentum.editor/logs` |
 
 **This is not configurable yet.** A portable, one-folder installation is on the
 roadmap and is not built.
@@ -206,8 +260,9 @@ up separately.
 
 ## Building from source
 
-Only needed if you want to change the code. You need Rust, Node, and a C++
-toolchain.
+Only needed if you want to change the code. You need Rust (rustup fetches the
+version pinned in `src-tauri/rust-toolchain.toml` by itself), Node 22 or later,
+and a C++ toolchain.
 
 On Windows:
 
@@ -224,8 +279,11 @@ winget install OpenJS.NodeJS.LTS
 ```
 
 On macOS install Xcode command line tools, Rust via [rustup](https://rustup.rs)
-and Node; on Linux, your distribution's `webkit2gtk` development packages plus
-the same two.
+and Node. On Linux, Rust and Node plus the packages CI installs on Ubuntu:
+
+```bash
+sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libayatana-appindicator3-dev librsvg2-dev patchelf pkg-config
+```
 
 Then, on any of them:
 
@@ -237,6 +295,12 @@ Run a development window that reloads as you edit:
 
 ```bash
 npm run tauri dev
+```
+
+With tethering (macOS and Linux, libgphoto2 installed first):
+
+```bash
+npm run start:tethering
 ```
 
 Build an installer for the machine you are on:
@@ -268,6 +332,8 @@ check:sources` says when a release is waiting to be read. The steps are in
 | [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
 | [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
 | [docs/RELEASING.md](docs/RELEASING.md) | How a release is cut, and the speed check it must pass |
+| [bench/README.md](bench/README.md) | Comparing two builds: interface smoothness and export speed |
+| [src/shell/README.md](src/shell/README.md) | The engine's test bench, an interface for exercising its contract |
 | [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
 | [CREDITS.md](CREDITS.md) | Whose work this is built on |
 
@@ -275,8 +341,22 @@ check:sources` says when a release is waiting to be read. The steps are in
 
 ## Credits and licence
 
+Argentum began as a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by
+Timon Käch, whose GPU pipeline, catalogue and editing panels are still most of the
+application. It is becoming an editor of its own: a processing engine where every
+tool is one file in a registry, with tools taken from darktable, RawTherapee,
+RAWmakase and RapidRAW, each credited to the file and commit it came from. It was
+forked at RapidRAW 1.6.6 and no longer merges it: later releases are harvested by
+hand, like the other sources. How and why is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Argentum is independently maintained and is **not affiliated with, nor endorsed
+by, RapidRAW, darktable, RawTherapee or RAWmakase.** It says where its parts come
+from because their work deserves the credit, not because they have any part in
+this one.
+
 Argentum is other people's work with additions on top. **[CREDITS.md](CREDITS.md)**
-names them, and the same list is in the app under *Settings → About*.
+names them, and the same list is in the app under *Settings → About → Credits*.
 
 Licensed **AGPL-3.0**, inherited from RapidRAW and unchanged. See
 [LICENSE](LICENSE).
