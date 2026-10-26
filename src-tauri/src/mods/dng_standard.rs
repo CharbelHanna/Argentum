@@ -854,7 +854,7 @@ mod tests {
 
     #[test]
     fn the_table_reads_and_finds_bodies_by_any_of_their_names() {
-        assert_eq!(rows().len(), 279);
+        assert_eq!(rows().len(), 280);
         let r6 = baseline(&camera("Canon", "EOS R6 Mark III"));
         assert_eq!(
             r6,
@@ -916,7 +916,7 @@ mod tests {
 
     #[test]
     fn a_canon_rows_offset_follows_the_photos_levels() {
-        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 58);
+        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 59);
         // An R6 Mark III photo as rawler decodes it: black 2048, white 14351,
         // against the sample's 512 and 13995: 0.0146 EV more than the row.
         let r6 = Facts {
