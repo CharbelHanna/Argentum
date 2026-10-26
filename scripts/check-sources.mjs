@@ -26,6 +26,7 @@ import { releases } from './rawmakase-cameras.mjs';
 import { tableWarning } from './rawmakase-cameras.mjs';
 import { chartWarning } from './rawmakase-gray-chart.mjs';
 import { curvesWarning } from './rawmakase-grade-curves.mjs';
+import { lensWarning } from './rawmakase-lens-baselines.mjs';
 
 export const RAPIDRAW = 'https://github.com/CyberTimon/RapidRAW';
 
@@ -150,6 +151,7 @@ async function main() {
       tableWarning(root).catch((error) => `camera table not checked against RAWmakase: ${error.message}`),
       chartWarning(root).catch((error) => `B&W chart not checked against RAWmakase: ${error.message}`),
       curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`),
+      lensWarning(root).catch((error) => `lens baselines not checked against RAWmakase: ${error.message}`),
     ])
   ).filter(Boolean);
 
