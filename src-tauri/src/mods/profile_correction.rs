@@ -82,8 +82,14 @@ pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0
 /// deliberate exception to the anchor rule, taken because the alternative was a
 /// heuristic that is wrong in a case a person would hit.
 /// One photo's built-in matrix, and its camera (maker, model) once the decode
-/// has said, remembered against the photo they came from.
-type BuiltInMatrix = (String, [f32; 9], Option<(String, String)>);
+/// has said, remembered against the photo they came from; and what an edit made
+/// the DNG way needs for its camera colour (mods/dng_colour.rs).
+struct BuiltInMatrix {
+    path: String,
+    matrix: [f32; 9],
+    camera: Option<(String, String)>,
+    colour: Option<super::dng_colour::Inputs>,
+}
 
 static BUILT_IN: Mutex<Option<Vec<BuiltInMatrix>>> = Mutex::new(None);
 
@@ -93,10 +99,16 @@ pub fn remember_built_in(path: Option<&str>, matrix: [f32; 9]) {
     };
     if let Ok(mut slot) = BUILT_IN.lock() {
         let known = slot.get_or_insert_with(Vec::new);
-        if let Some(entry) = known.iter_mut().find(|(p, _, _)| *p == path) {
-            entry.1 = matrix;
+        if let Some(entry) = known.iter_mut().find(|e| e.path == path) {
+            entry.matrix = matrix;
+            entry.colour = None;
         } else {
-            known.push((path, matrix, None));
+            known.push(BuiltInMatrix {
+                path,
+                matrix,
+                camera: None,
+                colour: None,
+            });
         }
         evict_if_crowded(known);
     }
@@ -111,9 +123,25 @@ pub fn remember_camera(path: Option<&str>, make: &str, model: &str) {
     if let Ok(mut slot) = BUILT_IN.lock()
         && let Some(entry) = slot
             .as_mut()
-            .and_then(|known| known.iter_mut().find(|(p, _, _)| p == path))
+            .and_then(|known| known.iter_mut().find(|e| e.path == path))
     {
-        entry.2 = Some((make.to_string(), model.to_string()));
+        entry.camera = Some((make.to_string(), model.to_string()));
+    }
+}
+
+/// What the camera colour of an edit made the DNG way needs from the decode
+/// `remember_built_in` has just remembered: `None` for a RAW it does not apply
+/// to (mods/dng_colour.rs `inputs_of`).
+pub fn remember_colour(path: Option<&str>, colour: Option<super::dng_colour::Inputs>) {
+    let Some(path) = path else {
+        return;
+    };
+    if let Ok(mut slot) = BUILT_IN.lock()
+        && let Some(entry) = slot
+            .as_mut()
+            .and_then(|known| known.iter_mut().find(|e| e.path == path))
+    {
+        entry.colour = colour;
     }
 }
 
@@ -139,10 +167,7 @@ fn evict_keeping(known: &mut Vec<BuiltInMatrix>, open: Option<&str>) {
     if known.len() <= KEEP {
         return;
     }
-    if let Some(at) = known
-        .iter()
-        .position(|(path, _, _)| open != Some(path.as_str()))
-    {
+    if let Some(at) = known.iter().position(|e| open != Some(e.path.as_str())) {
         known.remove(at);
     }
 }
@@ -196,9 +221,21 @@ fn built_in_for_this_render(photo: Option<&str>) -> Option<[f32; 9]> {
     let path = photo?.to_string();
     let mut known = BUILT_IN.lock().ok()?;
     let known = known.as_mut()?;
-    let at = known.iter().position(|(p, _, _)| *p == path)?;
+    let at = known.iter().position(|e| e.path == path)?;
     touch(known, at);
-    Some(known[known.len() - 1].1)
+    Some(known[known.len() - 1].matrix)
+}
+
+/// The built-in matrix of the photo being rendered and what its camera colour
+/// needs, when the decode remembered both. `None` otherwise, as above.
+fn colour_for_this_render(photo: Option<&str>) -> Option<([f32; 9], super::dng_colour::Inputs)> {
+    let path = photo?.to_string();
+    let mut known = BUILT_IN.lock().ok()?;
+    let known = known.as_mut()?;
+    let at = known.iter().position(|e| e.path == path)?;
+    touch(known, at);
+    let entry = &known[known.len() - 1];
+    Some((entry.matrix, entry.colour.clone()?))
 }
 
 fn as_rows(flat: &[f32; 9]) -> [[f32; 3]; 3] {
@@ -237,16 +274,20 @@ pub fn correction_for(photo: Option<&str>, profile_xyz2cam: &[f32; 9]) -> Option
     Some(multiply(&to, &invert(&from)?))
 }
 
-/// The three shader rows for whatever profile this photo asked for.
+/// The three shader rows for whatever profile this photo asked for, or, with
+/// none, for its camera colour when the edit was made the DNG way.
 ///
-/// Identity whenever there is no profile, no library, or anything at all goes
-/// wrong. A photo without a profile must render exactly as it always has, and
-/// "exactly" here means multiplied by the identity, not skipped.
+/// Identity whenever there is no profile and an edit from before the DNG way,
+/// no library, or anything at all goes wrong. Such a photo must render exactly
+/// as it always has, and "exactly" here means multiplied by the identity, not
+/// skipped.
 pub fn rows_for(
     js_adjustments: &serde_json::Value,
     photo: Option<&str>,
 ) -> ([f32; 4], [f32; 4], [f32; 4]) {
-    let m = chosen_correction(js_adjustments, photo).unwrap_or(IDENTITY);
+    let m = chosen_correction(js_adjustments, photo)
+        .or_else(|| dng_colour_correction(js_adjustments, photo))
+        .unwrap_or(IDENTITY);
     (
         [m[0][0], m[0][1], m[0][2], 0.0],
         [m[1][0], m[1][1], m[1][2], 0.0],
@@ -274,6 +315,20 @@ fn chosen_correction(
     correction_for(photo, &xyz2cam)
 }
 
+/// The camera colour the DNG way, as a correction of what the decode did: for
+/// an edit marked for it (mods/dng_colour.rs `is_on`) of a photo whose decode
+/// remembered its inputs.
+fn dng_colour_correction(
+    js_adjustments: &serde_json::Value,
+    photo: Option<&str>,
+) -> Option<[[f32; 3]; 3]> {
+    if !super::dng_colour::is_on(js_adjustments) {
+        return None;
+    }
+    let (built_in, inputs) = colour_for_this_render(photo)?;
+    super::dng_colour::correction(&built_in, &cam_to_srgb(&built_in)?, &inputs)
+}
+
 /// Was the profile made for the camera of the photo being rendered?
 ///
 /// A profile is made for one body, and one for another renders worse than none
@@ -291,8 +346,8 @@ fn fits_this_photo(made_for: Option<&str>, photo: Option<&str>) -> bool {
         known
             .as_ref()?
             .iter()
-            .find(|(p, _, _)| p == path)?
-            .2
+            .find(|e| e.path == path)?
+            .camera
             .clone()
     });
     camera.is_none_or(|(make, model)| super::profiles::matches(made_for, &make, &model))
@@ -567,6 +622,15 @@ mod tests {
         forget_built_in();
     }
 
+    fn entry(path: &str, matrix: [f32; 9]) -> BuiltInMatrix {
+        BuiltInMatrix {
+            path: path.to_string(),
+            matrix,
+            camera: None,
+            colour: None,
+        }
+    }
+
     /// The idle-editor bug, as a test.
     ///
     /// The rule before this was least-recently-used, which protects the open
@@ -579,15 +643,15 @@ mod tests {
     /// and so could never have caught this. This one never reads it at all.
     #[test]
     fn an_open_photo_survives_an_export_even_if_nobody_looks_at_it() {
-        let mut known: Vec<BuiltInMatrix> = vec![("OPEN.CR2".to_string(), [1.0; 9], None)];
+        let mut known: Vec<BuiltInMatrix> = vec![entry("OPEN.CR2", [1.0; 9])];
 
         for n in 0..1000 {
-            known.push((format!("export-{n}.CR2"), [0.5; 9], None));
+            known.push(entry(&format!("export-{n}.CR2"), [0.5; 9]));
             evict_keeping(&mut known, Some("OPEN.CR2"));
         }
 
         assert!(
-            known.iter().any(|(p, _, _)| p == "OPEN.CR2"),
+            known.iter().any(|e| e.path == "OPEN.CR2"),
             "the open photo was evicted while nobody was looking at it"
         );
         assert!(
@@ -602,11 +666,48 @@ mod tests {
     #[test]
     fn with_no_photo_open_the_oldest_goes() {
         let mut known: Vec<BuiltInMatrix> = (0..300)
-            .map(|n| (format!("photo-{n}.CR2"), [0.5; 9], None))
+            .map(|n| entry(&format!("photo-{n}.CR2"), [0.5; 9]))
             .collect();
         evict_keeping(&mut known, None);
         assert_eq!(known.len(), 299);
-        assert!(!known.iter().any(|(p, _, _)| p == "photo-0.CR2"));
+        assert!(!known.iter().any(|e| e.path == "photo-0.CR2"));
+    }
+
+    /// An edit saved before the DNG way renders through the identity, exactly,
+    /// even when the decode remembered everything the DNG way needs; a new
+    /// edit, and a photo with no edit, take the correction.
+    #[test]
+    fn only_an_edit_made_the_dng_way_moves_colour() {
+        let _guard = serialised();
+        forget_built_in();
+        remember_built_in(Some("T.CR2"), BUILT_IN_5D2);
+        remember_colour(
+            Some("T.CR2"),
+            Some(super::super::dng_colour::Inputs {
+                xyz_to_camera_a: Some([
+                    0.5309, -0.0229, -0.0336, -0.6241, 1.3265, 0.3337, -0.0817, 0.1215, 0.6664,
+                ]),
+                wb: [1.3, 1.0, 2.6],
+            }),
+        );
+        let identity = (
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+        );
+        let before = serde_json::json!({ "exposure": 0.5, "baselineExposure": true });
+        assert_eq!(rows_for(&before, Some("T.CR2")), identity);
+        let marked_off = serde_json::json!({ "exposure": 0.5, "agDngColour": false });
+        assert_eq!(rows_for(&marked_off, Some("T.CR2")), identity);
+
+        let new = serde_json::json!({ "exposure": 0.5, "agDngColour": true });
+        assert_ne!(rows_for(&new, Some("T.CR2")), identity);
+        assert_ne!(rows_for(&serde_json::Value::Null, Some("T.CR2")), identity);
+        // A photo the decode never saw, or one without the inputs, stays as it was.
+        assert_eq!(rows_for(&new, Some("other.CR2")), identity);
+        remember_built_in(Some("T.CR2"), BUILT_IN_5D2);
+        assert_eq!(rows_for(&new, Some("T.CR2")), identity);
+        forget_built_in();
     }
 
     /// A render whose photo was never decoded gets no correction at all.

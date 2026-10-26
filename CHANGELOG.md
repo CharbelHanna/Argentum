@@ -71,6 +71,25 @@ Newest first.
   now stops at the metadata, as it already did for every other format; the values read are the
   same. From RapidRAW's rawler fork, `rawler/src/decoders/dng.rs` @ `9dbcc565`, in ours as
   `930e6ce2` (branch `fix/rapidraw-167-em1x-dng-dummy` of `akhater/RapidRAW-DngLab`).
+- **A RAW's colours come out as the DNG spec builds them, for edits made from now on.** rawler
+  turned a RAW into colour with its daylight matrix, scaled so the shot's white came out white,
+  which is exact only in daylight. A new edit now inverts the camera's matrix, takes the shot's
+  white and adapts it to D65 with Bradford, and for a camera that has both an incandescent and a
+  daylight matrix mixes the two for the shot's light, so tungsten and stage light lose the
+  magenta the daylight matrix gave them. Against the camera's own JPEG, measured on five test
+  RAWs as the app renders a new edit: the hue error in clearly coloured areas falls from 4.9 to
+  2.8 degrees on a 5D Mark II sRAW portrait, 8.2 to 3.6 on a 5D Mark II hedge and 3.0 to 1.3 on
+  an R6 Mark III beach, and stays within 0.2 on two other R6 Mark III photos; saturation is
+  unchanged. The colour moves by CIEDE2000 mean 0.02 to 0.27 on the R6 Mark III and 0.8 to 1.3
+  on the 5D Mark II. **An edit saved before keeps exactly the colour it had**: the change is a
+  3x3 correction in the same place a camera profile's is, the identity for an edit without the
+  new `agDngColour` mark, which new edits, Reset and photos with no edit get, as RapidRAW 1.6.6
+  marked `baselineExposure`. Copy settings and presets do not carry it. A chosen camera profile
+  replaces the matrix as before; a monochrome or four-colour sensor, and a linear DNG whose
+  calibration Linear RAW Processing skips, keep rawler's colour. Thumbnails are redrawn once.
+  From RapidRAW `src-tauri/src/white_balance.rs` and `src-tauri/src/raw_processing.rs` @
+  `3f5345a5` (`camera_to_srgb`, the dual-illuminant matrix); applied after the decode in ours,
+  `mods/dng_colour.rs`, through `mods/profile_correction.rs`.
 
 ### Fixed
 

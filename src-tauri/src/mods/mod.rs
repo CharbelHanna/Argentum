@@ -28,6 +28,7 @@ pub mod decode;
 pub mod dispatch;
 pub mod display_monitor;
 pub mod display_profile;
+pub mod dng_colour;
 pub mod dng_standard;
 pub mod drives;
 pub mod editor_layout;
