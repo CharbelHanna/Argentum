@@ -72,6 +72,24 @@ Newest first.
   From RapidRAW `src-tauri/src/ai_processing.rs` @ `b407d348` (`lama_patch_match`,
   `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`). Not taken from the same
   commit: the Quick Eraser's larger default Grow and Feather.
+- **Fog, Lens blur and Relight read their depth and surface maps unshaded when the camera's own
+  lens correction is on.** The maps are warped with the photo so they stay aligned, and the
+  lens database's vignetting and colour fringing were already left out of that warp. The
+  camera's own correction (Crop > Lens Correction) still brightened the maps towards the corners
+  by its vignetting gain and sampled their channels apart by its lateral CA, so Fog and Lens blur
+  read the corners at the wrong distance, and Relight's surfaces faced the wrong way there. Now only its distortion moves the maps, as with the lens database. This changes
+  Fog, Lens blur and Relight on photos whose camera correction has vignetting or CA tables,
+  edits already made included. Measured on the golden photos with the correction on, at 1600 px
+  (the depth model's map is 518 px wide; the corners are the four boxes 15% of the width and
+  height): the depth map moved by a mean of 3.8 to 29 levels of 255 on the Fujifilm X-T30 III,
+  Nikon Z 9, Canon R5 Mark II and R6 Mark III and the DJI DNG (10 to 37 in the corners), 0.5
+  on the Sony A7 IV (up to 205 on 1.6% of the corner pixels), 0.007 on the Olympus E-M10 IV
+  (CA only) and 0 on the Pixel 6 Pro (distortion only). On those six, Fog 50 moved by a mean
+  dE2000 of 0.10 to 0.98 (0.095 to 0.69 in the corners), Lens blur 50 by 0.001 to 0.13 (a few
+  pixels up to 18), and Relight with one light, on a surface map made from the depth
+  map's slope, by 0.10 to 1.25 (0.21 to 4.1 in the corners, the most on the DJI DNG).
+  `effect_maps.rs` (`effect_map_geometry_params`), where `local_warp_rotations` already did
+  this for the normals' turn.
 - **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each
   photo's thumbnail now starts as soon as its edit is written, not after the whole selection's,
   and a thumbnail whose photo and edit are unchanged (the same settings pasted again, a photo
