@@ -934,6 +934,12 @@ export default function Editor({ onContextMenu, transformWrapperRef }: EditorPro
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      // RapidRAW 2fa31148: src/components/panel/Editor.tsx. A mask control left without its
+      // mouse-leave (scrolled away, or gone from under the pointer) kept the red overlay on.
+      if (useEditorStore.getState().isMaskControlHovered) {
+        setEditor({ isMaskControlHovered: false });
+      }
+
       if (straightenDragStartRef.current && e.pointerType === 'mouse') {
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -1037,6 +1043,7 @@ export default function Editor({ onContextMenu, transformWrapperRef }: EditorPro
       liveRotation,
       imageRenderSize.scale,
       setAdjustments,
+      setEditor,
     ],
   );
 
