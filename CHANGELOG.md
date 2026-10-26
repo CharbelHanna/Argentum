@@ -445,6 +445,13 @@ Newest first.
   return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
   camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
 
+### Removed
+
+- **Render code that could never run:** the old CPU preview encode's 22 lines after the `return`
+  to ours (`apply_cpu_default_raw_processing`, the crate's only `allow(unreachable_code)`), and
+  two tone maps nothing calls in `shader.wgsl` (`legacy_tonemap`, `no_tonemap`). No pixel
+  changes.
+
 ## 26.43.3 — 2026-10-23
 
 ### Added
