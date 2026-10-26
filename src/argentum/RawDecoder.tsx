@@ -91,17 +91,31 @@ export default function RawDecoder() {
       return;
     }
     let live = true;
-    setHandled(null);
     ag<RawDecoderName>('raw_decoder')
       .then((d) => live && setAppDecoder(d))
       .catch(() => live && setAppDecoder(null));
+    return () => {
+      live = false;
+    };
+  }, [path, shown]);
+
+  const used = choice ?? appDecoder;
+
+  // Asked only when FlashRaw is chosen: answering reads the file, which a
+  // photo on rawler should not pay for.
+  useEffect(() => {
+    setHandled(null);
+    if (!shown || used !== 'flashraw') {
+      return;
+    }
+    let live = true;
     ag<boolean>('flashraw_handles', { path })
       .then((h) => live && setHandled(h))
       .catch(() => live && setHandled(null));
     return () => {
       live = false;
     };
-  }, [path, shown]);
+  }, [path, shown, used]);
 
   if (!shown || !appDecoder) {
     return null;
@@ -120,8 +134,6 @@ export default function RawDecoder() {
       setBusy(false);
     }
   };
-
-  const used = choice ?? appDecoder;
 
   return (
     <div>
