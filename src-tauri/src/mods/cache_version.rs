@@ -61,7 +61,9 @@ use std::path::{Path, PathBuf};
 ///    (`image_loader::load_and_composite`).
 /// 8. RapidRAW 1.6.7's Highlights (no jump when the slider leaves zero) and
 ///    Whites (more range), in `shaders/shader.wgsl`.
-pub const PIPELINE: u32 = 9;
+/// 9. RapidRAW 1.6.7's Relight on a rotated or warped photo: its normals turn
+///    with the picture (`effect_maps.rs`).
+pub const PIPELINE: u32 = 10;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";
