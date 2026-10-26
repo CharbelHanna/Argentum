@@ -11,7 +11,7 @@
 # Generated - never edit the rows by hand. scripts/rawmakase-cameras.mjs writes
 # them from one RAWmakase release, named on the next line, and holds the list of
 # any values of ours that differ from it, each with its reason.
-# Source: RAWmakase data/cameras.toml @ ca6f20238e3cf98481670a8d825a4047f85e7939 (v0.4.5), 279 bodies across 10 makes, 0 exceptions
+# Source: RAWmakase data/cameras.toml @ 151fdf86ecbdf917fe85f3cccdcd29848c4118d7 (v0.4.6), 280 bodies across 10 makes, 0 exceptions
 #
 # Each value is the BaselineExposure Camera Raw gives an unedited photo with
 # Adobe Standard. The first version of this table carried RAWmakase's adjustment
@@ -89,6 +89,7 @@ Canon	EOS R6 Mark II	0.25		512,14008,16383
 Canon	EOS R6 Mark III	0.25		512,13995,16383
 Canon	EOS R7	0.4		511,16384,16383
 Canon	EOS R8	0.25		
+Canon	EOS R8 Mark II	0.25		512,16384,16383
 Canon	EOS RP	0.3		513,14558,16383
 Canon	EOS-1D Mark II N	0.25		128,3711,4095
 Canon	EOS-1D X Mark II	0.4		2048,14888,16383

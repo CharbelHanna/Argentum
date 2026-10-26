@@ -532,19 +532,21 @@ mod tests {
 
     #[test]
     fn bodies_are_found_by_any_of_their_names() {
-        assert_eq!(rows().len(), 279);
+        assert_eq!(rows().len(), 280);
         assert_eq!(baseline("Canon", "EOS R6 Mark III", None), 0.25);
         assert_eq!(baseline("CANON", "EOS REBEL T3", None), -0.5);
         assert_eq!(baseline("Canon", "Canon EOS R6 Mark III", None), 0.25);
         // EOS R6 is listed, and is not EOS R6 Mark III.
         assert_eq!(baseline("Canon", "EOS R6", None), 0.35);
+        // RAWmakase v0.4.6 added the R8 Mark II; it is not the R8.
+        assert_eq!(baseline("Canon", "EOS R8 Mark II", None), 0.25);
         // Not listed: the table's median.
         assert_eq!(baseline("Nobody", "X1", None), 0.15);
     }
 
     #[test]
     fn canon_rows_carry_their_samples_levels() {
-        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 58);
+        assert_eq!(rows().iter().filter(|r| r.levels.is_some()).count(), 59);
         // The R6 Mark III's sample: black 512, white 13995. A photo decoded at
         // black 2048, white 14351 takes 0.0146 EV more; a Nikon row has no
         // levels and takes none.
