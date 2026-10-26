@@ -129,6 +129,11 @@ Newest first.
   Canon EOS R8 Mark II (exposure offset +0.25 EV, levels 512 / 16384 / 16383), 280 bodies now;
   no other row moves. The chart's and the curves' sources did not change, so only their Source
   lines move. The tests that pin the table's size follow it (280 bodies, 59 with Canon levels).
+- **check:sources watches FlashRaw's releases.** The engine pins FlashRaw to one version
+  (`src-tauri/engine/Cargo.toml`, 0.1.1 today) because a new one is measured against rawler's
+  image before it is used. `npm run check:sources` now warns when a release newer than the pin is
+  tagged at github.com/ybouane/flashraw, as it does for RapidRAW and RAWmakase.
+  `scripts/check-sources.mjs`, tested in `scripts/test-check-sources.mjs`.
 
 ### Fixed
 
@@ -138,11 +143,17 @@ Newest first.
   those bodies, and one carried over by Copy settings or a preset was dropped at render. The same
   for the Olympus E-M10 Mark III S (profiled as the Mark III), Samsung's SM-G965F (the Galaxy
   S9+) and Huawei's VOG-L29 (the P30 Pro). The table also holds the G99D, the G99 II and an "OM
-  Digital" make, which the RAW decoder does not name that way today. The names are RAWmakase's (`data/adobe-camera-names.toml` @ `151fdf86`, v0.4.6,
-  MIT), each checked there against what Camera Raw installs, kept as
-  `src-tauri/src/mods/adobe_camera_names.tsv` and regenerated from each RAWmakase release by
-  `node scripts/rawmakase-camera-names.mjs <release>`; `check:sources` warns when one is out. A
-  name still has to match in full, with the maker known: the G97 does not take the G9's profile.
+  Digital" make, which the RAW decoder does not name that way today. The names are RAWmakase's
+  (`data/adobe-camera-names.toml` @ `151fdf86`, v0.4.6, MIT), each checked there against what
+  Camera Raw installs, kept as `src-tauri/src/mods/adobe_camera_names.tsv` and regenerated from
+  each RAWmakase release by `node scripts/rawmakase-camera-names.mjs <release>`; `check:sources`
+  warns when one is out. A name still has to match in full, with the maker known: the G97 does
+  not take the G9's profile.
+- **Settings > AI and models no longer offers RapidRAW's Cloud.** Its tile was hidden from the
+  General page only, so once the Modern window gave the AI card a section of its own (26.43.1) it
+  showed again, with a sign-in for a service Argentum switched off in 26.41.6. The tile, its
+  sign-in panel and the hiding workaround (`NoCloudTile.tsx`) are gone, and a provider saved as
+  Cloud reads as the built-in AI when settings load (`app_settings.rs`).
 - **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
   surface faces from a map made on the photo as it came from the camera. Crop > Transform
   (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
