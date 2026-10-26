@@ -12,12 +12,27 @@ Newest first.
   surface faces from a map made on the photo as it came from the camera. Crop > Transform
   (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
   but never turned the directions stored in them, so on a photo turned 30 degrees in Transform a
-  lamp lit surfaces as if it stood 30 degrees away from where it was placed. The directions now turn with
-  the picture at each pixel. A photo with no Transform and no lens correction gets exactly the
-  same map as before. From RapidRAW `src-tauri/src/effect_maps.rs` @ `f3e9fe4f`
+  lamp lit surfaces as if it stood 30 degrees away from where it was placed. The directions now
+  turn with the picture at each pixel. A photo with no Transform and no lens correction gets
+  exactly the same map as before. From RapidRAW `src-tauri/src/effect_maps.rs` @ `f3e9fe4f`
   (`local_warp_rotations`, `rotate_normal`); ours adds that the camera's own lens correction
   turns the map by its distortion only, not its colour fringing or shading. Thumbnails are
   redrawn once.
+- **A photo rewritten under the same name opens as it is now, not as it was.** The app keeps the
+  last few photos it decoded (Settings > Processing > Decoded Image Cache) and served them by file
+  name alone. A tethered camera that reuses names such as `capt0000.nef`, a file replaced from
+  outside the app, or a change to Linear RAW Processing kept showing the old pixels until the
+  photo dropped out of the cache or the app restarted. Each kept photo now remembers the file's
+  size and modification time and the settings it was decoded with (highlight compression, colour
+  noise reduction and sharpening while loading and whether they apply to non-RAWs, Linear RAW
+  Processing, Apple RAW 9, highlight recovery), and is reused only while all of them match. The
+  settings that already emptied the cache when changed still do; now a photo still decoding at
+  that moment cannot slip back in with the old setting either. Any other setting leaves the cache
+  alone, so reopening an unchanged photo is as instant as before. From RapidRAW
+  `src-tauri/src/cache_utils.rs` and `src-tauri/src/image_loader.rs` @ `e11750e7`
+  (`DecodeFingerprint`); highlight recovery is ours. Not taken from the same commit: one decode
+  shared by two callers, and RapidRAW `9be01048` (full-size previews reusing the cache). Our
+  cache has no memory limit yet, and they would keep more full-size photos in it.
 
 ## 26.43.4 — 2026-10-25
 
