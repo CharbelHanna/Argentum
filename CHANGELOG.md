@@ -158,6 +158,12 @@ Newest first.
 
 ### Fixed
 
+- **Fog, Lens blur and Relight follow the camera's lens correction when it is switched.** Their
+  depth and normal maps are warped with the photo and kept in memory, keyed by the edit's
+  geometry. That key left out the switch in Crop > Lens Correction for the camera's own
+  correction and its tables, so after toggling it the effects kept the map warped the old way
+  until the app restarted. The key now folds them in, as the preview's geometry caches already
+  do (`effect_maps.rs`, `effect_map_key`).
 - **A camera Adobe profiles under another body's name is offered those profiles.** The Lumix
   G97 and G95D have the G99's sensor, and Camera Raw installs only "Panasonic DC-G99" profiles
   for them, so an Adobe profile imported into the library was not listed in Edit > Profile for
