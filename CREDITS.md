@@ -120,6 +120,9 @@ tables each camera make stores in its RAW files, their units, and which of them
 Lightroom applies by default (`crates/rawmakase-model/src/lens/embedded.rs`,
 `optics/mod.rs` and `dng.rs`, from v0.4.0). Each make's reader in
 `src-tauri/engine/src/rm_lens_builtin/` names the RAWmakase commit it was copied from.
+RAWmakase's own record of what its decoder reads from the golden photos
+(`tests/corpus/dataset/pixls-decode.json`) is the test the copies are held to
+(`src-tauri/tests/look/rm_lens_baselines.tsv`).
 
 **Some RAW files are read as RAWmakase measured them**, in Argentum's copy of
 rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data

@@ -39,6 +39,7 @@
 mod decode_tier;
 mod gate;
 mod ledger;
+mod lens_baseline;
 mod outcome;
 mod reference;
 mod render_tier;
@@ -223,6 +224,16 @@ impl Run {
                     sample.id
                 ));
                 continue;
+            }
+            // Our readers of the camera's lens correction against RAWmakase's record.
+            if let Err(e) = lens_baseline::check(
+                &sha,
+                argentum_engine::rm_lens_builtin::read(&bytes).as_ref(),
+            ) {
+                self.failures.push(format!(
+                    "{}: built-in lens correction differs from RAWmakase's record: {e}",
+                    sample.id
+                ));
             }
             let ref_path = setup.refs.join(format!("{}.txt", sample.id));
             let reference = match std::fs::read_to_string(&ref_path) {
