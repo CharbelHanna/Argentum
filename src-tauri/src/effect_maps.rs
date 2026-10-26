@@ -103,6 +103,13 @@ fn effect_map_geometry_params(adjustments: &serde_json::Value) -> GeometryParams
     let mut params = get_geometry_params_from_json(adjustments);
     params.lens_vignette_enabled = false;
     params.lens_tca_enabled = false;
+    // Argentum: the camera's own shading would scale the map's values and its
+    // colour fringing sample its channels at two places; only its distortion
+    // moves pixels.
+    if let Some(builtin) = params.lens_builtin.as_mut() {
+        builtin.amounts.chromatic = 0.0;
+        builtin.amounts.vignetting = 0.0;
+    }
     params
 }
 
@@ -125,15 +132,9 @@ fn local_warp_rotations(
     height: u32,
     adjustments: &serde_json::Value,
 ) -> Option<Vec<(f32, f32)>> {
-    let mut params = effect_map_geometry_params(adjustments);
+    let params = effect_map_geometry_params(adjustments);
     if is_geometry_identity(&params) {
         return None;
-    }
-    // Argentum: the camera's own colour fringing would sample x and y at two
-    // places, and its shading would scale them; only its distortion moves pixels.
-    if let Some(builtin) = params.lens_builtin.as_mut() {
-        builtin.amounts.chromatic = 0.0;
-        builtin.amounts.vignetting = 0.0;
     }
 
     let coords = Rgb32FImage::from_fn(width, height, |x, y| Rgb([x as f32, y as f32, 1.0]));
@@ -338,6 +339,44 @@ mod tests {
         let other = key(json!({ "lensBuiltin": true, "lensBuiltinParams": other_params }));
         assert_ne!(off, on);
         assert_ne!(on, other);
+    }
+
+    /// The camera's shading and colour fringing correct the photo's light, not
+    /// a depth or normal map: a flat map stays flat, and its channels move
+    /// together.
+    #[test]
+    fn the_cameras_shading_and_fringing_leave_a_map_alone() {
+        use argentum_engine::rm_lens_builtin::{LensCorrection, Radial};
+        let radial = |values: Vec<f32>| Radial {
+            knots: vec![0.0, 1.0],
+            values,
+        };
+        let correction = LensCorrection {
+            vignetting: Some(radial(vec![1.0, 1.8])),
+            chromatic: Some([radial(vec![1.0, 1.01]), radial(vec![1.0, 0.99])]),
+            ..Default::default()
+        };
+        let adjustments = json!({ "lensBuiltin": true, "lensBuiltinParams": correction });
+        let (width, height) = (60, 40);
+        // The warp's last column and row sample past the edge.
+        let inside = |x: u32, y: u32| x + 1 < width && y + 1 < height;
+
+        let flat = GrayImage::from_pixel(width, height, Luma([100]));
+        let url = encode_source_space_map(&DynamicImage::ImageLuma8(flat)).unwrap();
+        let depth = resolve_luma_map(&url, &adjustments).unwrap();
+        for (x, y, p) in depth.enumerate_pixels().filter(|(x, y, _)| inside(*x, *y)) {
+            assert!(p[0].abs_diff(100) <= 1, "at {x},{y}: {}", p[0]);
+        }
+
+        let ramp = RgbaImage::from_fn(width, height, |x, _| {
+            let v = (x * 4) as u8;
+            Rgba([v, v, v, 255])
+        });
+        let url = encode_source_space_map(&DynamicImage::ImageRgba8(ramp)).unwrap();
+        let normals = resolve_rgba_map(&url, &adjustments).unwrap();
+        for (x, y, p) in normals.enumerate_pixels().filter(|(x, y, _)| inside(*x, *y)) {
+            assert!(p[0].abs_diff(p[2]) <= 1, "at {x},{y}: {p:?}");
+        }
     }
 
     #[test]
