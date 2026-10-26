@@ -196,16 +196,30 @@ impl WhiteBalance {
         xyz_to_camera_d65: &[f32],
         neutral: &[f32],
     ) -> Option<Self> {
+        Self::dual_illuminant_camera_neutral(xyz_to_camera_a, xyz_to_camera_d65, neutral)
+            .map(|(estimate, _)| estimate)
+    }
+
+    /// The as-shot white and the camera matrix mixed for it from the A and D65
+    /// ones. RapidRAW 3f5345a5: src-tauri/src/white_balance.rs, which returns the
+    /// matrix from `from_dual_illuminant_camera_neutral`; the arithmetic of the
+    /// white is unchanged, so every photo's as-shot white balance is too.
+    pub fn dual_illuminant_camera_neutral(
+        xyz_to_camera_a: &[f32],
+        xyz_to_camera_d65: &[f32],
+        neutral: &[f32],
+    ) -> Option<(Self, Vec<f32>)> {
+        let mut xyz_to_camera = xyz_to_camera_d65.to_vec();
+        let mut estimate = Self::from_camera_neutral(&xyz_to_camera, neutral)?;
         if xyz_to_camera_a.len() != xyz_to_camera_d65.len() {
-            return Self::from_camera_neutral(xyz_to_camera_d65, neutral);
+            return Some((estimate, xyz_to_camera));
         }
 
-        let mut estimate = Self::from_camera_neutral(xyz_to_camera_d65, neutral)?;
         for _ in 0..20 {
             let weight = ((1.0 / estimate.temperature - 1.0 / ILLUMINANT_D65_TEMPERATURE)
                 / (1.0 / ILLUMINANT_A_TEMPERATURE - 1.0 / ILLUMINANT_D65_TEMPERATURE))
                 .clamp(0.0, 1.0) as f32;
-            let xyz_to_camera: Vec<f32> = xyz_to_camera_a
+            xyz_to_camera = xyz_to_camera_a
                 .iter()
                 .zip(xyz_to_camera_d65)
                 .map(|(a, d65)| weight * a + (1.0 - weight) * d65)
@@ -217,8 +231,67 @@ impl WhiteBalance {
                 break;
             }
         }
-        Some(estimate)
+        Some((estimate, xyz_to_camera))
     }
+}
+
+// RapidRAW 3f5345a5: src-tauri/src/white_balance.rs. Camera to sRGB the way the
+// DNG spec builds it: invert the camera's XYZ matrix, take the as-shot white in
+// XYZ and adapt it to D65 with Bradford. `from_camera_neutral` above solves the
+// same white by its own sums, kept so the as-shot white balance of every photo
+// stays bit for bit what it was; this one is used only for the camera colour of
+// new edits (mods/dng_colour.rs).
+fn camera_to_xyz(xyz_to_camera: &[f32]) -> Option<Vec<DVec3>> {
+    let rows: Vec<DVec3> = xyz_to_camera
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|row| DVec3::from_array(row.map(f64::from)))
+        .collect();
+    if rows.len() < 3 {
+        return None;
+    }
+    let normal = rows.iter().fold(DMat3::ZERO, |normal, r| {
+        normal + DMat3::from_cols(*r * r.x, *r * r.y, *r * r.z)
+    });
+    if normal.determinant().abs() < 1e-12 {
+        return None;
+    }
+    let inverse = normal.inverse();
+    Some(rows.iter().map(|r| inverse * *r).collect())
+}
+
+fn neutral_xyz(camera_to_xyz: &[DVec3], neutral: &[f32]) -> Option<DVec3> {
+    (neutral.len() >= camera_to_xyz.len()).then(|| {
+        camera_to_xyz
+            .iter()
+            .zip(neutral)
+            .map(|(column, &n)| *column * n as f64)
+            .sum()
+    })
+}
+
+/// Each camera channel's colour in linear sRGB, with the as-shot white
+/// (`neutral`, the camera's response to it) adapted to D65.
+pub fn camera_to_srgb(xyz_to_camera: &[f32], neutral: &[f32]) -> Option<Vec<[f32; 3]>> {
+    let columns = camera_to_xyz(xyz_to_camera)?;
+    let white_lms = BRADFORD * neutral_xyz(&columns, neutral)?;
+    if !white_lms.is_finite() || white_lms.min_element() <= 0.0 {
+        return None;
+    }
+    let (x, y) = (WP_D65.x as f64, WP_D65.y as f64);
+    let d65_lms = BRADFORD * DVec3::new(x / y, 1.0, (1.0 - x - y) / y);
+    let xyz_to_srgb = primaries_to_xyz_matrix(&PRIMARIES_SRGB, WP_D65)
+        .as_dmat3()
+        .inverse();
+    let transform =
+        xyz_to_srgb * BRADFORD.inverse() * DMat3::from_diagonal(d65_lms / white_lms) * BRADFORD;
+    Some(
+        columns
+            .iter()
+            .map(|column| (transform * *column).as_vec3().to_array())
+            .collect(),
+    )
 }
 
 pub fn adaptation_log_gains(current: WhiteBalance, target: WhiteBalance) -> [f32; 3] {

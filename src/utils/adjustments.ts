@@ -256,6 +256,7 @@ export interface Adjustments {
   aiPatches: Array<AiPatch>;
   aspectRatio: number | null;
   baselineExposure: boolean;
+  agDngColour?: boolean; // Argentum: camera colour the DNG way, for edits made since (mods/dng_colour.rs)
   blacks: number;
   brightness: number;
   centré: number;
@@ -698,6 +699,8 @@ export const normalizeLoadedAdjustments = (loadedAdjustments: Adjustments): any 
       autoCrop: loadedAdjustments.guidedPerspective?.autoCrop ?? true,
     },
     baselineExposure: loadedAdjustments.baselineExposure ?? false,
+    // Argentum: an edit saved before keeps rawler's camera colour; no edit at all is new (mods/dng_colour.rs).
+    agDngColour: loadedAdjustments.agDngColour ?? Object.keys(loadedAdjustments).length === 0,
     lutIsSceneReferred: loadedAdjustments.lutIsSceneReferred ?? false,
     flareAmount: loadedAdjustments.flareAmount ?? INITIAL_ADJUSTMENTS.flareAmount,
     glowAmount: loadedAdjustments.glowAmount ?? INITIAL_ADJUSTMENTS.glowAmount,

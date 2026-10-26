@@ -130,6 +130,7 @@ pub fn mark_baseline_exposure(adjustments: &mut Value) {
 pub fn default_adjustments() -> Value {
     let mut adjustments = json!({});
     mark_baseline_exposure(&mut adjustments);
+    crate::mods::dng_colour::mark(&mut adjustments); // Argentum: a new edit takes the DNG way
     adjustments
 }
 

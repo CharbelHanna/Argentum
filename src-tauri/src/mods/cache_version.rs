@@ -63,7 +63,9 @@ use std::path::{Path, PathBuf};
 ///    Whites (more range), in `shaders/shader.wgsl`.
 /// 9. RapidRAW 1.6.7's Relight on a rotated or warped photo: its normals turn
 ///    with the picture (`effect_maps.rs`).
-pub const PIPELINE: u32 = 10;
+/// 10. RapidRAW 1.6.7's camera colour the DNG way for photos with no edit yet
+///     (`mods/dng_colour.rs`); edits saved before keep theirs.
+pub const PIPELINE: u32 = 11;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

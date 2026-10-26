@@ -68,6 +68,23 @@ pub mod mods {
         pub fn on_raw_decoded(_raw: &mut RawImage, _file_bytes: &[u8], _photo_path: Option<&str>) {}
     }
 
+    /// `mods::dng_colour` and `mods::profile_correction`: what the decode
+    /// remembers for an edit made the DNG way, a correction after the decode
+    /// that the parity tests do not reach.
+    pub mod dng_colour {
+        use rawler::rawimage::RawImage;
+
+        pub struct Inputs;
+
+        pub fn inputs_of(_raw: &RawImage, _calibrated: bool) -> Option<Inputs> {
+            None
+        }
+    }
+
+    pub mod profile_correction {
+        pub fn remember_colour(_path: Option<&str>, _colour: Option<super::dng_colour::Inputs>) {}
+    }
+
     /// `mods::raw_decoder`: rawler, the app's default decoder, which the
     /// parity tests measure against.
     pub mod raw_decoder {
