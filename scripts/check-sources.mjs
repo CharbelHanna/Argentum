@@ -29,6 +29,7 @@ import { tableWarning } from './rawmakase-cameras.mjs';
 import { chartWarning } from './rawmakase-gray-chart.mjs';
 import { curvesWarning } from './rawmakase-grade-curves.mjs';
 import { lensWarning } from './rawmakase-lens-baselines.mjs';
+import { namesWarning } from './rawmakase-camera-names.mjs';
 
 export const RAPIDRAW = 'https://github.com/CyberTimon/RapidRAW';
 export const FLASHRAW = 'https://github.com/ybouane/flashraw';
@@ -180,6 +181,7 @@ async function main() {
       chartWarning(root).catch((error) => `B&W chart not checked against RAWmakase: ${error.message}`),
       curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`),
       lensWarning(root).catch((error) => `lens baselines not checked against RAWmakase: ${error.message}`),
+      namesWarning(root).catch((error) => `camera names not checked against RAWmakase: ${error.message}`),
       flashrawWarning(root),
     ])
   ).filter(Boolean);

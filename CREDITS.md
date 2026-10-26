@@ -160,6 +160,12 @@ rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
 matrices and white levels of a few bodies (`data/raw-matrices.toml` and
 `data/raw-cameras.toml` @ `a8c5d6d7`), which carry Adobe DNG Converter 18.7's.
 
+**The names Adobe profiles some cameras under** - the Lumix G97 and its twins as
+the DC-G99, the E-M10 Mark III S as the Mark III, and a few more - are RAWmakase's
+(`data/adobe-camera-names.toml`), each checked by its contributors against what
+Camera Raw installs, kept in Argentum as `src-tauri/src/mods/adobe_camera_names.tsv`
+and regenerated from each RAWmakase release, which the table names.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured
