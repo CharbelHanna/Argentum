@@ -97,6 +97,19 @@ const loadExifForImages = async (
 /** Counts handleImageSelect calls, so a call that waited can tell a later one was made. */
 let imageSelectGeneration = 0;
 
+/**
+ * The root or pinned folder a folder opened inside belongs to, so the tree expands down to it: the
+ * longest one the path is inside, whole folder names only (D:\Photos2 is not inside D:\Photos).
+ * RapidRAW d6d90783: src/hooks/useAppNavigation.ts.
+ */
+export function rootContaining(path: string, roots: readonly string[]): string | undefined {
+  const isInsideRoot = (r: string) =>
+    path === r || (path.startsWith(r) && (/[\\/]$/.test(r) || ['/', '\\'].includes(path[r.length])));
+  return roots
+    .filter(isInsideRoot)
+    .reduce<string | undefined>((best, r) => (!best || r.length > best.length ? r : best), undefined);
+}
+
 export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationProps) {
   const {
     transformWrapperRef,
@@ -378,7 +391,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
           }
         } else if (path && expandParents) {
           const allRoots = [...(rootPaths || []), ...(pinnedFolders || [])].filter(Boolean) as string[];
-          const relevantRoot = allRoots.find((r) => path.startsWith(r));
+          const relevantRoot = rootContaining(path, allRoots);
 
           if (relevantRoot) {
             const separator = path.includes('/') ? '/' : '\\';
