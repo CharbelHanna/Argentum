@@ -81,6 +81,9 @@ pub async fn open_photo(
     let (source_path, _) = crate::file_management::parse_virtual_path(&path);
     let source = source_path.to_string_lossy().to_string();
     let settings = crate::app_settings::load_settings(app_handle).unwrap_or_default();
+    // Taken before the decode, as `load_image` does: the cache keeps this decode
+    // only while the file and the settings it was made with still match.
+    let fingerprint = crate::cache_utils::DecodeFingerprint::for_file(&source_path, &settings);
     // Navigating away bumps the generation, which cancels this decode the same
     // way it cancels theirs.
     let cancel = Some((state.load_image_generation.clone(), then.generation));
@@ -88,20 +91,22 @@ pub async fn open_photo(
 
     let decoded = tokio::task::spawn_blocking(move || {
         let bytes = std::fs::read(&source_for_decode).map_err(|e| e.to_string())?;
-        crate::image_loader::load_base_image_from_bytes(
+        let image = crate::image_loader::load_base_image_from_bytes(
             &bytes,
             &source_for_decode,
             false,
             &settings,
             cancel,
         )
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        let exif = crate::exif_processing::read_exif_data(&source_for_decode, &bytes);
+        Ok::<_, String>((image, exif))
     })
     .await
     .map_err(|e| e.to_string())?;
 
-    let image = match decoded {
-        Ok(image) => Arc::new(image),
+    let (image, exif) = match decoded {
+        Ok((image, exif)) => (Arc::new(image), exif),
         Err(e) if e.contains("cancelled") => return Ok(false),
         Err(e) => return Err(e),
     };
@@ -134,10 +139,9 @@ pub async fn open_photo(
             .decoded_image_cache
             .lock()
             .unwrap_or_else(|e| e.into_inner());
-        let exif = decoded_cache.get(&source).map(|(_, exif)| exif);
         decoded_cache.clear();
-        if let Some(exif) = exif {
-            decoded_cache.insert(source, image, exif);
+        if let Some(fingerprint) = fingerprint {
+            decoded_cache.insert(source, fingerprint, image, exif);
         }
     }
 
