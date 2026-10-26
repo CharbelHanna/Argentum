@@ -6,6 +6,27 @@ Newest first.
 
 ## 26.44.1 — 2026-10-26
 
+### Added
+
+- **RAW decoder: rawler or FlashRaw.** Settings > Processing > RAW decoder picks the program that
+  reads RAW files, and a photo can use its own, first in Edit > Profile (saved in its edit as
+  `rawDecoder`; a virtual copy follows its original, whose decode it shares). rawler stays the
+  default. FlashRaw (`flashraw` 0.1.1, crates.io, MIT or Apache-2.0) unpacks the sensor data
+  faster, inside rawler's reading of the file, so the levels, white balance, colour matrices and
+  crop stay rawler's: on Canon CR3 and CR2, Fujifilm compressed RAF, Olympus ORF, Panasonic RW2
+  (v8) and Pentax PEF its pixels are identical to rawler's and the app's develop of them is
+  identical too (dE2000 0.000 on 10 files from eight bodies), with the decode 1.5 to 3.4 times
+  faster. Every other file opens with rawler, and the photo's row says so: DNG (rawler
+  reads a DNG's pixels even for its metadata, so FlashRaw on top is slower), Sony (no gain on
+  lossless, slower and not identical on compressed), Canon sRAW (converted differently), Nikon (one
+  count off, which tips photosites across the clipping point) and any format not measured yet.
+  Engine `src/flashraw.rs` (the format list and the decode, pinned to 0.1.1), app
+  `src-tauri/src/mods/raw_decoder.rs` (the choice, the setting in `argentum-processing.json`) and
+  `src/argentum/RawDecoder.tsx` (both rows). Switching decodes the open photo again, as highlight
+  recovery does (`src/argentum/redecode.ts`, now shared by both). A test compares FlashRaw's image
+  with rawler's, every field and every sample, on the RAWs given to it; CI runs it on the golden
+  photos.
+
 ### Changed
 
 - **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each

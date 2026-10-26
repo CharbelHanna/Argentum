@@ -55,6 +55,7 @@ import { open } from '@tauri-apps/plugin-shell';
 import { RotateCcw } from 'lucide-react';
 import { useUIStore } from '../../store/useUIStore';
 import { useAgTranslation } from '../../argentum/locales';
+import { RawDecoderSetting } from '../../argentum/RawDecoder';
 import { getWhiteBalanceMode, WhiteBalanceMode } from '../../utils/whiteBalance';
 
 interface ConfirmModalState {
@@ -2162,6 +2163,10 @@ export default function SettingsPanel({
                           />
                         </SettingItem>
                       )}
+
+                      <SettingItem label={agT('rawDecoderSetting')} description={agT('rawDecoderSettingDesc')}>
+                        <RawDecoderSetting />
+                      </SettingItem>
 
                       <SettingItem
                         label={t('settings.processing.preprocessing.linearRaw')}

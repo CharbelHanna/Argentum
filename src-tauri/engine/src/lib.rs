@@ -17,6 +17,7 @@ pub mod dng_gain_map;
 mod dng_opcodes;
 pub mod engine;
 mod error;
+pub mod flashraw;
 mod frame;
 mod gpu;
 mod image;

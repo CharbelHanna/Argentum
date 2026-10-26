@@ -16,6 +16,10 @@ exclude = ["reference"]
 [dependencies]
 # The same pinned fork the app decodes with (src-tauri/Cargo.toml).
 rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d" }
+# Unpacks the sensor data of the formats measured identical to rawler's,
+# faster (src/flashraw.rs). Pinned: a new version is measured again first.
+# Its sensor output only: no colour management, no JPEG XL, no GPU.
+flashraw = { version = "=0.1.1", default-features = false, features = ["rayon", "simd"] }
 wgpu = "29.0"
 pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }

@@ -103,7 +103,9 @@ fn develop_internal(
     let decoder = rawler::get_decoder(&source)?;
 
     check_cancel()?;
-    let mut raw_image: RawImage = decoder.raw_image(&source, &RawDecodeParams::default(), false)?;
+    // Argentum: rawler, or FlashRaw's samples in rawler's image (mods/raw_decoder.rs)
+    let mut raw_image: RawImage =
+        crate::mods::raw_decoder::raw_image(&source, decoder.as_ref(), file_bytes, photo_path)?;
     crate::mods::decode::on_raw_decoded(&mut raw_image, file_bytes, photo_path); // Argentum: the single decode anchor, see mods/decode.rs
 
     let orientation = metadata_orientation(decoder.as_ref(), &source)?;

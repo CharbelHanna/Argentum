@@ -62,6 +62,17 @@ published it, not from us.
 
 ---
 
+## RAW decoding
+
+### [FlashRaw](https://github.com/ybouane/flashraw)
+
+Settings > Processing > RAW decoder can hand the unpacking of a RAW's pixels to
+FlashRaw (`flashraw` 0.1.1 on crates.io, MIT or Apache-2.0), used as a library.
+rawler still reads everything else in the file, and FlashRaw is used only on the
+formats where its pixels were measured identical to rawler's: Canon CR3 and CR2,
+Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF
+(`src-tauri/engine/src/flashraw.rs`).
+
 ## RAW rendering
 
 DNG Standard, under RAW > Rendering, is the default picture of a DNG renderer:

@@ -150,3 +150,19 @@ jobs:
           else
             cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
           fi
+
+      # The RAW decoder setting: on every sample FlashRaw decodes, its image
+      # must be rawler's, field for field and sample for sample, or choosing
+      # FlashRaw would change how photos look (src-tauri/src/mods/raw_decoder.rs).
+      - name: FlashRaw gives rawler's image
+        if: steps.look-samples.outputs.ok == 'true'
+        working-directory: src-tauri
+        timeout-minutes: 10
+        run: |
+          export AG_LOOK_SAMPLES="$HOME/look-samples"
+          bin=$(ls -t target/debug/deps/argentum_lib-* 2>/dev/null | grep -v '\.d$' | head -n 1)
+          if [ -x "$bin" ]; then
+            "$bin" mods::raw_decoder::tests::flashraw_gives_rawlers_image --ignored --exact --nocapture
+          else
+            cargo test --lib mods::raw_decoder::tests::flashraw_gives_rawlers_image -- --ignored --exact --nocapture
+          fi
