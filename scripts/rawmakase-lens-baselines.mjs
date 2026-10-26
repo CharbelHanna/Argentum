@@ -72,29 +72,37 @@ function sorted(value) {
 }
 
 /**
- * The table's rows: a golden photo's id, its sha256 and RAWmakase's lens
- * record (JSON, `null` for none), LEFT_OUT's fields removed. A golden photo
- * RAWmakase has not recorded has no row.
+ * The table's rows: a golden photo's id, its sha256, RAWmakase's lens record
+ * and its stand-in record (JSON, `null` for none), LEFT_OUT's fields removed. A
+ * golden photo RAWmakase has not recorded has no row.
+ *
+ * RAWmakase keeps a correction in two records: `lens`, what is applied from the
+ * file whatever the lens profile, and `lens_stand_in`, what stands in for a
+ * profile that has none (Sony's distortion and vignetting). Argentum's one
+ * LensCorrection holds both and says which with `always`.
  */
 export function lensRows(baselines, photos, leftOut = LEFT_OUT) {
   const bySha = new Map(baselines.files.map((file) => [file.sha256, file]));
   const seen = new Set();
+  const kept = (record) => {
+    if (!record) return null;
+    const out = { ...record };
+    for (const { field } of leftOut) {
+      if (field in out) {
+        seen.add(field);
+        delete out[field];
+      }
+    }
+    return sorted(out);
+  };
   const rows = [];
   for (const [id, sha256] of photos) {
     const file = bySha.get(sha256);
     if (!file) continue;
-    const lens = file.header?.metadata?.lens ?? null;
-    let kept = null;
-    if (lens) {
-      kept = { ...lens };
-      for (const { field } of leftOut) {
-        if (field in kept) {
-          seen.add(field);
-          delete kept[field];
-        }
-      }
-    }
-    rows.push([id, sha256, JSON.stringify(sorted(kept))].join('\t'));
+    const metadata = file.header?.metadata ?? {};
+    rows.push(
+      [id, sha256, JSON.stringify(kept(metadata.lens)), JSON.stringify(kept(metadata.lens_stand_in))].join('\t'),
+    );
   }
   const stale = leftOut.filter(({ field }) => !seen.has(field));
   if (stale.length > 0) {
@@ -107,7 +115,7 @@ export function lensRows(baselines, photos, leftOut = LEFT_OUT) {
 
 /** The "# Source:" line: which RAWmakase commit, its release, and what the rows hold. */
 export function sourceLine({ sha, tag }, rows, leftOut = LEFT_OUT) {
-  const corrected = rows.filter((row) => !row.endsWith('\tnull')).length;
+  const corrected = rows.filter((row) => !row.endsWith('\tnull\tnull')).length;
   return (
     `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, ` +
     `${rows.length} golden photos, ${corrected} with a lens correction, ` +

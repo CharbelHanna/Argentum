@@ -103,8 +103,9 @@ Newest first.
   it.** Argentum's readers of the distortion, colour fringing and vignetting tables each make
   stores in its RAW files are copied from RAWmakase's, and RAWmakase records what its decoder
   reads from each raw.pixls.us file. On the ten golden photos (eight carry a correction) the run
-  now compares our reading with that record part by part, within 1e-6, and reports any part that
-  differs. `src-tauri/tests/look/rm_lens_baselines.tsv` is generated from RAWmakase
+  now compares our reading with that record part by part, within 1e-6 (RAWmakase's two records,
+  the correction applied from the file and the stand-in for a lens profile, taken together; the
+  name shown for the source is not compared), and reports any part that differs. `src-tauri/tests/look/rm_lens_baselines.tsv` is generated from RAWmakase
   `tests/corpus/dataset/pixls-decode.json` @ `151fdf86` (v0.4.6, MIT) by `node
   scripts/rawmakase-lens-baselines.mjs <release>`, held to its source by
   `scripts/test-rawmakase-lens-baselines.mjs` and watched by check:sources. Two fields Argentum's
