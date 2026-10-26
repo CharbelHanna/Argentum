@@ -1,9 +1,12 @@
 use crate::AppState;
+use crate::app_settings::AppSettings;
 use image::DynamicImage;
 use std::collections::HashMap;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 pub const GEOMETRY_KEYS: &[&str] = &[
     "transformDistortion",
@@ -59,7 +62,8 @@ fn hash_ai_patches(adjustments: &serde_json::Value, hasher: &mut DefaultHasher) 
                     .unwrap_or("")
                     .hash(hasher);
             } else {
-                patch.get("patchDataBase64")
+                patch
+                    .get("patchDataBase64")
                     .and_then(|v| v.as_str())
                     .unwrap_or("")
                     .hash(hasher);
@@ -397,9 +401,63 @@ pub fn calculate_full_job_hash(path: &str, adjustments: &serde_json::Value) -> u
     hasher.finish()
 }
 
+// RapidRAW e11750e7: src-tauri/src/cache_utils.rs.
+/// A path alone goes stale: tethering reuses file names and raw settings change the pixels.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DecodeFingerprint {
+    len: u64,
+    modified: Option<SystemTime>,
+    settings_hash: u64,
+}
+
+impl DecodeFingerprint {
+    pub fn for_file(path: &Path, settings: &AppSettings) -> Option<Self> {
+        let metadata = std::fs::metadata(path).ok()?;
+        Some(Self::new(
+            &metadata,
+            settings,
+            crate::mods::highlights::enabled(),
+        ))
+    }
+
+    /// Every setting `image_loader::load_base_image_from_bytes` reads.
+    fn new(metadata: &std::fs::Metadata, settings: &AppSettings, highlight_recovery: bool) -> Self {
+        let mut hasher = DefaultHasher::new();
+        settings
+            .raw_highlight_compression
+            .map(f32::to_bits)
+            .hash(&mut hasher);
+        settings.linear_raw_mode.hash(&mut hasher);
+        settings
+            .raw_preprocessing_color_nr
+            .map(f32::to_bits)
+            .hash(&mut hasher);
+        settings
+            .raw_preprocessing_sharpening
+            .map(f32::to_bits)
+            .hash(&mut hasher);
+        settings.apply_preprocessing_to_non_raws.hash(&mut hasher);
+        settings.use_apple_raw9.hash(&mut hasher);
+        // Argentum: highlight recovery runs inside the decode (mods/highlights.rs).
+        highlight_recovery.hash(&mut hasher);
+        Self {
+            len: metadata.len(),
+            modified: metadata.modified().ok(),
+            settings_hash: hasher.finish(),
+        }
+    }
+}
+
+struct DecodedEntry {
+    path: String,
+    fingerprint: DecodeFingerprint,
+    image: Arc<DynamicImage>,
+    exif: HashMap<String, String>,
+}
+
 pub struct DecodedImageCache {
     capacity: usize,
-    items: Vec<(String, Arc<DynamicImage>, HashMap<String, String>)>,
+    items: Vec<DecodedEntry>,
 }
 
 impl DecodedImageCache {
@@ -417,15 +475,22 @@ impl DecodedImageCache {
         }
     }
 
-    pub fn get(&mut self, path: &str) -> Option<(Arc<DynamicImage>, HashMap<String, String>)> {
-        if let Some(pos) = self.items.iter().position(|(p, _, _)| p == path) {
-            let item = self.items.remove(pos);
-            let result = (item.1.clone(), item.2.clone());
-            self.items.push(item);
-            Some(result)
-        } else {
-            None
+    /// The photo decoded from `path`, if it was decoded from the file as it is
+    /// now and with the same settings. An entry that no longer matches is a
+    /// miss, and is dropped (RapidRAW e11750e7).
+    pub fn get(
+        &mut self,
+        path: &str,
+        fingerprint: &DecodeFingerprint,
+    ) -> Option<(Arc<DynamicImage>, HashMap<String, String>)> {
+        let pos = self.items.iter().position(|e| e.path == path)?;
+        let entry = self.items.remove(pos);
+        if entry.fingerprint != *fingerprint {
+            return None;
         }
+        let result = (Arc::clone(&entry.image), entry.exif.clone());
+        self.items.push(entry);
+        Some(result)
     }
 
     pub fn clear(&mut self) {
@@ -435,15 +500,21 @@ impl DecodedImageCache {
     pub fn insert(
         &mut self,
         path: String,
+        fingerprint: DecodeFingerprint,
         image: Arc<DynamicImage>,
         exif: HashMap<String, String>,
     ) {
-        if let Some(pos) = self.items.iter().position(|(p, _, _)| *p == path) {
+        if let Some(pos) = self.items.iter().position(|e| e.path == path) {
             self.items.remove(pos);
         } else if self.items.len() >= self.capacity {
             self.items.remove(0);
         }
-        self.items.push((path, image, exif));
+        self.items.push(DecodedEntry {
+            path,
+            fingerprint,
+            image,
+            exif,
+        });
     }
 }
 
@@ -497,5 +568,183 @@ pub fn clear_session_caches(state: tauri::State<AppState>) {
     }
     if let Ok(mut geometry_cache) = state.geometry_cache.lock() {
         geometry_cache.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn scratch_file(name: &str, bytes: &[u8]) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("argentum-decode-fingerprint");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, bytes).unwrap();
+        path
+    }
+
+    fn fingerprint(path: &Path, settings: &AppSettings, recovery: bool) -> DecodeFingerprint {
+        DecodeFingerprint::new(&std::fs::metadata(path).unwrap(), settings, recovery)
+    }
+
+    fn image() -> Arc<DynamicImage> {
+        Arc::new(DynamicImage::new_rgb32f(2, 2))
+    }
+
+    #[test]
+    fn the_same_file_and_settings_match() {
+        let path = scratch_file("same", b"raw bytes");
+        let settings = AppSettings::default();
+        assert_eq!(
+            fingerprint(&path, &settings, true),
+            fingerprint(&path, &settings, true)
+        );
+        assert_eq!(
+            DecodeFingerprint::for_file(&path, &settings),
+            DecodeFingerprint::for_file(&path, &settings)
+        );
+    }
+
+    /// Tethering writes capt0000.nef again for the next shot.
+    #[test]
+    fn a_file_rewritten_under_the_same_name_does_not_match() {
+        let path = scratch_file("rewritten", b"first shot");
+        let settings = AppSettings::default();
+        let before = fingerprint(&path, &settings, true);
+
+        std::fs::write(&path, b"second shot, longer").unwrap();
+        assert_ne!(before, fingerprint(&path, &settings, true), "new length");
+
+        let same_length = fingerprint(&path, &settings, true);
+        let file = std::fs::OpenOptions::new().write(true).open(&path).unwrap();
+        file.set_modified(SystemTime::now() + Duration::from_secs(60))
+            .unwrap();
+        drop(file);
+        assert_ne!(
+            same_length,
+            fingerprint(&path, &settings, true),
+            "same length, new time"
+        );
+    }
+
+    #[test]
+    fn every_setting_the_decode_reads_moves_it() {
+        let path = scratch_file("settings", b"raw bytes");
+        let base = AppSettings::default();
+        let before = fingerprint(&path, &base, true);
+        let changed: [(&str, AppSettings); 6] = [
+            (
+                "highlight compression",
+                AppSettings {
+                    raw_highlight_compression: Some(4.0),
+                    ..base.clone()
+                },
+            ),
+            (
+                "linear mode",
+                AppSettings {
+                    linear_raw_mode: "something else".into(),
+                    ..base.clone()
+                },
+            ),
+            (
+                "colour noise reduction",
+                AppSettings {
+                    raw_preprocessing_color_nr: Some(0.05),
+                    ..base.clone()
+                },
+            ),
+            (
+                "sharpening",
+                AppSettings {
+                    raw_preprocessing_sharpening: Some(0.9),
+                    ..base.clone()
+                },
+            ),
+            (
+                "non-RAWs too",
+                AppSettings {
+                    apply_preprocessing_to_non_raws: Some(true),
+                    ..base.clone()
+                },
+            ),
+            (
+                "Apple RAW 9",
+                AppSettings {
+                    use_apple_raw9: Some(true),
+                    ..base.clone()
+                },
+            ),
+        ];
+        for (what, settings) in changed {
+            assert_ne!(before, fingerprint(&path, &settings, true), "{what}");
+        }
+        assert_ne!(
+            before,
+            fingerprint(&path, &base, false),
+            "highlight recovery"
+        );
+    }
+
+    /// Saving any other setting must not empty the cache: reopening stays instant.
+    #[test]
+    fn a_setting_the_decode_does_not_read_leaves_it() {
+        let path = scratch_file("unrelated", b"raw bytes");
+        let base = AppSettings::default();
+        let other = AppSettings {
+            theme: Some("something else".into()),
+            image_cache_size: Some(9),
+            ..base.clone()
+        };
+        assert_eq!(
+            fingerprint(&path, &base, true),
+            fingerprint(&path, &other, true)
+        );
+    }
+
+    #[test]
+    fn a_match_is_served_and_a_stale_entry_is_dropped() {
+        let path = scratch_file("cache", b"raw bytes");
+        let settings = AppSettings::default();
+        let now = fingerprint(&path, &settings, true);
+        let other = fingerprint(&path, &settings, false);
+        let mut cache = DecodedImageCache::new(5);
+        let decoded = image();
+        cache.insert(
+            "a.cr3".into(),
+            now.clone(),
+            Arc::clone(&decoded),
+            HashMap::new(),
+        );
+
+        let (hit, _) = cache.get("a.cr3", &now).expect("same file, same settings");
+        assert!(Arc::ptr_eq(&hit, &decoded));
+        assert!(cache.get("b.cr3", &now).is_none());
+
+        assert!(cache.get("a.cr3", &other).is_none(), "settings changed");
+        assert!(
+            cache.get("a.cr3", &now).is_none(),
+            "the stale entry is gone, not kept for later"
+        );
+    }
+
+    #[test]
+    fn the_oldest_photo_still_leaves_first() {
+        let path = scratch_file("capacity", b"raw bytes");
+        let fp = fingerprint(&path, &AppSettings::default(), true);
+        let mut cache = DecodedImageCache::new(2);
+        for name in ["a", "b", "c"] {
+            cache.insert(name.into(), fp.clone(), image(), HashMap::new());
+        }
+        assert!(cache.get("a", &fp).is_none());
+        assert!(cache.get("b", &fp).is_some());
+        assert!(cache.get("c", &fp).is_some());
+
+        // Using a photo makes it the newest.
+        cache.get("b", &fp);
+        cache.insert("d".into(), fp.clone(), image(), HashMap::new());
+        assert!(cache.get("c", &fp).is_none());
+        assert!(cache.get("b", &fp).is_some());
     }
 }

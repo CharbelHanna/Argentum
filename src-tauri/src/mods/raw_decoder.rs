@@ -13,6 +13,14 @@
 //! The app decodes a file once and its virtual copies share that decode, so
 //! the file's own sidecar decides, not a copy's.
 //!
+//! NOT IN THE DECODE FINGERPRINT
+//!
+//! `cache_utils::DecodeFingerprint` holds the settings that change a decode's
+//! pixels, so a photo decoded under another value is decoded again. This one
+//! changes none: FlashRaw is only used where it gives rawler's image. A cached
+//! decode is right under either decoder, and keying on it would only decode
+//! photos again for nothing.
+//!
 //! WHY THE INTERFACE TELLS THIS MODULE, AND DOES NOT SAVE THE SIDECAR
 //!
 //! A changed choice has to be in force before the photo is decoded again, a
