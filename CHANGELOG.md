@@ -4,6 +4,21 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.44.1 — 2026-10-26
+
+### Fixed
+
+- **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
+  surface faces from a map made on the photo as it came from the camera. Crop > Transform
+  (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
+  but never turned the directions stored in them, so on a photo turned 30 degrees in Transform a
+  lamp lit surfaces as if it stood 30 degrees away from where it was placed. The directions now turn with
+  the picture at each pixel. A photo with no Transform and no lens correction gets exactly the
+  same map as before. From RapidRAW `src-tauri/src/effect_maps.rs` @ `f3e9fe4f`
+  (`local_warp_rotations`, `rotate_normal`); ours adds that the camera's own lens correction
+  turns the map by its distortion only, not its colour fringing or shading. Thumbnails are
+  redrawn once.
+
 ## 26.43.4 — 2026-10-25
 
 ### Added
