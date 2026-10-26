@@ -12,13 +12,15 @@
 //     once a real test covers its feature;
 //   * warns when RapidRAW has released past the version the last harvest
 //     review read (the CHANGELOG's "read up to" line): a review is due;
-//   * warns when RAWmakase has released past a table generated from it (DEC-34).
+//   * warns when RAWmakase has released past a table generated from it (DEC-34);
+//   * warns when FlashRaw has released past the version the engine pins: a new
+//     version is measured against rawler's image before the pin moves.
 //
 // A network failure is a warning, never a failure. No git history is needed.
 //
 // Run standalone:  node scripts/check-sources.mjs
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -29,6 +31,8 @@ import { curvesWarning } from './rawmakase-grade-curves.mjs';
 import { lensWarning } from './rawmakase-lens-baselines.mjs';
 
 export const RAPIDRAW = 'https://github.com/CyberTimon/RapidRAW';
+export const FLASHRAW = 'https://github.com/ybouane/flashraw';
+const FLASHRAW_PIN = 'src-tauri/engine/Cargo.toml';
 
 /** Calls that must stay in place. Moved here from the retired anchors (scripts/upstream-anchors.mjs). */
 export const WIRING = [
@@ -133,6 +137,30 @@ async function rapidrawWarning(root) {
   }
 }
 
+/** The FlashRaw version the engine pins, from its `flashraw = { version = "=X", ... }`. */
+export function pinnedFlashRaw(cargoToml) {
+  return /^flashraw\s*=.*?"=(\d+(?:\.\d+)*)"/m.exec(cargoToml)?.[1] ?? null;
+}
+
+/** A warning when FlashRaw has a release newer than the engine's pin, else null. */
+export function pinWarning(pinned, tags) {
+  if (!pinned) return `${FLASHRAW_PIN} no longer pins FlashRaw ("=X"), so a new release would be taken unmeasured`;
+  const newest = [...tags.keys()].at(-1);
+  if (!newest || newest.slice(1).localeCompare(pinned, 'en', { numeric: true }) <= 0) return null;
+  return `FlashRaw ${newest} is out and the engine pins ${pinned}: measure it before moving the pin (${FLASHRAW_PIN})`;
+}
+
+async function flashrawWarning(root) {
+  // A checkout without the engine (the e2e test's throwaway forks) has nothing to check.
+  if (!existsSync(join(root, FLASHRAW_PIN))) return null;
+  const pinned = pinnedFlashRaw(readFileSync(join(root, FLASHRAW_PIN), 'utf8'));
+  try {
+    return pinWarning(pinned, await releases(FLASHRAW));
+  } catch (error) {
+    return `could not list FlashRaw's releases (${error.code ?? error.message})`;
+  }
+}
+
 async function main() {
   const root = join(dirname(fileURLToPath(import.meta.url)), '..');
   const started = Date.now();
@@ -152,6 +180,7 @@ async function main() {
       chartWarning(root).catch((error) => `B&W chart not checked against RAWmakase: ${error.message}`),
       curvesWarning(root).catch((error) => `colour grading curves not checked against RAWmakase: ${error.message}`),
       lensWarning(root).catch((error) => `lens baselines not checked against RAWmakase: ${error.message}`),
+      flashrawWarning(root),
     ])
   ).filter(Boolean);
 

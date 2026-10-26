@@ -129,6 +129,11 @@ Newest first.
   Canon EOS R8 Mark II (exposure offset +0.25 EV, levels 512 / 16384 / 16383), 280 bodies now;
   no other row moves. The chart's and the curves' sources did not change, so only their Source
   lines move. The tests that pin the table's size follow it (280 bodies, 59 with Canon levels).
+- **check:sources watches FlashRaw's releases.** The engine pins FlashRaw to one version
+  (`src-tauri/engine/Cargo.toml`, 0.1.1 today) because a new one is measured against rawler's
+  image before it is used. `npm run check:sources` now warns when a release newer than the pin is
+  tagged at github.com/ybouane/flashraw, as it does for RapidRAW and RAWmakase.
+  `scripts/check-sources.mjs`, tested in `scripts/test-check-sources.mjs`.
 
 ### Fixed
 
