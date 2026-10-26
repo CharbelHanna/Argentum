@@ -35,6 +35,15 @@ Newest first.
   `3c54413` (MIT), in our rawler fork as `e865df57` (`akhater/RapidRAW-DngLab`, branch
   `feat/canon-r8-mark-ii`, on `930e6ce2`), with a test on a version 67 record. Not checked on a
   real file: none is public yet.
+- **Undo when a rated, flagged or colour-labelled photo leaves the library's filter.** With the
+  library showing only some photos (three stars and up, picks only, a colour), changing the active
+  photo so it no longer matches still hides it at once, and now a pop-up says so with an Undo
+  button. Undo puts back the previous rating, flag and colour label of every photo changed, on
+  disk too, and they reappear; the filter stays as it is. Tag changes do not offer it. From RapidRAW
+  `src/components/ui/FilterExitToast.tsx` and `src/hooks/useLibraryActions.ts` @ `4eb6b2da`, with
+  `18ebf030` (undoing a rating on a rated and rejected photo sends the reject flag again, since
+  setting a rating clears it on disk), in `src/argentum/filterExitUndo.ts` and
+  `src/argentum/FilterExitToast.tsx`; their strings in all 15 languages.
 
 ### Changed
 
