@@ -18,6 +18,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { computeSortedLibrary } from './useSortedLibrary';
 import { expandGroupedPaths } from '../utils/imageGrouping';
 import { getImageFlag } from '../utils/imageFlags';
+import { showFilterExitToast, snapshotMetadata } from '../argentum/filterExitUndo';
 
 const resolveTargetPaths = (paths?: string[]) => {
   const { multiSelectedPaths, imageList } = useLibraryStore.getState();
@@ -63,7 +64,8 @@ export const clearLibrarySelection = () => {
   });
 };
 
-const applyWithAutoAdvance = (changedPaths: string[], applyChange: () => void) => {
+// RapidRAW 4eb6b2da: src/hooks/useLibraryActions.ts (undoable: a pop-up offers Undo when the change hides photos)
+const applyWithAutoAdvance = (changedPaths: string[], undoable: boolean, applyChange: () => void) => {
   const { activeView, cullingModalState } = useUIStore.getState();
   const activePath =
     activeView === 'editor'
@@ -75,6 +77,9 @@ const applyWithAutoAdvance = (changedPaths: string[], applyChange: () => void) =
     return;
   }
 
+  // RapidRAW 4eb6b2da: src/hooks/useLibraryActions.ts
+  const snapshot = undoable ? snapshotMetadata(changedPaths) : null;
+  const { multiSelectedPaths } = useLibraryStore.getState();
   const before = computeSortedLibrary(useLibraryStore.getState(), useSettingsStore.getState());
   applyChange();
   const after = computeSortedLibrary(useLibraryStore.getState(), useSettingsStore.getState());
@@ -82,6 +87,13 @@ const applyWithAutoAdvance = (changedPaths: string[], applyChange: () => void) =
   const visible = new Set(after.map((img) => img.path));
   const activeIndex = before.findIndex((img) => img.path === activePath);
   if (activeIndex === -1 || visible.has(activePath)) return;
+
+  // RapidRAW 4eb6b2da: src/hooks/useLibraryActions.ts
+  if (snapshot) {
+    const changed = new Set(changedPaths);
+    const hiddenCount = before.filter((img) => changed.has(img.path) && !visible.has(img.path)).length;
+    showFilterExitToast(activePath, hiddenCount, snapshot, multiSelectedPaths);
+  }
 
   const next =
     before.slice(activeIndex + 1).find((img) => visible.has(img.path)) ??
@@ -111,7 +123,7 @@ export function useLibraryActions(handleImageSelect?: (path: string, openInEdito
     const currentRating = imageRatings[selectedPaths[0]] || 0;
     const finalRating = newRating === currentRating && !isRejected ? 0 : newRating;
 
-    applyWithAutoAdvance(pathsToRate, () =>
+    applyWithAutoAdvance(pathsToRate, true, () =>
       setLibrary((state) => {
         const newRatings = { ...state.imageRatings };
         pathsToRate.forEach((p) => {
@@ -137,7 +149,7 @@ export function useLibraryActions(handleImageSelect?: (path: string, openInEdito
     const { expandedPaths } = resolveTargetPaths(paths);
     if (expandedPaths.length === 0) return;
 
-    applyWithAutoAdvance(expandedPaths, () =>
+    applyWithAutoAdvance(expandedPaths, true, () =>
       useLibraryStore.getState().setLibrary((state) => ({
         imageList: withFlag(state.imageList, expandedPaths, flag),
       })),
@@ -179,7 +191,7 @@ export function useLibraryActions(handleImageSelect?: (path: string, openInEdito
 
     try {
       await invoke(Invokes.SetColorLabelForPaths, { paths: pathsToUpdate, color: finalColor });
-      applyWithAutoAdvance(pathsToUpdate, () =>
+      applyWithAutoAdvance(pathsToUpdate, true, () =>
         setLibrary((state) => ({
           imageList: state.imageList.map((image: ImageFile) => {
             if (pathsToUpdate.includes(image.path)) {
@@ -201,7 +213,7 @@ export function useLibraryActions(handleImageSelect?: (path: string, openInEdito
     const groupingMode = useSettingsStore.getState().appSettings?.grouping ?? 'off';
     const pathsToUpdate = expandGroupedPaths(imageList, changedPaths, groupingMode);
 
-    applyWithAutoAdvance(pathsToUpdate, () =>
+    applyWithAutoAdvance(pathsToUpdate, false, () =>
       useLibraryStore.getState().setLibrary((state) => ({
         imageList: state.imageList.map((image) => {
           if (pathsToUpdate.includes(image.path)) {
