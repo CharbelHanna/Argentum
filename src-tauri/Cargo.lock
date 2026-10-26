@@ -2795,7 +2795,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.56.0",
 ]
 
 [[package]]
@@ -4317,7 +4317,7 @@ version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
 dependencies = [
- "proc-macro-crate 3.5.0",
+ "proc-macro-crate 1.3.1",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
@@ -5456,7 +5456,7 @@ dependencies = [
 [[package]]
 name = "rawler"
 version = "0.7.1"
-source = "git+https://github.com/akhater/RapidRAW-DngLab.git?rev=df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d#df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d"
+source = "git+https://github.com/akhater/RapidRAW-DngLab.git?rev=930e6ce2978165809409635624f5b29b372ed01f#930e6ce2978165809409635624f5b29b372ed01f"
 dependencies = [
  "backtrace",
  "bitstream-io",

@@ -65,6 +65,12 @@ Newest first.
 - **The translation check also flags a translation that drops a `{{placeholder}}`** its English
   has. None does today; the check stays advisory in CI. From RapidRAW `src/i18n/check-runtime.mjs`
   @ `1c97bfd2`.
+- **A DNG's white balance, levels and size are read without decoding its pixels.** Opening a DNG
+  reads its as-shot white balance, and DNG Standard and the decode scale read its levels and size,
+  each through rawler's metadata-only pass, which for a DNG decoded the whole sensor anyway. It
+  now stops at the metadata, as it already did for every other format; the values read are the
+  same. From RapidRAW's rawler fork, `rawler/src/decoders/dng.rs` @ `9dbcc565`, in ours as
+  `930e6ce2` (branch `fix/rapidraw-167-em1x-dng-dummy` of `akhater/RapidRAW-DngLab`).
 
 ### Fixed
 
@@ -109,6 +115,12 @@ Newest first.
 - **A tooltip whose text changes while it shows follows the change,** instead of keeping the old
   text until the pointer leaves. From RapidRAW `src/components/ui/GlobalTooltip.tsx` @
   `d2b3ff42` (its tooltip half).
+- **Olympus E-M1X photos have their right colours.** Its RAWs were decoded with the colour
+  filters' layout reversed (BGGR instead of RGGB), so red and blue came out of the wrong
+  photosites. RapidRAW 1.6.6 already had this fix; our rawler fork was branched before it. Now
+  corrected with rawler's FlashRaw decode too, which takes the layout from rawler. From
+  RapidRAW's rawler fork, `rawler/data/cameras/olympus/e-m1x.toml` @ `a32bc1ff` (upstream
+  dnglab has RGGB too), in ours as `46c6e55a`; rawler is now pinned to `930e6ce2`.
 
 ## 26.43.4 — 2026-10-25
 
