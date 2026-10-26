@@ -6,6 +6,21 @@ Newest first.
 
 ## 26.44.1 — 2026-10-26
 
+### Changed
+
+- **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each
+  photo's thumbnail now starts as soon as its edit is written, not after the whole selection's,
+  and a thumbnail whose photo and edit are unchanged (the same settings pasted again, a photo
+  reset twice) is reused instead of drawn again, as browsing a folder already does.
+  Paste now finishes writing every photo's edit before it reports back, so the lens settings the
+  editor reads after a paste are the pasted ones; before, it could read them first. Auto adjust
+  and Auto straighten on a selection map each file instead of copying it into memory. From
+  RapidRAW `src-tauri/src/file_management.rs` @ `cabc73a4` (`update_sidecars_and_thumbnails`,
+  `run_batch_workers`), adapted: the thumbnails are drawn on the app's shared pool, so batches
+  running at once (with Auto-sync on, every pause of a slider starts one) never decode more
+  photos at a time than before. Its worker count limited by memory, from an earlier RapidRAW
+  commit, is not taken.
+
 ### Fixed
 
 - **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
