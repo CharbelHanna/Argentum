@@ -580,10 +580,11 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
             ]
           : [{ icon: FileInput, label: exportLabel, onClick: onExportClick }, { type: OPTION_SEPARATOR }]),
         {
-          disabled: !isSingleSelection,
+          // RapidRAW 2ce74721: src/hooks/useAppContextMenus.ts. With several photos selected, Copy
+          // takes the settings of the one right-clicked.
           icon: Copy,
           label: t('contextMenus.editor.copyAdjustments'),
-          onClick: () => handleCopyAdjustments(finalSelection[0]),
+          onClick: () => handleCopyAdjustments(path),
         },
         {
           disabled: copiedAdjustments === null,
