@@ -12,8 +12,11 @@ import {
 } from '../components/ui/AppProperties';
 import { buildImageGroups, GroupBadgeInfo, GroupId } from '../utils/imageGrouping';
 
+// RapidRAW 1c2f1d64: src/hooks/useSortedLibrary.ts, adapted. A field counts only when a colon, an
+// operator or a space follows it, so a tag such as "summer" is not read as s(hutter) "ummer".
+// Theirs needs the colon or operator; ours keeps "camera sony", which worked before, too.
 export const ADVANCED_QUERY_REGEX =
-  /^(iso|aperture|f|shutter|s|focal|mm|rating|color|camera|make|model|lens)\s*(?::)?\s*(>=|<=|>|<|=)?\s*(.+)$/i;
+  /^(iso|aperture|f|shutter|s|focal|mm|rating|color|camera|make|model|lens)(?=\s*[:<>=]|\s)\s*(?::)?\s*(>=|<=|>|<|=)?\s*(.+)$/i;
 
 const parseShutter = (val: string | undefined): number => {
   if (!val) return 0;
