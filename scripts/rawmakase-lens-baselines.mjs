@@ -62,7 +62,11 @@ export function goldenPhotos(samplesTsv) {
 function sorted(value) {
   if (Array.isArray(value)) return value.map(sorted);
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]));
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, sorted(value[key])]),
+    );
   }
   return value;
 }
@@ -104,9 +108,11 @@ export function lensRows(baselines, photos, leftOut = LEFT_OUT) {
 /** The "# Source:" line: which RAWmakase commit, its release, and what the rows hold. */
 export function sourceLine({ sha, tag }, rows, leftOut = LEFT_OUT) {
   const corrected = rows.filter((row) => !row.endsWith('\tnull')).length;
-  return `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, `
-    + `${rows.length} golden photos, ${corrected} with a lens correction, `
-    + `left out: ${leftOut.map((l) => l.field).join(', ') || 'nothing'}`;
+  return (
+    `# Source: RAWmakase ${SOURCE_PATH} @ ${sha}${tag ? ` (${tag})` : ''}, ` +
+    `${rows.length} golden photos, ${corrected} with a lens correction, ` +
+    `left out: ${leftOut.map((l) => l.field).join(', ') || 'nothing'}`
+  );
 }
 
 /** The commit and release a table names, or null if it names none. */

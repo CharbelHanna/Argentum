@@ -13,7 +13,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  SAMPLES, TABLE, fetchBaselines, goldenPhotos, lensRows, recordedSource, regenerate, sourceLine,
+  SAMPLES,
+  TABLE,
+  fetchBaselines,
+  goldenPhotos,
+  lensRows,
+  recordedSource,
+  regenerate,
+  sourceLine,
 } from './rawmakase-lens-baselines.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -36,7 +43,12 @@ const test = async (name, fn) => {
 const radial = { values: [1, 1.01], knots: [0, 1] };
 const record = {
   files: [
-    { sha256: 'aaa', header: { metadata: { lens: { source: 'X built-in', default_on: true, distortion: radial, centre: [0.5, 0.5] } } } },
+    {
+      sha256: 'aaa',
+      header: {
+        metadata: { lens: { source: 'X built-in', default_on: true, distortion: radial, centre: [0.5, 0.5] } },
+      },
+    },
     { sha256: 'bbb', header: { metadata: {} } },
     { sha256: 'ccc', header: { metadata: { lens: { source: 'DNG opcodes', gain_map: {}, distortion: null } } } },
   ],
@@ -47,7 +59,16 @@ const leftOut = [
 ];
 
 await test('a row is a golden photo, its sha256 and its record without the fields left out, keys in order', () => {
-  const rows = lensRows(record, [['1', 'aaa'], ['2', 'bbb'], ['3', 'zzz'], ['4', 'ccc']], leftOut);
+  const rows = lensRows(
+    record,
+    [
+      ['1', 'aaa'],
+      ['2', 'bbb'],
+      ['3', 'zzz'],
+      ['4', 'ccc'],
+    ],
+    leftOut,
+  );
   assert.deepEqual(rows, [
     '1\taaa\t{"default_on":true,"distortion":{"knots":[0,1],"values":[1,1.01]},"source":"X built-in"}',
     '2\tbbb\tnull',
@@ -57,12 +78,31 @@ await test('a row is a golden photo, its sha256 and its record without the field
 
 await test('a field left out that no record holds any more stops the script', () => {
   const stale = [...leftOut, { field: 'gone', reason: 'test', removedWhen: 'test' }];
-  assert.throws(() => lensRows(record, [['1', 'aaa'], ['4', 'ccc']], stale), /gone - delete them/);
+  assert.throws(
+    () =>
+      lensRows(
+        record,
+        [
+          ['1', 'aaa'],
+          ['4', 'ccc'],
+        ],
+        stale,
+      ),
+    /gone - delete them/,
+  );
 });
 
 await test('the Source line names the commit, release, counts and what is left out, and is read back', () => {
   const sha = 'a'.repeat(40);
-  const rows = lensRows(record, [['1', 'aaa'], ['2', 'bbb'], ['4', 'ccc']], leftOut);
+  const rows = lensRows(
+    record,
+    [
+      ['1', 'aaa'],
+      ['2', 'bbb'],
+      ['4', 'ccc'],
+    ],
+    leftOut,
+  );
   const line = sourceLine({ sha, tag: 'v1.2.3' }, rows, leftOut);
   assert.match(line, /3 golden photos, 2 with a lens correction, left out: centre, gain_map$/);
   assert.deepEqual(recordedSource(line), { sha, tag: 'v1.2.3' });
@@ -92,7 +132,9 @@ await test(`${TABLE} is what the script makes from the RAWmakase commit it names
     const [a, b] = [tsv.split('\n'), made.split('\n')];
     let i = 0;
     while (a[i] === b[i]) i += 1;
-    assert.fail(`line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`);
+    assert.fail(
+      `line ${i + 1} differs - regenerate it, never edit it:\n  table:  ${a[i]?.slice(0, 80)}\n  script: ${b[i]?.slice(0, 80)}`,
+    );
   }
 });
 
