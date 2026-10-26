@@ -26,6 +26,15 @@ Newest first.
   recovery does (`src/argentum/redecode.ts`, now shared by both). A test compares FlashRaw's image
   with rawler's, every field and every sample, on the RAWs given to it; CI runs it on the golden
   photos.
+- **Canon EOS R8 Mark II photos open.** Its RAW files carry a version of Canon's colour data
+  (ColorData 67) that the RAW decoder did not know, and the decoder had no entry for the body,
+  so they most likely failed to open. Version 67 keeps the white balance where version 64 has it
+  and the black and white levels where versions 64 to 66 do, as RAWmakase measured against
+  Adobe DNG Converter 18.7, and the body takes the EOS R8's colour matrices, as Adobe gives it.
+  From RAWmakase `crates/rawmakase-raw/src/vendor/canon_cr3.rs` and `data/raw-matrices.toml` @
+  `3c54413` (MIT), in our rawler fork as `e865df57` (`akhater/RapidRAW-DngLab`, branch
+  `feat/canon-r8-mark-ii`, on `930e6ce2`), with a test on a version 67 record. Not checked on a
+  real file: none is public yet.
 
 ### Changed
 
