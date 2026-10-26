@@ -43,6 +43,7 @@ pub fn effect_map_key(data_url: &str, adjustments: &serde_json::Value) -> u64 {
                 val.to_string().hash(&mut hasher);
             }
         }
+        crate::mods::lens_builtin::fold(0, adjustments).hash(&mut hasher); // Argentum
     }
 
     hasher.finish()
@@ -321,6 +322,22 @@ mod tests {
                 assert_eq!([p[0], p[1], p[2]], w.0, "{adjustments} at {x},{y}");
             }
         }
+    }
+
+    /// Toggling the camera's own lens correction rewarps the map, so the
+    /// cache must not hand back the one warped before.
+    #[test]
+    fn the_cameras_lens_correction_changes_the_key() {
+        let url = uniform_normal_map(8, 8, 0.0, 0.0);
+        let params = json!({ "distortion": [1.0, 0.01] });
+        let key = |adjustments: serde_json::Value| effect_map_key(&url, &adjustments);
+
+        let off = key(json!({ "lensBuiltin": false, "lensBuiltinParams": params }));
+        let on = key(json!({ "lensBuiltin": true, "lensBuiltinParams": params }));
+        let other_params = json!({ "distortion": [1.0, 0.02] });
+        let other = key(json!({ "lensBuiltin": true, "lensBuiltinParams": other_params }));
+        assert_ne!(off, on);
+        assert_ne!(on, other);
     }
 
     #[test]
