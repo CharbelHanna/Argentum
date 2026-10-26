@@ -8,6 +8,19 @@ Newest first.
 
 ### Changed
 
+- **Basic inpainting and the Quick Eraser keep the texture around what they remove.** The fill
+  model works on at most 768 by 768 pixels; on a larger area it used to be scaled back up from
+  there, so a removed wire or person left a soft, smeared patch on a sharp photo. Each filled
+  pixel now also takes the fine texture of the spot the fill matches nearby, at full size, and
+  the model sees areas that are not square at more of their resolution. On five test RAWs, three
+  removals each, the fine texture inside the 11 removals the model had to shrink went from a
+  median of 45% of the texture around them to 88% (the lowest from 8% to 53%), and the step adds
+  at most 0.2 s to a fill that takes 5 to 20 s. Small removals, which already ran at full size,
+  keep the same texture, though not the same pixels. Removals already made keep their pixels;
+  nothing outside a removal changes.
+  From RapidRAW `src-tauri/src/ai_processing.rs` @ `b407d348` (`lama_patch_match`,
+  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`). Not taken from the same
+  commit: the Quick Eraser's larger default Grow and Feather.
 - **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each
   photo's thumbnail now starts as soon as its edit is written, not after the whole selection's,
   and a thumbnail whose photo and edit are unchanged (the same settings pasted again, a photo
