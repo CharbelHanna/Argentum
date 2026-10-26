@@ -126,7 +126,8 @@ export const CREDITS: CreditGroup[] = [
           'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
           'stores in its RAW files, and which of them Lightroom applies. Some RAW files are read as ' +
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
-          'matrices and white levels. The presets that come with Argentum (Color, Creative, B&W, ' +
+          'matrices and white levels, and the names Adobe profiles some cameras under (the Lumix ' +
+          'G97 as the G99). The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
           'unchanged. RAWmakase is also where the comparison started. MIT.',
       },

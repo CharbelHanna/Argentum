@@ -120,7 +120,38 @@ pub fn matches(profile_camera: &str, make: &str, model: &str) -> bool {
         .skip(1)
         .collect::<Vec<_>>()
         .join(" ");
-    !without_maker.is_empty() && same_model(&without_maker, model)
+    if !without_maker.is_empty() && same_model(&without_maker, model) {
+        return true;
+    }
+
+    // The name Adobe profiles this body under, where it is not the decoder's.
+    adobe_names(make, model).any(|name| same_model(profile_camera, &name))
+}
+
+/// The names Adobe's profiles use for this camera where the decoder names it
+/// otherwise: the Lumix G97 and its twins are profiled as the DC-G99, the
+/// E-M10 Mark III S as the Mark III, and so on (`adobe_camera_names.tsv`, from
+/// RAWmakase's `data/adobe-camera-names.toml`, MIT). A make row gives the
+/// camera under Adobe's spelling of its maker.
+fn adobe_names<'a>(make: &'a str, model: &'a str) -> impl Iterator<Item = String> + 'a {
+    const TABLE: &str = include_str!("adobe_camera_names.tsv");
+    TABLE
+        .lines()
+        .filter(|line| !line.starts_with('#') && !line.is_empty())
+        .filter_map(move |line| {
+            let fields: Vec<&str> = line.split('\t').collect();
+            match fields[..] {
+                ["make", decoder_make, "-", adobe_make, ..] if same_model(decoder_make, make) => {
+                    Some(format!("{adobe_make} {model}"))
+                }
+                ["camera", decoder_make, decoder_model, adobe, ..]
+                    if same_model(decoder_make, make) && same_model(decoder_model, model) =>
+                {
+                    Some(adobe.to_string())
+                }
+                _ => None,
+            }
+        })
 }
 
 /// Where the library lives, once startup has resolved it.
@@ -391,6 +422,57 @@ mod tests {
         assert!(!matches("Canon EOS 7D Mark II", "Canon", "EOS 7D"));
         assert!(!matches("Canon EOS R", "Canon", "EOS R5"));
         assert!(!matches("Canon EOS R5", "Canon", "EOS R"));
+    }
+
+    /// Adobe profiles some bodies under another's name: the Lumix G97 has the
+    /// G99's sensor and Camera Raw installs only "Panasonic DC-G99" for it.
+    #[test]
+    fn a_body_adobe_profiles_under_another_name_takes_that_profile() {
+        assert!(matches("Panasonic DC-G99", "Panasonic", "DC-G97"));
+        assert!(matches("Panasonic DC-G99", "Panasonic", "DC-G99M2"));
+        assert!(matches(
+            "Olympus E-M10 Mark III",
+            "OLYMPUS CORPORATION",
+            "E-M10 Mark III S"
+        ));
+        assert!(matches("Samsung Galaxy S9+", "Samsung", "SM-G965F"));
+        // A make row: the camera under Adobe's spelling of its maker.
+        assert!(matches("OM Digital Solutions OM-1", "OM Digital", "OM-1"));
+    }
+
+    /// The names are whole-name pairs like everything else here: the G97 does
+    /// not take the G9's profile, the G9 does not take the G99's, and a maker
+    /// that is not the one named gets nothing from the list.
+    #[test]
+    fn another_name_is_never_a_looser_match() {
+        assert!(!matches("Panasonic DC-G9", "Panasonic", "DC-G97"));
+        assert!(!matches("Panasonic DC-G99", "Panasonic", "DC-G9"));
+        assert!(!matches("Panasonic DC-G99", "Leica", "DC-G97"));
+        assert!(!matches("Panasonic DC-G99", "", "DC-G97"));
+        assert!(!matches(
+            "Olympus E-M10 Mark III",
+            "Olympus",
+            "E-M10 Mark II"
+        ));
+        assert!(!matches("OM Digital Solutions OM-5", "OM Digital", "OM-1"));
+    }
+
+    /// Every row of the table reads, and names a make and an Adobe name.
+    #[test]
+    fn the_adobe_names_table_reads() {
+        let rows = include_str!("adobe_camera_names.tsv")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty())
+            .map(|line| line.split('\t').collect::<Vec<_>>())
+            .collect::<Vec<_>>();
+        assert_eq!(rows.len(), 8);
+        for row in &rows {
+            assert!(
+                row.len() == 5 && ["make", "camera"].contains(&row[0]),
+                "{row:?}"
+            );
+            assert!(!row[1].is_empty() && !row[2].is_empty() && !row[3].is_empty());
+        }
     }
 
     /// Rendering takes the illuminant nearest daylight, so that is the one

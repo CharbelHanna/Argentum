@@ -132,6 +132,17 @@ Newest first.
 
 ### Fixed
 
+- **A camera Adobe profiles under another body's name is offered those profiles.** The Lumix
+  G97 and G95D have the G99's sensor, and Camera Raw installs only "Panasonic DC-G99" profiles
+  for them, so an Adobe profile imported into the library was not listed in Edit > Profile for
+  those bodies, and one carried over by Copy settings or a preset was dropped at render. The same
+  for the Olympus E-M10 Mark III S (profiled as the Mark III), Samsung's SM-G965F (the Galaxy
+  S9+) and Huawei's VOG-L29 (the P30 Pro). The table also holds the G99D, the G99 II and an "OM
+  Digital" make, which the RAW decoder does not name that way today. The names are RAWmakase's (`data/adobe-camera-names.toml` @ `151fdf86`, v0.4.6,
+  MIT), each checked there against what Camera Raw installs, kept as
+  `src-tauri/src/mods/adobe_camera_names.tsv` and regenerated from each RAWmakase release by
+  `node scripts/rawmakase-camera-names.mjs <release>`; `check:sources` warns when one is out. A
+  name still has to match in full, with the maker known: the G97 does not take the G9's profile.
 - **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
   surface faces from a map made on the photo as it came from the camera. Crop > Transform
   (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
