@@ -43,7 +43,6 @@ import ExportPrecision from './ExportPrecision';
 import Sharpening from './Sharpening';
 import LocalSharpening from './LocalSharpening';
 import MyGear from './MyGear';
-import NoCloudTile from './NoCloudTile';
 import PanelsSetting from './PanelsSetting';
 import { useCompactSliders } from './compactSliders';
 import { useEditorLayout } from './layout/editorLayout';
@@ -181,12 +180,7 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
       {localSharpening && createPortal(<LocalSharpening />, localSharpening)}
       {gear && createPortal(<MyGear />, gear)}
       {aiModels && createPortal(<AiModels />, aiModels)}
-      {general && (
-        <>
-          <NoCloudTile slot={general as HTMLElement} />
-          <PanelsSetting slot={general as HTMLElement} />
-        </>
-      )}
+      {general && <PanelsSetting slot={general as HTMLElement} />}
       <RgbReadout />
       <LinearMask />
       <RadialFeather />

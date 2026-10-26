@@ -776,6 +776,14 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         settings_modified = true;
     }
 
+    // Argentum: there is no Cloud provider (src/argentum/noCloud.ts). Its tile
+    // showed in Settings by mistake, so a "cloud" saved then goes back to the
+    // built-in AI rather than routing edits to a service that never answers.
+    if settings.ai_provider.as_deref() == Some("cloud") {
+        settings.ai_provider = Some("cpu".to_string());
+        settings_modified = true;
+    }
+
     #[cfg(target_os = "linux")]
     if !settings.linux_gpu_optimization_migrated_v1.unwrap_or(false) {
         if settings.linux_gpu_optimization == Some(true) {
