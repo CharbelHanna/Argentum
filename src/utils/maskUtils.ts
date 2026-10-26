@@ -45,7 +45,8 @@ export const createSubMask = (
     case Mask.AiForeground:
       return { ...common, parameters: { maskDataBase64: null, grow: 0, feather: 0 } };
     case Mask.QuickEraser:
-      return { ...common, parameters: { maskDataBase64: null, grow: 50, feather: 50 } };
+      // RapidRAW b407d348: src/utils/maskUtils.ts. Saved erasers keep their own values.
+      return { ...common, parameters: { maskDataBase64: null, grow: 150, feather: 75 } };
     default:
       return { ...common, parameters: {} };
   }

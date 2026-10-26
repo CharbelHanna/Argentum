@@ -131,8 +131,10 @@ const SUB_MASK_CONFIG: any = {
     ],
   },
   [Mask.QuickEraser]: {
+    // RapidRAW b407d348: src/components/panel/right/AIPanel.tsx. A wider grow
+    // gives the eraser room around the object; new erasers start at 150.
     parameters: [
-      { key: 'grow', min: -100, max: 100, step: 1, defaultValue: 75 },
+      { key: 'grow', min: -100, max: 200, step: 1, defaultValue: 150 },
       { key: 'feather', min: 0, max: 100, step: 1, defaultValue: 75 },
     ],
   },

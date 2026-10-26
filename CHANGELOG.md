@@ -35,6 +35,15 @@ Newest first.
   `3c54413` (MIT), in our rawler fork as `e865df57` (`akhater/RapidRAW-DngLab`, branch
   `feat/canon-r8-mark-ii`, on `930e6ce2`), with a test on a version 67 record. Not checked on a
   real file: none is public yet.
+- **Undo when a rated, flagged or colour-labelled photo leaves the library's filter.** With the
+  library showing only some photos (three stars and up, picks only, a colour), changing the active
+  photo so it no longer matches still hides it at once, and now a pop-up says so with an Undo
+  button. Undo puts back the previous rating, flag and colour label of every photo changed, on
+  disk too, and they reappear; the filter stays as it is. Tag changes do not offer it. From RapidRAW
+  `src/components/ui/FilterExitToast.tsx` and `src/hooks/useLibraryActions.ts` @ `4eb6b2da`, with
+  `18ebf030` (undoing a rating on a rated and rejected photo sends the reject flag again, since
+  setting a rating clears it on disk), in `src/argentum/filterExitUndo.ts` and
+  `src/argentum/FilterExitToast.tsx`; their strings in all 15 languages.
 
 ### Changed
 
@@ -70,14 +79,19 @@ Newest first.
   keep the same texture, though not the same pixels. Removals already made keep their pixels;
   nothing outside a removal changes.
   From RapidRAW `src-tauri/src/ai_processing.rs` @ `b407d348` (`lama_patch_match`,
-  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`). Not taken from the same
-  commit: the Quick Eraser's larger default Grow and Feather.
+  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`).
+- **A new Quick Eraser grows its selection further by default.** It starts at Grow 150 instead
+  of 75, as RapidRAW 1.6.7's does, and the Grow slider goes up to 200.
+  Feather stays at 75. Erasers already in an edit keep their own values. From RapidRAW
+  `src/components/panel/right/AIPanel.tsx` and `src/utils/maskUtils.ts` @ `b407d348`, the part
+  of that commit left out of the inpainting change above.
 - **Fog, Lens blur and Relight read their depth and surface maps unshaded when the camera's own
   lens correction is on.** The maps are warped with the photo so they stay aligned, and the
   lens database's vignetting and colour fringing were already left out of that warp. The
   camera's own correction (Crop > Lens Correction) still brightened the maps towards the corners
   by its vignetting gain and sampled their channels apart by its lateral CA, so Fog and Lens blur
-  read the corners at the wrong distance, and Relight's surfaces faced the wrong way there. Now only its distortion moves the maps, as with the lens database. This changes
+  read the corners at the wrong distance, and Relight's surfaces faced the wrong way there. Now
+  only its distortion moves the maps, as with the lens database. This changes
   Fog, Lens blur and Relight on photos whose camera correction has vignetting or CA tables,
   edits already made included. Measured on the golden photos with the correction on, at 1600 px
   (the depth model's map is 518 px wide; the corners are the four boxes 15% of the width and
@@ -176,6 +190,12 @@ Newest first.
 
 ### Fixed
 
+- **Fog, Lens blur and Relight follow the camera's lens correction when it is switched.** Their
+  depth and normal maps are warped with the photo and kept in memory, keyed by the edit's
+  geometry. That key left out the switch in Crop > Lens Correction for the camera's own
+  correction and its tables, so after toggling it the effects kept the map warped the old way
+  until the app restarted. The key now folds them in, as the preview's geometry caches already
+  do (`effect_maps.rs`, `effect_map_key`).
 - **A camera Adobe profiles under another body's name is offered those profiles.** The Lumix
   G97 and G95D have the G99's sensor, and Camera Raw installs only "Panasonic DC-G99" profiles
   for them, so an Adobe profile imported into the library was not listed in Edit > Profile for
