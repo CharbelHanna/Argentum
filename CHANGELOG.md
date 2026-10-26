@@ -70,8 +70,12 @@ Newest first.
   keep the same texture, though not the same pixels. Removals already made keep their pixels;
   nothing outside a removal changes.
   From RapidRAW `src-tauri/src/ai_processing.rs` @ `b407d348` (`lama_patch_match`,
-  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`). Not taken from the same
-  commit: the Quick Eraser's larger default Grow and Feather.
+  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`).
+- **A new Quick Eraser grows its selection further by default.** It starts at Grow 150 instead
+  of 75, as RapidRAW 1.6.7's does, and the Grow slider goes up to 200.
+  Feather stays at 75. Erasers already in an edit keep their own values. From RapidRAW
+  `src/components/panel/right/AIPanel.tsx` and `src/utils/maskUtils.ts` @ `b407d348`, the part
+  of that commit left out of the inpainting change above.
 - **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each
   photo's thumbnail now starts as soon as its edit is written, not after the whole selection's,
   and a thumbnail whose photo and edit are unchanged (the same settings pasted again, a photo
