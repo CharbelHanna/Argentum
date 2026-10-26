@@ -115,7 +115,7 @@ DNG Standard - the look every RAW now starts in - follows RAWmakase's default
 rendering, its *Standard* profile with Lightroom's default sharpening:
 
 - **The exposure offset for each camera body** is RAWmakase's camera table
-  (`data/cameras.toml`), measured by its contributors against Camera Raw - 279
+  (`data/cameras.toml`), measured by its contributors against Camera Raw - 280
   bodies across 10 makes, kept in Argentum as `src-tauri/src/mods/dng_baseline.tsv`
   and regenerated from each RAWmakase release, which the table names.
 - **The approach** - camera matrix, exposure offset, then Adobe's default tone

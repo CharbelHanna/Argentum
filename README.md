@@ -16,7 +16,7 @@ the best of [RapidRAW](https://github.com/CyberTimon/RapidRAW),
 (Linux builds too, not yet tried) · open source · no account, no subscription
 
 - **Looks right the moment it opens.** RAWs start the way Lightroom's default shows
-  them: each camera's own exposure offset (279 bodies), Adobe's tone curve and
+  them: each camera's own exposure offset (280 bodies), Adobe's tone curve and
   Lightroom's default sharpening.
 - **Your camera's own lens correction**, read from the file for Fujifilm, Sony,
   Nikon, Olympus and OM System, Panasonic, Samsung, recent Canon bodies and DNG,
@@ -148,7 +148,7 @@ left column. There is no tethering on Windows.
 **The picture**
 
 - **RAWs open looking like Lightroom's default** (DNG Standard): each camera's own
-  exposure offset (RAWmakase's table, 279 bodies), Adobe's default tone curve and
+  exposure offset (RAWmakase's table, 280 bodies), Adobe's default tone curve and
   Lightroom's default sharpening. Photos shot in a mode that holds highlights back
   (Fujifilm DR200/DR400, Canon Highlight Tone Priority, Nikon Active D-Lighting,
   Olympus gradation, Pentax D-Range) get those stops back. The earlier renderings

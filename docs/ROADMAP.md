@@ -110,7 +110,7 @@ elsewhere, the photo starts a fresh one.
 
 | | What | Effort |
 |---|---|---|
-| ✅ | **DNG Standard** - done in `26.43.1`. The default picture of a DNG renderer - each camera's exposure offset (RAWmakase's table, 279 bodies) and Adobe's default tone curve, applied so hues hold - with Lightroom's default sharpening. Every RAW now starts in it; RapidRAW's rendering stays under Edit > Profile > Rendering > Default, beside Linear (`26.43.3`), the base film-simulation LUTs are made for. | done |
+| ✅ | **DNG Standard** - done in `26.43.1`. The default picture of a DNG renderer - each camera's exposure offset (RAWmakase's table, 280 bodies) and Adobe's default tone curve, applied so hues hold - with Lightroom's default sharpening. Every RAW now starts in it; RapidRAW's rendering stays under Edit > Profile > Rendering > Default, beside Linear (`26.43.3`), the base film-simulation LUTs are made for. | done |
 | ⬜ | Filmic / Sigmoid tone curve. AgX already ships as a tone mapper in Edit > Profile; this would be darktable's as a second choice | 2 days |
 | ⬜ | Color balance rgb | 2 days |
 | ⬜ | Color equalizer | 2 days |
