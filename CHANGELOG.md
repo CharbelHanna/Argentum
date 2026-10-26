@@ -141,6 +141,17 @@ Newest first.
   RapidRAW's rawler fork, `rawler/data/cameras/olympus/e-m1x.toml` @ `a32bc1ff` (upstream
   dnglab has RGGB too), in ours as `46c6e55a`; rawler is now pinned to `930e6ce2`.
 
+### Removed
+
+- **Render code that could never run:** the old CPU preview encode's 22 lines after the `return`
+  to ours (`apply_cpu_default_raw_processing`, the crate's only `allow(unreachable_code)`), and
+  two tone maps nothing calls in `shader.wgsl` (`legacy_tonemap`, `no_tonemap`). No pixel
+  changes.
+- **Tauri's HTTP plugin** (`tauri-plugin-http`), which only RapidRAW Cloud's store would call, and
+  that store never starts. 19 crates fewer in `Cargo.lock` (846 to 827), among them a second copy
+  of `reqwest`. Downloads (AI models, camera profiles) use the app's own `reqwest` and the update
+  check the window's `fetch`; both are unchanged.
+
 ## 26.43.4 — 2026-10-25
 
 ### Added
@@ -463,13 +474,6 @@ Newest first.
   `filled` in `src/argentum/lensBuiltin.ts`, with its tests. Tests also pin what today's readers
   return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
   camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
-
-### Removed
-
-- **Render code that could never run:** the old CPU preview encode's 22 lines after the `return`
-  to ours (`apply_cpu_default_raw_processing`, the crate's only `allow(unreachable_code)`), and
-  two tone maps nothing calls in `shader.wgsl` (`legacy_tonemap`, `no_tonemap`). No pixel
-  changes.
 
 ## 26.43.3 — 2026-10-23
 
