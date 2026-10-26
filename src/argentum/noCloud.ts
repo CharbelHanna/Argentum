@@ -13,9 +13,10 @@
  * `initAuth` then returns before touching the network. This says the same for
  * every platform, at import, which is before any effect of theirs can run.
  *
- * The Cloud tile is hidden from our side (NoCloudTile.tsx). The rest is in their
- * build files: the Clerk plugin and its permissions are not built in, and the
- * HTTP permission allows no address.
+ * Settings offers no Cloud tile (SettingsPanel.tsx's provider list), and a
+ * provider saved as "cloud" reads as the built-in AI (app_settings.rs,
+ * load_settings). The rest is in the build files: the Clerk plugin and its
+ * permissions are not built in, and the HTTP permission allows no address.
  */
 
 import { useCloudStore } from '../store/useCloudStore';

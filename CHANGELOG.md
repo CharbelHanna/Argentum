@@ -107,6 +107,11 @@ Newest first.
 
 ### Fixed
 
+- **Settings > AI and models no longer offers RapidRAW's Cloud.** Its tile was hidden from the
+  General page only, so once the Modern window gave the AI card a section of its own (26.43.1) it
+  showed again, with a sign-in for a service Argentum switched off in 26.41.6. The tile, its
+  sign-in panel and the hiding workaround (`NoCloudTile.tsx`) are gone, and a provider saved as
+  Cloud reads as the built-in AI when settings load (`app_settings.rs`).
 - **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
   surface faces from a map made on the photo as it came from the camera. Crop > Transform
   (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
