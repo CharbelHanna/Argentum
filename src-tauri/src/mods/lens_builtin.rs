@@ -280,7 +280,9 @@ mod tests {
             knots: vec![0., 0.5, 1.],
             values,
         };
-        let tables = |source: &str| {
+        // Tables stored before the optical centre was read (`centre` None),
+        // or read with one.
+        let tables_at = |source: &str, centre: Option<[f32; 2]>| {
             serde_json::to_value(LensCorrection {
                 source: source.into(),
                 default_on: true,
@@ -289,9 +291,11 @@ mod tests {
                 distortion: Some(radial(vec![1.077, 1.04, 0.93])),
                 chromatic: Some([radial(vec![1., 1., 1.0006]), radial(vec![1., 1., 0.9995])]),
                 always: None,
+                centre,
             })
             .unwrap()
         };
+        let tables = |source: &str| tables_at(source, None);
         let lensfun = json!({
             "k1": -0.02, "k2": 0.004, "k3": 0.0, "model": 0,
             "tca_vr": 1.0004, "tca_vb": 0.9997, "vig_k1": -0.3, "vig_k2": 0.05, "vig_k3": 0.0,
@@ -321,6 +325,18 @@ mod tests {
                 json!({ "lensDistortionParams": lensfun }),
                 [9_956_633_457_548_040_988, 7_218_553_381_868_940_216],
             ),
+            // Read with its optical centre: framed by green's edge, and an
+            // off-centre one turning about its own centre.
+            (
+                "camera, read now",
+                json!({ "lensBuiltin": true, "lensBuiltinParams": tables_at("Fujifilm built-in", Some([0.5, 0.5])) }),
+                [8_056_836_662_080_894_814, 6_411_524_091_815_424_525],
+            ),
+            (
+                "camera, off-centre",
+                json!({ "lensBuiltin": true, "lensBuiltinParams": tables_at("Nikon built-in", Some([0.46, 0.53])) }),
+                [17_173_643_604_237_575_065, 14_472_619_652_440_237_098],
+            ),
         ] {
             assert_eq!(pinned(edit), want, "{name}");
         }
@@ -343,6 +359,54 @@ mod tests {
         );
     }
 
+    /// A correction off the image centre turns about its optical centre in
+    /// the app's warp: the pixel there samples itself in every channel, and
+    /// the inverse brings the picture back.
+    #[test]
+    fn the_warp_turns_about_the_optical_centre() {
+        use crate::image_processing::{
+            get_geometry_params_from_json, unwarp_image_geometry, warp_image_geometry,
+        };
+        let (w, h) = (120u32, 80u32);
+        let coords = image::DynamicImage::ImageRgb32F(image::Rgb32FImage::from_fn(w, h, |x, y| {
+            image::Rgb([x as f32, y as f32, (x + y) as f32])
+        }));
+        let radial = |values: Vec<f32>| Radial {
+            knots: vec![0., 0.6, 1.2],
+            values,
+        };
+        // Optical centre at pixel (48, 44): 0.4 and 0.55 of 120 x 80.
+        let lens = LensCorrection {
+            source: "Nikon built-in".into(),
+            default_on: true,
+            distortion: Some(radial(vec![1., 0.98, 0.93])),
+            chromatic: Some([
+                radial(vec![1., 1.002, 1.004]),
+                radial(vec![1., 0.998, 0.996]),
+            ]),
+            centre: Some([48.5 / 120., 44.5 / 80.]),
+            ..Default::default()
+        };
+        let edit = json!({ "lensBuiltin": true, "lensBuiltinParams": lens });
+        let params = get_geometry_params_from_json(&edit);
+        let warped = warp_image_geometry(&coords, params.clone()).into_rgb32f();
+        let at = |img: &image::Rgb32FImage, x: u32, y: u32| img.get_pixel(x, y).0;
+        let [x, y, s] = at(&warped, 48, 44);
+        assert!((x - 48.).abs() < 0.02 && (y - 44.).abs() < 0.02, "{x} {y}");
+        assert!((s - 92.).abs() < 0.04, "every channel samples it: {s}");
+        // Away from it, the picture moves.
+        let [x, _, _] = at(&warped, 110, 44);
+        assert!((x - 110.).abs() > 0.5, "{x}");
+        let back = unwarp_image_geometry(&warped.into(), params).into_rgb32f();
+        for (px, py) in [(30, 30), (60, 40), (90, 50)] {
+            let [x, y, _] = at(&back, px, py);
+            assert!(
+                (x - px as f32).abs() < 0.3 && (y - py as f32).abs() < 0.3,
+                "{px},{py}: {x} {y}"
+            );
+        }
+    }
+
     /// Which source corrects each part, and what is left of lensfun's numbers.
     #[test]
     fn each_part_comes_from_one_source() {
@@ -358,6 +422,7 @@ mod tests {
                 distortion: Some(radial(0.98)),
                 chromatic: Some([radial(1.0005), radial(0.9996)]),
                 always,
+                centre: None,
             })
             .unwrap()
         };

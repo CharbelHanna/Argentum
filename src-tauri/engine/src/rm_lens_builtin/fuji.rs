@@ -102,6 +102,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         distortion,
         chromatic,
         always: None,
+        centre: None,
     })
 }
 

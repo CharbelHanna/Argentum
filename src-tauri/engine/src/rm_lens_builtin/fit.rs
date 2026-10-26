@@ -7,8 +7,10 @@
 //! FROM RAWMAKASE
 //!
 //! RAWmakase (MIT), `crates/rawmakase-model/src/lens/embedded.rs`:
-//! - `knots` and `spline` @ 44b21d5, as written (`knots` unchanged since
-//!   af35e25).
+//! - `spline` @ 44b21d5, as written.
+//! - `knots` @ 52da1bf, as written: sampled out to the corner farthest from
+//!   the optical centre (unchanged from af35e25 to 44b21d5 for the image
+//!   centre).
 //! - `maker_model` @ af35e25, as written.
 //! - `solve4` @ d04ef4f, as written.
 //! - `make` @ 0b7d217 (in d04ef4f's Panasonic reader and ae29938's Nikon
@@ -21,6 +23,9 @@
 //! - `maker_model` takes the developed image's width and height in pixels
 //!   where RAWmakase takes its `Metadata`'s decoded size: radius 1 is the
 //!   developed image's half diagonal, as in every reader here.
+//!   It samples from the developed image's centre, which is the default
+//!   crop's centre that RAWmakase 52da1bf centres those makes on, so it takes
+//!   no centre.
 //! - `make` reads rawler's IFD in place of `rawmakase-tiff`'s.
 
 use rawler::formats::tiff::IFD;
@@ -28,10 +33,11 @@ use rawler::tags::TiffCommonTag;
 
 use super::Radial;
 
-/// Radius samples from the centre to the developed image's corner.
-// RAWmakase 44b21d5: crates/rawmakase-model/src/lens/embedded.rs
-pub(super) fn knots() -> Vec<f32> {
-    (0..=32).map(|i| i as f32 / 32.).collect()
+/// Radius samples from the optical centre out to `reach`, the developed
+/// image's corner farthest from it (`super::reach`): 1 for the image centre.
+// RAWmakase 52da1bf: crates/rawmakase-model/src/lens/embedded.rs
+pub(super) fn knots(reach: f32) -> Vec<f32> {
+    (0..=32).map(|i| i as f32 / 32. * reach).collect()
 }
 
 /// A natural cubic spline through `v`, at knots spread evenly over [0, 1].
@@ -81,15 +87,15 @@ pub(super) fn maker_model(
     }
     // The ratio's limit at the centre is its value just beside it.
     let x = |r: f32| (f64::from(r) * half / unit).max(1e-4);
-    let sources: Option<Vec<f64>> = knots().into_iter().map(|r| green(x(r))).collect();
+    let sources: Option<Vec<f64>> = knots(1.).into_iter().map(|r| green(x(r))).collect();
     let Some(sources) = sources.filter(|s| s.windows(2).all(|p| p[0] < p[1])) else {
         return (None, None);
     };
     let curve = |f: &dyn Fn(usize, f64) -> f64| {
-        let values = (knots().into_iter().enumerate())
+        let values = (knots(1.).into_iter().enumerate())
             .map(|(i, r)| f(i, x(r)) as f32)
             .collect();
-        Radial::new(knots(), values)
+        Radial::new(knots(1.), values)
     };
     let changes = |r: &Radial, by: f32| r.values.iter().any(|v| (v - 1.).abs() > by);
     let distortion = curve(&|i, x| sources[i] / x).filter(|r| changes(r, 1e-6));

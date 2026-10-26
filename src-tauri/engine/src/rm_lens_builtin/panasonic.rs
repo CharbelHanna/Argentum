@@ -192,6 +192,7 @@ pub(super) fn read(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Optio
         distortion,
         chromatic,
         always: None,
+        centre: None,
     };
     c.always = Some(c.held_parts());
     Some(c)

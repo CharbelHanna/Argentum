@@ -124,7 +124,8 @@ export const CREDITS: CreditGroup[] = [
           'colour, measured on a colour chart; and Color Grading for new edits and Looks is ' +
           'RAWmakase’s measured copy of Lightroom’s. The camera’s own lens correction is read as ' +
           'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
-          'stores in its RAW files, and which of them Lightroom applies. Some RAW files are read as ' +
+          'stores in its RAW files, which of them Lightroom applies, the optical centre they turn ' +
+          'about and how Lightroom frames the corrected photo. Some RAW files are read as ' +
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
           'matrices and white levels. The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +

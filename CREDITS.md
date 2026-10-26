@@ -148,7 +148,8 @@ RAWmakase release, which the table names.
 RAWmakase reads it: the distortion, lateral chromatic aberration and vignetting
 tables each camera make stores in its RAW files, their units, and which of them
 Lightroom applies by default (`crates/rawmakase-model/src/lens/embedded.rs`,
-`optics/mod.rs` and `dng.rs`, from v0.4.0). Each make's reader in
+`optics/mod.rs` and `dng.rs`, from v0.4.0), and, from v0.4.6 (`52da1bf`), the optical
+centre each is measured from and Lightroom's framing of the corrected photo. Each make's reader in
 `src-tauri/engine/src/rm_lens_builtin/` names the RAWmakase commit it was copied from.
 RAWmakase's own record of what its decoder reads from the golden photos
 (`tests/corpus/dataset/pixls-decode.json`) is the test the copies are held to
