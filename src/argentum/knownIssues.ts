@@ -38,14 +38,6 @@ export const KNOWN_ISSUES: KnownIssue[] = [
     inherited: true,
   },
   {
-    what: 'Click-to-select masking cannot be refined',
-    detail:
-      'Each click makes its own sub-mask instead of refining the current one. The '
-      + 'underlying model accepts several positive and negative points, but only '
-      + 'one is ever sent.',
-    inherited: true,
-  },
-  {
     what: 'The screen conversion is Windows-only, and needs a matrix profile',
     detail:
       'The preview is converted for the screen it is on by reading the display '
@@ -66,10 +58,12 @@ export const KNOWN_ISSUES: KnownIssue[] = [
       + 'exactly as it was before.',
   },
   {
-    what: 'Tested against one camera',
+    what: 'Colour measured on two cameras',
     detail:
-      'Every colour measurement so far comes from a Canon EOS 5D Mark II. The RAW '
-      + 'fixes are written against file formats rather than specific bodies, but '
-      + 'that has not been confirmed on other cameras yet.',
+      'Colour is measured against the camera\x27s own JPEG on a Canon EOS 5D Mark II '
+      + 'and an EOS R6 Mark III only. Ten public RAWs (Canon, Nikon, Sony, Fujifilm, '
+      + 'Olympus, Pentax, a phone and a drone) are rendered in every build, which '
+      + 'catches a change to how they look but does not say whether their colour '
+      + 'is right.',
   },
 ];

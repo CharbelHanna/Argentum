@@ -93,9 +93,9 @@ function AboutSection({ version, t }: { version: string | null; t: Translate }) 
       </Card>
 
       <Card>
-        <h3 className="text-lg font-semibold text-accent mb-2">{t('aboutMergeable')}</h3>
-        <p className="text-text-secondary leading-relaxed">{t('aboutMergeableDesc')}</p>
-        <p className="mt-3 text-text-secondary leading-relaxed">{t('aboutMergeableDesc2')}</p>
+        <h3 className="text-lg font-semibold text-accent mb-2">{t('aboutHarvest')}</h3>
+        <p className="text-text-secondary leading-relaxed">{t('aboutHarvestDesc')}</p>
+        <p className="mt-3 text-text-secondary leading-relaxed">{t('aboutHarvestDesc2')}</p>
       </Card>
     </div>
   );

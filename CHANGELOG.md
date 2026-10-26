@@ -90,6 +90,14 @@ Newest first.
   From RapidRAW `src-tauri/src/white_balance.rs` and `src-tauri/src/raw_processing.rs` @
   `3f5345a5` (`camera_to_srgb`, the dual-illuminant matrix); applied after the decode in ours,
   `mods/dng_colour.rs`, through `mods/profile_correction.rs`.
+- **Settings says what is true today.** About no longer says Argentum keeps taking RapidRAW's
+  releases (merging stopped at 1.6.6; later releases are harvested by hand) and says where its
+  tools come from. Known issues drops click-to-select masking, which more clicks refine since
+  26.43.1, and says colour is measured on two cameras, not one. My Cameras points to
+  Edit > Profile for a photo's profile. Controls names the tabs the keys open (D Edit, R Crop,
+  P Looks, M Masks, K Retouch, E Export, I Photo info) instead of the panels of the old window,
+  and Reset Layout says what it resets. English only; other languages keep their wording.
+  `src/argentum/locales/`, `src/argentum/knownIssues.ts`.
 
 ### Fixed
 
