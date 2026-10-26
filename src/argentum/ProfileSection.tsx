@@ -25,6 +25,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useUIStore } from '../store/useUIStore';
 import CameraProfile from './CameraProfile';
 import HighlightRecovery from './HighlightRecovery';
+import RawDecoder from './RawDecoder';
 import RawToneRendering from './RawToneRendering';
 import { initialValues, PROFILE_KEYS, rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
@@ -76,6 +77,7 @@ export default function ProfileSection({
         title={t('profileSectionTitle')}
       >
         <div className="flex flex-col gap-2" data-ag-profile>
+          <RawDecoder />
           <CameraProfile />
           <RawToneRendering />
           {!tonemapperOverride && (

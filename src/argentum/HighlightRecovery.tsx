@@ -25,9 +25,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Switch from '../components/ui/Switch';
-import { useEditorStore } from '../store/useEditorStore';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
+import { redecodeOpenPhoto } from './redecode';
 
 export default function HighlightRecovery() {
   const t = useAgTranslation();
@@ -64,11 +64,7 @@ export default function HighlightRecovery() {
     try {
       // The setting is saved by now; a failure here leaves the switch where it
       // is and the photo as it was, and the next open picks the setting up.
-      if (await ag<boolean>('redecode_open_photo')) {
-        // A new adjustments object with the same values: the render effect
-        // fires on identity, exactly as after a slider, and nothing changes.
-        useEditorStore.getState().setEditor((s) => ({ adjustments: { ...s.adjustments } }));
-      }
+      await redecodeOpenPhoto();
     } catch (e) {
       console.warn('Re-decoding the open photo failed:', e);
     } finally {

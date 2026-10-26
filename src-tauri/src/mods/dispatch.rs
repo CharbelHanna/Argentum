@@ -139,6 +139,19 @@ struct FileArgs {
     file: String,
 }
 
+/// The app's RAW decoder.
+#[derive(Deserialize)]
+struct DecoderArgs {
+    decoder: crate::mods::raw_decoder::RawDecoder,
+}
+
+/// A photo's RAW decoder; none is the app's.
+#[derive(Deserialize)]
+struct PhotoDecoderArgs {
+    path: String,
+    decoder: Option<crate::mods::raw_decoder::RawDecoder>,
+}
+
 #[derive(Deserialize)]
 struct OnArgs {
     on: bool,
@@ -600,6 +613,26 @@ async fn json(
             let a: OnArgs = args_for(&name, args)?;
             commands::set_highlight_recovery(a.on)?;
             Ok(serde_json::Value::Null)
+        }
+        "raw_decoder" => serde_json::to_value(commands::raw_decoder()).map_err(|e| e.to_string()),
+        "set_raw_decoder" => {
+            let a: DecoderArgs = args_for(&name, args)?;
+            commands::set_raw_decoder(a.decoder)?;
+            Ok(serde_json::Value::Null)
+        }
+        "set_photo_raw_decoder" => {
+            let a: PhotoDecoderArgs = args_for(&name, args)?;
+            crate::mods::raw_decoder::remember(&a.path, a.decoder);
+            Ok(serde_json::Value::Null)
+        }
+        "flashraw_handles" => {
+            let a: PathArgs = args_for(&name, args)?;
+            let handles = tokio::task::spawn_blocking(move || {
+                crate::mods::raw_decoder::flashraw_handles(&a.path)
+            })
+            .await
+            .map_err(|e| e.to_string())??;
+            serde_json::to_value(handles).map_err(|e| e.to_string())
         }
         "redecode_open_photo" => {
             let r = crate::mods::redecode::open_photo(state, app_handle).await?;

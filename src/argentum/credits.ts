@@ -94,6 +94,20 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'RAW decoding',
+    entries: [
+      {
+        name: 'FlashRaw',
+        href: 'https://github.com/ybouane/flashraw',
+        what:
+          'With Settings > Processing > RAW decoder on FlashRaw, it unpacks the pixels of Canon, ' +
+          'Fujifilm, Olympus, Panasonic and Pentax RAW files, faster, inside rawler’s reading of the ' +
+          'file: only on the formats where its pixels were measured identical to rawler’s. Used as a ' +
+          'library. MIT or Apache-2.0.',
+      },
+    ],
+  },
+  {
     heading: 'RAW rendering',
     entries: [
       {

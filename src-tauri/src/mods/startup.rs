@@ -54,6 +54,7 @@ pub fn init(app: &AppHandle) {
         // TIFF export depth.
         super::highlights::load(&library);
         super::export_precision::load(&library);
+        super::raw_decoder::load(&library);
         // Presets saved before RapidRAW 1.6.5's white balance, once.
         super::wb_legacy::migrate_presets_once(&data, &library);
         // Their base pre-sharpening to 0, once: capture sharpening replaces it.
