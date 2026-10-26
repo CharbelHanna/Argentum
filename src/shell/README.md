@@ -1,6 +1,9 @@
-# src/shell — the new editor interface
+# src/shell — the engine's test bench
 
-Argentum's own editor interface (DEC-29), beside today's. It is opt-in: open
+An interface built only to exercise the engine's contract
+(`src-tauri/engine/`), beside the app's real window, which is
+`src/argentum/modern/`. It is not a product: nothing ships only here, and
+engine work reaches users through the app's own panels. It is opt-in: open
 the app with `?shell=new`. Without it, `src/main.tsx` renders today's app
 exactly as before. The layout is Lightroom Classic-style: from the window's
 right edge a slim rail, the tool
@@ -92,9 +95,6 @@ Adding a widget kind (a curve, a colour) is one component and one entry in
 
 ## Contract gaps still open
 
-- **Frame pixels.** A `frame` event carries a ticket, a photo and a size, and
-  the pixels are fetched separately. `EngineClient.frame(ticket)` stands for
-  that until the transport is decided.
 - **Thumbnails.** The filmstrip has nothing to show for a photo that is not
   open.
 

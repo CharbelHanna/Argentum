@@ -106,7 +106,11 @@ Newest first.
   Edit > Profile for a photo's profile. Controls names the tabs the keys open (D Edit, R Crop,
   P Looks, M Masks, K Retouch, E Export, I Photo info) instead of the panels of the old window,
   and Reset Layout says what it resets. English only; other languages keep their wording.
-  `src/argentum/locales/`, `src/argentum/knownIssues.ts`.
+  The Roadmap lists what shipped since 26.43.1 (masks in one click, B&W, Looks and Snapshots,
+  History that stays, the camera's lens correction, FlashRaw). Credits gains the libraries and
+  models that came with RapidRAW (rawler, lensfun, LaMa and the rest), which the app had not
+  shown since 26.37.11, and the presets' source; CREDITS.md gains the groups only the app had.
+  `src/argentum/locales/`, `knownIssues.ts`, `roadmap.ts`, `credits.ts`.
 
 ### Fixed
 

@@ -12,10 +12,10 @@
  * It is also the cheaper shape. A future Argentum section is a line in
  * `SECTIONS` below, not another tab competing for their header.
  *
- * WHAT IT COSTS THEM
+ * WHERE IT IS MOUNTED
  *
  * One line of `SettingsPanel.tsx` — an empty div this renders into through a
- * portal. See docs/ARCHITECTURE.md, "What the next feature costs".
+ * portal. See docs/ARCHITECTURE.md, "Where a new feature goes".
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -111,14 +111,18 @@ function CreditsSection() {
           <ul className="space-y-4">
             {group.entries.map((c) => (
               <li key={c.name}>
-                <a
-                  href={c.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-semibold text-accent hover:underline"
-                >
-                  {c.name}
-                </a>
+                {c.href ? (
+                  <a
+                    href={c.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-semibold text-accent hover:underline"
+                  >
+                    {c.name}
+                  </a>
+                ) : (
+                  <span className="font-semibold text-accent">{c.name}</span>
+                )}
                 <p className="mt-1 text-text-secondary leading-relaxed">{c.what}</p>
               </li>
             ))}

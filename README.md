@@ -321,6 +321,8 @@ check:sources` says when a release is waiting to be read. The steps are in
 | [docs/MENU.md](docs/MENU.md) | Everything available to harvest, from each source |
 | [docs/FEASIBILITY.md](docs/FEASIBILITY.md) | The original go/no-go research |
 | [docs/RELEASING.md](docs/RELEASING.md) | How a release is cut, and the speed check it must pass |
+| [bench/README.md](bench/README.md) | Comparing two builds: interface smoothness and export speed |
+| [src/shell/README.md](src/shell/README.md) | The engine's test bench, an interface for exercising its contract |
 | [CHANGELOG.md](CHANGELOG.md) | Every module, with its upstream source and commit |
 | [CREDITS.md](CREDITS.md) | Whose work this is built on |
 
