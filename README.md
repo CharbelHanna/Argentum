@@ -1,31 +1,37 @@
 # Argentum
 
-**A RAW photo editor** that opens a RAW the way Lightroom does, built from the
-best parts of open-source photo editing, harvested one tool at a time.
-
-Argentum began as a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by
-Timon Käch, whose GPU pipeline, catalogue and editing panels are still most of the
-application. It is becoming an editor of its own: a processing engine where every
-tool is one file in a registry, with tools taken from
+**A free RAW photo editor that opens your photos the way Lightroom does.** Fast on
+the graphics card, with AI masks and your camera's own lens corrections, built from
+the best of [RapidRAW](https://github.com/CyberTimon/RapidRAW),
 [darktable](https://github.com/darktable-org/darktable),
-[RawTherapee](https://github.com/RawTherapee/RawTherapee),
-[RAWmakase](https://github.com/pch/rawmakase) and RapidRAW, each credited to the
-file and commit it came from.
+[RawTherapee](https://github.com/RawTherapee/RawTherapee) and
+[RAWmakase](https://github.com/pch/rawmakase).
 
-Argentum was forked at RapidRAW 1.6.6 and no longer merges it: later releases are
-harvested by hand, like the other sources. How and why is in
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[![Latest release](https://img.shields.io/github/v/release/akhater/Argentum?label=download)](https://github.com/akhater/Argentum/releases/latest)
+[![Licence: AGPL-3.0](https://img.shields.io/github/license/akhater/Argentum)](LICENSE)
 
 ![Argentum editing a photo from a Canon EOS R6 Mark III](docs/screenshot.jpg)
 
-> **Early preview.** Argentum is developed and used on Windows, and runs on
-> macOS (Apple Silicon); Linux is not yet proven. Editing is non-destructive —
-> your RAW files are never written to — but keep your own backups, as you would
-> with any young tool.
+**[Download for Windows or macOS](https://github.com/akhater/Argentum/releases/latest)**
+(Linux builds too, not yet tried) · open source · no account, no subscription
 
-> Argentum is independently maintained and is **not affiliated with, nor endorsed
-> by, RapidRAW or darktable.** It is a fork, and it says so because their work
-> deserves the credit, not because they have any part in this one.
+- **Looks right the moment it opens.** RAWs start the way Lightroom's default shows
+  them: each camera's own exposure offset (279 bodies), Adobe's tone curve and
+  Lightroom's default sharpening.
+- **Your camera's own lens correction**, read from the file for Fujifilm, Sony,
+  Nikon, Olympus and OM System, Panasonic, Samsung, recent Canon bodies and DNG,
+  with lensfun's database for the rest.
+- **AI masks in one click:** Subject, Sky and Background, or click any object.
+  The models run on your computer.
+- **Fast:** edits render on the graphics card, and a faster RAW decoder is one
+  setting away for Canon, Fujifilm, Olympus, Panasonic and Pentax files.
+- **Looks:** presets, LUTs and film emulations in one tab, and Lightroom presets
+  can be imported.
+- **Your photos stay yours:** edits live in a small file next to each photo, and
+  the RAW itself is never changed.
+
+> **Early preview.** Used daily on Windows and run on macOS. Keep your own
+> backups, as you would with any young tool.
 
 ---
 
@@ -65,6 +71,11 @@ one.
 
 *(Building from source is further down, and only needed if you want to change
 the code.)*
+
+### Windows: the first start
+
+The installer is not code-signed yet, so Windows SmartScreen may say "Windows
+protected your PC" the first time. Choose **More info**, then **Run anyway**.
 
 ### macOS: two one-time steps
 
@@ -330,8 +341,22 @@ check:sources` says when a release is waiting to be read. The steps are in
 
 ## Credits and licence
 
+Argentum began as a fork of [RapidRAW](https://github.com/CyberTimon/RapidRAW) by
+Timon Käch, whose GPU pipeline, catalogue and editing panels are still most of the
+application. It is becoming an editor of its own: a processing engine where every
+tool is one file in a registry, with tools taken from darktable, RawTherapee,
+RAWmakase and RapidRAW, each credited to the file and commit it came from. It was
+forked at RapidRAW 1.6.6 and no longer merges it: later releases are harvested by
+hand, like the other sources. How and why is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+Argentum is independently maintained and is **not affiliated with, nor endorsed
+by, RapidRAW, darktable, RawTherapee or RAWmakase.** It says where its parts come
+from because their work deserves the credit, not because they have any part in
+this one.
+
 Argentum is other people's work with additions on top. **[CREDITS.md](CREDITS.md)**
-names them, and the same list is in the app under *Settings → About*.
+names them, and the same list is in the app under *Settings → About → Credits*.
 
 Licensed **AGPL-3.0**, inherited from RapidRAW and unchanged. See
 [LICENSE](LICENSE).
