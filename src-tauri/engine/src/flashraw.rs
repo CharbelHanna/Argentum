@@ -19,8 +19,9 @@
 //! compared with rawler's on real files and found identical, so the app's
 //! develop of them is identical too. Everything else stays with rawler:
 //!
-//! - DNG: rawler's metadata pass decodes a DNG's samples anyway, so FlashRaw
-//!   on top is slower.
+//! - DNG: measured when rawler's metadata pass still decoded a DNG's samples,
+//!   which made FlashRaw on top slower. That pass skips them since the fork's
+//!   930e6ce2 (RapidRAW 9dbcc565); DNG stays with rawler until measured again.
 //! - Sony: no gain on lossless, slower and not identical on compressed.
 //! - Canon sRAW: FlashRaw converts it differently (dE2000 1.2 to 2.5).
 //! - Nikon: one count off on three samples in four, which tips photosites
