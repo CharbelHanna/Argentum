@@ -5,7 +5,7 @@ camera	Olympus E-M10 Mark IV
 sha256	77b67d898f85d3d738cb16daf9740c0fcf078ce9662c381994604ac540ce36b4
 
 [decode]
-blessed	1	2026-10-25	9	-
+blessed	2	2026-10-26	11	-
 camera	Olympus E-M10 Mark IV
 layout	2x2 RGGB
 levels	254 4000
@@ -19,7 +19,7 @@ recovery	in charge
 recovered_photosites	2276756
 settled_photosites	4479591
 gain_maps	0
-lens	-
+lens	Olympus built-in (on)
 anchor	2026-10-25
 anchor.camera	Olympus E-M10 Mark IV
 anchor.layout	2x2 RGGB
