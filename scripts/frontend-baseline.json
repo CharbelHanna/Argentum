@@ -111,7 +111,7 @@
       "@typescript-eslint/no-explicit-any": 7
     },
     "src/argentum/useAutoDetectOnLoad.ts": {
-      "@typescript-eslint/no-explicit-any": 4
+      "@typescript-eslint/no-explicit-any": 2
     },
     "src/argentum/useThresholdPreview.ts": {
       "@typescript-eslint/no-explicit-any": 5,
@@ -366,11 +366,9 @@
     "src/argentum/AboutPanel.tsx",
     "src/argentum/ExportPrecision.tsx",
     "src/argentum/HighlightRecovery.tsx",
-    "src/argentum/MyGear.tsx",
     "src/argentum/RenderStatus.tsx",
     "src/argentum/WhiteBalanceUpgrade.tsx",
     "src/argentum/knownIssues.ts",
-    "src/argentum/releases.ts",
     "src/argentum/roadmap.ts",
     "src/argentum/useThresholdPreview.ts",
     "src/components/panel/SettingsPanel.tsx",

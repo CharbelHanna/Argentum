@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
 use half::f16;
@@ -9,7 +10,9 @@ use std::num::NonZero;
 use tauri::Manager;
 use wgpu::util::{DeviceExt, TextureDataOrder};
 
-use crate::image_processing::{AllAdjustments, GpuContext, MAX_MASKS, MaskAdjustments};
+use crate::image_processing::{
+    AllAdjustments, AnalyticsFrame, AnalyticsPixels, GpuContext, MAX_MASKS, MaskAdjustments,
+};
 use crate::lut_processing::Lut;
 use crate::mods::export_precision::Precision;
 use crate::{AppState, GpuImageCache};
@@ -152,6 +155,23 @@ impl WgpuDisplay {
     }
 }
 
+// RapidRAW cc480a4e: src-tauri/src/gpu_processing.rs - a lost device is replaced on the
+// next render instead of failing every render after it.
+static GPU_DEVICE_LOST: AtomicBool = AtomicBool::new(false);
+
+// RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs
+fn lock_or_reset<'a, T>(
+    mutex: &'a std::sync::Mutex<Option<T>>,
+    name: &str,
+) -> std::sync::MutexGuard<'a, Option<T>> {
+    mutex.lock().unwrap_or_else(|poisoned| {
+        log::warn!("{} lock was poisoned. Resetting to self-heal.", name);
+        let mut guard = poisoned.into_inner();
+        *guard = None;
+        guard
+    })
+}
+
 pub fn get_or_init_gpu_context(
     state: &tauri::State<AppState>,
     _app_handle: &tauri::AppHandle,
@@ -170,6 +190,16 @@ pub fn get_or_init_gpu_context(
             guard
         }
     };
+    // RapidRAW cc480a4e: src-tauri/src/gpu_processing.rs
+    if GPU_DEVICE_LOST.load(Ordering::Acquire) {
+        log::warn!("Recreating GPU context after the device was lost.");
+        if let Some(context) = context_lock.take() {
+            *context.display.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+        *lock_or_reset(&state.gpu_processor, "GPU processor") = None;
+        *lock_or_reset(&state.gpu_image_cache, "GPU image cache") = None;
+        GPU_DEVICE_LOST.store(false, Ordering::Release);
+    }
     if let Some(context) = &*context_lock {
         return Ok(context.clone());
     }
@@ -274,6 +304,13 @@ pub fn get_or_init_gpu_context(
     device.on_uncaptured_error(Arc::new(|err: wgpu::Error| {
         log::error!("[wgpu-error] {}", err);
     }));
+    // RapidRAW cc480a4e: src-tauri/src/gpu_processing.rs
+    device.set_device_lost_callback(|reason, message| {
+        if reason == wgpu::DeviceLostReason::Unknown {
+            log::error!("GPU device lost: {}", message);
+            GPU_DEVICE_LOST.store(true, Ordering::Release);
+        }
+    });
 
     if let Some(p) = &flag_path {
         let _ = std::fs::remove_file(p);
@@ -511,18 +548,25 @@ fn read_texture_data_roi(
         .map_err(|e| format!("Failed receiving GPU map result: {}", e))?;
     map_result.map_err(|e| e.to_string())?;
 
-    let padded_data = buffer_slice.get_mapped_range().to_vec();
-    output_buffer.unmap();
-
-    if padded_bytes_per_row == unpadded_bytes_per_row {
-        Ok(padded_data)
-    } else {
-        let mut unpadded_data = Vec::with_capacity((unpadded_bytes_per_row * size.height) as usize);
-        for chunk in padded_data.chunks(padded_bytes_per_row as usize) {
-            unpadded_data.extend_from_slice(&chunk[..unpadded_bytes_per_row as usize]);
-        }
-        Ok(unpadded_data)
-    }
+    // RapidRAW 7d6dd5c0, cc480a4e: src-tauri/src/gpu_processing.rs - rows unpadded straight
+    // from the mapped buffer, and a device lost mid-read is an error, not a crash.
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mapped = buffer_slice.get_mapped_range();
+        let data = if padded_bytes_per_row == unpadded_bytes_per_row {
+            mapped.to_vec()
+        } else {
+            let mut unpadded_data =
+                Vec::with_capacity((unpadded_bytes_per_row * size.height) as usize);
+            for chunk in mapped.chunks(padded_bytes_per_row as usize) {
+                unpadded_data.extend_from_slice(&chunk[..unpadded_bytes_per_row as usize]);
+            }
+            unpadded_data
+        };
+        drop(mapped);
+        output_buffer.unmap();
+        data
+    }))
+    .map_err(|_| "GPU device was lost while reading back the image".to_string())
 }
 
 pub(crate) fn to_rgba_f16(img: &DynamicImage) -> Vec<f16> {
@@ -550,7 +594,7 @@ pub(crate) fn to_rgba_f16(img: &DynamicImage) -> Vec<f16> {
 }
 
 #[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 struct BlurParams {
     radius: u32,
     tile_offset_x: u32,
@@ -560,6 +604,49 @@ struct BlurParams {
     _pad1: u32,
     _pad2: u32,
     _pad3: u32,
+}
+
+/// What a kept blur was made from. RapidRAW 707a78d6 keys it by their cached
+/// input and the pass's parameters; Argentum's blurs read the texture the
+/// input stage hands back (`mods/input_stage.rs`), which sharpening rewrites
+/// in place when its settings change, so the key is the texture read and
+/// sharpening's count of writes as well.
+#[derive(Clone, PartialEq)]
+struct BlurSource {
+    input: wgpu::TextureView,
+    sharpen_writes: u64,
+    params: BlurParams,
+}
+
+/// One per blur `run` makes: sharpness, tonal, clarity (Halation), structure (Glow).
+const BLUR_SLOTS: usize = 4;
+
+// RapidRAW 7d6dd5c0, c756671d: src-tauri/src/gpu_processing.rs - the masks stay on the GPU
+// between renders. Argentum: keyed by a hash of their pixels, since our callers pass bitmaps
+// and no key of their own.
+struct MaskCache {
+    width: u32,
+    height: u32,
+    layers: u32,
+    key: [u8; 32],
+    texture: wgpu::Texture,
+    view: wgpu::TextureView,
+}
+
+// RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs - the LUT stays on the GPU while it is
+// the same one.
+struct LutCache {
+    lut: Arc<Lut>,
+    view: wgpu::TextureView,
+    sampler: wgpu::Sampler,
+}
+
+// RapidRAW c756671d: src-tauri/src/gpu_processing.rs - the two full-size textures the screen
+// is drawn from, made by the first render that draws to it.
+pub struct DisplayTextures {
+    pub working_texture: wgpu::Texture,
+    pub output_texture: wgpu::Texture,
+    pub output_texture_view: wgpu::TextureView,
 }
 
 const GF_SHORT_EDGE: u32 = 1080;
@@ -630,18 +717,128 @@ pub struct GpuProcessor {
     dummy_blur_view: wgpu::TextureView,
     dummy_lut_view: wgpu::TextureView,
     dummy_lut_sampler: wgpu::Sampler,
+    dummy_mask_view: wgpu::TextureView,
+    mask_cache: std::sync::Mutex<Option<MaskCache>>,
+    lut_cache: std::sync::Mutex<Option<LutCache>>,
     ping_pong_view: wgpu::TextureView,
     sharpness_blur_view: wgpu::TextureView,
     tonal_blur_view: wgpu::TextureView,
     clarity_blur_view: wgpu::TextureView,
     structure_blur_view: wgpu::TextureView,
+    // RapidRAW 707a78d6: src-tauri/src/gpu_processing.rs - what each blur texture holds.
+    blur_sources: std::sync::Mutex<[Option<BlurSource>; BLUR_SLOTS]>,
 
     pub tile_output_texture: wgpu::Texture,
     pub tile_output_texture_view: wgpu::TextureView,
-    pub working_texture: wgpu::Texture,
-    pub working_texture_view: wgpu::TextureView,
-    pub output_texture: wgpu::Texture,
-    pub output_texture_view: wgpu::TextureView,
+    full_image_size: wgpu::Extent3d,
+    display_textures: std::sync::OnceLock<DisplayTextures>,
+    readback_pool: ReadbackPool,
+}
+
+// RapidRAW c756671d, cc480a4e: src-tauri/src/gpu_processing.rs - the histogram's readback
+// buffers are reused, and one thread maps them, the newest first: a frame that a newer one
+// overtook goes back to the pool unread.
+type ReadbackPool = Arc<std::sync::Mutex<Vec<wgpu::Buffer>>>;
+
+const READBACK_POOL_SIZE: usize = 3;
+
+fn recycle_readback_buffer(pool: &ReadbackPool, buffer: wgpu::Buffer) {
+    let mut pool = pool.lock().unwrap_or_else(|e| e.into_inner());
+    if pool.len() >= READBACK_POOL_SIZE {
+        pool.remove(0);
+    }
+    pool.push(buffer);
+}
+
+/// A mapped readback buffer, unmapped and handed back to its pool when dropped.
+pub struct PooledReadback {
+    view: Option<wgpu::BufferView>,
+    buffer: wgpu::Buffer,
+    pool: ReadbackPool,
+}
+
+impl std::ops::Deref for PooledReadback {
+    type Target = [u8];
+
+    fn deref(&self) -> &[u8] {
+        self.view.as_deref().unwrap_or(&[])
+    }
+}
+
+impl Drop for PooledReadback {
+    fn drop(&mut self) {
+        drop(self.view.take());
+        self.buffer.unmap();
+        recycle_readback_buffer(&self.pool, self.buffer.clone());
+    }
+}
+
+struct AnalyticsReadback {
+    device: Arc<wgpu::Device>,
+    buffer: wgpu::Buffer,
+    pool: ReadbackPool,
+    submission: wgpu::SubmissionIndex,
+    analytics: crate::AnalyticsConfig,
+    width: u32,
+    height: u32,
+    row_stride: usize,
+}
+
+fn analytics_readback_sender() -> &'static std::sync::mpsc::Sender<AnalyticsReadback> {
+    static SENDER: std::sync::OnceLock<std::sync::mpsc::Sender<AnalyticsReadback>> =
+        std::sync::OnceLock::new();
+    SENDER.get_or_init(|| {
+        let (tx, rx) = std::sync::mpsc::channel::<AnalyticsReadback>();
+        std::thread::spawn(move || {
+            while let Ok(mut readback) = rx.recv() {
+                while let Ok(newer) = rx.try_recv() {
+                    recycle_readback_buffer(&readback.pool, readback.buffer);
+                    readback = newer;
+                }
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    complete_analytics_readback(readback)
+                }));
+            }
+        });
+        tx
+    })
+}
+
+fn complete_analytics_readback(readback: AnalyticsReadback) {
+    let (tx, rx) = std::sync::mpsc::channel::<Result<(), wgpu::BufferAsyncError>>();
+    readback
+        .buffer
+        .slice(..)
+        .map_async(wgpu::MapMode::Read, move |result| {
+            let _ = tx.send(result);
+        });
+
+    if let Err(e) = readback.device.poll(wgpu::PollType::Wait {
+        submission_index: Some(readback.submission),
+        timeout: Some(std::time::Duration::from_secs(60)),
+    }) {
+        log::error!("Async analytics readback poll failed: {}", e);
+        return;
+    }
+
+    if let Ok(Ok(())) = rx.recv() {
+        let analytics = readback.analytics;
+        let _ = analytics.sender.send(crate::AnalyticsJob {
+            path: analytics.path,
+            frame: AnalyticsFrame {
+                data: AnalyticsPixels::Mapped(PooledReadback {
+                    view: Some(readback.buffer.slice(..).get_mapped_range()),
+                    buffer: readback.buffer,
+                    pool: readback.pool,
+                }),
+                width: readback.width,
+                height: readback.height,
+                row_stride: readback.row_stride,
+            },
+            compute_waveform: analytics.compute_waveform,
+            active_waveform_channel: analytics.active_waveform_channel,
+        });
+    }
 }
 
 const FLARE_MAP_SIZE: u32 = 512;
@@ -1179,6 +1376,22 @@ impl GpuProcessor {
         });
         let dummy_lut_view = dummy_lut_texture.create_view(&Default::default());
         let dummy_lut_sampler = device.create_sampler(&wgpu::SamplerDescriptor::default());
+        // RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs
+        let dummy_mask_view = device
+            .create_texture(&wgpu::TextureDescriptor {
+                label: Some("Dummy Mask Texture Array"),
+                size: wgpu::Extent3d {
+                    width: 1,
+                    height: 1,
+                    depth_or_array_layers: 2,
+                },
+                format: wgpu::TextureFormat::R8Unorm,
+                ..dummy_texture_desc
+            })
+            .create_view(&wgpu::TextureViewDescriptor {
+                dimension: Some(wgpu::TextureViewDimension::D2Array),
+                ..Default::default()
+            });
 
         const TILE_SIZE: u32 = 2048;
         const TILE_OVERLAP: u32 = 128;
@@ -1253,34 +1466,6 @@ impl GpuProcessor {
         });
         let tile_output_texture_view = tile_output_texture.create_view(&Default::default());
 
-        let working_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Working Output Texture"),
-            size: precision.scratch_size(full_image_size),
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let working_texture_view = working_texture.create_view(&Default::default());
-
-        let output_texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Full Output Texture"),
-            size: precision.scratch_size(full_image_size),
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8Unorm,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING
-                | wgpu::TextureUsages::COPY_DST
-                | wgpu::TextureUsages::COPY_SRC,
-            view_formats: &[],
-        });
-        let output_texture_view = output_texture.create_view(&Default::default());
-
         Ok(Self {
             context,
             precision,
@@ -1312,18 +1497,217 @@ impl GpuProcessor {
             dummy_blur_view,
             dummy_lut_view,
             dummy_lut_sampler,
+            dummy_mask_view,
+            mask_cache: std::sync::Mutex::new(None),
+            lut_cache: std::sync::Mutex::new(None),
             ping_pong_view,
             sharpness_blur_view,
             tonal_blur_view,
             clarity_blur_view,
             structure_blur_view,
+            blur_sources: std::sync::Mutex::new(Default::default()),
             tile_output_texture,
             tile_output_texture_view,
-            working_texture,
-            working_texture_view,
-            output_texture,
-            output_texture_view,
+            full_image_size,
+            display_textures: std::sync::OnceLock::new(),
+            readback_pool: Arc::new(std::sync::Mutex::new(Vec::new())),
         })
+    }
+
+    // RapidRAW c756671d: src-tauri/src/gpu_processing.rs
+    fn readback_buffer(&self, size: u64) -> wgpu::Buffer {
+        let pooled = {
+            let mut pool = self.readback_pool.lock().unwrap_or_else(|e| e.into_inner());
+            pool.iter()
+                .position(|buffer| buffer.size() == size)
+                .map(|index| pool.swap_remove(index))
+        };
+        pooled.unwrap_or_else(|| {
+            self.context.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("Async Analytics Readback Buffer"),
+                size,
+                usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+                mapped_at_creation: false,
+            })
+        })
+    }
+
+    // RapidRAW c756671d: src-tauri/src/gpu_processing.rs - made on first use: a processor
+    // that never draws to the screen (an export, a thumbnail on the JPEG path) never pays
+    // for two full-size textures. `scratch_size` keeps an export's at one pixel either way.
+    pub fn display_textures(&self) -> &DisplayTextures {
+        self.display_textures.get_or_init(|| {
+            let descriptor = |label| wgpu::TextureDescriptor {
+                label: Some(label),
+                size: self.precision.scratch_size(self.full_image_size),
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rgba8Unorm,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING
+                    | wgpu::TextureUsages::COPY_DST
+                    | wgpu::TextureUsages::COPY_SRC,
+                view_formats: &[],
+            };
+            let device = &self.context.device;
+            let working_texture = device.create_texture(&descriptor("Working Output Texture"));
+            let output_texture = device.create_texture(&descriptor("Full Output Texture"));
+            let output_texture_view = output_texture.create_view(&Default::default());
+            DisplayTextures {
+                working_texture,
+                output_texture,
+                output_texture_view,
+            }
+        })
+    }
+
+    // RapidRAW 7d6dd5c0, c756671d: src-tauri/src/gpu_processing.rs
+    fn mask_view(
+        &self,
+        mask_bitmaps: &[ImageBuffer<Luma<u8>, Vec<u8>>],
+        width: u32,
+        height: u32,
+    ) -> wgpu::TextureView {
+        if mask_bitmaps.is_empty() {
+            return self.dummy_mask_view.clone();
+        }
+
+        let device = &self.context.device;
+        let queue = &self.context.queue;
+        let layers = mask_bitmaps.len().clamp(2, MAX_MASKS) as u32;
+        let buffer_size = (width as usize) * (height as usize) * (layers as usize);
+        // Argentum: the bitmaps' own pixels say whether they changed.
+        let key = {
+            let mut hasher = blake3::Hasher::new();
+            for bitmap in mask_bitmaps.iter().take(MAX_MASKS) {
+                hasher.update(&(bitmap.as_raw().len() as u64).to_le_bytes());
+                hasher.update(bitmap.as_raw());
+            }
+            *hasher.finalize().as_bytes()
+        };
+
+        let mut cache = self.mask_cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = cache.as_ref()
+            && c.width == width
+            && c.height == height
+            && c.layers == layers
+            && c.key == key
+        {
+            return c.view.clone();
+        }
+
+        let mut data = Vec::with_capacity(buffer_size);
+        for mask_bitmap in mask_bitmaps.iter().take(MAX_MASKS) {
+            data.extend_from_slice(mask_bitmap.as_raw());
+        }
+        data.resize(buffer_size, 0);
+
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: layers,
+        };
+        let reusable = cache
+            .take()
+            .filter(|c| c.width == width && c.height == height && c.layers == layers);
+        let texture = match reusable {
+            Some(c) => {
+                queue.write_texture(
+                    c.texture.as_image_copy(),
+                    &data,
+                    wgpu::TexelCopyBufferLayout {
+                        offset: 0,
+                        bytes_per_row: Some(width),
+                        rows_per_image: Some(height),
+                    },
+                    size,
+                );
+                c.texture
+            }
+            None => device.create_texture_with_data(
+                queue,
+                &wgpu::TextureDescriptor {
+                    label: Some("Full Mask Texture Array"),
+                    size,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: wgpu::TextureFormat::R8Unorm,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                    view_formats: &[],
+                },
+                TextureDataOrder::MipMajor,
+                &data,
+            ),
+        };
+        let view = texture.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2Array),
+            ..Default::default()
+        });
+        *cache = Some(MaskCache {
+            width,
+            height,
+            layers,
+            key,
+            texture,
+            view: view.clone(),
+        });
+        view
+    }
+
+    // RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs
+    fn lut_view(&self, lut: &Arc<Lut>) -> (wgpu::TextureView, wgpu::Sampler) {
+        let mut cache = self.lut_cache.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = cache.as_ref()
+            && Arc::ptr_eq(&c.lut, lut)
+        {
+            return (c.view.clone(), c.sampler.clone());
+        }
+
+        let device = &self.context.device;
+        let queue = &self.context.queue;
+        let size = lut.size;
+        let mut rgba_lut_data_f16 = Vec::with_capacity(lut.data.len() / 3 * 4);
+        for chunk in lut.data.as_chunks::<3>().0 {
+            rgba_lut_data_f16.push(f16::from_f32(chunk[0]));
+            rgba_lut_data_f16.push(f16::from_f32(chunk[1]));
+            rgba_lut_data_f16.push(f16::from_f32(chunk[2]));
+            rgba_lut_data_f16.push(f16::ONE);
+        }
+        let lut_texture = device.create_texture_with_data(
+            queue,
+            &wgpu::TextureDescriptor {
+                label: Some("LUT 3D Texture"),
+                size: wgpu::Extent3d {
+                    width: size,
+                    height: size,
+                    depth_or_array_layers: size,
+                },
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D3,
+                format: wgpu::TextureFormat::Rgba16Float,
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                view_formats: &[],
+            },
+            TextureDataOrder::MipMajor,
+            bytemuck::cast_slice(&rgba_lut_data_f16),
+        );
+        let view = lut_texture.create_view(&Default::default());
+        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Nearest,
+            min_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+        *cache = Some(LutCache {
+            lut: Arc::clone(lut),
+            view: view.clone(),
+            sampler: sampler.clone(),
+        });
+        (view, sampler)
     }
 
     pub fn build_guided_coeffs(
@@ -1548,86 +1932,15 @@ impl GpuProcessor {
         });
         let out_width = bounds.width;
         let out_height = bounds.height;
-        let mask_layer_count = request.mask_bitmaps.len().clamp(2, MAX_MASKS) as u32;
-        let full_texture_size = wgpu::Extent3d {
-            width,
-            height,
-            depth_or_array_layers: mask_layer_count,
+        // RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs
+        let mask_texture_view = self.mask_view(request.mask_bitmaps, width, height);
+        let (lut_texture_view, lut_sampler) = match &request.lut {
+            Some(lut) => self.lut_view(lut),
+            None => (self.dummy_lut_view.clone(), self.dummy_lut_sampler.clone()),
         };
-        let buffer_size = (width as usize) * (height as usize) * (mask_layer_count as usize);
-        let mut mask_texture_data = Vec::with_capacity(buffer_size);
-        if request.mask_bitmaps.is_empty() {
-            mask_texture_data.resize(buffer_size, 0);
-        } else {
-            for mask_bitmap in request.mask_bitmaps.iter().take(MAX_MASKS) {
-                mask_texture_data.extend_from_slice(mask_bitmap.as_raw());
-            }
-            if mask_texture_data.len() < buffer_size {
-                mask_texture_data.resize(buffer_size, 0);
-            }
-        }
-        let mask_texture = device.create_texture_with_data(
-            queue,
-            &wgpu::TextureDescriptor {
-                label: Some("Full Mask Texture Array"),
-                size: full_texture_size,
-                mip_level_count: 1,
-                sample_count: 1,
-                dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::R8Unorm,
-                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                view_formats: &[],
-            },
-            TextureDataOrder::MipMajor,
-            &mask_texture_data,
-        );
-        let mask_texture_view = mask_texture.create_view(&wgpu::TextureViewDescriptor {
-            dimension: Some(wgpu::TextureViewDimension::D2Array),
-            ..Default::default()
-        });
-
-        let (lut_texture_view, lut_sampler) = if let Some(lut_arc) = &request.lut {
-            let lut_data = &lut_arc.data;
-            let size = lut_arc.size;
-            let mut rgba_lut_data_f16 = Vec::with_capacity(lut_data.len() / 3 * 4);
-            for chunk in lut_data.as_chunks::<3>().0 {
-                rgba_lut_data_f16.push(f16::from_f32(chunk[0]));
-                rgba_lut_data_f16.push(f16::from_f32(chunk[1]));
-                rgba_lut_data_f16.push(f16::from_f32(chunk[2]));
-                rgba_lut_data_f16.push(f16::ONE);
-            }
-            let lut_texture = device.create_texture_with_data(
-                queue,
-                &wgpu::TextureDescriptor {
-                    label: Some("LUT 3D Texture"),
-                    size: wgpu::Extent3d {
-                        width: size,
-                        height: size,
-                        depth_or_array_layers: size,
-                    },
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D3,
-                    format: wgpu::TextureFormat::Rgba16Float,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-                    view_formats: &[],
-                },
-                TextureDataOrder::MipMajor,
-                bytemuck::cast_slice(&rgba_lut_data_f16),
-            );
-            let view = lut_texture.create_view(&Default::default());
-            let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-                address_mode_u: wgpu::AddressMode::ClampToEdge,
-                address_mode_v: wgpu::AddressMode::ClampToEdge,
-                address_mode_w: wgpu::AddressMode::ClampToEdge,
-                mag_filter: wgpu::FilterMode::Nearest,
-                min_filter: wgpu::FilterMode::Nearest,
-                ..Default::default()
-            });
-            (view, sampler)
-        } else {
-            (self.dummy_lut_view.clone(), self.dummy_lut_sampler.clone())
-        };
+        // Argentum: read after the input stage has run, so a blur kept from a texture that
+        // sharpening has since rewritten is not reused (BlurSource).
+        let sharpen_writes = crate::mods::sharpen_gpu::writes();
 
         let mut adjustments = request.adjustments;
         // Argentum: Lightroom's grading for the blocks marked so, theirs for the rest.
@@ -1780,13 +2093,12 @@ impl GpuProcessor {
                 let input_width = input_x_end - input_x_start;
                 let input_height = input_y_end - input_y_start;
 
-                let input_texture_size = wgpu::Extent3d {
-                    width: input_width,
-                    height: input_height,
-                    depth_or_array_layers: 1,
-                };
-
-                let run_blur = |base_radius: f32, output_view: &wgpu::TextureView| -> bool {
+                // RapidRAW 707a78d6: src-tauri/src/gpu_processing.rs - a blur made from the
+                // same texture with the same parameters is still in its texture: kept.
+                let run_blur = |slot: usize,
+                                base_radius: f32,
+                                output_view: &wgpu::TextureView|
+                 -> bool {
                     let radius = (base_radius * scale).ceil().max(1.0) as u32;
                     if radius == 0 {
                         return false;
@@ -1802,6 +2114,15 @@ impl GpuProcessor {
                         _pad2: 0,
                         _pad3: 0,
                     };
+                    let source = BlurSource {
+                        input: input_texture_view.clone(),
+                        sharpen_writes,
+                        params,
+                    };
+                    let mut sources = self.blur_sources.lock().unwrap_or_else(|e| e.into_inner());
+                    if sources[slot].as_ref() == Some(&source) {
+                        return true;
+                    }
                     queue.write_buffer(&self.blur_params_buffer, 0, bytemuck::bytes_of(&params));
 
                     let mut blur_encoder = device.create_command_encoder(&Default::default());
@@ -1859,7 +2180,14 @@ impl GpuProcessor {
                     }
 
                     queue.submit(Some(blur_encoder.finish()));
+                    sources[slot] = Some(source);
                     true
+                };
+                // Argentum: a blur this render does not need lets go of what it was made
+                // from, so a texture nothing else keeps is not kept alive by its key.
+                let forget_blur = |slot: usize| {
+                    self.blur_sources.lock().unwrap_or_else(|e| e.into_inner())[slot] = None;
+                    false
                 };
 
                 let active_masks = adjustments
@@ -1883,13 +2211,19 @@ impl GpuProcessor {
                     any_term(adjustments.global.glow_amount, &|m| m.glow_amount, true)
                         || any_neg_dehaze;
 
+                let blur = |need: bool, slot: usize, base_radius: f32, view: &wgpu::TextureView| {
+                    if need {
+                        run_blur(slot, base_radius, view)
+                    } else {
+                        forget_blur(slot)
+                    }
+                };
                 let did_create_sharpness_blur =
-                    need_sharpen && run_blur(1.0, &self.sharpness_blur_view);
-                let did_create_tonal_blur = need_sharpen && run_blur(3.5, &self.tonal_blur_view);
-                let did_create_clarity_blur =
-                    need_halation && run_blur(8.0, &self.clarity_blur_view);
+                    blur(need_sharpen, 0, 1.0, &self.sharpness_blur_view);
+                let did_create_tonal_blur = blur(need_sharpen, 1, 3.5, &self.tonal_blur_view);
+                let did_create_clarity_blur = blur(need_halation, 2, 8.0, &self.clarity_blur_view);
                 let did_create_structure_blur =
-                    need_structure && run_blur(40.0, &self.structure_blur_view);
+                    blur(need_structure, 3, 40.0, &self.structure_blur_view);
 
                 let mut main_encoder = device.create_command_encoder(&Default::default());
 
@@ -2027,7 +2361,7 @@ impl GpuProcessor {
                             aspect: wgpu::TextureAspect::All,
                         },
                         wgpu::TexelCopyTextureInfo {
-                            texture: &self.working_texture,
+                            texture: &self.display_textures().working_texture,
                             mip_level: 0,
                             origin: wgpu::Origin3d {
                                 x: x_start,
@@ -2047,12 +2381,22 @@ impl GpuProcessor {
                 queue.submit(Some(main_encoder.finish()));
 
                 if !output_to_display {
+                    // RapidRAW 7d6dd5c0: src-tauri/src/gpu_processing.rs - only the tile's own
+                    // crop comes back, not its overlap.
                     let processed_tile_data = read_texture_data_roi(
                         device,
                         queue,
                         &self.tile_output_texture,
-                        wgpu::Origin3d::ZERO,
-                        input_texture_size,
+                        wgpu::Origin3d {
+                            x: crop_x_start,
+                            y: crop_y_start,
+                            z: 0,
+                        },
+                        wgpu::Extent3d {
+                            width: tile_width,
+                            height: tile_height,
+                            depth_or_array_layers: 1,
+                        },
                         bpp,
                     )?;
 
@@ -2061,9 +2405,7 @@ impl GpuProcessor {
                         let final_x = x_start - bounds.x;
                         let final_row_offset =
                             (final_y * out_width + final_x) as usize * bpp as usize;
-                        let source_y = crop_y_start + row;
-                        let source_row_offset =
-                            (source_y * input_width + crop_x_start) as usize * bpp as usize;
+                        let source_row_offset = (row * tile_width) as usize * bpp as usize;
                         let copy_bytes = (tile_width * bpp) as usize;
 
                         final_pixels[final_row_offset..final_row_offset + copy_bytes]
@@ -2289,7 +2631,6 @@ fn process_and_get_dynamic_image_inner(
 
     let mut async_readback_buffer: Option<wgpu::Buffer> = None;
     let mut async_padded_bpr: u32 = 0;
-    let mut async_unpadded_bpr: u32 = 0;
 
     if analytics_config.is_some() && output_to_display {
         let unpadded_bytes_per_row = 4 * out_w;
@@ -2297,16 +2638,11 @@ fn process_and_get_dynamic_image_inner(
         let padded_bytes_per_row = (unpadded_bytes_per_row + align - 1) & !(align - 1);
         let output_buffer_size = (padded_bytes_per_row * out_h) as u64;
 
-        let output_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("Async Analytics Readback Buffer"),
-            size: output_buffer_size,
-            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
-            mapped_at_creation: false,
-        });
+        let output_buffer = processor.readback_buffer(output_buffer_size); // RapidRAW c756671d
 
         final_encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
-                texture: &processor.working_texture,
+                texture: &processor.display_textures().working_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: out_x,
@@ -2332,14 +2668,13 @@ fn process_and_get_dynamic_image_inner(
 
         async_readback_buffer = Some(output_buffer);
         async_padded_bpr = padded_bytes_per_row;
-        async_unpadded_bpr = unpadded_bytes_per_row;
         submit_final_encoder = true;
     }
 
     if output_to_display {
         final_encoder.copy_texture_to_texture(
             wgpu::TexelCopyTextureInfo {
-                texture: &processor.working_texture,
+                texture: &processor.display_textures().working_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: out_x,
@@ -2349,7 +2684,7 @@ fn process_and_get_dynamic_image_inner(
                 aspect: wgpu::TextureAspect::All,
             },
             wgpu::TexelCopyTextureInfo {
-                texture: &processor.output_texture,
+                texture: &processor.display_textures().output_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d {
                     x: out_x,
@@ -2367,75 +2702,33 @@ fn process_and_get_dynamic_image_inner(
         submit_final_encoder = true;
     }
 
-    if submit_final_encoder {
-        queue.submit(Some(final_encoder.finish()));
-    }
+    // RapidRAW cc8200a9, c756671d: src-tauri/src/gpu_processing.rs - the readback waits for
+    // this submission only, on the one readback thread, and hands the mapped buffer itself on.
+    let final_submission = submit_final_encoder.then(|| queue.submit(Some(final_encoder.finish())));
 
     if let Some(analytics) = analytics_config {
-        if let Some(buffer) = async_readback_buffer {
-            let output_buffer: wgpu::Buffer = buffer;
-            let padded_bytes_per_row: u32 = async_padded_bpr;
-            let unpadded_bytes_per_row: u32 = async_unpadded_bpr;
-            let device_clone = context.device.clone();
-
-            std::thread::spawn(move || {
-                let buffer_slice = output_buffer.slice(..);
-                let (tx, rx) = std::sync::mpsc::channel::<Result<(), wgpu::BufferAsyncError>>();
-
-                buffer_slice.map_async(wgpu::MapMode::Read, move |result| {
-                    let _ = tx.send(result);
-                });
-
-                if let Err(e) = device_clone.poll(wgpu::PollType::Wait {
-                    submission_index: None,
-                    timeout: Some(std::time::Duration::from_secs(60)),
-                }) {
-                    log::error!("Async analytics readback poll failed: {}", e);
-                    return;
-                }
-
-                if let Ok(Ok(())) = rx.recv() {
-                    let padded_data = buffer_slice.get_mapped_range().to_vec();
-                    output_buffer.unmap();
-
-                    let mut unpadded_data =
-                        Vec::with_capacity((unpadded_bytes_per_row * out_h) as usize);
-                    if padded_bytes_per_row == unpadded_bytes_per_row {
-                        unpadded_data = padded_data;
-                    } else {
-                        for chunk in padded_data.chunks(padded_bytes_per_row as usize) {
-                            unpadded_data
-                                .extend_from_slice(&chunk[..unpadded_bytes_per_row as usize]);
-                        }
-                    }
-
-                    if let Some(img_buf) =
-                        ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, unpadded_data)
-                    {
-                        let dynamic_img = DynamicImage::ImageRgba8(img_buf);
-                        let _ = analytics.sender.send(crate::AnalyticsJob {
-                            path: analytics.path,
-                            image: std::sync::Arc::new(dynamic_img),
-                            compute_waveform: analytics.compute_waveform,
-                            active_waveform_channel: analytics.active_waveform_channel,
-                        });
-                    }
-                }
+        if let (Some(buffer), Some(submission)) = (async_readback_buffer, final_submission) {
+            let _ = analytics_readback_sender().send(AnalyticsReadback {
+                device: Arc::clone(&context.device),
+                buffer,
+                pool: Arc::clone(&processor.readback_pool),
+                submission,
+                analytics,
+                width: out_w,
+                height: out_h,
+                row_stride: async_padded_bpr as usize,
             });
         } else {
-            let pixels_clone = processed_pixels.clone();
-            std::thread::spawn(move || {
-                if let Some(img_buf) =
-                    ImageBuffer::<Rgba<u8>, _>::from_raw(out_w, out_h, pixels_clone)
-                {
-                    let dynamic_img = DynamicImage::ImageRgba8(img_buf);
-                    let _ = analytics.sender.send(crate::AnalyticsJob {
-                        path: analytics.path,
-                        image: std::sync::Arc::new(dynamic_img),
-                        compute_waveform: analytics.compute_waveform,
-                        active_waveform_channel: analytics.active_waveform_channel,
-                    });
-                }
+            let _ = analytics.sender.send(crate::AnalyticsJob {
+                path: analytics.path,
+                frame: AnalyticsFrame {
+                    data: AnalyticsPixels::Owned(processed_pixels.clone()),
+                    width: out_w,
+                    height: out_h,
+                    row_stride: out_w as usize * 4,
+                },
+                compute_waveform: analytics.compute_waveform,
+                active_waveform_channel: analytics.active_waveform_channel,
             });
         }
     }
@@ -2466,7 +2759,9 @@ fn process_and_get_dynamic_image_inner(
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&processor.output_texture_view),
+                    resource: wgpu::BindingResource::TextureView(
+                        &processor.display_textures().output_texture_view,
+                    ),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,

@@ -67,6 +67,23 @@ pub mod mods {
 
         pub fn on_raw_decoded(_raw: &mut RawImage, _file_bytes: &[u8], _photo_path: Option<&str>) {}
     }
+
+    /// `mods::raw_decoder`: rawler, the app's default decoder, which the
+    /// parity tests measure against.
+    pub mod raw_decoder {
+        use rawler::decoders::{Decoder, RawDecodeParams};
+        use rawler::rawimage::RawImage;
+        use rawler::rawsource::RawSource;
+
+        pub fn raw_image(
+            source: &RawSource,
+            decoder: &dyn Decoder,
+            _file_bytes: &[u8],
+            _photo_path: Option<&str>,
+        ) -> rawler::Result<RawImage> {
+            decoder.raw_image(source, &RawDecodeParams::default(), false)
+        }
+    }
 }
 
 /// `crate::image_processing`: the GPU context `sharpen_gpu.rs` reads, and

@@ -62,6 +62,17 @@ published it, not from us.
 
 ---
 
+## RAW decoding
+
+### [FlashRaw](https://github.com/ybouane/flashraw)
+
+Settings > Processing > RAW decoder can hand the unpacking of a RAW's pixels to
+FlashRaw (`flashraw` 0.1.1 on crates.io, MIT or Apache-2.0), used as a library.
+rawler still reads everything else in the file, and FlashRaw is used only on the
+formats where its pixels were measured identical to rawler's: Canon CR3 and CR2,
+Fujifilm compressed RAF, Olympus ORF, Panasonic RW2 (v8) and Pentax PEF
+(`src-tauri/engine/src/flashraw.rs`).
+
 ## RAW rendering
 
 DNG Standard, under RAW > Rendering, is the default picture of a DNG renderer:
@@ -102,6 +113,13 @@ chart under about 740 grading settings and fitted as a curve per channel of
 linear ProPhoto RGB, kept in Argentum as
 `src-tauri/engine/src/rm_color_grade_curves.tsv` and regenerated from each
 RAWmakase release, which the table names.
+
+**The camera's own lens correction** (Crop > Lens Correction) is read as
+RAWmakase reads it: the distortion, lateral chromatic aberration and vignetting
+tables each camera make stores in its RAW files, their units, and which of them
+Lightroom applies by default (`crates/rawmakase-model/src/lens/embedded.rs`,
+`optics/mod.rs` and `dng.rs`, from v0.4.0). Each make's reader in
+`src-tauri/engine/src/rm_lens_builtin/` names the RAWmakase commit it was copied from.
 
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not

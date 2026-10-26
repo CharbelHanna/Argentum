@@ -105,21 +105,7 @@ impl Clipping {
 /// ceiling already catches its clipped photosites keeps exactly the ceiling it
 /// had.
 pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
-    let levels = &raw.whitelevel.0;
-    let first = *levels.first()? as f32;
-    let mut out = [first; 4];
-    for (i, slot) in out.iter_mut().enumerate() {
-        if let Some(level) = levels.get(i) {
-            *slot = *level as f32;
-        }
-    }
-
-    let black = raw
-        .blacklevel
-        .levels
-        .first()
-        .map(|r| r.as_f32())
-        .unwrap_or(0.0);
+    let (black, mut out) = stated_levels(raw)?;
 
     // The margin applies to the range above black, which is the part that is
     // signal. Applying it to the raw count would move the threshold by a
@@ -135,6 +121,33 @@ pub fn ceilings(raw: &RawImage) -> Option<[f32; 4]> {
         }
     }
     Some(out)
+}
+
+/// The black level and the four colours' stated white levels, as `ceilings`
+/// reads them: one white for all or one each.
+fn stated_levels(raw: &RawImage) -> Option<(f32, [f32; 4])> {
+    let levels = &raw.whitelevel.0;
+    let first = *levels.first()? as f32;
+    let mut whites = [first; 4];
+    for (i, slot) in whites.iter_mut().enumerate() {
+        if let Some(level) = levels.get(i) {
+            *slot = *level as f32;
+        }
+    }
+    let black = raw
+        .blacklevel
+        .levels
+        .first()
+        .map(|r| r.as_f32())
+        .unwrap_or(0.0);
+    Some((black, whites))
+}
+
+/// The white `ceilings` judges this mosaic by when the file proves one below
+/// its stated white (`proven_white`), for the look check (look_check.rs).
+pub fn proven_white_of(raw: &RawImage) -> Option<f32> {
+    let (black, whites) = stated_levels(raw)?;
+    proven_white(raw, black, whites.iter().copied().fold(0.0, f32::max))
 }
 
 /// The part of the range searched for a hard clip, from the top, as a fraction

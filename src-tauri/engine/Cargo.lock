@@ -66,6 +66,7 @@ dependencies = [
  "argentum-engine",
  "argentum-engine-reference",
  "bytemuck",
+ "flashraw",
  "glam",
  "half",
  "image",
@@ -379,6 +380,65 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 
 [[package]]
+name = "flashraw"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "19b9e98fcbfa0ebbcd891315b00e49ffe1efb338c3ba7a1c2d3e4a145cf6be19"
+dependencies = [
+ "flashraw-camera-db",
+ "flashraw-codecs",
+ "flashraw-core",
+ "flashraw-formats",
+ "rayon",
+]
+
+[[package]]
+name = "flashraw-camera-db"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a31e41773f47a27f5ffd91cd54a2a6f165e6d9253f720143a04502cb863bfd1b"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "flashraw-codecs"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5003f7d9cb205d4808c6d4744962d5791bd3c0f90a25b3c3cf58f43990160356"
+dependencies = [
+ "flashraw-core",
+ "rayon",
+ "zlib-rs",
+ "zune-inflate",
+ "zune-jpeg 0.4.21",
+]
+
+[[package]]
+name = "flashraw-core"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17e44e91643ffccded486415de5b9c29ca92e8abd04c707b86666a9e92d8a378"
+dependencies = [
+ "libc",
+ "rayon",
+ "thiserror",
+]
+
+[[package]]
+name = "flashraw-formats"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd3a56dffdd7c00b5eb7e664475f27ce04669158c02a4ec736fceff1294a5bdd"
+dependencies = [
+ "flashraw-camera-db",
+ "flashraw-codecs",
+ "flashraw-core",
+ "rayon",
+]
+
+[[package]]
 name = "foldhash"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -594,8 +654,8 @@ dependencies = [
  "byteorder-lite",
  "moxcms",
  "num-traits",
- "zune-core",
- "zune-jpeg",
+ "zune-core 0.5.3",
+ "zune-jpeg 0.5.15",
 ]
 
 [[package]]
@@ -1351,7 +1411,7 @@ dependencies = [
 [[package]]
 name = "rawler"
 version = "0.7.1"
-source = "git+https://github.com/akhater/RapidRAW-DngLab.git?rev=df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d#df7f3aecf6f6a11136fb5e6a52bceefb4eb1eb6d"
+source = "git+https://github.com/akhater/RapidRAW-DngLab.git?rev=930e6ce2978165809409635624f5b29b372ed01f#930e6ce2978165809409635624f5b29b372ed01f"
 dependencies = [
  "backtrace",
  "bitstream-io",
@@ -1518,6 +1578,12 @@ name = "shlex"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
+
+[[package]]
+name = "simd-adler32"
+version = "0.3.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
 
 [[package]]
 name = "slab"
@@ -2172,10 +2238,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "zlib-rs"
+version = "0.6.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b268e58e7c693d7c271f93ffc4ba3b380412554231c85bf61ca7af91042a4112"
+
+[[package]]
 name = "zmij"
 version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29666d0abbfad1e3dc4dcf6144730dd3a3ab225bbbdac83319345b1b44ccfc1b"
+
+[[package]]
+name = "zune-core"
+version = "0.4.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f423a2c17029964870cfaabb1f13dfab7d092a62a29a89264f4d36990ca414a"
 
 [[package]]
 name = "zune-core"
@@ -2184,10 +2262,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d56377fd46368984a170bc5aac5567e52ca5da874caa60bea39fcbca78fb658b"
 
 [[package]]
+name = "zune-inflate"
+version = "0.2.54"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73ab332fe2f6680068f3582b16a24f90ad7096d5d39b974d1c0aff0125116f02"
+dependencies = [
+ "simd-adler32",
+]
+
+[[package]]
+name = "zune-jpeg"
+version = "0.4.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "29ce2c8a9384ad323cf564b67da86e21d3cfdff87908bc1223ed5c99bc792713"
+dependencies = [
+ "zune-core 0.4.12",
+]
+
+[[package]]
 name = "zune-jpeg"
 version = "0.5.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27bc9d5b815bc103f142aa054f561d9187d191692ec7c2d1e2b4737f8dbd7296"
 dependencies = [
- "zune-core",
+ "zune-core 0.5.3",
 ]

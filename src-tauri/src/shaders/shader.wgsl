@@ -1556,27 +1556,6 @@ fn agx_full_transform(color_in: vec3<f32>) -> vec3<f32> {
     return final_color;
 }
 
-fn legacy_tonemap(c: vec3<f32>) -> vec3<f32> {
-    const a: f32 = 2.51;
-    const b: f32 = 0.03;
-    const c_const: f32 = 2.43;
-    const d: f32 = 0.59;
-    const e: f32 = 0.14;
-
-    let x = max(c, vec3<f32>(0.0));
-
-    let numerator = x * (a * x + b);
-    let denominator = x * (c_const * x + d) + e;
-
-    let tonemapped = select(vec3<f32>(0.0), numerator / denominator, denominator > vec3<f32>(0.00001));
-
-    return clamp(tonemapped, vec3<f32>(0.0), vec3<f32>(1.0));
-}
-
-fn no_tonemap(c: vec3<f32>) -> vec3<f32> {
-    return c;
-}
-
 // Argentum: one apply_curve call site, stepping through the six curve passes:
 // the luma curve on red, green and blue, then each channel's own curve, which is
 // the order their version ran them in. A straight-line curve arrives with no

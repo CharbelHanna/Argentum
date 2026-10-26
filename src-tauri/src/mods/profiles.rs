@@ -303,7 +303,21 @@ pub fn remove(library: &Path, file: &str) -> Result<(), String> {
     let name = Path::new(file)
         .file_name()
         .ok_or_else(|| "no such profile".to_string())?;
-    std::fs::remove_file(library.join(name)).map_err(|e| e.to_string())
+    std::fs::remove_file(library.join(name)).map_err(|e| e.to_string())?;
+    // A camera whose new photos opened with it goes back to the built-in matrix.
+    let mut known = read_cameras(library);
+    let removed = |p: &Option<String>| {
+        p.as_deref()
+            .is_some_and(|p| Path::new(p).file_name() == Some(name))
+    };
+    if known.iter().any(|c| removed(&c.default_profile)) {
+        known
+            .iter_mut()
+            .filter(|c| removed(&c.default_profile))
+            .for_each(|c| c.default_profile = None);
+        write_cameras(library, &known);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -605,6 +619,15 @@ pub struct Camera {
     #[serde(default)]
     pub make: String,
     pub model: String,
+    /// The profile file new photos from this body open with (My Cameras);
+    /// none, the built-in matrix. Only a photo with no saved edit takes it
+    /// (argentum/newPhotoDefaults.ts), so choosing one never changes a photo.
+    #[serde(
+        default,
+        rename = "defaultProfile",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub default_profile: Option<String>,
 }
 
 fn cameras_file(library: &Path) -> PathBuf {
@@ -643,6 +666,7 @@ pub fn remember_camera(library: &Path, make: &str, model: &str) -> bool {
     known.push(Camera {
         make: make.to_string(),
         model: model.to_string(),
+        default_profile: None,
     });
     known.sort_by(|a, b| a.model.cmp(&b.model));
 
@@ -664,9 +688,33 @@ pub fn forget_camera(library: &Path, model: &str) {
         .into_iter()
         .filter(|c| !same_model(&c.model, model))
         .collect();
-    if let Ok(text) = serde_json::to_string_pretty(&kept) {
+    write_cameras(library, &kept);
+}
+
+fn write_cameras(library: &Path, cameras: &[Camera]) {
+    if let Ok(text) = serde_json::to_string_pretty(cameras) {
         let _ = std::fs::write(cameras_file(library), text);
     }
+}
+
+/// Set the profile new photos from the body `model` open with; `None`, the
+/// built-in matrix.
+pub fn set_default_profile(library: &Path, model: &str, file: Option<String>) {
+    let mut known = read_cameras(library);
+    if let Some(camera) = known.iter_mut().find(|c| same_model(&c.model, model)) {
+        camera.default_profile = file;
+        write_cameras(library, &known);
+    }
+}
+
+/// The profile a new photo from this camera opens with. `exif_model` is the
+/// photo's EXIF model ("Canon EOS 5D Mark II"), matched as a profile's camera
+/// name is, since the list keeps rawler's model ("EOS 5D Mark II").
+pub fn default_profile(library: &Path, exif_model: &str) -> Option<String> {
+    read_cameras(library)
+        .into_iter()
+        .find(|c| matches(exif_model, &c.make, &c.model))?
+        .default_profile
 }
 
 #[cfg(test)]
@@ -720,6 +768,33 @@ pub fn learn_make_from(library: &Path, model: &str, full_name: &str) {
     }
     if touched && let Ok(text) = serde_json::to_string_pretty(&known) {
         let _ = std::fs::write(cameras_file(library), text);
+    }
+}
+
+#[cfg(test)]
+mod default_profile_tests {
+    use super::*;
+
+    /// Found by the photo's EXIF model although the list keeps rawler's, never
+    /// for another body, and gone with its file.
+    #[test]
+    fn a_cameras_default_profile_follows_the_body_and_its_file() {
+        let dir = tempfile::tempdir().expect("scratch");
+        let dir = dir.path();
+        remember_camera(dir, "Canon", "EOS 5D Mark II");
+        assert_eq!(default_profile(dir, "Canon EOS 5D Mark II"), None);
+
+        let file = "Canon EOS 5D Mark II.dcp";
+        std::fs::write(dir.join(file), b"dcp").expect("write");
+        set_default_profile(dir, "EOS 5D Mark II", Some(file.to_string()));
+        assert_eq!(
+            default_profile(dir, "Canon EOS 5D Mark II").as_deref(),
+            Some(file)
+        );
+        assert_eq!(default_profile(dir, "Canon EOS 5D Mark III"), None);
+
+        remove(dir, file).expect("remove");
+        assert_eq!(default_profile(dir, "Canon EOS 5D Mark II"), None);
     }
 }
 

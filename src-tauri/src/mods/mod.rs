@@ -46,6 +46,8 @@ pub mod input_stage;
 pub mod lens_builtin;
 pub mod lens_crop;
 pub mod lens_name;
+#[cfg(test)]
+mod look_check;
 pub mod look_picks;
 pub mod looks;
 pub mod makernote_lens;
@@ -60,9 +62,12 @@ pub mod profile_correction;
 pub mod profile_matrix;
 pub mod profiles;
 pub mod profiles_online;
+pub mod raw_decoder;
 pub mod raw_tone;
 pub mod recent_folders;
 pub mod redecode;
+#[cfg(test)]
+mod render_check;
 pub mod restore;
 pub mod salvage;
 pub mod selection;

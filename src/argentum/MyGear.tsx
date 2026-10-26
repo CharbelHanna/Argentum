@@ -30,11 +30,8 @@ import { Trash2 } from 'lucide-react';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useAgTranslation } from './locales';
 import MyCameras from './MyCameras';
-
-interface Lens {
-  maker: string;
-  model: string;
-}
+import Switch from '../components/ui/Switch';
+import type { MyLens } from './newPhotoDefaults';
 
 function Card({ children }: { children: React.ReactNode }) {
   return <div className="p-6 bg-surface rounded-xl shadow-md">{children}</div>;
@@ -80,10 +77,12 @@ function MyLenses() {
   const [maker, setMaker] = useState('');
   const [model, setModel] = useState('');
 
-  const lenses: Lens[] = useMemo(() => appSettings?.myLenses || [], [appSettings]);
+  const lenses: MyLens[] = useMemo(() => appSettings?.myLenses || [], [appSettings]);
 
   useEffect(() => {
-    invoke<string[]>('get_lensfun_makers').then(setMakers).catch(() => setMakers([]));
+    invoke<string[]>('get_lensfun_makers')
+      .then(setMakers)
+      .catch(() => setMakers([]));
   }, []);
 
   const pickMaker = useCallback((m: string) => {
@@ -113,6 +112,14 @@ function MyLenses() {
     setModels([]);
   };
 
+  const setCorrectNew = (index: number, correctNew: boolean) => {
+    if (!appSettings) {
+      return;
+    }
+    const next = lenses.map((lens, i) => (i === index ? { ...lens, correctNew } : lens));
+    save({ ...appSettings, myLenses: next });
+  };
+
   const removeAt = (index: number) => {
     if (!appSettings) {
       return;
@@ -129,19 +136,8 @@ function MyLenses() {
 
       <div className="p-4 bg-bg-primary rounded-lg mb-5 space-y-3">
         <p className="text-sm font-medium text-text-primary">{t('gearAddLens')}</p>
-        <Select
-          value={maker}
-          onChange={pickMaker}
-          options={makers}
-          placeholder={t('gearPickMaker')}
-        />
-        <Select
-          value={model}
-          onChange={setModel}
-          options={models}
-          placeholder={t('gearPickModel')}
-          disabled={!maker}
-        />
+        <Select value={maker} onChange={pickMaker} options={makers} placeholder={t('gearPickMaker')} />
+        <Select value={model} onChange={setModel} options={models} placeholder={t('gearPickModel')} disabled={!maker} />
         <button
           onClick={add}
           disabled={!maker || !model}
@@ -160,10 +156,17 @@ function MyLenses() {
               key={`${lens.maker}/${lens.model}`}
               className="flex items-center justify-between gap-3 p-3 bg-bg-primary rounded-lg"
             >
-              <div className="min-w-0">
+              <div className="min-w-0 grow">
                 <p className="font-medium text-text-primary truncate">{lens.model}</p>
                 <p className="text-xs text-text-secondary truncate">{lens.maker}</p>
               </div>
+              <Switch
+                className="shrink-0 gap-3"
+                id={`lens-correct-new-${lens.maker}-${lens.model}`}
+                label={t('gearCorrectNew')}
+                checked={lens.correctNew === true}
+                onChange={(on) => setCorrectNew(i, on)}
+              />
               <button
                 onClick={() => removeAt(i)}
                 className="p-2 text-text-secondary hover:text-red-400 hover:bg-bg-secondary rounded-md transition-colors shrink-0"

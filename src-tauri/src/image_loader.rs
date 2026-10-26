@@ -2,6 +2,7 @@ use crate::Cursor;
 use crate::app_settings::{AppSettings, load_settings};
 use crate::app_state::{AppState, LoadedImage};
 use crate::baseline_exposure::BaselineOptions;
+use crate::cache_utils::DecodeFingerprint;
 use crate::exif_processing;
 use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::formats::is_raw_file;
@@ -105,6 +106,8 @@ pub fn load_base_image_from_bytes(
     settings: &AppSettings,
     cancel_token: Option<(Arc<AtomicUsize>, usize)>,
 ) -> Result<DynamicImage> {
+    // Argentum: a setting read here goes in `cache_utils::DecodeFingerprint` too,
+    // or a photo decoded before it changed is served from memory unchanged.
     let highlight_compression = settings.raw_highlight_compression.unwrap_or(2.5);
     let linear_mode = settings.linear_raw_mode.clone();
     let color_nr_setting = settings.raw_preprocessing_color_nr.unwrap_or(0.5);
@@ -860,14 +863,23 @@ pub fn composite_patches_on_image(
 }
 
 #[tauri::command]
-pub fn is_image_cached(path: String, state: tauri::State<'_, AppState>) -> bool {
+pub fn is_image_cached(
+    path: String,
+    state: tauri::State<'_, AppState>,
+    app_handle: tauri::AppHandle,
+) -> bool {
     let (source_path, _) = parse_virtual_path(&path);
     let source_path_str = source_path.to_string_lossy().to_string();
+    // RapidRAW e11750e7: only a decode of the file as it is now counts.
+    let settings = load_settings(app_handle).unwrap_or_default();
+    let Some(fingerprint) = DecodeFingerprint::for_file(&source_path, &settings) else {
+        return false;
+    };
     state
         .decoded_image_cache
         .lock()
         .unwrap()
-        .get(&source_path_str)
+        .get(&source_path_str, &fingerprint)
         .is_some()
 }
 
@@ -937,11 +949,16 @@ pub async fn load_image(
 
     let path_clone = source_path_str.clone();
 
-    let cached_data = state
-        .decoded_image_cache
-        .lock()
-        .unwrap()
-        .get(&source_path_str);
+    // RapidRAW e11750e7: taken before the decode, so a setting changed while it
+    // runs leaves an entry that no longer matches rather than old pixels.
+    let fingerprint = DecodeFingerprint::for_file(&source_path, &settings);
+    let cached_data = fingerprint.as_ref().and_then(|fingerprint| {
+        state
+            .decoded_image_cache
+            .lock()
+            .unwrap()
+            .get(&source_path_str, fingerprint)
+    });
 
     let (pristine_arc, exif_data) = if let Some((cached_img, cached_exif)) = cached_data {
         (cached_img, cached_exif)
@@ -1009,11 +1026,14 @@ pub async fn load_image(
 
         let arc_img = Arc::new(pristine_img);
 
-        state.decoded_image_cache.lock().unwrap().insert(
-            source_path_str.clone(),
-            arc_img.clone(),
-            exif_data_loaded.clone(),
-        );
+        if let Some(fingerprint) = fingerprint {
+            state.decoded_image_cache.lock().unwrap().insert(
+                source_path_str.clone(),
+                fingerprint,
+                arc_img.clone(),
+                exif_data_loaded.clone(),
+            );
+        }
 
         (arc_img, exif_data_loaded)
     };

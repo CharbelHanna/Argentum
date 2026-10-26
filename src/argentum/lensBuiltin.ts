@@ -1,10 +1,11 @@
 /**
  * The camera's built-in lens correction, filled into the open photo's edit. Ours.
  *
- * Fujifilm stores its lens's distortion, colour fringing and corner shading
- * in every RAF, for the focal length and aperture used, and Lightroom applies
- * it by default; Sony stores the same in an ARW, where it starts off, and a
- * DNG (Leica, DJI's drones, phones, Lightroom's own) as opcodes, on.
+ * Cameras store their lens's distortion, colour fringing and corner shading
+ * in the RAW, for the focal length and aperture used: Fujifilm in every RAF,
+ * Sony in an ARW, Nikon in a NEF or NRW, a DNG (Leica, DJI's drones, phones,
+ * Lightroom's own) as opcodes. The engine's reader for each make says which
+ * parts Lightroom applies by default, and so whether the switch starts on.
  * `lens_builtin` (mods/lens_builtin.rs) reads it from the file;
  * this puts it into the edit as `lensBuiltinParams`, with the switch,
  * `lensBuiltin`, at the photo's own default when the edit has none yet. From
@@ -44,12 +45,16 @@ export interface LensCorrection {
   vignetting: Radial | null;
   distortion: Radial | null;
   chromatic: [Radial, Radial] | null;
+  /** The parts the camera always corrects; absent: all three. */
+  always?: { distortion: boolean; chromatic: boolean; vignetting: boolean };
 }
 
 /** What `lens_builtin` answers. */
-interface Found {
+export interface Found {
   correction: LensCorrection | null;
   defaultOn: boolean;
+  /** The photo has no saved edit (argentum/newPhotoDefaults.ts). */
+  fresh: boolean;
 }
 
 /** The edit's keys for it (mods/lens_builtin.rs). */
@@ -72,13 +77,24 @@ export const builtinInUse = (adjustments: Adjustments): LensCorrection | null =>
 export const withBuiltin = (adjustments: Adjustments, on: boolean): Adjustments =>
   ({ ...adjustments, lensBuiltin: on }) as Adjustments;
 
+/**
+ * The edit's two keys for it, to spread wherever the photo's geometry is
+ * copied out of the edit (AI masks, Show Original), so those see the same
+ * correction as the preview.
+ */
+export const builtinKeys = (adjustments: Adjustments): BuiltinEdit => {
+  const { lensBuiltin, lensBuiltinParams } = edit(adjustments);
+  return { lensBuiltin, lensBuiltinParams };
+};
+
 /** Spread into a reset: the switch goes back to the photo's own default. */
 export const LENS_BUILTIN_RESET = { lensBuiltin: undefined } as Partial<Adjustments>;
 
 /** Per path, for the session: a file's tables do not change while the app runs. */
 const asked = new Map<string, Promise<Found>>();
 
-const ask = (path: string): Promise<Found> => {
+/** What `lens_builtin` answers for `path`, asked once per session. */
+export const ask = (path: string): Promise<Found> => {
   let answer = asked.get(path);
   if (!answer) {
     answer = ag<Found>('lens_builtin', { path });

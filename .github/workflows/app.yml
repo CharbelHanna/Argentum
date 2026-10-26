@@ -6,8 +6,9 @@ name: App
 # mods/shader_check.rs, which compile every shader with naga and fail the
 # patterns FXC, DirectX 12's compiler, cannot build.
 #
-# The tests that need a GPU or test photos are #[ignore]d and skipped here;
-# dx12.yml runs the shaders on a software GPU.
+# The tests that need a GPU or test photos are #[ignore]d and skipped there;
+# dx12.yml runs the shaders on a software GPU. The golden photos run after
+# them, on the same build (see below).
 on:
   push:
     branches:
@@ -17,7 +18,7 @@ on:
 jobs:
   unit:
     name: App unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -41,3 +42,127 @@ jobs:
       - name: Test
         working-directory: src-tauri
         run: cargo test --lib
+
+      # THE GOLDEN PHOTOS (src-tauri/src/mods/look_check.rs): ten CC0 RAWs
+      # from raw.pixls.us through the app's own decode and render, held to the
+      # text references in src-tauri/tests/look/. They run on every pull
+      # request so the job can be required later, and stop here when nothing
+      # under src-tauri/ changed. Advisory for now (continue-on-error).
+      - name: Golden photos - anything to check?
+        id: look-scope
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ -z "$BASE" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags --depth=1 origin "$BASE"
+          if git diff --quiet "$BASE" HEAD -- src-tauri; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "## Golden photos: SKIPPED - nothing under src-tauri/ changed" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "run=true" >> "$GITHUB_OUTPUT"
+          # The ledger is append-only: the base's rows, unchanged, come first.
+          ledger=src-tauri/tests/look/LEDGER.tsv
+          if git show "$BASE:$ledger" > "$RUNNER_TEMP/ledger.base" 2>/dev/null; then
+            size=$(wc -c < "$RUNNER_TEMP/ledger.base")
+            if ! head -c "$size" "$ledger" | cmp -s - "$RUNNER_TEMP/ledger.base"; then
+              echo "::error file=$ledger::LEDGER.tsv is append-only: a row of the base branch was changed or removed"
+              echo "ledger=changed" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      - name: Golden photos - cached samples
+        id: look-cache
+        if: steps.look-scope.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/look-samples
+          key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
+
+      # Each sample checked against its sha256. raw.pixls.us is slow and
+      # sometimes down: a sample that cannot be fetched makes the check say
+      # SKIPPED, never fail.
+      - name: Golden photos - samples
+        id: look-samples
+        if: steps.look-scope.outputs.run == 'true'
+        run: |
+          mkdir -p ~/look-samples
+          missing=0
+          while IFS=$'\t' read -r id url sha camera licence covers; do
+            case "$id" in ''|'#'*|id) continue ;; esac
+            file=~/look-samples/"$id.${url##*.}"
+            if [ -f "$file" ] && echo "$sha  $file" | sha256sum --check --status; then
+              continue
+            fi
+            curl -fsSL -g --retry 5 --retry-all-errors --retry-delay 10 \
+              --speed-limit 2048 --speed-time 60 -C - -o "$file" "$url" || true
+            if ! echo "$sha  $file" | sha256sum --check --status; then
+              echo "::warning::golden photos: $id ($camera) could not be fetched from raw.pixls.us"
+              rm -f "$file"
+              missing=$((missing + 1))
+            fi
+          done < src-tauri/tests/look/samples.tsv
+          if [ "$missing" -gt 0 ]; then
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "## Golden photos: SKIPPED - $missing sample(s) could not be fetched from raw.pixls.us" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Kept only when every sample is there and checked.
+      - name: Golden photos - keep the samples
+        if: steps.look-samples.outputs.ok == 'true' && steps.look-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/look-samples
+          key: look-samples-${{ hashFiles('src-tauri/tests/look/samples.tsv') }}
+
+      # Mesa's Vulkan driver for the CPU (lavapipe), as engine.yml installs it.
+      - name: Golden photos - software GPU
+        if: steps.look-samples.outputs.ok == 'true'
+        run: sudo apt-get install -y mesa-vulkan-drivers libvulkan1
+
+      - name: Golden photos
+        if: steps.look-samples.outputs.ok == 'true'
+        continue-on-error: true
+        working-directory: src-tauri
+        timeout-minutes: 30
+        env:
+          WGPU_BACKEND: vulkan
+          AG_LOOK_SUMMARY: ${{ github.step_summary }}
+          LEDGER_CHANGED: ${{ steps.look-scope.outputs.ledger }}
+        run: |
+          export AG_LOOK_SAMPLES="$HOME/look-samples"
+          if [ "$LEDGER_CHANGED" = "changed" ]; then
+            echo "::error::golden photos: LEDGER.tsv is append-only"
+            exit 1
+          fi
+          # The test binary the step above built, run as cargo runs it. Through
+          # cargo it would compile the app crate again (about a minute): the
+          # first build's build script downloads the ONNX runtime into
+          # resources/, which the next build then sees as changed.
+          bin=$(ls -t target/debug/deps/argentum_lib-* 2>/dev/null | grep -v '\.d$' | head -n 1)
+          if [ -x "$bin" ]; then
+            "$bin" mods::look_check::golden_photos --ignored --exact --nocapture
+          else
+            cargo test --lib mods::look_check::golden_photos -- --ignored --exact --nocapture
+          fi
+
+      # The RAW decoder setting: on every sample FlashRaw decodes, its image
+      # must be rawler's, field for field and sample for sample, or choosing
+      # FlashRaw would change how photos look (src-tauri/src/mods/raw_decoder.rs).
+      - name: FlashRaw gives rawler's image
+        if: steps.look-samples.outputs.ok == 'true'
+        working-directory: src-tauri
+        timeout-minutes: 10
+        run: |
+          export AG_LOOK_SAMPLES="$HOME/look-samples"
+          bin=$(ls -t target/debug/deps/argentum_lib-* 2>/dev/null | grep -v '\.d$' | head -n 1)
+          if [ -x "$bin" ]; then
+            "$bin" mods::raw_decoder::tests::flashraw_gives_rawlers_image --ignored --exact --nocapture
+          else
+            cargo test --lib mods::raw_decoder::tests::flashraw_gives_rawlers_image -- --ignored --exact --nocapture
+          fi

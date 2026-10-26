@@ -295,6 +295,20 @@ pub fn forget_camera(model: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Choose the profile new photos from a camera open with (My Cameras).
+pub fn set_camera_default_profile(model: String, file: Option<String>) -> Result<(), String> {
+    crate::mods::profiles::set_default_profile(profile_library()?, &model, file);
+    Ok(())
+}
+
+/// The profile a new photo with this EXIF model opens with, if one is chosen.
+pub fn camera_default_profile(model: String) -> Result<Option<String>, String> {
+    Ok(crate::mods::profiles::default_profile(
+        profile_library()?,
+        &model,
+    ))
+}
+
 /// Look for a published profile for this camera and install it.
 ///
 /// One step on purpose: "is there one" and "get it" are not a decision the user
@@ -341,6 +355,16 @@ pub fn highlight_recovery() -> Result<bool, String> {
 /// Turn it on or off. Applies to the next photo decoded.
 pub fn set_highlight_recovery(on: bool) -> Result<(), String> {
     crate::mods::highlights::save(profile_library()?, on)
+}
+
+/// The app's RAW decoder, for photos that name none.
+pub fn raw_decoder() -> crate::mods::raw_decoder::RawDecoder {
+    crate::mods::raw_decoder::default_decoder()
+}
+
+/// Choose the app's RAW decoder. Applies to the next photo decoded.
+pub fn set_raw_decoder(decoder: crate::mods::raw_decoder::RawDecoder) -> Result<(), String> {
+    crate::mods::raw_decoder::save(profile_library()?, decoder)
 }
 
 /// What depth a TIFF export writes at, as the number the interface shows.

@@ -4,19 +4,285 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
-## 26.43.4 — 2026-10-23
+## 26.44.1 — 2026-10-26
 
 ### Added
 
+- **RAW decoder: rawler or FlashRaw.** Settings > Processing > RAW decoder picks the program that
+  reads RAW files, and a photo can use its own, first in Edit > Profile (saved in its edit as
+  `rawDecoder`; a virtual copy follows its original, whose decode it shares). rawler stays the
+  default. FlashRaw (`flashraw` 0.1.1, crates.io, MIT or Apache-2.0) unpacks the sensor data
+  faster, inside rawler's reading of the file, so the levels, white balance, colour matrices and
+  crop stay rawler's: on Canon CR3 and CR2, Fujifilm compressed RAF, Olympus ORF, Panasonic RW2
+  (v8) and Pentax PEF its pixels are identical to rawler's and the app's develop of them is
+  identical too (dE2000 0.000 on 10 files from eight bodies), with the decode 1.5 to 3.4 times
+  faster. Every other file opens with rawler, and the photo's row says so: DNG (rawler
+  reads a DNG's pixels even for its metadata, so FlashRaw on top is slower), Sony (no gain on
+  lossless, slower and not identical on compressed), Canon sRAW (converted differently), Nikon (one
+  count off, which tips photosites across the clipping point) and any format not measured yet.
+  Engine `src/flashraw.rs` (the format list and the decode, pinned to 0.1.1), app
+  `src-tauri/src/mods/raw_decoder.rs` (the choice, the setting in `argentum-processing.json`) and
+  `src/argentum/RawDecoder.tsx` (both rows). Switching decodes the open photo again, as highlight
+  recovery does (`src/argentum/redecode.ts`, now shared by both). A test compares FlashRaw's image
+  with rawler's, every field and every sample, on the RAWs given to it; CI runs it on the golden
+  photos.
+
+### Changed
+
+- **Basic inpainting and the Quick Eraser keep the texture around what they remove.** The fill
+  model works on at most 768 by 768 pixels; on a larger area it used to be scaled back up from
+  there, so a removed wire or person left a soft, smeared patch on a sharp photo. Each filled
+  pixel now also takes the fine texture of the spot the fill matches nearby, at full size, and
+  the model sees areas that are not square at more of their resolution. On five test RAWs, three
+  removals each, the fine texture inside the 11 removals the model had to shrink went from a
+  median of 45% of the texture around them to 88% (the lowest from 8% to 53%), and the step adds
+  at most 0.2 s to a fill that takes 5 to 20 s. Small removals, which already ran at full size,
+  keep the same texture, though not the same pixels. Removals already made keep their pixels;
+  nothing outside a removal changes.
+  From RapidRAW `src-tauri/src/ai_processing.rs` @ `b407d348` (`lama_patch_match`,
+  `catmull_rom_sample`, the texture transfer in `run_lama_inpainting`). Not taken from the same
+  commit: the Quick Eraser's larger default Grow and Feather.
+- **Paste, Reset and Auto lens correction on a selection redraw its thumbnails sooner.** Each
+  photo's thumbnail now starts as soon as its edit is written, not after the whole selection's,
+  and a thumbnail whose photo and edit are unchanged (the same settings pasted again, a photo
+  reset twice) is reused instead of drawn again, as browsing a folder already does.
+  Paste now finishes writing every photo's edit before it reports back, so the lens settings the
+  editor reads after a paste are the pasted ones; before, it could read them first. Auto adjust
+  and Auto straighten on a selection map each file instead of copying it into memory. From
+  RapidRAW `src-tauri/src/file_management.rs` @ `cabc73a4` (`update_sidecars_and_thumbnails`,
+  `run_batch_workers`), adapted: the thumbnails are drawn on the app's shared pool, so batches
+  running at once (with Auto-sync on, every pause of a slider starts one) never decode more
+  photos at a time than before. Its worker count limited by memory, from an earlier RapidRAW
+  commit, is not taken.
+- **Copy settings works with several photos selected.** Right-click one photo of a selection and
+  Copy settings takes that photo's settings; it used to be greyed out. With one photo selected
+  nothing changes. From RapidRAW `src/hooks/useAppContextMenus.ts` @ `2ce74721` (its bottom-bar
+  half went with the Classic layout).
+- **Right-click menus are as wide as their longest label,** 256 to 320 px (submenus 224 to 288),
+  instead of a fixed 256 (224) px that wrapped or cut long labels and translations. From
+  RapidRAW `src/context/ContextMenuContext.tsx` @ `a6664bd2` (its menu sizing only; that
+  commit's Denoise and Negative toggles are not taken).
+- **The translation check also flags a translation that drops a `{{placeholder}}`** its English
+  has. None does today; the check stays advisory in CI. From RapidRAW `src/i18n/check-runtime.mjs`
+  @ `1c97bfd2`.
+- **A DNG's white balance, levels and size are read without decoding its pixels.** Opening a DNG
+  reads its as-shot white balance, and DNG Standard and the decode scale read its levels and size,
+  each through rawler's metadata-only pass, which for a DNG decoded the whole sensor anyway. It
+  now stops at the metadata, as it already did for every other format; the values read are the
+  same. From RapidRAW's rawler fork, `rawler/src/decoders/dng.rs` @ `9dbcc565`, in ours as
+  `930e6ce2` (branch `fix/rapidraw-167-em1x-dng-dummy` of `akhater/RapidRAW-DngLab`).
+
+### Fixed
+
+- **Relight lights a rotated or warped photo from the right side.** Relight reads which way each
+  surface faces from a map made on the photo as it came from the camera. Crop > Transform
+  (rotate, perspective, distortion) and lens correction moved that map's pixels with the photo
+  but never turned the directions stored in them, so on a photo turned 30 degrees in Transform a
+  lamp lit surfaces as if it stood 30 degrees away from where it was placed. The directions now
+  turn with the picture at each pixel. A photo with no Transform and no lens correction gets
+  exactly the same map as before. From RapidRAW `src-tauri/src/effect_maps.rs` @ `f3e9fe4f`
+  (`local_warp_rotations`, `rotate_normal`); ours adds that the camera's own lens correction
+  turns the map by its distortion only, not its colour fringing or shading. Thumbnails are
+  redrawn once.
+- **A photo rewritten under the same name opens as it is now, not as it was.** The app keeps the
+  last few photos it decoded (Settings > Processing > Decoded Image Cache) and served them by file
+  name alone. A tethered camera that reuses names such as `capt0000.nef`, a file replaced from
+  outside the app, or a change to Linear RAW Processing kept showing the old pixels until the
+  photo dropped out of the cache or the app restarted. Each kept photo now remembers the file's
+  size and modification time and the settings it was decoded with (highlight compression, colour
+  noise reduction and sharpening while loading and whether they apply to non-RAWs, Linear RAW
+  Processing, Apple RAW 9, highlight recovery), and is reused only while all of them match. The
+  settings that already emptied the cache when changed still do; now a photo still decoding at
+  that moment cannot slip back in with the old setting either. Any other setting leaves the cache
+  alone, so reopening an unchanged photo is as instant as before. From RapidRAW
+  `src-tauri/src/cache_utils.rs` and `src-tauri/src/image_loader.rs` @ `e11750e7`
+  (`DecodeFingerprint`); highlight recovery is ours. Not taken from the same commit: one decode
+  shared by two callers, and RapidRAW `9be01048` (full-size previews reusing the cache). Our
+  cache has no memory limit yet, and they would keep more full-size photos in it.
+- **Searching for a tag such as "summer" or "family" finds it.** A search tag that started with
+  an EXIF field's name was read as a query on that field, so "summer" searched for a shutter
+  speed of "ummer" and found nothing. A field now counts only with a colon, an operator or a
+  space after it: `iso:>800`, `f:<=2.8` and `camera sony` work as before. From RapidRAW
+  `src/hooks/useSortedLibrary.ts` @ `1c2f1d64`, adapted: theirs drops the space form.
+- **Opening a folder expands the folder tree under its own root.** With `D:\Photos` and
+  `D:\Photos2` both added, a folder in `D:\Photos2` was expanded under `D:\Photos`. A root now
+  matches on whole folder names, and the deepest one holding the folder wins. From RapidRAW
+  `src/hooks/useAppNavigation.ts` @ `d6d90783`.
+- **The red mask overlay goes away once the pointer is on the photo.** Hovering a control in the
+  Masks panel shows its mask in red, and a control scrolled away or removed from under the
+  pointer could leave it on. From RapidRAW `src/components/panel/Editor.tsx` @ `2fa31148` (its
+  mask half).
+- **A tooltip whose text changes while it shows follows the change,** instead of keeping the old
+  text until the pointer leaves. From RapidRAW `src/components/ui/GlobalTooltip.tsx` @
+  `d2b3ff42` (its tooltip half).
+- **Olympus E-M1X photos have their right colours.** Its RAWs were decoded with the colour
+  filters' layout reversed (BGGR instead of RGGB), so red and blue came out of the wrong
+  photosites. RapidRAW 1.6.6 already had this fix; our rawler fork was branched before it. Now
+  corrected with rawler's FlashRaw decode too, which takes the layout from rawler. From
+  RapidRAW's rawler fork, `rawler/data/cameras/olympus/e-m1x.toml` @ `a32bc1ff` (upstream
+  dnglab has RGGB too), in ours as `46c6e55a`; rawler is now pinned to `930e6ce2`.
+
+### Removed
+
+- **Render code that could never run:** the old CPU preview encode's 22 lines after the `return`
+  to ours (`apply_cpu_default_raw_processing`, the crate's only `allow(unreachable_code)`), and
+  two tone maps nothing calls in `shader.wgsl` (`legacy_tonemap`, `no_tonemap`). No pixel
+  changes.
+- **Tauri's HTTP plugin** (`tauri-plugin-http`), which only RapidRAW Cloud's store would call, and
+  that store never starts. 19 crates fewer in `Cargo.lock` (846 to 827), among them a second copy
+  of `reqwest`. Downloads (AI models, camera profiles) use the app's own `reqwest` and the update
+  check the window's `fetch`; both are unchanged.
+
+## 26.43.4 — 2026-10-25
+
+### Added
+
+- **Correct new photos, per lens.** Settings > My Gear > My Lenses has a "Correct new photos"
+  switch on each lens. Every photo opened now adds its lens to the list (before, only Auto did),
+  switched off. Switched on, a RAW photo from that lens with no saved edit opens as if Auto had
+  been pressed in Crop > Lens Correction: the lens database's profile when it knows the lens, and
+  the camera's own correction when the file has one. Off is the app as before, and a photo with an
+  edit is never touched. `src/argentum/newPhotoDefaults.ts`; the backend's `lens_builtin` now says
+  whether the photo has a saved edit (`fresh`), and `MyLens` keeps the switch (`correctNew`).
+- **A camera profile for new photos, per camera.** Settings > My Gear > My Cameras has "New photos
+  open with" on each camera that has profiles: Built-in, or one of its profiles. A RAW photo from
+  that camera with no saved edit opens with it; a photo with an edit keeps its own, so choosing
+  one never changes a photo already worked on. Removing the profile sets the camera back to
+  Built-in. Kept in the camera list (`cameras.json`, `defaultProfile`); matched to a photo's EXIF
+  model the way profiles are (`src-tauri/src/mods/profiles.rs`), applied in
+  `src/argentum/newPhotoDefaults.ts`, with a test.
 - **The version beside the Settings gear, and a new release when there is one.** A quiet
   "v26.43.4" sits by the gear; when a newer release is published, "Argentum 26.43.5 is out" shows
   there in the accent colour and opens its release page, and Settings > About says the same.
   GitHub is asked at start and every six hours; nothing is downloaded. Classic's library header
   did this until it was deleted with the Classic layout (#117). The comparison and timing are
   Shoebox's (`src-tauri/src/updates.rs`), in `src/argentum/updates.ts`.
+- **The golden photos: ten public RAWs through the app's real render, in CI.** A change to how a
+  photo looks now either fails or is logged with its reason. Ten CC0 RAWs from raw.pixls.us, each
+  picked for something the decode or the render does with it (Canon Highlight Tone Priority,
+  sRAW, Nikon Active D-Lighting, an X-Trans mosaic with built-in lens correction, Sony lossy, a
+  phone DNG's gain maps, a drone DNG's opcodes, Pentax and Olympus modes;
+  `src-tauri/tests/look/samples.tsv`), are decoded and rendered with the app's own calls in four
+  states: as they open, Exposure -2, Highlights -100 with Whites +50, and the K-Portra 400 film
+  look. First, with no GPU and exactly: each photo's exposure offset and where it came from, what
+  the camera held back, the highlight ceilings, the photosites recovery and the blown-highlight
+  step rewrote, the gain maps applied and the lens correction found. The renders are held to
+  small text references (`src-tauri/tests/look/`) by robust statistics - colour difference over
+  a 32-cell thumbnail, the mid-tones' exposure, clipping, the top three stops, the blown area's
+  colour - never by single pixels; a one-level shift of the highlights and a change the size of
+  #171's Whites both fail. Every blessing of a new reference is a row of
+  `src-tauri/tests/look/LEDGER.tsv` with its reason, and is refused when a case moved that the
+  row does not name, or when the pixels moved without `cache_version::PIPELINE`. The samples are
+  downloaded by CI and never committed. It runs in the App job on a software GPU, advisory for
+  now. `src-tauri/src/mods/look_check.rs`; the colour difference (`lab`, `delta_e2000`, from
+  RAWmakase `half_check.rs` @ `183e09fd`) is now defined once, in the engine's `colour.rs`.
+- **Sony photos get the lens correction Lightroom applies from the camera, on by default.** An
+  ARW stores the lens's distortion, colour fringing (lateral chromatic aberration) and corner
+  shading for the shot. Lightroom always applies the colour fringing from it, on every Sony body
+  that stores these tables, and the distortion too on the fixed-lens compacts (RX100, RX10, RX0,
+  HX95 and HX99, ZV-1; not the RX1 series), but never the shading. So the camera's switch in
+  Crop > Lens Correction now starts on for a Sony photo with no edit yet and corrects those parts
+  from the camera; the other parts come from the lensfun profile, or from the camera's own tables
+  on Auto when lensfun has none. Before, Sony's correction started off and, switched on, replaced
+  lensfun for all three parts. Sony's distortion is now drawn as a smooth curve through its stored
+  points (a natural cubic spline) rather than straight lines between them, closer to Adobe's. An
+  edited photo keeps its switch where it was. From RAWmakase `44b21d5` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Sony reader, `sony_applies_distortion` and
+  `spline`), in `src-tauri/engine/src/rm_lens_builtin/sony.rs` and `fit.rs`.
+- **Nikon Z photos get the camera's own lens correction.** A Nikon Z body stores its lens's
+  distortion, colour fringing and corner shading for the shot in the NEF (NEFInfo, tag 0xC7D5).
+  For a lens that needs the correction, Lightroom always applies it (Adobe DNG Converter writes it
+  as opcodes), so the camera's switch in Crop > Lens Correction starts on for such a photo with no
+  edit yet and corrects every part the camera stores. For a lens whose correction is optional,
+  Adobe uses it only as the "Camera Settings" profile, so the switch starts off and, switched on,
+  corrects all of it. Nothing is read when the camera's Auto Distortion Control was off. A photo
+  edited before keeps its look until the switch is turned on. From RAWmakase `ae29938` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (the Nikon reader and its tests), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`; the photo's size, which places the radius, is
+  read with rawler.
+- **Nikon Coolpix P950, P1000 and P1100 photos get the camera's own lens correction, on by
+  default.** These cameras store distortion and colour-fringing tables in the NRW (records 2 and 3
+  of its NEFInfo), which Adobe DNG Converter writes as opcodes and Lightroom always applies. The
+  camera's switch in Crop > Lens Correction starts on for such a photo with no edit yet and
+  corrects those two parts from the camera; corner shading comes from the lensfun profile when it
+  has one. The distortion is drawn as a smooth curve through the stored points and scaled to
+  Adobe's framing. The A1000 stores another layout, which is not read. A photo edited before keeps
+  its look until the switch is turned on. From RAWmakase `d37942f` (MIT):
+  `crates/rawmakase-model/src/lens/embedded.rs` (`coolpix_tables` and its test), in
+  `src-tauri/engine/src/rm_lens_builtin/nikon.rs`.
+- **Olympus and OM System photos get the camera's own lens correction.** Every ORF carries the
+  distortion model of the lens, and its colour fringing (lateral chromatic aberration) where the
+  lens has some, in the maker note (ImageProcessing 0x150A and 0x150C). Lightroom applies it
+  whatever its profile setting, so the switch in Crop > Lens Correction starts on for an ORF with
+  no edit yet, and the camera's data corrects the distortion and fringing it stores; the
+  vignetting, which the file does not store, stays with the lensfun profile. Against the warp
+  Adobe DNG Converter 18.7 writes for an E-M10 Mark III photo, the correction is within 0.1 px
+  (the test). From RAWmakase @ `af35e25` (MIT): the Olympus reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/olympus.rs`,
+  with the model sampling shared by the makers' readers in `rm_lens_builtin/fit.rs`.
+- **Panasonic (and Leica RWL) photos get the camera's own lens correction.** Every RW2 carries
+  the camera's distortion correction (IFD0 0x0119) and, for lenses that have the data, its
+  colour fringing (0x011B, applied as Adobe's smooth fit of it). Lightroom applies both whatever
+  its profile setting, so the switch in Crop > Lens Correction starts on for an RW2 with no edit
+  yet, and the camera's data corrects what it stores; the fringing is corrected even where the
+  distortion correction is off, as Adobe does; vignetting stays with the lensfun profile.
+  Against Adobe DNG Converter 18.7's warps of raw.pixls.us photos (GX9, GM5, G80, TZ202, GH7)
+  the correction is within 0.1 px (the tests). From RAWmakase @ `af35e25` and `d04ef4f` (MIT):
+  the Panasonic reader in `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/panasonic.rs`.
+- **Samsung photos get the camera's own lens correction.** The NX200 and later NX bodies, the NX
+  mini, the Galaxy NX and the EX2F store the camera's distortion and colour fringing models in
+  the SRW's maker note (0xA050 and 0xA051, offset by its EncryptionKey). Adobe writes them into
+  its DNGs as a warp that always applies, so the switch in Crop > Lens Correction starts on for
+  an SRW with no edit yet, and the camera's data corrects what it stores; vignetting stays with
+  the lensfun profile. As Adobe does, the data is not used for the lenses and compacts Adobe has
+  its own profiles for (NX 30mm F2, 18-55mm and 50-200mm; EX1, WB2000) nor on the first bodies
+  (NX5, NX10, NX100, NX11): there the lensfun profile corrects everything, as before. Against
+  Adobe DNG Converter 18.7's warps of NX200, EX2F and NX mini photos the correction is within
+  0.1 px (the tests). From RAWmakase @ `0b7d217` (MIT): the Samsung reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in
+  `src-tauri/engine/src/rm_lens_builtin/samsung.rs`.
+- **Canon EOS R5 Mark II and R6 Mark III photos can use the camera's own lens correction.**
+  Their CR3s carry the lens's vignetting, colour fringing and distortion tables in record 14 of
+  the timed metadata, which Adobe turns into a "Camera Settings" lens profile that Lightroom
+  applies only with profile corrections on, and for these two bodies alone. So the switch in
+  Crop > Lens Correction is there and starts off; switched on, it corrects all three, the
+  distortion as Adobe fits it. Other Canon bodies, including the R50 V, which stores the same
+  record, get nothing from it, as in Lightroom. Against the profiles and warps Adobe DNG Converter
+  18.7 writes for an R6 Mark III and an R5 Mark II photo, the correction is within 0.2 px and
+  the light kept within 0.001 (the tests). From RAWmakase @ `37ea972` (MIT): the Canon reader in
+  `crates/rawmakase-model/src/lens/embedded.rs`, in `src-tauri/engine/src/rm_lens_builtin/canon.rs`,
+  the CR3's boxes read with rawler's.
 
 ### Changed
 
+- **Faster slider moves with Glow, Halation, masks or a LUT, same pixels.** What a render leaves on
+  the GPU is kept for the next one when it still holds: the Glow and Halation blurs while the
+  photo, the region and sharpening are unchanged (sharpening rewrites the texture the blurs read,
+  so its writes are part of the key), the mask bitmaps while their pixels are the same, and the
+  LUT while it is the same one. Each tile reads back only its own part, not its overlap; the two
+  full-size display textures are made by the first render that draws to the screen, so a
+  processor that never does (an export, the JPEG preview path) no longer holds them; and a GPU
+  device lost to the driver is replaced on the next render instead of failing every render after
+  it. A slider tick at the default 1920 px preview with Glow, Halation, a mask and a LUT went from
+  16.9 to 8.0 ms on the reference laptop; renders are byte-identical on five RAWs
+  (`src-tauri/src/mods/render_check.rs`). From RapidRAW `src-tauri/src/gpu_processing.rs` @
+  `7d6dd5c0`, `c756671d`, `707a78d6` and `cc480a4e`. Not taken: their tiled blur shader
+  (`shaders/blur.wgsl` @ `cc8200a9`), which measured slower here (a 3200 px tick 59 to 76 ms).
+- **The histogram and waveform keep up with a slider.** They are counted straight from the GPU's
+  readback buffer, which is reused from a small pool, on one thread that drops a frame a newer one
+  has overtaken; the waveform is counted in bands of rows on every core. Before, each frame was
+  copied into an image on a thread of its own, and the editor asked for them at most 30 times a
+  second while dragging; it now asks on every frame. The same histogram and waveform, checked on
+  five RAWs. From RapidRAW `src-tauri/src/gpu_processing.rs`, `image_processing.rs` and `lib.rs`
+  @ `cc8200a9` and `c756671d`, and `src/hooks/useImageProcessing.ts` @ `e1a86bc1` and
+  `c756671d`. Not taken: their move of the analytics to a Channel with ImageBitmap waveforms
+  (`707a78d6`), which changes the waveform panel as well.
+- **A quarter less memory per open RAW.** The develop now hands the photo on as RGB instead of
+  RGBA, whose fourth channel was always 1 (on a 24-megapixel photo, 288 MB instead of 384 MB), and
+  moves its pixels rather than copying them; the lens warp and the artifact removal read it in
+  place. The pixels are the same: every step that needs four channels already adds the fourth.
+  From RapidRAW `346a49ea`: `src-tauri/src/raw_processing.rs` and `image_processing.rs`.
 - **RapidRAW is no longer merged; its releases are harvested by hand.** Argentum was forked at
   RapidRAW 1.6.6 and takes later releases' changes one at a time, each credited with its source
   commit, as it does darktable's. The merge checks (`check:merge`: the line ratchet, the registry,
@@ -84,6 +350,18 @@ Newest first.
 
 ### Fixed
 
+- **Community preset previews no longer download cloud-only photos.** The previews were drawn on
+  photos picked from the open folder, cloud-only ones (a OneDrive placeholder) included, which
+  downloaded them just to make a thumbnail. Only photos on disk are used now, and the default
+  image when the folder has none. From RapidRAW `9e518220`:
+  `src/components/panel/CommunityPage.tsx`.
+- **AI masks and Show Original follow the camera's lens correction.** On a photo whose camera's
+  lens correction is on (Fujifilm and DNG by default), Subject, Sky, Foreground and Depth masks
+  were computed on the photo without it, so they could sit a few pixels off the corrected photo
+  toward its edges, and Show Original dropped it, so the frame moved between before and after.
+  Both now take the camera's switch and tables with the rest of the photo's geometry
+  (`builtinKeys` in `src/argentum/lensBuiltin.ts`), and the AI masks' cached embeddings are
+  keyed on them too (`src-tauri/src/ai_commands.rs`). Masks already made keep their shape.
 - **A RAW and its JPEG keep the XMP they share, and renamed photos take theirs.** `IMG.xmp` is
   the XMP of `IMG.CR2` and `IMG.jpg` alike. Deleting only the RAW trashed it and moving only the
   RAW took it away, so the JPEG lost its rating and labels for other programs; now a delete leaves
@@ -177,13 +455,6 @@ Newest first.
   `filled` in `src/argentum/lensBuiltin.ts`, with its tests. Tests also pin what today's readers
   return for a Fujifilm, a DJI DNG and a Sony file, and today's warp and its inverse with the
   camera's tables, with lensfun's and with both, so a later change that moves any of them fails.
-
-### Removed
-
-- **Tauri's HTTP plugin** (`tauri-plugin-http`), which only RapidRAW Cloud's store would call, and
-  that store never starts. 19 crates fewer in `Cargo.lock` (838 to 819), among them a second copy
-  of `reqwest`. Downloads (AI models, camera profiles) use the app's own `reqwest` and the update
-  check the window's `fetch`; both are unchanged.
 
 ## 26.43.3 — 2026-10-23
 

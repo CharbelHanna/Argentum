@@ -94,6 +94,20 @@ export const CREDITS: CreditGroup[] = [
     ],
   },
   {
+    heading: 'RAW decoding',
+    entries: [
+      {
+        name: 'FlashRaw',
+        href: 'https://github.com/ybouane/flashraw',
+        what:
+          'With Settings > Processing > RAW decoder on FlashRaw, it unpacks the pixels of Canon, ' +
+          'Fujifilm, Olympus, Panasonic and Pentax RAW files, faster, inside rawler’s reading of the ' +
+          'file: only on the formats where its pixels were measured identical to rawler’s. Used as a ' +
+          'library. MIT or Apache-2.0.',
+      },
+    ],
+  },
+  {
     heading: 'RAW rendering',
     entries: [
       {
@@ -106,7 +120,9 @@ export const CREDITS: CreditGroup[] = [
           'applied so hues hold; and Lightroom’s default sharpening, matched against RAWmakase’s ' +
           'output. B&W’s black and white mix is RAWmakase’s too: the grey Camera Raw makes of each ' +
           'colour, measured on a colour chart; and Color Grading for new edits and Looks is ' +
-          'RAWmakase’s measured copy of Lightroom’s. RAWmakase is also where the comparison ' +
+          'RAWmakase’s measured copy of Lightroom’s. The camera’s own lens correction is read as ' +
+          'RAWmakase reads it: the distortion, colour fringing and vignetting tables each make ' +
+          'stores in its RAW files, and which of them Lightroom applies. RAWmakase is also where the comparison ' +
           'started. MIT.',
       },
       {

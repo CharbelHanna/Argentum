@@ -464,12 +464,72 @@ pub fn render_high_precision(
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let (width, height) = base_image.dimensions();
-    let max_dim = context.limits.max_texture_dimension_2d;
-    if width > max_dim || height > max_dim {
-        return Err(format!(
-            "{width}x{height} exceeds this GPU's maximum texture dimension of {max_dim}"
-        ));
+    HighPrecisionRenderer::new(context, width, height)?.render(base_image, request)
+}
+
+/// A high-precision processor kept for several renders of images up to one
+/// size, for a caller that renders many in a row: the look check
+/// (mods/look_check.rs). Building one compiles every pipeline, which on a
+/// software adapter takes far longer than the render.
+///
+/// `render_high_precision` builds one for each export and drops it; the
+/// preview path keeps one the same way, reusing it for any image up to its
+/// size (`process_and_get_dynamic_image_inner`). Not serialised by
+/// `ONE_AT_A_TIME`: whoever keeps one owns its memory.
+pub struct HighPrecisionRenderer {
+    context: GpuContext,
+    processor: GpuProcessor,
+    max_width: u32,
+    max_height: u32,
+}
+
+impl HighPrecisionRenderer {
+    /// A renderer for images of up to `max_width` x `max_height`.
+    pub fn new(context: &GpuContext, max_width: u32, max_height: u32) -> Result<Self, String> {
+        let max_dim = context.limits.max_texture_dimension_2d;
+        if max_width > max_dim || max_height > max_dim {
+            return Err(format!(
+                "{max_width}x{max_height} exceeds this GPU's maximum texture dimension of {max_dim}"
+            ));
+        }
+        let processor = GpuProcessor::new_with_precision(
+            context.clone(),
+            (max_width + 255) & !255,
+            (max_height + 255) & !255,
+            Precision::High,
+        )?;
+        Ok(Self {
+            context: context.clone(),
+            processor,
+            max_width,
+            max_height,
+        })
     }
+
+    pub fn render(
+        &self,
+        base_image: &DynamicImage,
+        request: RenderRequest,
+    ) -> Result<DynamicImage, String> {
+        let (width, height) = base_image.dimensions();
+        if width > self.max_width || height > self.max_height {
+            return Err(format!(
+                "{width}x{height} is larger than this renderer's {}x{}",
+                self.max_width, self.max_height
+            ));
+        }
+        render_on(&self.context, &self.processor, base_image, request)
+    }
+}
+
+/// One render on `processor`, which is at least as large as `base_image`.
+fn render_on(
+    context: &GpuContext,
+    processor: &GpuProcessor,
+    base_image: &DynamicImage,
+    request: RenderRequest,
+) -> Result<DynamicImage, String> {
+    let (width, height) = base_image.dimensions();
 
     // f16 on the way in, as upstream uploads it. See the note at the top of this
     // file: the flare pass samples this texture through a filtering sampler, and
@@ -495,13 +555,6 @@ pub fn render_high_precision(
         bytemuck::cast_slice(&texels),
     );
     let input_view = input_texture.create_view(&Default::default());
-
-    let processor = GpuProcessor::new_with_precision(
-        context.clone(),
-        (width + 255) & !255,
-        (height + 255) & !255,
-        Precision::High,
-    )?;
 
     // RapidRAW 1.6.5's shadows, highlights, clarity and dehaze read guided-filter
     // coefficients built from the input, the same way their preview builds them.
@@ -1490,6 +1543,35 @@ mod gpu_tests {
             let each = start.elapsed() / ROUNDS;
             println!("MEASURED: {label} processor build = {each:?} each");
         }
+    }
+
+    /// A renderer kept for many renders, built larger than each image, gives
+    /// back what the export's own processor, built for that image, does: to
+    /// the bit, for two images of different sizes in a row.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_kept_renderer_renders_what_a_fresh_one_does() {
+        let Some(context) = device() else {
+            panic!("no wgpu adapter - this test cannot tell you anything on this machine");
+        };
+        let request = || RenderRequest {
+            adjustments: neutral(),
+            mask_bitmaps: &[],
+            lut: None,
+            roi: None,
+        };
+        let kept = HighPrecisionRenderer::new(&context, 1600, 1600).expect("builds");
+        for (w, h) in [(1003, 517), (640, 1201)] {
+            let base = fine_ramp(w, h);
+            let fresh = render_high_precision(&context, &base, request()).expect("renders");
+            let again = kept.render(&base, request()).expect("renders");
+            assert_eq!(
+                fresh.to_rgba32f().as_raw(),
+                again.to_rgba32f().as_raw(),
+                "{w}x{h}"
+            );
+        }
+        assert!(kept.render(&fine_ramp(1601, 8), request()).is_err());
     }
 
     /// The same render at Preview precision must still be 8-bit, or the negative
