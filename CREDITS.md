@@ -121,6 +121,12 @@ Lightroom applies by default (`crates/rawmakase-model/src/lens/embedded.rs`,
 `optics/mod.rs` and `dng.rs`, from v0.4.0). Each make's reader in
 `src-tauri/engine/src/rm_lens_builtin/` names the RAWmakase commit it was copied from.
 
+**Some RAW files are read as RAWmakase measured them**, in Argentum's copy of
+rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
+(ColorData version 67, `canon_cr3.rs` @ `3c54413`), and the corrected colour
+matrices and white levels of a few bodies (`data/raw-matrices.toml` and
+`data/raw-cameras.toml` @ `a8c5d6d7`), which carry Adobe DNG Converter 18.7's.
+
 RAWmakase is also where the comparison started: it showed that the flatness of
 Argentum's default rendering was the tone, not the decoder. What Argentum does not
 take from it: its own decoder and demosaic, its *Color* look, its measured

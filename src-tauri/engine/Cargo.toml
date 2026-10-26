@@ -15,7 +15,7 @@ exclude = ["reference"]
 
 [dependencies]
 # The same pinned fork the app decodes with (src-tauri/Cargo.toml).
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "930e6ce2978165809409635624f5b29b372ed01f" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "e865df57b7da0607e6c5c972c2a2ce47a486c2e3" }
 # Unpacks the sensor data of the formats measured identical to rawler's,
 # faster (src/flashraw.rs). Pinned: a new version is measured again first.
 # Its sensor output only: no colour management, no JPEG XL, no GPU.
