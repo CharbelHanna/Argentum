@@ -60,8 +60,8 @@ const CANON_DISTORTION_MAX: f64 = 1.0275;
 const LENS_RECORD: u16 = 14;
 
 /// The tables in a CR3 of either body; `None` for a file that is not a CR3,
-/// one of another body, or one without the record. `size_px` is the decoded
-/// image's, which the tables are measured in, as in RAWmakase.
+/// one of another body, or one without the record. `size_px` is the
+/// developed image's.
 pub(super) fn read(file: &[u8], size_px: &dyn Fn() -> Option<[f64; 2]>) -> Option<LensCorrection> {
     if file.get(4..12) != Some(b"ftypcrx ".as_slice()) {
         return None;

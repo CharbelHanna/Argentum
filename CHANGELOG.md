@@ -47,16 +47,18 @@ Newest first.
   of the centre on a Z 9, 21 px left on a Pixel 6 Pro). It zooms only as far as green's samples
   for the photo's edge need to stay inside, as Adobe's warps do, so neither a distortion ratio
   above 1 inside the frame nor red and blue reaching past the corner zoom in (RAWmakase: a Z5 II
-  photo in DX crop from 33 px off Camera Raw to 0.15 px). Fujifilm's, Sony's and Canon's tables
-  are read in the decoded image, as RAWmakase reads them, and moved into the developed image,
-  where before they were taken as the default crop's own (1.8% in radius on an A7 IV). The
-  camera's lateral CA turns about the same centre in the warp. An edit that already applies the
-  correction keeps the tables it was saved with, and with them its centre and framing, so no
-  saved photo moves. Engine `rm_lens_builtin.rs` (`centre`, `reach`, `fill_scale`, `LensMap`,
-  `into_developed`), `rm_lens_builtin/nikon.rs` and `dng.rs`, `develop.rs`
-  (`developed_frame_px`), app `image_processing.rs`. The golden photos' check against
-  RAWmakase's record compares in pixels now (`look_check/lens_baseline.rs`, with the record's
-  decoded image and default crop in `rm_lens_baselines.tsv`).
+  photo in DX crop from 33 px off Camera Raw to 0.15 px). The camera's lateral CA turns about the
+  same centre in the warp. Fujifilm's, Sony's and Canon's tables stay centred on the developed
+  image as before: RAWmakase centres them on its decoded image, which the RAW decoder here
+  frames differently for those bodies. An edit that already applies the correction keeps the
+  tables it was saved with, and with them its centre and framing, so no saved photo moves.
+  Engine `rm_lens_builtin.rs` (`centre`, `reach`, `fill_scale`, `LensMap`),
+  `rm_lens_builtin/nikon.rs` and `dng.rs`, `develop.rs` (`developed_frame_px`), app
+  `image_processing.rs`. The golden photos' check against RAWmakase's record compares in pixels
+  now (`look_check/lens_baseline.rs`, with the record's decoded image and default crop in
+  `rm_lens_baselines.tsv`): the Olympus, Nikon Z 9, Pixel 6 Pro and DJI photos match it, and the
+  Sony, Fujifilm and Canon ones are held to what they measure apart today (0.7 to 6.1 px at the
+  centre).
 - **Basic inpainting and the Quick Eraser keep the texture around what they remove.** The fill
   model works on at most 768 by 768 pixels; on a larger area it used to be scaled back up from
   there, so a removed wire or person left a soft, smeared patch on a sharp photo. Each filled

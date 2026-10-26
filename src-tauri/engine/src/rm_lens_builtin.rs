@@ -65,11 +65,15 @@
 //!   is the default crop, so `fill_scale` keeps its own edge inside and
 //!   takes no frame. RAWmakase centres Olympus, Panasonic and Samsung on the
 //!   default crop's centre, which is the developed image's centre here.
-//! - Fujifilm's, Sony's and Canon's tables are measured in the decoded image,
-//!   centred on it, as RAWmakase reads them, and moved into the developed
-//!   image (`into_developed`). Before, they were taken as the developed
-//!   image's own, which is smaller by the default crop: 1.8% in radius, and
-//!   2 px off centre, on an A7 IV.
+//! - RAWmakase measures Fujifilm's, Sony's and Canon's tables in its decoded
+//!   image, centred on it. rawler's decoded image is another for those
+//!   bodies (an A7 IV's has no active area, so it keeps masked columns; an
+//!   X-T30 III's is marked TODO; an R5 Mark II's has a bug hint), so moving
+//!   the tables from it put the centre 22 px off RAWmakase's on the golden
+//!   A7 IV. Here they stay centred on the developed image, radius 1 at its
+//!   half diagonal: within 2.2 px of RAWmakase's centre on the golden Sony
+//!   and Canon photos, 6 px on the X-T30 III (`look_check/lens_baseline.rs`
+//!   holds those numbers).
 //! - The centre is an `Option`: a correction stored in an edit before it was
 //!   read has none, and keeps its centre and framing then (`fill_scale_with`,
 //!   Sony's `fill_scale_within`), so no saved photo moves. RAWmakase gives
@@ -547,46 +551,16 @@ fn read_with_frame(
     let once = std::cell::OnceCell::new();
     let frame = || *once.get_or_init(frame);
     let size_px = || frame().map(|f| [f.crop[2], f.crop[3]].map(|v| v as f64));
-    let decoded_px = || frame().map(|f| f.decoded.map(|v| v as f64));
-    // RAWmakase 52da1bf: docs/lens-corrections.md
-    // Fujifilm's, Sony's and Canon's tables are centred on the decoded image,
-    // their radius 1 at its half diagonal.
-    let in_decoded = |c: Option<LensCorrection>| match frame() {
-        Some(f) => c.map(|c| into_developed(c, f)),
-        None => c,
-    };
-    let mut c = in_decoded(fuji::read(file))
+    let mut c = fuji::read(file)
         .or_else(|| dng::read(file, &frame))
         .or_else(|| nikon::read(file, &frame))
         .or_else(|| samsung::read(file, &size_px))
-        .or_else(|| in_decoded(sony::read(file)))
+        .or_else(|| sony::read(file))
         .or_else(|| olympus::read(file, &size_px))
         .or_else(|| panasonic::read(file, &size_px))
-        .or_else(|| in_decoded(canon::read(file, &decoded_px)))?;
+        .or_else(|| canon::read(file, &size_px))?;
     c.centre.get_or_insert(LensCorrection::IMAGE_CENTRE);
     (!c.is_empty() && c.validate()).then_some(c)
-}
-
-/// A correction measured in the decoded image of `frame` (its centre in
-/// fractions of it, the image centre when it has none, and radius 1 at its
-/// half diagonal) as one in the developed image, its default crop.
-fn into_developed(c: LensCorrection, frame: DevelopedFrame) -> LensCorrection {
-    let [dw, dh] = frame.decoded.map(|v| v as f32);
-    let [left, top, w, h] = frame.crop.map(|v| v as f32);
-    let [cx, cy] = c.centre.unwrap_or(LensCorrection::IMAGE_CENTRE);
-    let centre = [(cx * dw - left) / w, (cy * dh - top) / h];
-    let k = dw.hypot(dh) / w.hypot(h);
-    let rescaled = |r: Radial| Radial {
-        knots: r.knots.into_iter().map(|x| x * k).collect(),
-        values: r.values,
-    };
-    LensCorrection {
-        vignetting: c.vignetting.map(rescaled),
-        distortion: c.distortion.map(rescaled),
-        chromatic: c.chromatic.map(|ca| ca.map(rescaled)),
-        centre: Some(centre),
-        ..c
-    }
 }
 
 /// A TIFF's first bytes, little- or big-endian: how a DNG, an ARW, a NEF
@@ -978,38 +952,6 @@ mod tests {
         let margin = |[x, y]: [f32; 2]| (150. - x.abs()).min(100. - y.abs());
         assert!(corners.iter().all(|c| margin(*c) > -0.01), "{corners:?}");
         assert!(corners.iter().any(|c| margin(*c) < 0.05), "{corners:?}");
-    }
-
-    /// Sony's tables are measured in the decoded image: moved into its
-    /// default crop (the A7 IV golden photo's, 44 and 30 pixels in), a point
-    /// as many pixels from the decoded image's centre takes the same value.
-    #[test]
-    fn a_correction_measured_in_the_decoded_image_moves_into_the_crop() {
-        let c = LensCorrection {
-            distortion: Radial::new(vec![0., 0.5, 1.], vec![1., 1.02, 1.08]),
-            ..Default::default()
-        };
-        let frame = DevelopedFrame {
-            decoded: [4692, 3132],
-            crop: [44, 30, 4608, 3072],
-        };
-        let moved = into_developed(c.clone(), frame);
-        let [cx, cy] = moved.centre.unwrap();
-        assert!((cx * 4608. - 2302.).abs() < 1e-2 && (cy * 3072. - 1536.).abs() < 1e-2);
-        let (decoded, cropped) = (4692f32.hypot(3132.) / 2., 4608f32.hypot(3072.) / 2.);
-        for px in [0., 700., 1400., 2800.] {
-            let (a, b) = (c.distortion.as_ref(), moved.distortion.as_ref());
-            let (a, b) = (a.unwrap().eval(px / decoded), b.unwrap().eval(px / cropped));
-            assert!((a - b).abs() < 1e-6, "{px}: {a} {b}");
-        }
-        // A developed image that is the whole decoded one changes nothing but the centre's record.
-        let whole = DevelopedFrame {
-            decoded: [4608, 3072],
-            crop: [0, 0, 4608, 3072],
-        };
-        let same = into_developed(c.clone(), whole);
-        assert_eq!(same.distortion, c.distortion);
-        assert_eq!(same.centre, Some(LensCorrection::IMAGE_CENTRE));
     }
 
     /// A correction stored before its optical centre was read keeps its

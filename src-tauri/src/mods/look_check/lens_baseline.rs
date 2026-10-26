@@ -29,13 +29,72 @@ use argentum_engine::rm_lens_builtin::{DevelopedFrame, LensCorrection, Radial, r
 
 const TABLE: &str = include_str!("../../../tests/look/rm_lens_baselines.tsv");
 
-/// Equal within a tenth of a pixel where a part samples, a thousandth of a
-/// gain, and a twentieth of a pixel for the optical centre: the two sample
+/// How far two readings may be apart: the optical centre and where a part
+/// samples in pixels, a gain as it is.
+#[derive(Clone, Copy, Debug)]
+struct Apart {
+    centre_px: f32,
+    sample_px: f32,
+    gain: f32,
+}
+
+/// Equal within a twentieth of a pixel for the optical centre, a tenth of a
+/// pixel where a part samples, and a thousandth of a gain: the two sample
 /// the same functions at knots that differ with the image, and interpolate
 /// between them.
-const PX: f32 = 0.1;
-const GAIN: f32 = 1e-3;
-const CENTRE_PX: f32 = 0.05;
+const SAME: Apart = Apart {
+    centre_px: 0.05,
+    sample_px: 0.1,
+    gain: 1e-3,
+};
+
+/// Golden photos whose correction ours places apart from RAWmakase's, each by
+/// at most what was measured, never more. RAWmakase measures Fujifilm's,
+/// Sony's and Canon's tables in its decoded image, centred on it; rawler's
+/// decoded image is another for these bodies, so ours stay centred on the
+/// developed image, radius 1 at its half diagonal, and Canon's distortion
+/// keeps the developed image's corner in place (`rm_lens_builtin.rs`).
+/// Measured 2026-10-26, ours worked out from RAWmakase v0.4.6's record by
+/// our readers' rules and rounded up; the golden photos' run holds the files
+/// themselves to it. The same on every build before 52da1bf's port.
+const PLACED_APART: [(&str, &str, Apart); 4] = [
+    (
+        "639a6d4db881f1359e3ea7e1137b314e59417d24e6d4d862b7202111a2c823b2",
+        "Sony ILCE-7M4",
+        Apart {
+            centre_px: 2.01,
+            sample_px: 0.1,
+            gain: 0.006,
+        },
+    ),
+    (
+        "b3c08a5c7a97299dfd58896a12b939e7b43ec78682761812524825e6e5d087be",
+        "Canon EOS R5 Mark II",
+        Apart {
+            centre_px: 2.25,
+            sample_px: 0.1,
+            gain: 0.001,
+        },
+    ),
+    (
+        "1910b95422240f97781fa3296d67a56cc8f62de63144ac11cbf4267a11278042",
+        "Fujifilm X-T30 III",
+        Apart {
+            centre_px: 6.1,
+            sample_px: 1.6,
+            gain: 0.0025,
+        },
+    ),
+    (
+        "7e1a5d84297a52853b0bbe5a5c03a5d4f5b93e00b7020271523240f9cabfe50e",
+        "Canon EOS R6 Mark III",
+        Apart {
+            centre_px: 0.71,
+            sample_px: 0.1,
+            gain: 0.001,
+        },
+    ),
+];
 
 /// Parts our readers read where RAWmakase's read none: the golden photo's
 /// sha256, the part, and why, with what removes the entry. One that no longer
@@ -176,7 +235,11 @@ pub fn check(
         },
         half: dw.hypot(dh) * 0.5,
     };
-    let differ = differences(&ours, &theirs, [ow, oh]);
+    let limit = PLACED_APART
+        .iter()
+        .find(|(sha, ..)| *sha == sha256)
+        .map_or(SAME, |(_, _, apart)| *apart);
+    let differ = differences(&ours, &theirs, [ow, oh], limit);
     let excused: Vec<&str> = OURS_ONLY
         .iter()
         .filter(|(sha, ..)| *sha == sha256)
@@ -205,8 +268,8 @@ pub fn check(
     }
 }
 
-/// Every way the two differ by more than the tolerances, as one line each.
-fn differences(ours: &InPixels, theirs: &InPixels, size: [f32; 2]) -> Vec<String> {
+/// Every way the two differ by more than `limit`, as one line each.
+fn differences(ours: &InPixels, theirs: &InPixels, size: [f32; 2], limit: Apart) -> Vec<String> {
     let (o, t) = (ours.lens, theirs.lens);
     let mut differ = Vec::new();
     if t.default_on != o.default_on {
@@ -216,9 +279,9 @@ fn differences(ours: &InPixels, theirs: &InPixels, size: [f32; 2]) -> Vec<String
         ));
     }
     let off = (ours.centre[0] - theirs.centre[0]).hypot(ours.centre[1] - theirs.centre[1]);
-    if off > CENTRE_PX {
+    if off > limit.centre_px {
         differ.push(format!(
-            "optical centre ({:.2}, {:.2}) against ({:.2}, {:.2}) px",
+            "optical centre ({:.2}, {:.2}) against ({:.2}, {:.2}) px, {off:.3} px apart",
             ours.centre[0], ours.centre[1], theirs.centre[0], theirs.centre[1]
         ));
     }
@@ -255,7 +318,11 @@ fn differences(ours: &InPixels, theirs: &InPixels, size: [f32; 2]) -> Vec<String
                         (if moves { d.abs() * px } else { d.abs() }, px)
                     })
                     .fold((0f32, 0f32), |w, d| if d.0 > w.0 { d } else { w });
-                let (limit, unit) = if moves { (PX, " px") } else { (GAIN, "") };
+                let (limit, unit) = if moves {
+                    (limit.sample_px, " px")
+                } else {
+                    (limit.gain, "")
+                };
                 if worst > limit {
                     differ.push(format!(
                         "{part}: {worst:.3}{unit} apart at {at:.0} px from the centre"
@@ -409,6 +476,26 @@ mod tests {
             values: vec![1., 1.5],
         });
         assert_eq!(check(sha, Some(&ours), developed), Ok(()));
+    }
+
+    /// A photo placed apart passes within what was measured, and fails past it.
+    #[test]
+    fn a_photo_placed_apart_is_held_to_what_was_measured() {
+        let (sha, _, _) = PLACED_APART[0];
+        let (frame, theirs) = recorded(sha).unwrap();
+        // Sony's tables as ours reads them: the same, centred on the developed image.
+        let ours = LensCorrection {
+            centre: Some(LensCorrection::IMAGE_CENTRE),
+            ..theirs.unwrap()
+        };
+        let developed = Some(developed(frame));
+        assert_eq!(check(sha, Some(&ours), developed), Ok(()));
+        let further = LensCorrection {
+            centre: Some([0.5005, 0.5]),
+            ..ours
+        };
+        let said = check(sha, Some(&further), developed).unwrap_err();
+        assert!(said.contains("optical centre"), "{said}");
     }
 
     #[test]
