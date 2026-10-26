@@ -41,6 +41,17 @@ Newest first.
   running at once (with Auto-sync on, every pause of a slider starts one) never decode more
   photos at a time than before. Its worker count limited by memory, from an earlier RapidRAW
   commit, is not taken.
+- **Copy settings works with several photos selected.** Right-click one photo of a selection and
+  Copy settings takes that photo's settings; it used to be greyed out. With one photo selected
+  nothing changes. From RapidRAW `src/hooks/useAppContextMenus.ts` @ `2ce74721` (its bottom-bar
+  half went with the Classic layout).
+- **Right-click menus are as wide as their longest label,** 256 to 320 px (submenus 224 to 288),
+  instead of a fixed 256 (224) px that wrapped or cut long labels and translations. From
+  RapidRAW `src/context/ContextMenuContext.tsx` @ `a6664bd2` (its menu sizing only; that
+  commit's Denoise and Negative toggles are not taken).
+- **The translation check also flags a translation that drops a `{{placeholder}}`** its English
+  has. None does today; the check stays advisory in CI. From RapidRAW `src/i18n/check-runtime.mjs`
+  @ `1c97bfd2`.
 
 ### Fixed
 
@@ -69,6 +80,22 @@ Newest first.
   (`DecodeFingerprint`); highlight recovery is ours. Not taken from the same commit: one decode
   shared by two callers, and RapidRAW `9be01048` (full-size previews reusing the cache). Our
   cache has no memory limit yet, and they would keep more full-size photos in it.
+- **Searching for a tag such as "summer" or "family" finds it.** A search tag that started with
+  an EXIF field's name was read as a query on that field, so "summer" searched for a shutter
+  speed of "ummer" and found nothing. A field now counts only with a colon, an operator or a
+  space after it: `iso:>800`, `f:<=2.8` and `camera sony` work as before. From RapidRAW
+  `src/hooks/useSortedLibrary.ts` @ `1c2f1d64`, adapted: theirs drops the space form.
+- **Opening a folder expands the folder tree under its own root.** With `D:\Photos` and
+  `D:\Photos2` both added, a folder in `D:\Photos2` was expanded under `D:\Photos`. A root now
+  matches on whole folder names, and the deepest one holding the folder wins. From RapidRAW
+  `src/hooks/useAppNavigation.ts` @ `d6d90783`.
+- **The red mask overlay goes away once the pointer is on the photo.** Hovering a control in the
+  Masks panel shows its mask in red, and a control scrolled away or removed from under the
+  pointer could leave it on. From RapidRAW `src/components/panel/Editor.tsx` @ `2fa31148` (its
+  mask half).
+- **A tooltip whose text changes while it shows follows the change,** instead of keeping the old
+  text until the pointer leaves. From RapidRAW `src/components/ui/GlobalTooltip.tsx` @
+  `d2b3ff42` (its tooltip half).
 
 ## 26.43.4 — 2026-10-25
 
