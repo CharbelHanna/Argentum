@@ -11,7 +11,14 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { WIRING, harvestWarning, missingWiring, reviewedRelease } from './check-sources.mjs';
+import {
+  WIRING,
+  harvestWarning,
+  missingWiring,
+  pinWarning,
+  pinnedFlashRaw,
+  reviewedRelease,
+} from './check-sources.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const readTree = (file) => {
@@ -79,6 +86,24 @@ test('a newer RapidRAW release asks for a harvest review', () => {
   assert.match(harvestWarning('v1.6.7', tags), /v1\.6\.8 is out .* read up to v1\.6\.7/);
   assert.equal(harvestWarning('v1.6.8', tags), null);
   assert.match(harvestWarning(null, tags), /names no RapidRAW release/);
+});
+
+test('the engine pins one FlashRaw version', () => {
+  assert.match(pinnedFlashRaw(readTree('src-tauri/engine/Cargo.toml')) ?? '', /^\d+\.\d+\.\d+$/);
+  assert.equal(pinnedFlashRaw('flashraw = { version = "=0.1.1", default-features = false }'), '0.1.1');
+  assert.equal(pinnedFlashRaw('flashraw = "0.1"'), null);
+  assert.equal(pinnedFlashRaw('flashraw-core = "=0.1.1"'), null);
+});
+
+test('a newer FlashRaw release asks for a measurement', () => {
+  const tags = new Map([
+    ['v0.1.1', 'a'],
+    ['v0.1.10', 'b'],
+  ]);
+  assert.match(pinWarning('0.1.1', tags), /FlashRaw v0\.1\.10 is out and the engine pins 0\.1\.1/);
+  assert.equal(pinWarning('0.1.10', tags), null);
+  assert.equal(pinWarning('0.2.0', tags), null); // published before it was tagged
+  assert.match(pinWarning(null, tags), /no longer pins FlashRaw/);
 });
 
 console.log('');

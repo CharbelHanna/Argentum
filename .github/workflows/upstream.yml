@@ -3,9 +3,9 @@ name: Upstream
 # What Argentum takes from other projects (scripts/check-sources.mjs), as a
 # required check. Argentum was forked from RapidRAW at 1.6.6 and no longer
 # merges it, so no history and no upstream remote are needed: the check fails
-# only when wiring a feature depends on is gone, and warns when RapidRAW or
-# RAWmakase has a release to review. The job keeps its name because branch
-# protection requires it by name.
+# only when wiring a feature depends on is gone, and warns when RapidRAW,
+# RAWmakase or FlashRaw has a release to review. The job keeps its name because
+# branch protection requires it by name.
 
 on:
   push:
