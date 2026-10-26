@@ -38,6 +38,27 @@ Newest first.
 
 ### Changed
 
+- **The camera's own lens correction turns about the lens's optical centre and is framed as
+  Lightroom frames it, from the next time it is switched on.** As RAWmakase 0.4.6 reads it
+  (`52da1bf`, MIT), each correction is measured from where the camera's data or Adobe's own
+  output places the optical centre: a Nikon Z body's NEFInfo record 8, a DNG's opcodes their own
+  centre with the radius as the DNG SDK normalizes it, Olympus, Panasonic and Samsung the default
+  crop's centre, the rest the image centre (RAWmakase's record of the golden photos: 12 px right
+  of the centre on a Z 9, 21 px left on a Pixel 6 Pro). It zooms only as far as green's samples
+  for the photo's edge need to stay inside, as Adobe's warps do, so neither a distortion ratio
+  above 1 inside the frame nor red and blue reaching past the corner zoom in (RAWmakase: a Z5 II
+  photo in DX crop from 33 px off Camera Raw to 0.15 px). The camera's lateral CA turns about the
+  same centre in the warp. Fujifilm's, Sony's and Canon's tables stay centred on the developed
+  image as before: RAWmakase centres them on its decoded image, which the RAW decoder here
+  frames differently for those bodies. An edit that already applies the correction keeps the
+  tables it was saved with, and with them its centre and framing, so no saved photo moves.
+  Engine `rm_lens_builtin.rs` (`centre`, `reach`, `fill_scale`, `LensMap`),
+  `rm_lens_builtin/nikon.rs` and `dng.rs`, `develop.rs` (`developed_frame_px`), app
+  `image_processing.rs`. The golden photos' check against RAWmakase's record compares in pixels
+  now (`look_check/lens_baseline.rs`, with the record's decoded image and default crop in
+  `rm_lens_baselines.tsv`): the Olympus, Nikon Z 9, Pixel 6 Pro and DJI photos match it, and the
+  Sony, Fujifilm and Canon ones are held to what they measure apart today (0.7 to 6.1 px at the
+  centre).
 - **Basic inpainting and the Quick Eraser keep the texture around what they remove.** The fill
   model works on at most 768 by 768 pixels; on a larger area it used to be scaled back up from
   there, so a removed wire or person left a soft, smeared patch on a sharp photo. Each filled

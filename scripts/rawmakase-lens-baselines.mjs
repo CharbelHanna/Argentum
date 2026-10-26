@@ -36,11 +36,6 @@ export const SAMPLES = 'src-tauri/tests/look/samples.tsv';
  */
 export const LEFT_OUT = [
   {
-    field: 'centre',
-    reason: "Argentum's readers record no optical centre yet; the correction is centred on the image",
-    removedWhen: 'the framing copy (RAWmakase 52da1bf) adds LensCorrection.centre',
-  },
-  {
     field: 'gain_map',
     reason: "a DNG's gain maps are applied in Argentum's decode (mods/decode.rs), not carried in the lens correction",
     removedWhen: 'the lens correction carries them',
@@ -72,9 +67,23 @@ function sorted(value) {
 }
 
 /**
- * The table's rows: a golden photo's id, its sha256, RAWmakase's lens record
- * and its stand-in record (JSON, `null` for none), LEFT_OUT's fields removed. A
- * golden photo RAWmakase has not recorded has no row.
+ * The image RAWmakase's record is measured in: its decoded image's width and
+ * height, and the default crop's left, top, width and height in it, in pixels.
+ * Its radii are in units of the decoded image's half diagonal and its centre in
+ * fractions of it; Argentum's are in its developed image, the default crop.
+ */
+function frameOf(metadata) {
+  const keys = ['width', 'height', 'crop_left', 'crop_top', 'crop_width', 'crop_height'];
+  const values = keys.map((key) => metadata[key]);
+  if (!values.every(Number.isInteger)) throw new Error(`a record has no ${keys.join(', ')}`);
+  return values.join(' ');
+}
+
+/**
+ * The table's rows: a golden photo's id, its sha256, the image RAWmakase
+ * measures in (`frameOf`), RAWmakase's lens record and its stand-in record
+ * (JSON, `null` for none), LEFT_OUT's fields removed. A golden photo RAWmakase
+ * has not recorded has no row.
  *
  * RAWmakase keeps a correction in two records: `lens`, what is applied from the
  * file whatever the lens profile, and `lens_stand_in`, what stands in for a
@@ -101,7 +110,13 @@ export function lensRows(baselines, photos, leftOut = LEFT_OUT) {
     if (!file) continue;
     const metadata = file.header?.metadata ?? {};
     rows.push(
-      [id, sha256, JSON.stringify(kept(metadata.lens)), JSON.stringify(kept(metadata.lens_stand_in))].join('\t'),
+      [
+        id,
+        sha256,
+        frameOf(metadata),
+        JSON.stringify(kept(metadata.lens)),
+        JSON.stringify(kept(metadata.lens_stand_in)),
+      ].join('\t'),
     );
   }
   const stale = leftOut.filter(({ field }) => !seen.has(field));

@@ -41,19 +41,24 @@ const test = async (name, fn) => {
 };
 
 const radial = { values: [1, 1.01], knots: [0, 1] };
+const frame = { width: 300, height: 200, crop_left: 2, crop_top: 1, crop_width: 296, crop_height: 198 };
 const record = {
   files: [
     {
       sha256: 'aaa',
       header: {
         metadata: {
+          ...frame,
           lens: { source: 'X built-in', default_on: true, distortion: radial, centre: [0.5, 0.5] },
           lens_stand_in: { source: 'X built-in', vignetting: radial, centre: [0.5, 0.5] },
         },
       },
     },
-    { sha256: 'bbb', header: { metadata: {} } },
-    { sha256: 'ccc', header: { metadata: { lens: { source: 'DNG opcodes', gain_map: {}, distortion: null } } } },
+    { sha256: 'bbb', header: { metadata: { ...frame } } },
+    {
+      sha256: 'ccc',
+      header: { metadata: { ...frame, lens: { source: 'DNG opcodes', gain_map: {}, distortion: null } } },
+    },
   ],
 };
 const leftOut = [
@@ -61,7 +66,7 @@ const leftOut = [
   { field: 'gain_map', reason: 'test', removedWhen: 'test' },
 ];
 
-await test('a row is a golden photo, its sha256, its record and its stand-in, fields left out, keys in order', () => {
+await test('a row is a golden photo, its sha256, its frame, its record and its stand-in, fields left out, keys in order', () => {
   const rows = lensRows(
     record,
     [
@@ -73,11 +78,17 @@ await test('a row is a golden photo, its sha256, its record and its stand-in, fi
     leftOut,
   );
   assert.deepEqual(rows, [
-    '1\taaa\t{"default_on":true,"distortion":{"knots":[0,1],"values":[1,1.01]},"source":"X built-in"}' +
+    '1\taaa\t300 200 2 1 296 198' +
+      '\t{"default_on":true,"distortion":{"knots":[0,1],"values":[1,1.01]},"source":"X built-in"}' +
       '\t{"source":"X built-in","vignetting":{"knots":[0,1],"values":[1,1.01]}}',
-    '2\tbbb\tnull\tnull',
-    '4\tccc\t{"distortion":null,"source":"DNG opcodes"}\tnull',
+    '2\tbbb\t300 200 2 1 296 198\tnull\tnull',
+    '4\tccc\t300 200 2 1 296 198\t{"distortion":null,"source":"DNG opcodes"}\tnull',
   ]);
+});
+
+await test('a record without its frame stops the script', () => {
+  const bare = { files: [{ sha256: 'aaa', header: { metadata: { lens: null } } }] };
+  assert.throws(() => lensRows(bare, [['1', 'aaa']], []), /has no width/);
 });
 
 await test('a field left out that no record holds any more stops the script', () => {

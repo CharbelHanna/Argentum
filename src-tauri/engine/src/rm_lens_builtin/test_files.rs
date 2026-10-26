@@ -10,7 +10,7 @@
 use super::fuji::{FUJI_CHROMATIC, FUJI_DISTORTION, FUJI_IFD, FUJI_VIGNETTING, RAF_TIFF_POINTER};
 use super::nikon::NEF_INFO;
 use super::sony::{SONY_CHROMATIC, SONY_DISTORTION, SONY_VIGNETTING};
-use super::{Amounts, LensCorrection, SUB_IFDS};
+use super::{Amounts, DevelopedFrame, LensCorrection, SUB_IFDS};
 
 /// (tag, type, count, data)
 pub(super) type Entry = (u16, u16, u32, Vec<u8>);
@@ -166,9 +166,15 @@ pub(super) const ZV1_DIST: [i16; 17] = [
 ];
 
 /// The registry's `read` for a test file, which rawler cannot open: its
-/// developed image is `size_px`.
+/// developed image is `size_px`, the whole of the image demosaic makes.
 pub(super) fn read_framed(file: &[u8], size_px: [f64; 2]) -> Option<LensCorrection> {
-    super::read_sized(file, &|| Some(size_px))
+    let [w, h] = size_px.map(|v| v as usize);
+    super::read_with_frame(file, &|| {
+        Some(DevelopedFrame {
+            decoded: [w, h],
+            crop: [0, 0, w, h],
+        })
+    })
 }
 
 /// Little-endian directory of `entries` (tag, type, count, data) at `at`, as a
@@ -363,8 +369,16 @@ pub(super) const Z8: [&str; 4] = [
 
 /// What `c` serializes to, every number to seven significant digits, as
 /// one FNV-1a hash: exact enough to catch any change to a reader, loose
-/// enough to ignore a platform's last-bit difference in `powf`.
+/// enough to ignore a platform's last-bit difference in `powf`. The image
+/// centre, where `read` centres every reader that records no optical centre,
+/// is left out, so a pin moves when a reader's tables or its own centre do.
 pub(super) fn digest(c: &Option<LensCorrection>) -> u64 {
+    let c = c.clone().map(|mut c| {
+        if c.centre == Some(LensCorrection::IMAGE_CENTRE) {
+            c.centre = None;
+        }
+        c
+    });
     fn walk(v: &serde_json::Value, out: &mut String) {
         match v {
             serde_json::Value::Number(n) => out.push_str(&format!("{:.6e}", n.as_f64().unwrap())),
@@ -390,7 +404,7 @@ pub(super) fn digest(c: &Option<LensCorrection>) -> u64 {
         }
     }
     let mut text = String::new();
-    walk(&serde_json::to_value(c).unwrap(), &mut text);
+    walk(&serde_json::to_value(&c).unwrap(), &mut text);
     text.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| {
         (h ^ u64::from(b)).wrapping_mul(0x100_0000_01b3)
     })

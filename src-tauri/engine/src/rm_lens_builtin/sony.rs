@@ -111,8 +111,8 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
             let v: Vec<f64> = v.iter().map(|d| 1. + f64::from(*d) / 16384.).collect();
             let at = spline(&v);
             Radial::new(
-                knots(),
-                knots()
+                knots(1.),
+                knots(1.)
                     .into_iter()
                     .map(|r| at(f64::from(r)) as f32)
                     .collect(),
@@ -134,6 +134,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         distortion,
         chromatic,
         always: None,
+        centre: None,
     };
     // RAWmakase 44b21d5: crates/rawmakase-model/src/lens/embedded.rs
     // Adobe DNG Converter writes the lateral CA of every Sony body with

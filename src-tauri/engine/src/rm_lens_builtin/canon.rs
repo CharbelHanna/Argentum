@@ -187,6 +187,7 @@ fn canon_tables(t: &[u8], unit: f64, size_px: [f64; 2]) -> Option<LensCorrection
         chromatic,
         // Standing in for a profile: switched on, it corrects all three.
         always: None,
+        centre: None,
     })
 }
 

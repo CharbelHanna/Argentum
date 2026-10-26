@@ -51,11 +51,14 @@
 //!   rawler's crops of the Z 7 and Z 8 (8256 x 5504) and of the P950, P1000
 //!   and P1100 (8 and 7 pixels off each side) are the default crops
 //!   RAWmakase's tests use. The Z reader
-//!   reads the size with rawler (`developed_size_px`), which places the
-//!   optical centre's offset; the Coolpix tables are spread to the default
-//!   crop's corner, radius 1 here, and need no size.
-//! - As in RAWmakase at these commits, the correction is centred on the
-//!   image; the optical centre only sets where a Z body's radius 1 is.
+//!   reads where the default crop lies with rawler (`developed_frame`),
+//!   which places the optical centre; the Coolpix tables are spread to the
+//!   default crop's corner, radius 1 here, and need no size.
+//!
+//! RAWmakase `52da1bf` (MIT), the same file: a Z body's correction is
+//! centred on record 8's optical centre, where Adobe's opcodes have theirs,
+//! and its tables are sampled out to the default crop's corner farthest
+//! from it; the Coolpix tables stay centred on the image.
 
 use std::io::Cursor;
 
@@ -63,7 +66,7 @@ use rawler::bits::Endian;
 use rawler::formats::tiff::{Entry, IFD, Value};
 
 use super::fit::{knots, make, spline};
-use super::{LensCorrection, Parts, Radial, SUB_IFDS};
+use super::{DevelopedFrame, LensCorrection, Parts, Radial, SUB_IFDS};
 
 /// NEFInfo, in the raw image's SubIFD.
 pub(super) const NEF_INFO: u16 = 0xc7d5;
@@ -91,7 +94,10 @@ fn stored(e: &Entry) -> Option<&[u8]> {
 
 /// `None` for a file that is not a Nikon TIFF, has no NEFInfo, or one whose
 /// records do not parse or whose correction the camera had off.
-pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
+pub(super) fn read(
+    file: &[u8],
+    frame: &dyn Fn() -> Option<DevelopedFrame>,
+) -> Option<LensCorrection> {
     if !super::is_tiff(file) {
         return None;
     }
@@ -158,17 +164,23 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
     }
     let k = coefficients(d, 0x10, 4)?;
     let scale = 1. / (1. + rational(d, 0x40)?);
-    // The radius is 1 at the default crop's corner farthest from the optical
-    // centre, which tag 8 places in pixels from the image centre. The
-    // correction is centred on the image.
+    // RAWmakase 52da1bf: crates/rawmakase-model/src/lens/embedded.rs
+    // The optical centre, which tag 8 places in pixels from the image centre, as
+    // Adobe's opcodes do (Z 6 DSC_0750: -7.52, +26.30). The radius is 1 at the
+    // default crop's corner farthest from it.
     let [dx, dy] = [4, 12].map(|at| centre.and_then(|c| rational(c, at)).unwrap_or(0.));
-    let (w, h) = super::developed_size_px(file)?;
-    let (w, h) = (w as f64, h as f64);
-    let unit = (w * 0.5 + dx.abs()).hypot(h * 0.5 + dy.abs());
+    let DevelopedFrame { decoded, crop } = frame()?;
+    let [iw, ih] = decoded.map(|v| v as f64);
+    let [left, top, w, h] = crop.map(|v| v as f64);
+    // In the developed image, the default crop.
+    let (cx, cy) = (iw * 0.5 + dx - left, ih * 0.5 + dy - top);
+    let unit = cx.max(w - cx).hypot(cy.max(h - cy));
     let half = w.hypot(h) * 0.5;
     if !(half > 0. && unit > 0. && scale.is_finite() && scale > 0.) {
         return None;
     }
+    let centre = [(cx / w) as f32, (cy / h) as f32];
+    let knots = || knots(super::reach(centre, [w as f32, h as f32]));
     let curve = |f: &dyn Fn(f64) -> f64| {
         let values = knots()
             .into_iter()
@@ -203,6 +215,7 @@ pub(super) fn read(file: &[u8]) -> Option<LensCorrection> {
         distortion,
         chromatic,
         always: None,
+        centre: Some(centre),
     };
     // Adobe writes a lens that needs it as its DNGs' opcodes, which always
     // apply; an optional one as a profile.
@@ -241,8 +254,8 @@ fn coolpix_tables(
     // The tables' radius 1, the default crop's corner, is the developed
     // image's.
     let curve = |f: &dyn Fn(f64) -> f64| {
-        let values = knots().into_iter().map(|r| f(f64::from(r)) as f32);
-        Radial::new(knots(), values.collect())
+        let values = knots(1.).into_iter().map(|r| f(f64::from(r)) as f32);
+        Radial::new(knots(1.), values.collect())
     };
     let ratio = spline(&d);
     // Scaled, as Adobe's warp is, so the widest ratio out to the corner is 1.
@@ -272,6 +285,7 @@ fn coolpix_tables(
         distortion,
         chromatic,
         always: None,
+        centre: None,
     };
     // Adobe writes them as its DNGs' opcodes, which always apply.
     Some(lens.always_correcting(Parts::ALL))
@@ -281,7 +295,9 @@ fn coolpix_tables(
 mod tests {
     use crate::rm_lens_builtin::test_files::{P1100, Z7, Z8, coolpix_file, nikon_file};
     // The registry's `read`, as the app calls it.
-    use crate::rm_lens_builtin::{Amounts, LensCorrection, Parts, developed_size_px, read};
+    use crate::rm_lens_builtin::{
+        Amounts, DevelopedFrame, LensCorrection, LensMap, Parts, developed_frame, read,
+    };
 
     /// Source radius in pixels at output radius `px` from Adobe's
     /// WarpRectilinear coefficients, whose radius 1 is `unit` pixels.
@@ -310,15 +326,34 @@ mod tests {
     /// Against the opcodes Adobe DNG Converter 18.7 writes for the Z 7 file:
     /// its WarpRectilinear and FixVignetteRadial, radius 1 at the 8288 x 5520
     /// image's corner farthest from their centre (4143.2, 2762.0). rawler
-    /// develops its 8256 x 5504 default crop, centred on the same point.
+    /// develops its 8256 x 5504 default crop, 16 and 8 pixels in.
     #[test]
     fn reads_nikon_corrections_as_adobe_does() {
         let file = nikon_file("NIKON Z 7", [8288, 5520], Z7);
-        assert_eq!(developed_size_px(&file), Some((8256, 5504)));
+        assert_eq!(
+            developed_frame(&file),
+            Some(DevelopedFrame {
+                decoded: [8288, 5520],
+                crop: [16, 8, 8256, 5504],
+            })
+        );
         let c = read(&file).unwrap();
         assert!(c.default_on);
         assert_eq!(c.always, Some(Parts::ALL));
         assert_eq!(c.source, "Nikon built-in");
+        // Record 8's optical centre, where Adobe's opcodes have theirs, in
+        // the default crop (RAWmakase 52da1bf's assertion, moved in by it).
+        let [cx, cy] = c.centre.unwrap();
+        let centre = [cx * 8256., cy * 5504.];
+        assert!(
+            (centre[0] - (4143.2 - 16.)).abs() < 0.05 && (centre[1] - (2762. - 8.)).abs() < 0.05,
+            "{centre:?}"
+        );
+        // It samples itself, so the correction turns about it.
+        let map = LensMap::new(&c, 8256., 5504., Amounts::FULL);
+        let axis = [centre[0] - 4128., centre[1] - 2752.];
+        let [x, y] = map.forward(axis[0], axis[1]);
+        assert!((x - axis[0]).abs() < 1e-3 && (y - axis[1]).abs() < 1e-3);
         let warp = [
             [
                 0.9417050022703349,

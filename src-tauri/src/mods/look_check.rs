@@ -229,6 +229,7 @@ impl Run {
             if let Err(e) = lens_baseline::check(
                 &sha,
                 argentum_engine::rm_lens_builtin::read(&bytes).as_ref(),
+                argentum_engine::rm_lens_builtin::developed_frame(&bytes),
             ) {
                 self.failures.push(format!(
                     "{}: built-in lens correction differs from RAWmakase's record: {e}",

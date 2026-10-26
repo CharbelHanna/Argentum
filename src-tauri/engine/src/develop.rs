@@ -207,38 +207,59 @@ fn half_size(mut raw: RawImage) -> Result<Intermediate> {
         .map_err(|e| Error::Decode(e.to_string()))
 }
 
-/// The size `develop` gives `raw`, from its geometry alone: the steps of
-/// rawler's `develop_intermediate` (rawler `src/imgop/develop.rs` @ 16b9b010)
-/// that decide the size, without touching a pixel. A mosaic comes out of
-/// demosaic at its active area, and the default crop is then taken.
+/// The size `develop` gives `raw`, from its geometry alone
+/// (`developed_frame_px`).
 pub(crate) fn developed_size_px(raw: &RawImage) -> (usize, usize) {
+    let crop = developed_frame_px(raw).crop;
+    (crop[2], crop[3])
+}
+
+/// Where the image `develop` gives `raw` lies, from its geometry alone: the
+/// steps of rawler's `develop_intermediate` (rawler `src/imgop/develop.rs` @
+/// 16b9b010) that decide it, without touching a pixel. A mosaic comes out of
+/// demosaic at its active area, and the default crop is then taken.
+pub(crate) fn developed_frame_px(raw: &RawImage) -> DevelopedFrame {
     use rawler::imgop::{Dim2, Point, Rect};
 
     let demosaics = !matches!(raw.photometric, RawPhotometricInterpretation::LinearRaw);
     let full = Rect::new(Point::new(0, 0), Dim2::new(raw.width, raw.height));
     let mosaic = raw.cpp == 1
         && matches!(&raw.photometric, RawPhotometricInterpretation::Cfa(c) if c.cfa.is_rgb());
-    let mut dim = if demosaics && mosaic {
+    let decoded = if demosaics && mosaic {
         raw.active_area.unwrap_or(full).d
     } else {
         full.d
     };
+    let mut developed = Rect::new(Point::new(0, 0), decoded);
     if let Some(mut crop) = raw.crop_area {
         if demosaics && let Some(active) = raw.active_area {
             crop = crop.intersection(&active).adapt(&active);
         }
         let original_width = raw.active_area.map(|a| a.d.w).unwrap_or(raw.width);
         if original_width > 0 {
-            let scale = dim.w as f32 / original_width as f32;
+            let scale = decoded.w as f32 / original_width as f32;
             if (scale - 1.0).abs() > 1e-6 {
                 crop.scale(scale);
             }
         }
-        if !crop.is_empty() && crop.d != dim {
-            dim = crop.d;
+        if !crop.is_empty() && crop.d != decoded {
+            developed = crop;
         }
     }
-    (dim.w, dim.h)
+    DevelopedFrame {
+        decoded: [decoded.w, decoded.h],
+        crop: [developed.p.x, developed.p.y, developed.d.w, developed.d.h],
+    }
+}
+
+/// The image `develop` makes, inside the one demosaic makes: the active area
+/// of a mosaic, which a DNG's opcodes apply to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DevelopedFrame {
+    /// The demosaiced image's width and height, in pixels.
+    pub decoded: [usize; 2],
+    /// The developed image in it: left, top, width and height, in pixels.
+    pub crop: [usize; 4],
 }
 
 /// A picture of `width_px` x `height_px` fitted in `max_w_px` x `max_h_px`,

@@ -47,6 +47,8 @@ export interface LensCorrection {
   chromatic: [Radial, Radial] | null;
   /** The parts the camera always corrects; absent: all three. */
   always?: { distortion: boolean; chromatic: boolean; vignetting: boolean };
+  /** The optical centre, in fractions of the image; absent: stored before it was read. */
+  centre?: [number, number];
 }
 
 /** What `lens_builtin` answers. */

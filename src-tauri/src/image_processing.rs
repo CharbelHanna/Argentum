@@ -929,6 +929,16 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
         cx,
         cy,
     };
+    // Argentum: the camera's optical centre in pixels, which its correction,
+    // red and blue's scale with it, turns about.
+    let (builtin_cx, builtin_cy) = builtin
+        .as_ref()
+        .map_or((cx, cy), |m| (cx + m.centre[0], cy + m.centre[1]));
+    let builtin_tca_ctx = TcaContext {
+        cx: builtin_cx,
+        cy: builtin_cy,
+        ..tca_ctx
+    };
 
     out_buffer
         .par_chunks_exact_mut(width_usize * 3)
@@ -983,8 +993,8 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
                     let mut builtin_vr_vb = (1.0, 1.0);
                     if let Some(map) = &builtin {
                         let ([dx, dy], s) = map.scales(src_x - cx, src_y - cy);
-                        src_x = cx + dx * s[1];
-                        src_y = cy + dy * s[1];
+                        src_x = builtin_cx + dx * s[1];
+                        src_y = builtin_cy + dy * s[1];
                         builtin_vr_vb = (s[0] / s[1], s[2] / s[1]);
                     }
 
@@ -1000,7 +1010,7 @@ pub fn warp_image_geometry(image: &DynamicImage, params: GeometryParams) -> Dyna
 
                     if builtin_ca {
                         let (bvr, bvb) = builtin_vr_vb;
-                        interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, bvr, bvb, pixel);
+                        interpolate_pixel_with_tca(&builtin_tca_ctx, src_x, src_y, bvr, bvb, pixel);
                     } else if has_tca {
                         interpolate_pixel_with_tca(&tca_ctx, src_x, src_y, vr, vb, pixel);
                     } else {
