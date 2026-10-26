@@ -50,8 +50,8 @@ Deterministic replay for comparing UI smoothness before/after a change.
 - The thumbnail, back-to-library, undo, and first-frame selectors prefer
   `[data-bench-id="thumbnail"]` / `[data-bench-id="back-to-library"]` /
   `[data-bench-id="undo"]` / `[data-bench-id="editor-first-frame"]` (see
-  `src/components/panel/library/LibraryItems.tsx`, `src/components/panel/editor/EditorToolbar.tsx`,
-  and `src/components/panel/Editor.tsx`), falling back to Tailwind-class matching where no
+  `src/components/panel/library/LibraryItems.tsx`, `src/argentum/modern/ModernWindow.tsx`,
+  `src/argentum/modern/TopBar.tsx` and `src/components/panel/Editor.tsx`), falling back to Tailwind-class matching where no
   hook exists yet. If you add new interaction steps, prefer adding a `data-bench-id` hook
   over relying on utility classes, which shift on any restyle.
 - The `open` phase waits for `[data-bench-id="editor-first-frame"]`, which renders once
@@ -77,7 +77,7 @@ builds without opening the GUI, `compare-renders.sh` exports a folder with each 
 the headless `export` command, as 16-bit TIFF and as JPEG using each image's sidecar edits:
 
 ```bash
-bench/compare-renders.sh ./rapidraw-before ./rapidraw-after ~/Pictures/test-set /tmp/render-check
+bench/compare-renders.sh ./argentum-before ./argentum-after ~/Pictures/test-set /tmp/render-check
 ```
 
 For each build and format it prints the total export time and the median per-image raw
@@ -88,7 +88,8 @@ confirms that an optimization left rendered output unchanged.
 Exports process several images at once, so the per-image GPU time includes waiting for the
 shared GPU; use the total time to compare throughput. For a per-function breakdown, run a
 single export under a sampling profiler instead, for example
-`perf record -g -- rapidraw export photo.ARW --output /tmp/out.jpg` on Linux.
+`perf record -g -- ./Argentum export photo.ARW --output /tmp/out.jpg` on Linux, with the
+path of the build being measured.
 
 Only compare builds on the same machine. GPU output is deterministic for one GPU and driver,
 but can differ slightly between GPUs.

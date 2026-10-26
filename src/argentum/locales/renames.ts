@@ -86,6 +86,28 @@ const RELIGHT_FOG_EN: Record<string, string> = {
 };
 
 /**
+ * THE MODERN WINDOW'S NAMES
+ *
+ * Their shortcuts name the panels of the window they had: D was the
+ * Adjustments panel, K the AI panel, P Presets. In the Modern window the same
+ * keys open the right panel's tabs (modern/RightPanel.tsx), so Settings >
+ * Controls says the tab, and Reset Layout says what it still resets there
+ * (useUIStore's resetWorkspaceLayout: the column widths, and the columns and
+ * filmstrip shown). English only, as above.
+ */
+const MODERN_WINDOW_EN: Record<string, string> = {
+  'settings.keybinds.actions.toggle_adjustments': 'Edit tab',
+  'settings.keybinds.actions.toggle_crop_panel': 'Crop tab',
+  'settings.keybinds.actions.toggle_presets': 'Looks tab',
+  'settings.keybinds.actions.toggle_masks': 'Masks tab',
+  'settings.keybinds.actions.toggle_ai': 'Retouch tab',
+  'settings.keybinds.actions.toggle_export': 'Export tab',
+  'settings.keybinds.actions.toggle_metadata': 'Photo info',
+  'settings.data.resetLayoutDesc':
+    'Put the left and right columns back to their default widths, and show the columns and filmstrip again if they were hidden.',
+};
+
+/**
  * Swap their word for ours inside a sentence of theirs, keeping its case.
  *
  * The card's list is "Subject, Sky, Foreground" in English and
@@ -130,7 +152,7 @@ export function applyRenames() {
     }
   }
 
-  for (const [key, text] of Object.entries(RELIGHT_FOG_EN)) {
+  for (const [key, text] of Object.entries({ ...RELIGHT_FOG_EN, ...MODERN_WINDOW_EN })) {
     i18n.addResource('en', 'translation', key, text);
   }
 }

@@ -1,5 +1,11 @@
 # The menu — what you can take from each side
 
+> **Historical (September 2026).** The first list of what to take, kept as it
+> was written. Much of it has shipped since (white balance presets and auto,
+> highlight recovery, capture sharpening, the cameras' own lens corrections),
+> and Argentum is public. [ROADMAP.md](ROADMAP.md) and
+> [CHANGELOG.md](../CHANGELOG.md) say what is true today.
+
 Pick whatever you want, whenever you want. Nothing here depends on anything
 else except the color conversion (built once, during the first pick).
 
@@ -23,7 +29,7 @@ Difficulty: 🟢 = 1–2 days · 🟡 = ~a week · 🔴 = needs a real decision 
 | **Lens correction from embedded RAW data** | Rescues lenses lensfun doesn't know | ⚪ |
 
 ⚪ = parked. Real work, no benefit *here* — see
-[ROADMAP](ROADMAP.md#someday--only-if-Argentum-is-ever-open-sourced). Both would
+[ROADMAP](ROADMAP.md#for-other-cameras-and-other-computers). Both would
 matter for a public release.
 
 **Lens correction — read this before assuming it's missing.** RapidRAW already

@@ -1,5 +1,5 @@
 name: Feature Request
-description: Suggest a new feature or enhancement for RapidRAW
+description: Suggest a new feature or enhancement for Argentum
 title: "FEATURE: "
 labels: ["enhancement"]
 body:
@@ -32,5 +32,5 @@ body:
       label: Similar feature requests
       description: Have you checked for similar feature requests?
       options:
-        - label: I have searched existing issues and discussions and didn't find a duplicate
+        - label: I have searched existing issues and didn't find a duplicate
           required: true

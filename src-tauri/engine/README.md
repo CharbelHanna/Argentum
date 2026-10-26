@@ -10,16 +10,19 @@ Each is **one file in `src/tools/` and one line in `src/registry.rs`**.
 This crate builds and tests on its own, without building the app. It lives
 under `src-tauri/` so Vite ignores it, and it is a workspace of its own. The
 app uses it as a path dependency: `src-tauri/src/mods/engine_bridge.rs` makes
-the calls below into Tauri commands for the new interface.
+the calls below into arms of the app's one `ag` command (`engine_open`,
+`engine_apply` and the rest), for the engine's test bench in `src/shell/`.
+
+The crate also holds modules the app calls directly, outside the registry:
+`flashraw` (the faster RAW decoder), `dng_gain_map` and `dng_opcodes`,
+`rm_black_white`, `rm_color_grade`, `rm_lens_builtin` (the cameras' own lens
+corrections) and `colour` (CIELAB and CIEDE2000, defined once).
 
 ```bash
 cd src-tauri/engine
 cargo test                     # everything; real-photo and GPU tests skip when they can't run
 cargo test --test rerun -- --nocapture   # one file, with its printed numbers
 ```
-
-From a worktree, build into the main tree's engine target rather than a new
-one: `CARGO_TARGET_DIR=<main checkout>/src-tauri/engine/target`.
 
 ## The interface's contract (`src/contract.rs`, `src/engine.rs`)
 

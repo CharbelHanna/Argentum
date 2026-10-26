@@ -57,14 +57,15 @@ and our own shader file is glued in front of it at build time, so each tool of
 ours lives in one place.
 
 ```rust
-// gpu_processing.rs — on the render path, ours
-source: wgpu::ShaderSource::Wgsl(
-    concat!(
-        include_str!("shaders/modules.wgsl"),   // ours
-        include_str!("shaders/shader.wgsl"),       // inherited from RapidRAW
-    ).into()
-)
+// mods/export_precision.rs — the one source every render compiles
+pub const SHADER_SOURCE: &str = concat!(
+    include_str!("../shaders/modules.wgsl"),   // ours
+    include_str!("../shaders/shader.wgsl"),    // inherited from RapidRAW
+);
 ```
+
+A 16-bit export compiles the same text with its storage format rewritten
+(`export_shader_source`), so preview and export never run different tools.
 
 **`modules.wgsl` holds every function we harvest.** The main shader calls it
 once per stage, and every tool of ours runs inside a stage (see THE PIPELINE
@@ -85,6 +86,8 @@ a stage's tools stop running without any error.
 ```
 src-tauri/
   engine/                OURS    — the processing engine: a tool registry, one file per tool
+  rm_selection/          RAWMAKASE — the selection masks (SAM 2.1, DETR), taken whole
+  tests/look/            OURS    — the golden photos: public RAWs rendered in CI
   src/
     shaders/
       shader.wgsl        INHERITED — the main shader, one call per stage into ours
@@ -94,7 +97,9 @@ src-tauri/
 
 src/
   argentum/              OURS
-  App.tsx, components/   INHERITED — the app shell, editor, panels and views
+    modern/              OURS      — the window: top bar, columns, right panel tabs, Settings
+  shell/                 OURS      — a test bench for the engine's contract, not a product
+  App.tsx, components/   INHERITED — the panels, editor and views the window is built from
 ```
 
 **Rule of thumb:** everything is ours to change, and new code goes in a module
@@ -111,43 +116,44 @@ more perceptual. Transplanted math needs converting in and back out.
 That conversion lives in `modules.wgsl` and is **written once, reused by every
 tool after** — not a per-tool cost.
 
-**What actually got built, in `26.37.2`:** linear sRGB ↔ CIE XYZ, plus XYZ ↔
-Bradford cone space (LMS). White balance needed a colorimetric space and a cone
-space, not a wider RGB one, so that is what existed. (Retired in `26.41.6`,
-with our white balance: RapidRAW 1.6.5 does the same in its own engine. The
-pattern below stands for the next tool that needs it.)
-
-```wgsl
-const AG_SRGB_TO_XYZ  // and AG_XYZ_TO_SRGB
-const AG_XYZ_TO_LMS   // and AG_LMS_TO_XYZ  — Bradford
-```
+**What is there today:** linear sRGB ↔ ProPhoto (`AG_SRGB_TO_PROPHOTO`,
+`AG_PROPHOTO_TO_SRGB`) and sRGB → V-Gamut (`AG_SRGB_TO_V_GAMUT`, for the film
+looks). The first set, built in `26.37.2` for white balance, was linear sRGB ↔
+CIE XYZ plus XYZ ↔ Bradford cone space (LMS); it was retired in `26.41.6` with
+our white balance, when RapidRAW 1.6.5 did the same in its own engine. The
+pattern stands for the next tool that needs a space:
 
 ```wgsl
 fn dt_something(color: vec3<f32>, ...) -> vec3<f32> {
-    let xyz = AG_SRGB_TO_XYZ * color;    // in
+    let wide = AG_SRGB_TO_PROPHOTO * color;    // in
     // ... darktable's math, largely as-is ...
-    return AG_XYZ_TO_SRGB * xyz;         // out
+    return AG_PROPHOTO_TO_SRGB * wide;         // out
 }
 ```
 
 There is **no `srgb_to_rec2020` and no `mods/color.rs`** — earlier drafts of
-this document promised both. If a later harvested module genuinely needs linear
-Rec2020, add that matrix pair to `modules.wgsl` alongside the others. Going
-through XYZ is the general route; a wide-RGB working space is one destination,
-not the only one.
+this document promised both. If a later harvested module needs another space
+(XYZ, LMS, linear Rec2020), add its matrix pair to `modules.wgsl` beside the
+others. The colour difference used to measure pixel changes (`lab`,
+`delta_e2000`) is defined once, in the engine's `colour.rs`.
 
 ---
 
 ## Data and storage
 
 - **Edits** — JSON sidecar next to each photo (`IMG_1234.CR3.agdata`).
-  RapidRAW's format, renamed; we add fields to it. Original RAW never modified.
-- **Catalog** — SQLite in the data folder. Ours entirely. Lets you browse
-  photos whose drive is unplugged.
-- **Thumbnails** — JPEGs in the data folder. Already exists upstream; we make
-  the location configurable and keep them across sessions.
+  RapidRAW's format, renamed; we add fields to it, among them the photo's
+  History (`agHistory`) and Snapshots (`agSnapshots`). Original RAW never
+  modified.
+- **Settings, AI models, presets, My Gear** — the operating system's
+  application-data folder, under `co.argentum.editor`.
+- **Thumbnails** — JPEGs in the application cache folder, kept across sessions.
+- **Catalog** — planned, not built: an index (SQLite) to browse photos whose
+  drive is unplugged. See `ROADMAP.md`.
 
-All of it in one user-chosen folder. See [README](README.md#everything-in-one-folder).
+The exact folders per system are in the
+[README](../README.md#where-the-app-keeps-its-files). One user-chosen folder for
+all of it is on the roadmap, not built.
 
 ---
 
@@ -172,33 +178,34 @@ replaced by direct edits one at a time, each with its test.
 
 ## Planned: naming the objects before masking them
 
-Written down now because the shape of it is decided and the cost is not where it
-looks. Nothing is built yet. See the Masking row in `ROADMAP.md`.
+Written down because the shape of it is decided and the cost is not where it
+looks. The list is not built yet. See the Masking row in `ROADMAP.md`.
 
-**What it is.** RapidRAW's AI mask (`generate_ai_subject_mask`) takes a
-`start_point` and an `end_point`: you drag a box round the thing, SAM segments
-inside it. The wanted behaviour is the other way round — look at the photo once,
-list what is in it, tick the dog.
+**What it is.** Since `26.43.1` masking is a click: Subject, Sky and Background
+find themselves, and Object cuts what is clicked, on RAWmakase's selection crate
+(`src-tauri/rm_selection`: DETR panoptic finds and labels, SAM 2.1 cuts). The
+wanted behaviour goes one step further — look at the photo once, list what is in
+it by name, tick the dog.
 
-**Three models, not one.**
+**What is already here.** DETR panoptic already labels what it finds in COCO's
+classes, and SAM 2.1 already takes a box or points. `ort` (ONNX Runtime) runs
+both, and `mods/model_download.rs` fetches a model, checks its SHA-256 and keeps
+it, for the selection masks and the Settings page alike. So the first version
+needs no new model: show DETR's labels as a list and hand SAM the chosen one's
+box.
+
+**Only for things outside those classes,** a naming and a locating model would
+join it, Grounded-SAM's own arrangement:
 
 | Step | Model | What it answers |
 |---|---|---|
 | Name | RAM++ | *what* is in this picture — a list of tags, no positions |
 | Locate | Grounding DINO (or YOLO-World) | *where* the thing called "dog" is — a box |
-| Cut | SAM | the mask inside that box — **already shipped** |
+| Cut | SAM 2.1 | the mask inside that box — **already shipped** |
 
 RAM++ classifies and does not localise. That is the whole reason the middle row
 exists, and it is the thing most likely to be misremembered later as "RAM++ gives
-you objects". It does not. This chain is Grounded-SAM's own arrangement, so it is
-a known-good combination rather than an invention.
-
-**What is already here.** `ort` (ONNX Runtime, `load-dynamic`) is a dependency.
-`ai_processing.rs` already downloads a model from a URL into
-`get_models_dir(app_handle)`, checks a SHA-256, and caches the session — so two
-more models are a list entry, not new machinery. SAM needs a box; we would be
-handing it one we computed instead of one the user drew, which is the same
-argument it takes today.
+you objects". It does not.
 
 **Where the picker goes.** In the Masks tab, which is ours to change. It
 *creates* the mask rather than living inside the mask list, so the list keeps one
@@ -252,7 +259,10 @@ Name functions by where they came from, so it stays obvious a year later:
 | Prefix | Source | Good for |
 |---|---|---|
 | `dt_` | darktable | color science, tone mapping, denoise, highlight recovery |
-| `rt_` | RawTherapee | demosaic, highlight recovery — often the strongest here |
+| `rt_` | RawTherapee | demosaic, highlight recovery, capture sharpening — often the strongest here |
+| `rm_` | RAWmakase | Lightroom-matched looks, B&W, Color Grading, lens readers, selection masks |
+| `rr_` | RapidRAW | a tool taken from a RapidRAW release after 1.6.6 |
+| `ag_` | Argentum | our own, where no source had it |
 | `gimp_` | GIMP / GEGL | pixel-level effects, blend modes, distortions |
 | `gmic_` | G'MIC | huge filter library, film looks, stylisation |
 | `paper_` | a published paper | when nobody's implemented it yet |
@@ -272,9 +282,10 @@ best-in-class, and it's clean C++.
 
 ## Where things live
 
-Everything lives in the checkout: source, `node_modules`, Rust's build output
-and the app's data. Git never tracks a binary, so pushing is the only backup
-the source needs.
+Everything for development lives in the checkout: source, `node_modules` and
+Rust's build output (the running app keeps its data in the operating system's
+folders, as above). Git never tracks a binary, so pushing is the only backup the
+source needs.
 
 **Keep the checkout out of cloud-synced folders.** A sync client such as
 OneDrive does not tolerate directory junctions inside a synced folder: it
@@ -282,8 +293,7 @@ replaced a `node_modules` junction with a real directory (reparse tag
 `0x9000e01a`, its own cloud-files tag), began syncing 182 npm packages
 (239MB), and held them locked while uploading, so they could not be removed
 until the sync client was stopped. A bare repository in a synced folder works
-as a backup remote; it needs `receive.shallowUpdate true`, because this repo
-is shallow at RapidRAW's root.
+as a backup remote.
 
 **Leave Rust's `target/` where Tauri puts it.** A `.cargo/config.toml` once
 redirected `target-dir`, and the redirect put `target/` at the repository

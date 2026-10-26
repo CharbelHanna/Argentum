@@ -60,8 +60,9 @@ const MILESTONES: Milestone[] = [
     what: 'Camera colour profiles',
     release: '26.37.12',
     why:
-      'Pick a profile per photo under Color, or leave it on the built-in matrix. '
-      + 'Profiles are found online or imported, and applied while the photo is drawn.',
+      'Pick a profile per photo in Edit > Profile, or leave it on the built-in matrix, '
+      + 'and give each camera the one its new photos open with in My Gear. Profiles '
+      + 'are found online or imported, and applied while the photo is drawn.',
   },
   {
     stage: 'done',
@@ -87,8 +88,8 @@ const MILESTONES: Milestone[] = [
     what: 'Display colour management',
     release: '26.37.17',
     why:
-      'The preview now converts for the screen it is on, read from the display profile '
-      + 'own profile. Without it a wide-gamut display showed every photo more '
+      'The preview now converts for the screen it is on, using that display\x27s '
+      + 'own profile (Windows only for now). Without it a wide-gamut display showed every photo more '
       + 'saturated than it was, and nothing on screen said so.',
   },
   {
@@ -137,6 +138,47 @@ const MILESTONES: Milestone[] = [
       + 'with that fixed, Vulkan and DirectX 12 are 20 to 45 times faster, and Auto is fast.',
   },
   {
+    stage: 'done',
+    what: 'Masks in one click',
+    release: '26.43.1',
+    why:
+      'Subject, Sky and Background find themselves, and Object picks what you click, with '
+      + 'more clicks to add or leave out a part. RAWmakase\x27s selection, on SAM 2.1.',
+  },
+  {
+    stage: 'done',
+    what: 'B&W, Looks and Snapshots',
+    release: '26.43.1',
+    why:
+      'Black and white with Lightroom\x27s mix and an Auto mix per photo; presets, LUTs and '
+      + 'film looks in one tab; named versions of an edit kept beside it.',
+  },
+  {
+    stage: 'done',
+    what: 'History that stays',
+    release: '26.43.3',
+    why:
+      'Undo and redo carry on after opening another photo or restarting the app. Each '
+      + 'photo keeps its History in its edit file, a step at a time.',
+  },
+  {
+    stage: 'done',
+    what: 'The camera\x27s own lens correction',
+    release: '26.43.4',
+    why:
+      'Many lenses are made to be corrected in software, from tables the camera writes '
+      + 'into the file. Read for DNG, Fujifilm, Sony, Nikon, Olympus, Panasonic, Samsung '
+      + 'and two Canon bodies, and applied the way Lightroom applies them.',
+  },
+  {
+    stage: 'done',
+    what: 'A faster RAW decoder',
+    release: '26.44.1',
+    why:
+      'FlashRaw, as a choice in Settings > Processing: Canon, Fujifilm, Olympus, Panasonic '
+      + 'and Pentax files open 1.5 to 3.4 times faster, with identical pixels.',
+  },
+  {
     stage: 'planned',
     what: 'Group by date, camera or lens',
     why:
@@ -175,7 +217,8 @@ const MILESTONES: Milestone[] = [
       'Measured on a 32MP RAW in 26.41.10: the AI mask models kept 6 GB after one '
       + 'selection, and a photo nothing had changed was copied twice. Both are '
       + 'fixed, so editing with AI settles at 3-4 GB instead of 8-12, and the '
-      + 'models unload when unused. Still to do: export, where the 16-bit target '
+      + 'models unload when unused, and since 26.43.4 an open RAW takes a quarter less. '
+      + 'Still to do: export, where the 16-bit target '
       + 'and keeping metadata on a TIFF cost the most, and the AI eraser, which '
       + 'works on the whole photo to fix one spot.',
   },
@@ -200,12 +243,11 @@ const MILESTONES: Milestone[] = [
     stage: 'planned',
     what: 'Name what is in the picture, then mask it',
     why:
-      'An AI mask needs you to drag a box around the thing first. Instead: look at '
-      + 'the photo once, list what is in it — sky, face, the dog, the tree on the '
-      + 'left — and tick the ones to mask. RAM++ names things but does not say '
-      + 'where they are, so a locating step sits between it and the mask. Everything '
-      + 'stays on this machine, and the same names make the library searchable by '
-      + 'what is in a photo rather than only by filename and EXIF.',
+      'Masks are a click already; the next step is a list. Look at the photo once, '
+      + 'name what is in it — sky, face, the dog, the tree on the left — and tick the '
+      + 'ones to mask. The model behind Subject and Sky already labels much of what it '
+      + 'finds. Everything stays on this machine, and the same names make the library '
+      + 'searchable by what is in a photo rather than only by filename and EXIF.',
   },
   {
     stage: 'done',
@@ -227,7 +269,9 @@ const MILESTONES: Milestone[] = [
   {
     stage: 'planned',
     what: 'Filmic tone mapping',
-    why: 'A modern tone curve for high-contrast scenes, once the colour work underneath it is right.',
+    why:
+      'darktable\x27s filmic or sigmoid curve for high-contrast scenes, as a second choice '
+      + 'beside the AgX tone mapper that ships today.',
   },
 ];
 
