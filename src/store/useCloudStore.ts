@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import type { Clerk } from '@clerk/clerk-js';
-import { initClerk } from 'tauri-plugin-clerk';
 import { fetch } from '@tauri-apps/plugin-http';
 import { platform } from '@tauri-apps/plugin-os';
 
@@ -51,6 +50,8 @@ export const useCloudStore = create<CloudStoreState>((set, get) => ({
 
     set({ authStatus: 'loading' });
     try {
+      // Argentum: loaded only here, so the sign-in SDK (1.5 MB) is not parsed at every start.
+      const { initClerk } = await import('tauri-plugin-clerk');
       const clerk = await initClerk({
         routerPush: () => {},
         routerReplace: () => {},
