@@ -15,6 +15,14 @@ Newest first.
   A missing installer stops it rather than linking nothing. Its test writes 26.43.4's table, as
   written by hand, from 26.43.4's files.
 
+### Fixed
+
+- **Import with "delete after import" no longer loses an XMP it could not copy.** The XMP beside
+  an imported photo (which may hold another app's edits) was copied with its error ignored, and
+  the source XMP was then deleted with the photo. A failed copy now stops that photo's import
+  with an error before anything at the source is removed. The import's last step moved into
+  `finish_import` (`src-tauri/src/file_management.rs`) so it is tested on its own.
+
 ## 26.44.1 — 2026-10-27
 
 ### Added

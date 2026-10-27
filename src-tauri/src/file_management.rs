@@ -3765,6 +3765,101 @@ pub fn get_cached_or_generate_thumbnail_image(
     }
 }
 
+/// Carry an imported photo's EXIF cache and XMP beside `dest_file_path`,
+/// then, with `delete_after_import`, remove the photo and its files from the
+/// source. An XMP that does not arrive stops the import before anything is
+/// removed: it may hold another app's edits.
+pub(crate) fn finish_import(
+    source_path: &Path,
+    source_sidecar: &Path,
+    dest_file_path: &Path,
+    delete_after_import: bool,
+) -> Result<(), String> {
+    let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
+    source_rrexif_name.push(".agexif");
+    let source_rrexif = source_path.with_file_name(source_rrexif_name);
+    let source_xmp = resolve_xmp_path(source_path);
+
+    if source_rrexif.exists() {
+        let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
+        dest_rrexif_name.push(".agexif");
+        let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
+        let _ = fs::copy(&source_rrexif, &dest_rrexif);
+    }
+
+    if let Some(source_xmp) = &source_xmp {
+        let dest_xmp = dest_file_path.with_extension("xmp");
+        fs::copy(source_xmp, &dest_xmp)
+            .map_err(|e| format!("Could not copy {}: {}", source_xmp.display(), e))?;
+    }
+
+    if delete_after_import {
+        #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
+        {
+            if let Err(trash_error) = trash::delete(source_path) {
+                log::warn!(
+                    "Failed to trash source file {}: {}. Deleting permanently.",
+                    source_path.display(),
+                    trash_error
+                );
+                fs::remove_file(source_path).map_err(|e| e.to_string())?;
+            }
+            if source_sidecar.exists()
+                && let Err(trash_error) = trash::delete(source_sidecar)
+            {
+                log::warn!(
+                    "Failed to trash source sidecar {}: {}. Deleting permanently.",
+                    source_sidecar.display(),
+                    trash_error
+                );
+                fs::remove_file(source_sidecar).map_err(|e| e.to_string())?;
+            }
+            if source_rrexif.exists()
+                && let Err(trash_error) = trash::delete(&source_rrexif)
+            {
+                log::warn!(
+                    "Failed to trash source EXIF sidecar {}: {}. Deleting permanently.",
+                    source_rrexif.display(),
+                    trash_error
+                );
+                fs::remove_file(&source_rrexif).map_err(|e| e.to_string())?;
+            }
+            if let Some(source_xmp) = &source_xmp
+                && source_xmp.exists()
+                && let Err(trash_error) = trash::delete(source_xmp)
+            {
+                log::warn!(
+                    "Failed to trash source XMP sidecar {}: {}. Deleting permanently.",
+                    source_xmp.display(),
+                    trash_error
+                );
+                fs::remove_file(source_xmp).map_err(|e| e.to_string())?;
+            }
+        }
+
+        #[cfg(not(any(
+            target_os = "windows",
+            target_os = "macos",
+            target_os = "linux"
+        )))]
+        {
+            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
+            if source_sidecar.exists() {
+                fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
+            }
+            if source_rrexif.exists() {
+                let _ = fs::remove_file(&source_rrexif);
+            }
+            if let Some(source_xmp) = &source_xmp
+                && source_xmp.exists()
+            {
+                let _ = fs::remove_file(source_xmp);
+            }
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn import_files(
     source_paths: Vec<String>,
@@ -3900,87 +3995,7 @@ pub async fn import_files(
                     fs::copy(&source_sidecar, &dest_sidecar).map_err(|e| e.to_string())?;
                 }
 
-                let mut source_rrexif_name = source_path.file_name().unwrap().to_os_string();
-                source_rrexif_name.push(".agexif");
-                let source_rrexif = source_path.with_file_name(source_rrexif_name);
-                let source_xmp = resolve_xmp_path(&source_path);
-
-                if source_rrexif.exists() {
-                    let mut dest_rrexif_name = dest_file_path.file_name().unwrap().to_os_string();
-                    dest_rrexif_name.push(".agexif");
-                    let dest_rrexif = dest_file_path.with_file_name(dest_rrexif_name);
-                    let _ = fs::copy(&source_rrexif, &dest_rrexif);
-                }
-
-                if let Some(source_xmp) = &source_xmp {
-                    let dest_xmp = dest_file_path.with_extension("xmp");
-                    let _ = fs::copy(source_xmp, &dest_xmp);
-                }
-
-                if settings.delete_after_import {
-                    #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux"))]
-                    {
-                        if let Err(trash_error) = trash::delete(&source_path) {
-                            log::warn!(
-                                "Failed to trash source file {}: {}. Deleting permanently.",
-                                source_path.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        }
-                        if source_sidecar.exists()
-                            && let Err(trash_error) = trash::delete(&source_sidecar)
-                        {
-                            log::warn!(
-                                "Failed to trash source sidecar {}: {}. Deleting permanently.",
-                                source_sidecar.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                        if source_rrexif.exists()
-                            && let Err(trash_error) = trash::delete(&source_rrexif)
-                        {
-                            log::warn!(
-                                "Failed to trash source EXIF sidecar {}: {}. Deleting permanently.",
-                                source_rrexif.display(),
-                                trash_error
-                            );
-                            fs::remove_file(&source_rrexif).map_err(|e| e.to_string())?;
-                        }
-                        if let Some(source_xmp) = &source_xmp
-                            && source_xmp.exists()
-                            && let Err(trash_error) = trash::delete(source_xmp)
-                        {
-                            log::warn!(
-                                "Failed to trash source XMP sidecar {}: {}. Deleting permanently.",
-                                source_xmp.display(),
-                                trash_error
-                            );
-                            fs::remove_file(source_xmp).map_err(|e| e.to_string())?;
-                        }
-                    }
-
-                    #[cfg(not(any(
-                        target_os = "windows",
-                        target_os = "macos",
-                        target_os = "linux"
-                    )))]
-                    {
-                        fs::remove_file(&source_path).map_err(|e| e.to_string())?;
-                        if source_sidecar.exists() {
-                            fs::remove_file(&source_sidecar).map_err(|e| e.to_string())?;
-                        }
-                        if source_rrexif.exists() {
-                            let _ = fs::remove_file(&source_rrexif);
-                        }
-                        if let Some(source_xmp) = &source_xmp
-                            && source_xmp.exists()
-                        {
-                            let _ = fs::remove_file(source_xmp);
-                        }
-                    }
-                }
+                finish_import(&source_path, &source_sidecar, &dest_file_path, settings.delete_after_import)?;
 
                 Ok(Some(dest_file_path))
             })();
