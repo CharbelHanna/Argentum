@@ -822,8 +822,11 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
         }
     }
 
-    if settings_modified && let Ok(json_string) = serde_json::to_string_pretty(&settings) {
-        let _ = fs::write(&path, json_string);
+    if settings_modified
+        && let Ok(json_string) = serde_json::to_string_pretty(&settings)
+        && let Err(e) = crate::mods::atomic_write::write_atomic(&path, json_string)
+    {
+        log::warn!("Could not save the migrated settings: {}", e);
     }
 
     Ok(settings)
@@ -833,7 +836,7 @@ pub fn load_settings(app_handle: AppHandle) -> Result<AppSettings, String> {
 pub fn save_settings(settings: AppSettings, app_handle: AppHandle) -> Result<(), String> {
     let path = get_settings_path(&app_handle)?;
     let json_string = serde_json::to_string_pretty(&settings).map_err(|e| e.to_string())?;
-    fs::write(path, json_string).map_err(|e| e.to_string())?;
+    crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())?;
 
     let state = app_handle.state::<AppState>();
     let cache_size = settings.image_cache_size.unwrap_or(5) as usize;
