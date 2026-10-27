@@ -432,6 +432,36 @@ fn masks() -> Vec<Value> {
                 sub_mask("sub-11c", "linear", "Linear", "intersect", false, linear()),
             ],
         ),
+        (
+            "Text",
+            vec![sub_mask(
+                "sub-12",
+                "ai-foreground",
+                "Text",
+                "additive",
+                false,
+                {
+                    let mut p = ai("text", "@mask:text", 2, 4);
+                    p["agWords"] = json!("OPEN");
+                    p
+                },
+            )],
+        ),
+        (
+            "Face",
+            vec![sub_mask(
+                "sub-13",
+                "ai-foreground",
+                "Face",
+                "additive",
+                false,
+                {
+                    let mut p = ai("face", "@mask:face", 0, 6);
+                    p["agParts"] = json!(["faceSkin", "lips", "hair"]);
+                    p
+                },
+            )],
+        ),
     ];
     kinds
         .into_iter()
@@ -613,6 +643,14 @@ fn image(name: &str) -> String {
             ellipse(300.0, 200.0, 150.0, 120.0),
         )),
         "mask:object" => mask(GrayImage::from_fn(w, h, ellipse(180.0, 260.0, 70.0, 50.0))),
+        "mask:text" => mask(GrayImage::from_fn(w, h, |x, y| {
+            Luma([if (420..540).contains(&x) && (60..100).contains(&y) {
+                255
+            } else {
+                0
+            }])
+        })),
+        "mask:face" => mask(GrayImage::from_fn(w, h, ellipse(330.0, 150.0, 45.0, 60.0))),
         "mask:background" => {
             let subject = ellipse(300.0, 200.0, 150.0, 120.0);
             mask(GrayImage::from_fn(w, h, |x, y| {

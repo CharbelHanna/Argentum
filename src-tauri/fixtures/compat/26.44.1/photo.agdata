@@ -4198,6 +4198,578 @@
           }
         ],
         "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.4,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-12",
+        "invert": false,
+        "name": "Text",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-12",
+            "invert": false,
+            "mode": "additive",
+            "name": "Text",
+            "opacity": 90,
+            "parameters": {
+              "agSelection": "text",
+              "agWords": "OPEN",
+              "feather": 4,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 2,
+              "maskDataBase64": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAlgAAAGQCAAAAABXXkFEAAAJCklEQVR4Ae3AA6AkWZbG8f937o3IzKdyS2Oubdu2bdu2bdu2bWmMnpZKr54yMyLu+Xa3anqmhztr1S+46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88gquu+o9HcNVV//EIrrrqPx7BVVf9xyO46qr/eARXXfUfj+Cqq/7jEVx11X88Klf9j2f+e4h/M4KrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4xFcddV/PIKrrvqPR3DVVf/xCK666j8ewVVX/ccjuOqq/3gEV131H4/gqqv+4yGuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+P4Kqr/uMRXHXVfzyCq676j0dw1VX/8Qiuuuo/HsFVV/3HI7jqqv94BFdd9R+PfwQvEQQimk2Z8gAAAABJRU5ErkJggg==",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
+      },
+      {
+        "adjustments": {
+          "activeTools": {
+            "sharpening": false
+          },
+          "agSharpen": {
+            "amount": 40,
+            "autoContrast": false,
+            "contrast": 20,
+            "radius": 1.2,
+            "threshold": 1.5
+          },
+          "blacks": -5,
+          "brightness": 0.2,
+          "clarity": 10,
+          "colorGrading": {
+            "agLightroom": 1,
+            "balance": 10,
+            "blending": 40,
+            "global": {
+              "hue": 30,
+              "luminance": 2,
+              "saturation": 10
+            },
+            "highlights": {
+              "hue": 60,
+              "luminance": -4,
+              "saturation": 15
+            },
+            "midtones": {
+              "hue": 120,
+              "luminance": 1,
+              "saturation": 5
+            },
+            "shadows": {
+              "hue": 240,
+              "luminance": 3,
+              "saturation": 12
+            }
+          },
+          "colorNoiseReduction": 15,
+          "contrast": 12,
+          "curveMode": "parametric",
+          "curves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 240
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 5
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 100,
+                "y": 110
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 200,
+                "y": 190
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "dehaze": 8,
+          "exposure": 1.5,
+          "flareAmount": 5,
+          "glowAmount": 6,
+          "halationAmount": 7,
+          "highlights": -10,
+          "hsl": {
+            "aquas": {
+              "hue": 2,
+              "luminance": 1,
+              "saturation": -4
+            },
+            "blues": {
+              "hue": -3,
+              "luminance": -2,
+              "saturation": 5
+            },
+            "greens": {
+              "hue": 4,
+              "luminance": 2,
+              "saturation": -6
+            },
+            "magentas": {
+              "hue": -1,
+              "luminance": -1,
+              "saturation": 3
+            },
+            "oranges": {
+              "hue": 1,
+              "luminance": 3,
+              "saturation": 4
+            },
+            "purples": {
+              "hue": 3,
+              "luminance": 1,
+              "saturation": -2
+            },
+            "reds": {
+              "hue": -2,
+              "luminance": -1,
+              "saturation": 6
+            },
+            "yellows": {
+              "hue": 1,
+              "luminance": 2,
+              "saturation": -3
+            }
+          },
+          "hue": 5,
+          "lumaNoiseReduction": 10,
+          "parametricCurve": {
+            "blue": {
+              "blackLevel": 3,
+              "darks": 3,
+              "highlights": 2,
+              "lights": -1,
+              "shadows": -2,
+              "split1": 20,
+              "split2": 40,
+              "split3": 60,
+              "whiteLevel": -1
+            },
+            "green": {
+              "blackLevel": 1,
+              "darks": -1,
+              "highlights": 1,
+              "lights": -1,
+              "shadows": 2,
+              "split1": 30,
+              "split2": 50,
+              "split3": 70,
+              "whiteLevel": -2
+            },
+            "luma": {
+              "blackLevel": 2,
+              "darks": 5,
+              "highlights": 3,
+              "lights": -2,
+              "shadows": -4,
+              "split1": 20,
+              "split2": 50,
+              "split3": 80,
+              "whiteLevel": -3
+            },
+            "red": {
+              "blackLevel": 1,
+              "darks": 2,
+              "highlights": -1,
+              "lights": 1,
+              "shadows": 1,
+              "split1": 25,
+              "split2": 45,
+              "split3": 75,
+              "whiteLevel": -1
+            }
+          },
+          "pointCurves": {
+            "blue": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 255,
+                "y": 248
+              }
+            ],
+            "green": [
+              {
+                "x": 0,
+                "y": 2
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "luma": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 90,
+                "y": 100
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ],
+            "red": [
+              {
+                "x": 0,
+                "y": 0
+              },
+              {
+                "x": 210,
+                "y": 200
+              },
+              {
+                "x": 255,
+                "y": 255
+              }
+            ]
+          },
+          "saturation": 15,
+          "sectionVisibility": {
+            "basic": true,
+            "color": true,
+            "curves": true,
+            "details": true,
+            "effects": true
+          },
+          "shadows": 12,
+          "sharpness": 20,
+          "sharpnessThreshold": 30,
+          "structure": 6,
+          "temperature": 10,
+          "tint": -6,
+          "vibrance": 9,
+          "whites": 4
+        },
+        "id": "mask-13",
+        "invert": true,
+        "name": "Face",
+        "opacity": 85,
+        "subMasks": [
+          {
+            "id": "sub-13",
+            "invert": false,
+            "mode": "additive",
+            "name": "Face",
+            "opacity": 90,
+            "parameters": {
+              "agParts": [
+                "faceSkin",
+                "lips",
+                "hair"
+              ],
+              "agSelection": "face",
+              "feather": 6,
+              "flipHorizontal": true,
+              "flipVertical": true,
+              "grow": 0,
+              "maskDataBase64": "data:image/png;base64,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",
+              "orientationSteps": 1,
+              "rotation": 2.5
+            },
+            "type": "ai-foreground",
+            "visible": true
+          }
+        ],
+        "visible": true
       }
     ],
     "orientationSteps": 1,
@@ -4394,7 +4966,7 @@
     "whites": 9
   },
   "agHistory": {
-    "edit": "e3bdf4e90f13f372",
+    "edit": "ad857694e0562347",
     "end": 2,
     "steps": [
       {
