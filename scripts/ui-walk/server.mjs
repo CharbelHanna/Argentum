@@ -37,6 +37,9 @@ export async function startServer(root) {
     clearScreen: false,
     // The page's console is read by the walk itself, not echoed by Vite.
     server: { host: '127.0.0.1', port: 0, strictPort: false, hmr: false, watch: null, forwardConsole: false },
+    // The scanner reads index.html from disk, without the stub: name the stub too, so its
+    // imports are pre-bundled with the app's and never trigger a re-bundle after the page loaded.
+    optimizeDeps: { entries: ['index.html', STUB_ENTRY.slice(1)] },
     plugins: [bridgeStub()],
   });
   await server.listen();
