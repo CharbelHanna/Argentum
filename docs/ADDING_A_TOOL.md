@@ -118,12 +118,18 @@ character should be recognisably darktable's.
 npm run check:sources
 npm run check:frontend
 npm run check:wiring
+npm run check:ui
 ```
 
 The first fails if wiring a feature depends on is gone; the second if types,
 lint or formatting got worse than `scripts/frontend-baseline.json`; the third
 if the interface calls a command or shortcut that is not wired, or the
-dependencies changed without `scripts/wiring-baseline.json` saying so.
+dependencies changed without `scripts/wiring-baseline.json` saying so. The
+last opens the interface in headless Edge or Chrome over a stub of the app,
+clicks every menu, tab, Settings section and default shortcut, and fails on a
+page error, a raw translation key, or a control that appeared or went against
+`scripts/ui-walk/ui-reachability.json` (`-- --update` rewrites it; the diff
+shows what a change added or removed).
 
 ---
 
