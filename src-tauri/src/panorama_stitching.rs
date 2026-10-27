@@ -357,7 +357,7 @@ fn stitch_images(image_paths: Vec<String>, app_handle: AppHandle) -> Result<Dyna
     let _ = app_handle.emit("panorama-progress", "Determining stitching order...");
     println!("Determining stitching order...");
     let (ordered_indices, global_homographies) =
-        build_stitching_order(&image_data, &pairwise_matches);
+        build_stitching_order(&image_data, &pairwise_matches)?;
 
     if ordered_indices.len() < 2 {
         return Err("Could not find a connected sequence of at least two images.".to_string());
@@ -441,12 +441,15 @@ impl Dsu {
     }
 }
 
+/// The order the photos are placed in, and each one's homography to the first.
+type StitchingOrder = (Vec<usize>, HashMap<usize, Matrix3<f64>>);
+
 fn build_stitching_order(
     images: &[ImageInfo],
     matches: &HashMap<(usize, usize), MatchInfo>,
-) -> (Vec<usize>, HashMap<usize, Matrix3<f64>>) {
+) -> Result<StitchingOrder, String> {
     if images.is_empty() {
-        return (vec![], HashMap::new());
+        return Ok((vec![], HashMap::new()));
     }
     let n = images.len();
     if n < 2 {
@@ -454,7 +457,7 @@ fn build_stitching_order(
         if n == 1 {
             homographies.insert(0, Matrix3::identity());
         }
-        return ((0..n).collect(), homographies);
+        return Ok(((0..n).collect(), homographies));
     }
 
     let mut edges = Vec::new();
@@ -504,9 +507,13 @@ fn build_stitching_order(
                     let h_vu = if let Some(m) = matches.get(&(v, u)) {
                         m.homography
                     } else if let Some(m) = matches.get(&(u, v)) {
-                        m.homography
-                            .try_inverse()
-                            .expect("Failed to invert homography for MST edge")
+                        m.homography.try_inverse().ok_or_else(|| {
+                            format!(
+                                "Photos {} and {} could not be placed against each other.",
+                                v + 1,
+                                u + 1
+                            )
+                        })?
                     } else {
                         panic!("Match not found for MST edge between {} and {}", u, v);
                     };
@@ -518,5 +525,31 @@ fn build_stitching_order(
         }
     }
 
-    (ordered_indices, global_homographies)
+    Ok((ordered_indices, global_homographies))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn image(id: usize) -> ImageInfo {
+        ImageInfo {
+            id,
+            filename: format!("{id}.jpg"),
+            image: Rgb32FImage::new(1, 1),
+            low_detail_mask: GrayImage::new(1, 1),
+            scale_factor: 1.0,
+            features: Vec::new(),
+        }
+    }
+
+    /// A match whose homography cannot be inverted (degenerate points) is an
+    /// error for the user, not a crash of the app.
+    #[test]
+    fn a_match_that_cannot_be_inverted_is_an_error() {
+        let images = [image(0), image(1)];
+        let matches =
+            HashMap::from([((0, 1), MatchInfo { homography: Matrix3::zeros(), inliers: 40 })]);
+        assert!(build_stitching_order(&images, &matches).is_err());
+    }
 }
