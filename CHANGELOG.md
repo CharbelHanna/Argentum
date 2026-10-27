@@ -4,6 +4,17 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.44.2 — 2026-10-27
+
+### Changed
+
+- **A release's notes open with the Download table on their own.** Once every installer is
+  attached, the release workflow's last job writes the table from the files themselves: the file to
+  pick for Windows, Windows on ARM and each Mac, which Linux file to pick, and the SmartScreen,
+  macOS and `_tethering` lines (`scripts/release-downloads.mjs`, `.github/workflows/release.yml`).
+  A missing installer stops it rather than linking nothing. Its test writes 26.43.4's table, as
+  written by hand, from 26.43.4's files.
+
 ## 26.44.1 — 2026-10-27
 
 ### Added

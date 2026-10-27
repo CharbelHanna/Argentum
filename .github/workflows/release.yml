@@ -64,3 +64,19 @@ jobs:
     secrets: inherit
     permissions:
       contents: write
+
+  # Once every installer is attached, the notes open with the Download table
+  # (scripts/release-downloads.mjs). A failed build skips this, so a release
+  # never links a file that is not there.
+  downloads:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download table
+        run: node scripts/release-downloads.mjs "${{ github.event.release.tag_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
