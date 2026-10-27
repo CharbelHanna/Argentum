@@ -71,7 +71,7 @@ pub fn lenient<'de, D: Deserializer<'de>>(d: D) -> Result<Option<HistoryRecord>,
 /// A text that changes whenever the edit does: FNV-1a over its values, an
 /// object's keys in order, numbers as numbers (1 and 1.0 are one). Written here:
 /// none of the sources fingerprints an edit, they keep every state whole.
-fn fingerprint(edit: &Value) -> String {
+pub(crate) fn fingerprint(edit: &Value) -> String {
     fn feed(hash: &mut u64, bytes: &[u8]) {
         for byte in bytes {
             *hash = (*hash ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
