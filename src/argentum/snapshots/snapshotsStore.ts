@@ -24,7 +24,7 @@ interface SnapshotsState {
   byPath: Record<string, Snapshot[]>;
   /** Read a photo's snapshots from its sidecar. */
   load: (path: string) => Promise<void>;
-  /** Keep `list` as the photo's snapshots: shown at once, then written. */
+  /** Keep `list` as the photo's snapshots: shown at once, then written. Only after they were read. */
   keep: (path: string, list: Snapshot[]) => void;
 }
 
@@ -41,7 +41,13 @@ export const useSnapshots = create<SnapshotsState>((set, get) => ({
   },
 
   keep: (path, list) => {
-    const was = get().byPath[path] ?? [];
+    // Never read (it failed, or has not answered yet): writing now would put
+    // `list` over snapshots the sidecar still holds.
+    if (!(path in get().byPath)) {
+      console.error("Snapshots: not kept, the photo's own were never read:", path);
+      return;
+    }
+    const was = get().byPath[path];
     set((s) => ({ byPath: { ...s.byPath, [path]: list } }));
     ag('set_snapshots', { path, snapshots: list }).catch((err) => {
       console.error('Snapshots: could not keep them:', err);

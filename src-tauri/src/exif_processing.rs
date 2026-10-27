@@ -221,6 +221,23 @@ pub fn truncate_large_exif(value: &str) -> String {
     value.to_string()
 }
 
+/// What an unreadable sidecar's readable keys are laid over.
+fn sidecar_base() -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(ImageMetadata::default()) {
+        Ok(serde_json::Value::Object(base)) => base,
+        _ => serde_json::Map::new(),
+    }
+}
+
+/// A photo's sidecar as far as it reads, writing nothing: no rescue copy, no
+/// heal. For code that only looks (a thumbnail and its cache key); anything
+/// that may save reads with `load_sidecar`. `None` when there is none or it
+/// does not read at all.
+pub fn peek_sidecar(sidecar_path: &Path) -> Option<ImageMetadata> {
+    let content = fs::read_to_string(sidecar_path).ok()?;
+    crate::mods::salvage::readable(&content, sidecar_base).map(|(meta, _)| meta)
+}
+
 pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     if !sidecar_path.exists() {
         return ImageMetadata::default();
@@ -237,12 +254,7 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     // A sidecar that does not read is kept aside and read key by key, so a
     // later save cannot write a blank edit over it (mods/salvage.rs).
     let mut meta: ImageMetadata =
-        crate::mods::salvage::read_or_keep(sidecar_path, &content, || {
-            match serde_json::to_value(ImageMetadata::default()) {
-                Ok(serde_json::Value::Object(base)) => base,
-                _ => serde_json::Map::new(),
-            }
-        });
+        crate::mods::salvage::read_or_keep(sidecar_path, &content, sidecar_base);
     let mut healed = false;
 
     if let Some(ref mut exif_map) = meta.exif {
