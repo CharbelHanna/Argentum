@@ -12,7 +12,9 @@
 //! models folder (or the entry's own folder in it), and only after checking
 //! each is a bare name, is not a link, and resolves to something directly
 //! inside that folder. The settings page sends an id, never a path, so nothing
-//! it says can name a file outside the list.
+//! it says can name a file outside the list. A file two entries list (CLIP's
+//! word list, Photo tagging's and the Text mask's) stays while the other entry
+//! has all its files.
 //!
 //! Leftovers: only what `leftovers` lists — what no entry claims, such as a
 //! half-finished download, a temporary file a feature left, a model a removed
@@ -196,6 +198,40 @@ fn present(dir: &Path, model: &Model) -> Vec<PathBuf> {
     }
 }
 
+/// Every one of the entry's files is here, at its size.
+fn complete(dir: &Path, model: &Model) -> bool {
+    let inside = files_dir(dir, model);
+    let files = model.stored.files();
+    !files.is_empty()
+        && files.iter().all(|f| {
+            fs::metadata(inside.join(f.name)).is_ok_and(|m| m.is_file() && m.len() == f.bytes)
+        })
+}
+
+/// A file of `model`'s that another entry lists too and has all of its own
+/// files for, like CLIP's word list while Photo tagging is downloaded beside
+/// the Text mask. It is that entry's as much as this one's: deleting `model`
+/// leaves it, and it alone does not make `model` look downloaded.
+fn kept_for_another(dir: &Path, model: &Model, path: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+        return false;
+    };
+    CATALOGUE.iter().any(|other| {
+        other.id != model.id
+            && other.stored.folder() == model.stored.folder()
+            && other.stored.files().iter().any(|f| f.name == name)
+            && complete(dir, other)
+    })
+}
+
+/// What of this entry is on disk and is its alone to delete.
+fn owned(dir: &Path, model: &Model) -> Vec<PathBuf> {
+    present(dir, model)
+        .into_iter()
+        .filter(|path| !kept_for_another(dir, model, path))
+        .collect()
+}
+
 /// Does some entry claim this name directly in `dir`? An entry's own folder
 /// is claimed here; what is inside it is sorted out by `find_leftovers`.
 fn claimed(dir: &Path, name: &str, is_dir: bool) -> bool {
@@ -256,7 +292,7 @@ pub fn list(dir: &Path) -> Listing {
                     })
                     .map(|f| f.bytes)
                     .sum();
-                let on_disk = if found.is_empty() {
+                let on_disk = if owned(dir, model).is_empty() {
                     OnDisk::Missing
                 } else if to_fetch > 0 {
                     OnDisk::Partial
@@ -442,7 +478,7 @@ enum Removal {
 /// Remove what of `model` is on disk. Refused if Windows would not let go of
 /// some of it; anything else that goes wrong is an error.
 fn remove_now(dir: &Path, model: &Model) -> Result<Removal, String> {
-    let targets = present(dir, model);
+    let targets = owned(dir, model);
     if targets.is_empty() {
         return Ok(Removal::Done);
     }
@@ -473,7 +509,7 @@ fn remove_now(dir: &Path, model: &Model) -> Result<Removal, String> {
 /// Windows would allow; it is then only marked for removal at the next start.
 pub fn delete(dir: &Path, id: &str, held: bool) -> Result<Outcome, String> {
     let model = model_catalog::find(id).ok_or_else(|| format!("No AI model called {id}"))?;
-    if present(dir, model).is_empty() {
+    if owned(dir, model).is_empty() {
         return Ok(Outcome::NotThere);
     }
 
@@ -763,6 +799,43 @@ mod tests {
         assert_eq!(delete(dir, "tagging", false), Ok(Outcome::NotThere));
         assert!(delete(dir, "../unrelated.txt", false).is_err());
         assert!(delete(dir, "unrelated.txt", false).is_err());
+    }
+
+    /// CLIP's word list is Photo tagging's and the Text mask's: deleting one
+    /// leaves it while the other has all its files, and it alone does not make
+    /// the deleted one look downloaded.
+    #[test]
+    fn a_file_two_entries_list_stays_for_the_one_still_whole() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        for id in ["tagging", model_catalog::TEXT_MASKS] {
+            for file in model_catalog::find(id).unwrap().stored.files() {
+                sized(dir, file.name, file.bytes);
+            }
+        }
+        let text = |listing: &Listing| status(listing, model_catalog::TEXT_MASKS).unwrap().on_disk;
+        assert_eq!(text(&list(dir)), OnDisk::Downloaded);
+
+        assert_eq!(
+            delete(dir, model_catalog::TEXT_MASKS, false),
+            Ok(Outcome::Deleted)
+        );
+        assert!(dir.join("clip_tokenizer.json").exists());
+        assert!(!dir.join("efficientsam3_ev_m_decoder.onnx").exists());
+        let listing = list(dir);
+        assert_eq!(text(&listing), OnDisk::Missing);
+        assert_eq!(
+            status(&listing, "tagging").unwrap().on_disk,
+            OnDisk::Downloaded
+        );
+        assert_eq!(
+            delete(dir, model_catalog::TEXT_MASKS, false),
+            Ok(Outcome::NotThere)
+        );
+
+        // Nothing else has it whole now, so it goes with Photo tagging.
+        assert_eq!(delete(dir, "tagging", false), Ok(Outcome::Deleted));
+        assert!(!dir.join("clip_tokenizer.json").exists());
     }
 
     #[test]

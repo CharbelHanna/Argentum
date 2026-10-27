@@ -73,6 +73,11 @@ fn run(app: AppHandle) {
             collect();
             log::info!("[memory] unloaded the idle selection models");
         }
+        // The Text mask's (text_mask.rs), the same.
+        if super::text_mask::unload_if_idle(IDLE_MASKS) {
+            collect();
+            log::info!("[memory] unloaded the idle text mask models");
+        }
 
         // The guard on ai_state is gone by the time take_idle returns, so the
         // models are dropped here with nothing of theirs waiting on it.
