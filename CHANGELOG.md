@@ -8,6 +8,12 @@ Newest first.
 
 ### Changed
 
+- **Start-up no longer parses the RapidRAW Cloud sign-in SDK.** `tauri-plugin-clerk` (and the
+  1.5 MB `@clerk/clerk-js` it brings) is now imported only inside `initAuth`, which returns before
+  reaching it since Cloud is switched off (`src/argentum/noCloud.ts`), so it sits in its own chunk
+  that never loads. The main script goes from 4.52 MB to 2.92 MB. `@clerk/react`, which nothing
+  imported, is gone.
+
 - **A release's notes open with the Download table on their own.** Once every installer is
   attached, the release workflow's last job writes the table from the files themselves: the file to
   pick for Windows, Windows on ARM and each Mac, which Linux file to pick, and the SmartScreen,
