@@ -352,7 +352,6 @@
     "docs/MENU.md",
     "docs/RELEASING.md",
     "docs/ROADMAP.md",
-    "index.html",
     "packaging/cargo-sources.json",
     "packaging/node-sources.json",
     "scripts/check-identity.mjs",
