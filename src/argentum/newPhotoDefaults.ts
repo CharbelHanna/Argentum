@@ -64,6 +64,12 @@ async function onOpen(path: string, exif: Record<string, string>, isRaw: boolean
   await Promise.all([lensOnOpen(path, exif, isRaw, found), profileOnOpen(path, exif, isRaw, found)]);
 }
 
+/** A question that failed counts as "none", and the log says it failed rather than found nothing. */
+function unanswered(err: unknown): null {
+  console.warn('New photo defaults: a question to the app failed:', err);
+  return null;
+}
+
 /** The edit as it is now, when `path` is still the open photo. */
 function stillOpen(path: string) {
   const { selectedImage, adjustments, setEditor } = useEditorStore.getState();
@@ -75,7 +81,7 @@ async function profileOnOpen(path: string, exif: Record<string, string>, isRaw: 
   if (!found.fresh || !isRaw || !model) {
     return;
   }
-  const file = await ag<string | null>('camera_default_profile', { model }).catch(() => null);
+  const file = await ag<string | null>('camera_default_profile', { model }).catch(unanswered);
   const open = file ? stillOpen(path) : null;
   open?.setEditor({ adjustments: { ...open.adjustments, cameraProfile: file } as Adjustments });
 }
@@ -87,12 +93,12 @@ async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boo
   }
   // An EXIF cached before CR3 lenses were read has none: ask the file, as Auto does.
   const lensName =
-    exif.LensModel?.trim() || (await ag<string | null>('recover_lens_name', { path }).catch(() => null)) || '';
+    exif.LensModel?.trim() || (await ag<string | null>('recover_lens_name', { path }).catch(unanswered)) || '';
   const detected = await invoke<[string, string] | null>('autodetect_lens', {
     maker: make,
     model: lensName,
     cameraModel: exif.Model ?? '',
-  }).catch(() => null);
+  }).catch(unanswered);
   const name = detected ?? [make, lensName || exif.Model?.trim()];
   if (!name[1]) {
     return;
@@ -108,7 +114,7 @@ async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boo
         focalLength: parseExifNumber(exif.FocalLength),
         aperture: parseExifNumber(exif.FNumber),
         distance: parseExifNumber(exif.SubjectDistance),
-      }).catch(() => null)
+      }).catch(unanswered)
     : null;
   const open = stillOpen(path);
   open?.setEditor({
