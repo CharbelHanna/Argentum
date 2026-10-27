@@ -43,15 +43,6 @@ Newest first.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
 
-### Internal
-
-- **The engine's GPU tests run in CI.** `engine.yml` installed its software GPU (lavapipe) after
-  `cargo test`, so every GPU test there, the parity tests that hold the engine's copies of the
-  app's shaders to the app's among them, said it skipped and passed. The software GPU now comes
-  first, and with `AG_REQUIRE_GPU` set a test that finds no GPU fails instead of skipping
-  (`src-tauri/engine/tests/common/mod.rs`). The memory budget, which had a step of its own for
-  this, runs with the rest.
-
 ## 26.44.1 — 2026-10-27
 
 ### Added
