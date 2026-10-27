@@ -17,7 +17,7 @@
 
 ## Checklist
 
-- [ ] A `CHANGELOG.md` entry, naming the source file and commit of anything taken from another project
+- [ ] A changelog entry as its own file, `changelog.d/<topic>.<added|changed|fixed|removed>.md` (never `CHANGELOG.md` itself), naming the source file and commit of anything taken from another project
 - [ ] Credits updated in both `CREDITS.md` and `src/argentum/credits.ts` when a source is new or its scope changed
 - [ ] Any new dependency (crate or npm package) has its reason above
 - [ ] `npm run check:sources`, `npm run check:frontend`, `npm run check:wiring` and `npm run test:frontend` pass

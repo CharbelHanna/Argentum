@@ -860,7 +860,7 @@ fn solve_level(
 
         let mut abs_res: Vec<f64> = samples.iter().map(|s| s.residual.abs()).collect();
         let mid = abs_res.len() / 2;
-        abs_res.select_nth_unstable_by(mid, |a, b| a.partial_cmp(b).unwrap());
+        abs_res.select_nth_unstable_by(mid, |a, b| a.total_cmp(b));
         let mad = abs_res[mid].max(1e-6);
         let huber = 1.5 * 1.4826 * mad;
 
@@ -1222,7 +1222,7 @@ pub fn decide_labels(
                 continue;
             }
             let slice = &mut buf[..cnt];
-            slice.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            slice.sort_by(|a, b| a.total_cmp(b));
             *med = slice[cnt / 2];
         }
         let thr = cfg.consistency_threshold.max(1e-4);
@@ -2162,4 +2162,20 @@ pub async fn save_focus_stack(
     crate::exif_processing::write_rrexif_sidecar(&first_path_str, &output_path).ok();
 
     Ok(output_path.to_string_lossy().to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A NaN pixel (a blank or broken frame) must not stop the stack: sorting
+    /// it used to panic in the consistency median.
+    #[test]
+    fn a_nan_pixel_does_not_crash_the_labels() {
+        let plane = |values: [f32; 4]| Plane { w: 2, h: 2, data: values.to_vec() };
+        let scores = vec![vec![plane([1.0; 4])], vec![plane([2.0; 4])], vec![plane([3.0; 4])]];
+        let base = vec![plane([0.1; 4]), plane([f32::NAN, 0.2, 0.2, 0.2]), plane([0.3; 4])];
+        let masks = vec![plane([1.0; 4]), plane([1.0; 4]), plane([1.0; 4])];
+        decide_labels(&scores, &base, &masks, &FusionConfig::default());
+    }
 }
