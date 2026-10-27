@@ -919,4 +919,56 @@ mod tests {
             assert!(tags.iter().any(|t| t == tag), "{tag} missing from {tags:?}");
         }
     }
+
+    /// A sidecar with one key this version cannot read (here, snapshots in an
+    /// old shape) still has its edit: the thumbnail key must come from that
+    /// edit, as the editor reads it, not from "no edit".
+    #[test]
+    fn a_thumbnail_key_reads_the_edit_of_a_sidecar_with_one_bad_key() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        let sidecar = dir.path().join("IMG.CR2.agdata");
+        fs::write(&photo, "raw").unwrap();
+        let path = photo.to_string_lossy().to_string();
+
+        fs::write(
+            &sidecar,
+            r#"{ "version": 1, "rating": 4, "adjustments": { "exposure": 0.7 },
+                "agSnapshots": { "not": "a list" } }"#,
+        )
+        .unwrap();
+        let with_bad_key = crate::file_management::get_cache_key_hash(&path);
+
+        fs::write(
+            &sidecar,
+            r#"{ "version": 1, "rating": 4, "adjustments": { "exposure": 0.7 } }"#,
+        )
+        .unwrap();
+        let clean = crate::file_management::get_cache_key_hash(&path);
+
+        assert!(clean.is_some());
+        assert_eq!(with_bad_key, clean);
+    }
+
+    /// Working out a thumbnail's key only looks: no rescue copy, no rewrite of
+    /// a sidecar with oversized EXIF values, whatever the sidecar holds.
+    #[test]
+    fn a_thumbnail_key_writes_nothing_beside_the_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let photo = dir.path().join("IMG.CR2");
+        let sidecar = dir.path().join("IMG.CR2.agdata");
+        fs::write(&photo, "raw").unwrap();
+        let path = photo.to_string_lossy().to_string();
+        let long = "x".repeat(600);
+        for text in [
+            r#"{ "version": 1, "adjustments": {}, "agSnapshots": { "not": "a list" } }"#
+                .to_string(),
+            format!(r#"{{ "version": 1, "adjustments": {{}}, "exif": {{ "Note": "{long}" }} }}"#),
+        ] {
+            fs::write(&sidecar, &text).unwrap();
+            crate::file_management::get_cache_key_hash(&path);
+            assert_eq!(fs::read_to_string(&sidecar).unwrap(), text);
+            assert_eq!(names_in(dir.path()), ["IMG.CR2", "IMG.CR2.agdata"]);
+        }
+    }
 }

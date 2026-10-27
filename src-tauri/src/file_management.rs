@@ -1477,9 +1477,7 @@ pub fn generate_thumbnail_data(
         );
         None
     } else {
-        fs::read_to_string(&sidecar_path)
-            .ok()
-            .and_then(|content| serde_json::from_str(&content).ok())
+        crate::exif_processing::peek_sidecar(&sidecar_path)
     };
 
     let adjustments = metadata
@@ -1819,18 +1817,14 @@ fn generate_single_thumbnail_and_cache(
             sidecar_path.clone(),
         );
         (0, false, Vec::new())
-    } else if let Ok(content) = fs::read_to_string(&sidecar_path) {
-        if let Ok(meta) = serde_json::from_str::<ImageMetadata>(&content) {
-            let is_raw = crate::formats::is_raw_file(path_str);
-            let tm = crate::image_processing::resolve_tonemapper_override(settings, is_raw);
-            (
-                meta.rating,
-                crate::image_processing::is_image_edited(&meta.adjustments, is_raw, tm),
-                serde_json::to_vec(&meta.adjustments).unwrap_or_default(),
-            )
-        } else {
-            (0, false, Vec::new())
-        }
+    } else if let Some(meta) = crate::exif_processing::peek_sidecar(&sidecar_path) {
+        let is_raw = crate::formats::is_raw_file(path_str);
+        let tm = crate::image_processing::resolve_tonemapper_override(settings, is_raw);
+        (
+            meta.rating,
+            crate::image_processing::is_image_edited(&meta.adjustments, is_raw, tm),
+            serde_json::to_vec(&meta.adjustments).unwrap_or_default(),
+        )
     } else {
         (0, false, Vec::new())
     };
@@ -3710,15 +3704,10 @@ pub fn get_thumb_cache_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
 pub fn get_cache_key_hash(path_str: &str) -> Option<String> {
     let (_, sidecar_path) = parse_virtual_path(path_str);
 
-    let adjustments_bytes = if let Ok(content) = fs::read_to_string(&sidecar_path) {
-        if let Ok(meta) = serde_json::from_str::<ImageMetadata>(&content) {
-            serde_json::to_vec(&meta.adjustments).unwrap_or_default()
-        } else {
-            Vec::new()
-        }
-    } else {
-        Vec::new()
-    };
+    // Read as the thumbnail itself reads it, so the two keys always agree.
+    let adjustments_bytes = crate::exif_processing::peek_sidecar(&sidecar_path)
+        .map(|meta| serde_json::to_vec(&meta.adjustments).unwrap_or_default())
+        .unwrap_or_default();
 
     compute_thumbnail_cache_hash(path_str, &adjustments_bytes)
 }
