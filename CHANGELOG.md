@@ -32,6 +32,13 @@ Newest first.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
 
+### Internal
+
+- **Release builds: a matrix key nothing read is gone.** The Windows rows of `ci.yml`, `pr-ci.yml`
+  and `release.yml` set `builds-args: '--bundles nsis'`, but the build passes `matrix.args`, so
+  Windows has always built both installers, `.exe` and `.msi`, as the README lists. The rows now
+  say what happens.
+
 ## 26.44.1 — 2026-10-27
 
 ### Added
