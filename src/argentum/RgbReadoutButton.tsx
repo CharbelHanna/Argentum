@@ -12,11 +12,11 @@
  */
 
 import { Pipette } from 'lucide-react';
-import { useTranslation } from 'react-i18next';
+import { useAgTranslation } from './locales';
 import { useRgbReadout } from './rgbReadoutStore';
 
 export default function RgbReadoutButton() {
-  const { t } = useTranslation();
+  const agT = useAgTranslation();
   const on = useRgbReadout((s) => s.on);
   const toggle = useRgbReadout((s) => s.toggle);
 
@@ -26,7 +26,7 @@ export default function RgbReadoutButton() {
         on ? 'bg-accent text-button-text' : 'bg-surface text-text-primary hover:bg-card-active'
       }`}
       onClick={toggle}
-      data-tooltip={t('editor.toolbar.tooltips.rgbReadout', 'Sample RGB under the cursor')}
+      data-tooltip={agT('rgbReadoutTip')}
     >
       <Pipette size={20} />
     </button>

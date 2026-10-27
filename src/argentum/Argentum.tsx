@@ -135,11 +135,11 @@ export default function Argentum({ onLibraryRefresh, onImageSelect }: ArgentumPr
     hint: agT('thresholdHint'),
   });
 
-  // The Camera Details heading in the metadata pane. This is the one anchor we
-  // added to a file of theirs — a bare data attribute, one line, because there
-  // was nothing stable to hang from and matching on translated heading text
-  // would break in 12 of the 13 locales.
-  const cameraDetails = useAnchor('[data-argentum="camera-details"] > *:first-child');
+  // The Camera Details heading in the metadata pane: an empty span of ours at
+  // the end of it, because there was nothing stable to hang from and matching
+  // on translated heading text would break in 12 of the 13 locales. Not the
+  // heading itself — React warns when a portal shares an element with text.
+  const cameraDetails = useAnchor('[data-argentum="camera-details"]');
 
   // The white balance row, first in Basic (components/adjustments/WhiteBalance.tsx):
   // the preset menu and Auto go in its slot.
