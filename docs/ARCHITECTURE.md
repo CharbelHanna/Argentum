@@ -155,6 +155,19 @@ The exact folders per system are in the
 [README](../README.md#where-the-app-keeps-its-files). One user-chosen folder for
 all of it is on the roadmap, not built.
 
+**Stored files keep reading.** `src-tauri/fixtures/compat/<release>/` holds a
+`settings.json` and a sidecar in the shape each release wrote them, and the
+tests in `src-tauri/src/mods/compat_corpus.rs` (and
+`src/argentum/compatCorpus.test.ts` for the interface's loader) fail when one no
+longer reads, loses a key when written back, or gives the renderer something
+other than `fixtures/compat/snapshots/<release>.txt` records. To add the
+version being worked on, after a version bump or a new setting or edit key:
+`cargo test --lib mods::compat_fixture -- --ignored` in `src-tauri`, then record
+its snapshot. To rewrite the snapshots after a change meant to move them (and
+bump `PIPELINE` in `mods/cache_version.rs` when it changes pixels):
+`AG_COMPAT_UPDATE=1 cargo test --lib mods::compat_corpus`. A released folder is
+never edited; a key dropped on purpose goes in the module's `DROPPED` list.
+
 ---
 
 ## Where a new feature goes

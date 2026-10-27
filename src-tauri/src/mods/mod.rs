@@ -22,6 +22,12 @@ pub mod clipping;
 pub mod color_grade;
 pub mod colour_compare;
 pub mod commands;
+#[cfg(test)]
+mod compat_corpus;
+#[cfg(test)]
+mod compat_fixture;
+#[cfg(test)]
+mod compat_snapshot;
 pub mod copy_keys;
 pub mod dcp;
 pub mod decode;
