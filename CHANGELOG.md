@@ -43,12 +43,6 @@ Newest first.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
 
-### Internal
-
-- **Release builds check out one commit, not the whole history.** `build.yml` fetched every commit
-  (`fetch-depth: 0`) for each of its twelve builds, and nothing in a build reads git: `build.rs`
-  does not, and the one dependency that can (`built`, through `rav1e`) is built without git.
-
 ## 26.44.1 — 2026-10-27
 
 ### Added
