@@ -63,7 +63,6 @@ jobs:
       build-args: ${{ matrix.args }}
       asset-name-pattern: '[name]_v[version]_[platform]_[arch][ext]'
       asset-prefix: ${{ matrix.asset-prefix }}
-      mobile: ${{ matrix.mobile }}
     secrets: inherit
     permissions:
       contents: write
