@@ -203,9 +203,11 @@ export function outcome(before, after) {
 
 /**
  * Calls that come when they please rather than from the key: the window's own, the log, the
- * auto sharpening asked in the background, and settings saved after a pause.
+ * auto sharpening asked in the background, settings saved after a pause, and the AI connector's
+ * status, asked on a timer.
  */
-const BACKGROUND_CALLS = /^(plugin:(window|event)\|.*|frontend_log|ag:sharpen_auto|save_settings)$/;
+const BACKGROUND_CALLS =
+  /^(plugin:(window|event)\|.*|frontend_log|ag:sharpen_auto|save_settings|check_ai_connector_status)$/;
 
 /** The app's commands called between two counts of the stub's calls, the background's left out. */
 export function calledBetween(before, after) {
