@@ -2223,7 +2223,7 @@ pub fn run() {
                             let path = config_dir.join("window_state.json");
                             let _ = std::fs::create_dir_all(&config_dir);
                             if let Ok(json) = serde_json::to_string(&state) {
-                                let _ = std::fs::write(&path, json);
+                                let _ = crate::mods::atomic_write::write_atomic(&path, json);
                             }
                         }
                     }
