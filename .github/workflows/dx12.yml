@@ -34,6 +34,11 @@ on:
       - '.github/workflows/dx12.yml'
   workflow_dispatch:
 
+# A new push to a pull request cancels the run it replaces; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   warp:
     name: Shaders on DirectX 12 (WARP)
