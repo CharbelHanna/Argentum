@@ -7,7 +7,8 @@ A release is a merge commit on `main`, published in this order.
    ISO week has rolled over since (`date +%g.%V`), the release sets the real
    `yy.ww.n` in `src-tauri/Cargo.toml`, Argentum's entry in `src-tauri/Cargo.lock`
    and `src-tauri/tauri.conf.json`.
-2. **Notes.** The version's section of `CHANGELOG.md`, its plain-language line in
+2. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
+   `changelog.d/` into the version's section of `CHANGELOG.md`. That section, its plain-language line in
    `src/argentum/releases.ts`, and its rows in `docs/ROADMAP.md` and
    `src/argentum/roadmap.ts` say what actually shipped. Whatever a later PR made
    stale is fixed in a "Release <version>" PR.
