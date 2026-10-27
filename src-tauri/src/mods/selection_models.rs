@@ -19,12 +19,11 @@
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
-use rm_selection::manifest::{ModelFile, all_files, total_bytes};
-use serde::Serialize;
+use rm_selection::manifest::all_files;
 use tauri::{AppHandle, Manager};
 
 use super::model_catalog::{File, SELECTION};
-use super::model_download::{Progress, fetch_missing, sha256_of};
+use super::model_download::{self, Progress, Status, fetch_missing};
 
 /// Their folder inside the models folder.
 pub const FOLDER: &str = "rawmakase-selection";
@@ -53,53 +52,18 @@ pub fn files() -> Vec<File> {
         .collect()
 }
 
-/// Whether the models are there, and how much is left to fetch.
-#[derive(Debug, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Status {
-    pub installed: bool,
-    pub missing_bytes: u64,
-    pub total_bytes: u64,
-}
-
-/// By size alone: cheap enough to ask before every selection.
+/// Whether the models are there, and how much is left to fetch. By size
+/// alone: cheap enough to ask before every selection.
 pub fn status(dir: &Path) -> Status {
-    let missing_bytes = all_files()
-        .iter()
-        .filter(|f| !has_size(dir, f))
-        .map(|f| f.size_bytes)
-        .sum();
-    Status {
-        installed: missing_bytes == 0,
-        missing_bytes,
-        total_bytes: total_bytes(),
-    }
+    model_download::status(dir, &files())
 }
 
-fn has_size(dir: &Path, file: &ModelFile) -> bool {
-    std::fs::metadata(dir.join(file.name)).is_ok_and(|m| m.is_file() && m.len() == file.size_bytes)
-}
-
-/// The folder whose files were last found to match their checksums, so each is
-/// read through once per run, not once per selection.
+/// The folder last found whole (`model_download::verify`).
 static VERIFIED: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 /// Every file there and every checksum right.
 pub fn verify(dir: &Path) -> Result<(), String> {
-    if VERIFIED.lock().map_err(|e| e.to_string())?.as_deref() == Some(dir) {
-        return Ok(());
-    }
-    for file in all_files() {
-        let path = dir.join(file.name);
-        if !has_size(dir, &file) {
-            return Err(format!("{} is missing", file.name));
-        }
-        if sha256_of(&path)? != file.sha256 {
-            return Err(format!("{} does not match its checksum", file.name));
-        }
-    }
-    *VERIFIED.lock().map_err(|e| e.to_string())? = Some(dir.to_path_buf());
-    Ok(())
+    model_download::verify(dir, &files(), &VERIFIED)
 }
 
 /// Fetch whatever is missing or wrong, then check all five.
@@ -112,6 +76,7 @@ pub async fn download(dir: &Path, progress: impl Fn(&Progress)) -> Result<(), St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rm_selection::manifest::total_bytes;
 
     fn scratch(name: &str) -> PathBuf {
         let dir =

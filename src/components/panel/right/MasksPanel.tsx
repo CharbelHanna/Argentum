@@ -82,8 +82,12 @@ import {
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../../../argentum/editSections';
+import FaceParts from '../../../argentum/selection/FaceParts';
+import TextWords from '../../../argentum/selection/TextWords';
 import {
+  isFaceSelection,
   isObjectSelection,
+  isTextSelection,
   menuTypeOf,
   selectionKind,
   startOverObject,
@@ -2140,8 +2144,7 @@ function SettingsPanel({
     ]);
   };
 
-  const sectionVisibility =
-    displayContainer.adjustments.sectionVisibility || SECTION_EYES_OPEN;
+  const sectionVisibility = displayContainer.adjustments.sectionVisibility || SECTION_EYES_OPEN;
   const visibleSections = getVisibleAdjustmentSections(appSettings?.adjustmentLayout);
 
   return (
@@ -2173,6 +2176,14 @@ function SettingsPanel({
         isContentVisible={true}
       >
         <div className="space-y-4 pt-2">
+          {/* Argentum: the Text mask's words and the Face mask's parts, first as in RapidRAW 1.6.7 (argentum/selection). */}
+          {isComponentMode && isTextSelection(activeSubMask) && (
+            <TextWords subMask={activeSubMask} update={updateSubMask} />
+          )}
+          {isComponentMode && isFaceSelection(activeSubMask) && (
+            <FaceParts subMask={activeSubMask} update={updateSubMask} />
+          )}
+
           <Switch
             checked={!!(isComponentMode ? activeSubMask.invert : displayContainer.invert)}
             label={isComponentMode ? t('editor.masks.settings.invertComponent') : t('editor.masks.settings.invertMask')}

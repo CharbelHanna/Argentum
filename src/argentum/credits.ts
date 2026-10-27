@@ -175,6 +175,24 @@ export const CREDITS: CreditGroup[] = [
           'DETR ResNet-50 panoptic, trained on COCO, says where a photo’s people, animals and sky ' +
           'are. Apache-2.0; ONNX export by Xenova.',
       },
+      {
+        name: 'EfficientSAM3',
+        href: 'https://github.com/SimonZeng7108/efficientsam3',
+        what:
+          'The Text mask finds what is typed with EfficientSAM3 EV-M, an image encoder, a text ' +
+          'encoder and a decoder distilled from Meta’s SAM 3, reading the words through CLIP’s ' +
+          'word list. Apache-2.0 as its authors publish it; SAM 3 itself is under Meta’s SAM ' +
+          'License. The ONNX files and the code that runs them are RapidRAW 1.6.7’s. It also finds ' +
+          'the faces for the Face mask.',
+      },
+      {
+        name: 'MediaPipe (Google)',
+        href: 'https://github.com/google-ai-edge/mediapipe',
+        what:
+          'The Face mask draws each face’s parts with MediaPipe’s face landmarks (478 points) and ' +
+          'its selfie multiclass segmenter (hair, face and body skin). Apache-2.0. The ONNX files ' +
+          'and the code that runs them are RapidRAW 1.6.7’s.',
+      },
     ],
   },
   {

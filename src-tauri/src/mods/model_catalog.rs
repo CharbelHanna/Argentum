@@ -132,6 +132,81 @@ macro_rules! rapidraw {
     };
 }
 
+/// The Text mask's id: `text_mask` downloads under it too.
+pub const TEXT_MASKS: &str = "text-masks";
+
+/// CLIP's word list. Photo tagging and the Text mask both read this one file.
+const CLIP_TOKENIZER: File = rapidraw!(
+    "clip_tokenizer.json",
+    "clip_tokenizer.json",
+    // Their code checks no checksum for the tokenizer. This one is ours: the
+    // file Hugging Face served on 2026-10-21 (git blob 564c0ebd, the one their
+    // listing names).
+    "b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842",
+    2_224_041
+);
+
+/// The Face mask's id: `face_mask` downloads under it too.
+pub const FACE_MASKS: &str = "face-masks";
+
+// The Text and Face masks run on RapidRAW 1.6.7's files, under the names,
+// addresses and checksums they give them (ai_processing.rs @ 211ef559 and
+// 07ef9211, `ESAM3_*`, `FACE_*` and `AiMaskModel`). Their 1.6.6 code here
+// never saves these, so the copies are held to `text_mask` and `face_mask`,
+// which download them, rather than to their file.
+
+/// EfficientSAM3's image encoder and decoder: the Text and Face masks' shared part.
+const ESAM3_IMAGE_ENCODER: File = rapidraw!(
+    "efficientsam3_ev_m_image_encoder.onnx",
+    "efficientsam3_ev_m_image_encoder.onnx",
+    "2ed08306579138120dbf9f1110fd31784d1c20fe1b67fa2187a0a2a6d7c82729",
+    85_436_582
+);
+const ESAM3_DECODER: File = rapidraw!(
+    "efficientsam3_ev_m_decoder.onnx",
+    "efficientsam3_ev_m_decoder.onnx",
+    "16accc22a07ee99c73ef8a14e286ec567f94c116e0d8efa1a3a6c0bc9a2596a8",
+    129_858_624
+);
+
+/// What the Face mask runs on: EfficientSAM3 with a stored "face" prompt
+/// finds the faces, MediaPipe's landmarks and selfie segmenter draw the parts.
+pub const FACE_MASK_FILES: &[File] = &[
+    ESAM3_IMAGE_ENCODER,
+    ESAM3_DECODER,
+    rapidraw!(
+        "efficientsam3_face_prompt.bin",
+        "efficientsam3_face_prompt.bin",
+        "8fdbe63ef853756b1da9cdc642c277a6e422452f3feaf35f4297e6aea3a1ffb9",
+        16_448
+    ),
+    rapidraw!(
+        "mediapipe_face_landmarks.onnx",
+        "mediapipe_face_landmarks.onnx",
+        "6524d596b4d9151b0d8d590844566261f21de5186ac38125bdcd1de6974b0bb4",
+        4_920_998
+    ),
+    rapidraw!(
+        "mediapipe_selfie_multiclass.onnx",
+        "mediapipe_selfie_multiclass.onnx",
+        "a198470a4edec350a33b8182c149e417effc5e61c0506b947f226e7a81b9a08e",
+        16_454_469
+    ),
+];
+
+/// What the Text mask runs on.
+pub const TEXT_MASK_FILES: &[File] = &[
+    ESAM3_IMAGE_ENCODER,
+    ESAM3_DECODER,
+    rapidraw!(
+        "efficientsam3_ev_m_text_encoder.onnx",
+        "efficientsam3_ev_m_text_encoder.onnx",
+        "3065ea6116f21f6e22bc70a0c041e5da9ae05fdec7b48df953394f5657609590",
+        169_171_689
+    ),
+    CLIP_TOKENIZER,
+];
+
 pub const CATALOGUE: &[Model] = &[
     // --- RAWmakase's, through `selection_models`: the masks the Masks menu
     // makes since PRs #103 and #104.
@@ -268,17 +343,26 @@ pub const CATALOGUE: &[Model] = &[
                 "57879bb1c23cdeb350d23569dd251ed4b740a96d747c529e94a2bb8040ac5d00",
                 605_804_513
             ),
-            // Their code checks no checksum for the tokenizer. This one is
-            // ours: the file Hugging Face served on 2026-10-21 (git blob
-            // 564c0ebd, the one their listing names).
-            rapidraw!(
-                "clip_tokenizer.json",
-                "clip_tokenizer.json",
-                "b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842",
-                2_224_041
-            ),
+            CLIP_TOKENIZER,
         ]),
         upstream: true,
+        listed_when_missing: true,
+    },
+    // --- RapidRAW 1.6.7's, run by our code (`text_mask`, `face_mask`).
+    Model {
+        id: TEXT_MASKS,
+        label: "Text masks",
+        purpose: "Picks out what you type, such as car or water, for the Text mask.",
+        stored: Stored::Files(TEXT_MASK_FILES),
+        upstream: false,
+        listed_when_missing: true,
+    },
+    Model {
+        id: FACE_MASKS,
+        label: "Face masks",
+        purpose: "Finds every face and picks out the parts you choose (skin, hair, eyes, lips and more) for the Face mask.",
+        stored: Stored::Files(FACE_MASK_FILES),
+        upstream: false,
         listed_when_missing: true,
     },
     // --- Argentum's.

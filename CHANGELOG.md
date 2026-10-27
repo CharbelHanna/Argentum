@@ -8,6 +8,38 @@ Newest first.
 
 ### Added
 
+- **Face mask: pick the parts of every face.** Masks > AI Selections > Face (after Text, as in
+  RapidRAW 1.6.7) finds every face in the photo and masks the parts picked under a drawn face:
+  face skin, body skin, eyebrows, eye whites, iris and pupil, lips, teeth, nose and hair. It
+  starts with face skin; the mask follows half a second after the last pick, and changing parts
+  on the same photo only redraws. From RapidRAW 1.6.7 (`face_masking.rs` @ `07ef9211`, smoother
+  edges `49beb431`, the picker `FacePartsIllustration.tsx` @ `d3f1f4f1`): EfficientSAM3 with
+  their stored "face" prompt finds the faces, MediaPipe's face landmarks and selfie multiclass
+  segmenter (Google, Apache 2.0) draw the parts, and the colour guided filter fits them to the
+  photo. In `src-tauri/src/mods/face_mask.rs` and `src/argentum/selection/FaceParts.tsx`; stored
+  as the Subject mask stores its own (`agSelection: "face"`, the parts as `agParts`). Its five
+  files download the first time, after asking, and are listed in Settings > General > AI Models
+  as "Face masks": 226 MB, of which 205 MB is EfficientSAM3's image encoder and decoder, shared
+  with the Text mask and now loaded once for both (`esam3.rs`). The selection, Text and Face
+  models now share one file check (`model_download::status` and `verify`).
+
+- **Text mask: type what to select.** Masks > AI Selections > Text (after Depth, as in RapidRAW
+  1.6.7) opens a box: type "car", "water" or "person", press Enter or Generate Mask, and the mask
+  covers it, named after the words. Nothing found says so. From RapidRAW 1.6.7 (`ai_processing.rs`
+  @ `211ef559` text masks, `ebe1d4a2` edges and detection; the cursor starts in the box as
+  `59024136` has it): EfficientSAM3 EV-M finds the words, a colour guided filter fits the mask to
+  the photo's edges, and something small in the photo gets a second, closer look. Engine
+  `src-tauri/src/mods/esam3.rs` (their encoder, decoder, zoom and filter), the mask
+  `src-tauri/src/mods/text_mask.rs` (the words, one encoded photo kept, unloaded when idle like
+  the selection models) and `src/argentum/selection/TextWords.tsx`; stored as the Subject mask
+  stores its own (`agSelection: "text"`, the words as `agWords`), so it renders through their
+  Foreground code. Its four files (387 MB: image encoder, decoder, text encoder, CLIP's word
+  list) download the first time, after asking, and are listed in Settings > General > AI Models as
+  "Text masks". CLIP's word list is Photo tagging's too: deleting either entry now keeps a file the
+  other still has whole (`model_manager`). Measured on three 32 MP photos, on the processor: 2 to
+  3 s per word when nothing is found, 4 to 11 s when something is (the first word on a photo
+  also encodes it).
+
 - **RAW decoder: rawler or FlashRaw.** Settings > Processing > RAW decoder picks the program that
   reads RAW files, and a photo can use its own, first in Edit > Profile (saved in its edit as
   `rawDecoder`; a virtual copy follows its original, whose decode it shares). rawler stays the
