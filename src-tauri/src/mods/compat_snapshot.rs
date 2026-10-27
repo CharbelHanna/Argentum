@@ -12,6 +12,10 @@
 //!   `PHOTO_PX`, and the bitmap each mask makes at `MASK_SCALE` of it, as the
 //!   mean of each `CELL_PX` square and of the whole.
 //!
+//! Not in it yet: the tools that read their values from the edit inside their
+//! own pass rather than through `AllAdjustments` (fog, lens blur, relight, AI
+//! denoise, the LUT). A renamed key there still passes this snapshot.
+//!
 //! Numbers are written to six significant digits and compared with a
 //! tolerance (`TOLERANCE`, `MASK_TOLERANCE`): sines, cosines and powers come
 //! from the platform's maths library, and Windows' and Linux's can differ in

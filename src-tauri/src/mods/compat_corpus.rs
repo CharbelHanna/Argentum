@@ -13,7 +13,10 @@
 //!
 //! `src-tauri/fixtures/compat/<release>/` holds a `settings.json` and a
 //! `photo.agdata` in the shape that release wrote them; synthetic, never
-//! made from a photo. For every release folder:
+//! made from a photo. A folder stands for the releases around it whose stored
+//! shape is the same: 26.41.6 for 26.41.x (26.41.12 added no key to an edit
+//! or a setting, and its masks are still `ai-subject`), 26.43.3 for 26.43.1 to
+//! 26.43.3, then one folder per release. For every release folder:
 //!
 //! - `settings.json` reads as `AppSettings` with a plain `serde_json::from_str`
 //!   (what load_settings does before anything else), and written back the way
@@ -24,6 +27,11 @@
 //!   belongs to its edit;
 //! - the GPU input of each of those edits is what `snapshots/<release>.txt`
 //!   says, within a tolerance (compat_snapshot.rs says what is in it).
+//!
+//! Not covered: what load_settings changes after reading (the Copy settings
+//! lists, the root folders, the AI provider); for an edit, the Rust round trip
+//! keeps every key by construction (`adjustments` is a `Value`), so the guards
+//! for edit keys are the snapshot and the interface's test.
 //!
 //! A stored key that stops being kept on purpose goes in `DROPPED`, with the
 //! reason and the PR. The interface's side, `normalizeLoadedAdjustments`, is

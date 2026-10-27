@@ -43,6 +43,11 @@ fn write_this_release() {
         missing.join("\n  ")
     );
     let dir = root().join(release);
+    let readme = std::fs::read_to_string(dir.join("README.md")).unwrap_or_default();
+    assert!(
+        !readme.contains("has shipped"),
+        "{release} has shipped and its folder is never written again: bump the version first"
+    );
     std::fs::create_dir_all(&dir).expect("the release folder");
     let pretty = |value: &Value| serde_json::to_string_pretty(value).expect("writes") + "\n";
     std::fs::write(dir.join(SETTINGS), pretty(&settings)).expect("settings.json");
