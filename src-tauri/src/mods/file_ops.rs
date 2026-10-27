@@ -395,8 +395,8 @@ pub fn trash_or_delete(paths: &[PathBuf]) {
 mod tests {
     use super::*;
     use crate::file_management::{
-        copy_files, files_to_delete_from_disk, find_all_associated_files, move_files_on_disk,
-        rename_files_on_disk, sync_metadata_from_xmp, sync_metadata_to_xmp,
+        copy_files, files_to_delete_from_disk, find_all_associated_files, finish_import,
+        move_files_on_disk, rename_files_on_disk, sync_metadata_from_xmp, sync_metadata_to_xmp,
     };
     use crate::image_processing::ImageMetadata;
 
@@ -918,5 +918,41 @@ mod tests {
         for tag in ["R&D", "$1 fee", "<b>", "color:r&d"] {
             assert!(tags.iter().any(|t| t == tag), "{tag} missing from {tags:?}");
         }
+    }
+    /// Import with "delete after import": the XMP may hold another app's
+    /// edits, so when it does not reach the destination nothing at the source
+    /// is removed.
+    #[test]
+    fn an_import_whose_xmp_does_not_arrive_deletes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let (card, library) = (dir.path().join("card"), dir.path().join("library"));
+        let (photo, xmp) = (card.join("IMG.CR2"), card.join("IMG.xmp"));
+        write(&photo, "raw");
+        write(&xmp, "lightroom edits");
+        let imported = library.join("IMG.CR2");
+        write(&imported, "raw");
+        // A folder where the XMP should land: its copy fails.
+        fs::create_dir_all(library.join("IMG.xmp")).unwrap();
+
+        let sidecar = card.join("IMG.CR2.agdata");
+        assert!(finish_import(&photo, &sidecar, &imported, true).is_err());
+        assert_eq!(read(&photo), "raw");
+        assert_eq!(read(&xmp), "lightroom edits");
+    }
+
+    #[test]
+    fn an_import_carries_the_xmp_and_keeps_the_source_when_asked() {
+        let dir = tempfile::tempdir().unwrap();
+        let (card, library) = (dir.path().join("card"), dir.path().join("library"));
+        let (photo, xmp) = (card.join("IMG.CR2"), card.join("IMG.xmp"));
+        write(&photo, "raw");
+        write(&xmp, "lightroom edits");
+        let imported = library.join("IMG.CR2");
+        write(&imported, "raw");
+
+        let sidecar = card.join("IMG.CR2.agdata");
+        finish_import(&photo, &sidecar, &imported, false).unwrap();
+        assert_eq!(read(&library.join("IMG.xmp")), "lightroom edits");
+        assert!(photo.exists() && xmp.exists());
     }
 }
