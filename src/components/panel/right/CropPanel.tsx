@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useTranslation, Trans } from 'react-i18next';
 import { invoke } from '@tauri-apps/api/core';
+import { lensfunMakers } from '../../../argentum/lensfunMakers';
 import { Adjustments, INITIAL_ADJUSTMENTS } from '../../../utils/adjustments';
 import clsx from 'clsx';
 import { CustomAspectRatio, Invokes, Orientation } from '../../ui/AppProperties';
@@ -238,9 +239,7 @@ export default function CropPanel() {
       : null;
 
   useEffect(() => {
-    invoke('get_lensfun_makers')
-      .then((m: any) => setMakers(m))
-      .catch(console.error);
+    lensfunMakers().then(setMakers).catch(console.error);
 
     invoke('load_settings').then((settings: any) => {
       if (settings?.myLenses) setMyLenses(settings.myLenses);

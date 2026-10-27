@@ -214,7 +214,7 @@
       "@typescript-eslint/no-explicit-any": 8
     },
     "src/components/panel/right/CropPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 9
+      "@typescript-eslint/no-explicit-any": 8
     },
     "src/components/panel/right/ExportPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 5
