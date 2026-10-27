@@ -8,6 +8,12 @@ Newest first.
 
 ### Changed
 
+- **Start-up no longer parses the RapidRAW Cloud sign-in SDK.** `tauri-plugin-clerk` (and the
+  1.5 MB `@clerk/clerk-js` it brings) is now imported only inside `initAuth`, which returns before
+  reaching it since Cloud is switched off (`src/argentum/noCloud.ts`), so it sits in its own chunk
+  that never loads. The main script goes from 4.52 MB to 2.92 MB. `@clerk/react`, which nothing
+  imported, is gone.
+
 - **A release's notes open with the Download table on their own.** Once every installer is
   attached, the release workflow's last job writes the table from the files themselves: the file to
   pick for Windows, Windows on ARM and each Mac, which Linux file to pick, and the SmartScreen,
@@ -36,15 +42,6 @@ Newest first.
   dependency). A file a virus scanner or viewer holds for a moment is retried for about a second.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
-
-### Removed
-
-- **2.4 MB of images nothing showed.** The three theme splash photos (`public/splash-*.jpg`, 2.36
-  MB in every installer) and the `splashImage` field nothing read since the start screen went;
-  `public/tauri.svg`; `public/vite.svg`, the template favicon (the icon link is now an empty
-  `data:` URL, so the window asks for no file); `src/assets/react.svg`; and in `src-tauri/icons`, the Android and iOS icon sets (the
-  Android project keeps its own in `gen/android`) and three unused preview PNGs. 44 files, 3.37 MB
-  of the repository; the built frontend goes from 7.30 MB to 4.96 MB.
 
 ## 26.44.1 — 2026-10-27
 
