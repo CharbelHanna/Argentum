@@ -70,11 +70,15 @@ fn ms(d: &Duration) -> f64 {
     d.as_secs_f64() * 1000.0
 }
 
+/// Needs a RAW and the GPU the budget was set on, which CI has neither of, so
+/// it is ignored rather than passing with nothing timed. Run by hand before a
+/// release (docs/RELEASING.md), where a missing RAW fails it:
+/// `AG_RAW=<file> cargo test --test budgets -- --ignored --nocapture`.
 #[test]
+#[ignore = "times a RAW on the reference laptop's GPU: set AG_RAW and run with --ignored"]
 fn a_slider_tick_at_preview_size() {
-    let Some(path) = common::raw("a_slider_tick_at_preview_size") else {
-        return;
-    };
+    let path = common::raw("a_slider_tick_at_preview_size")
+        .expect("a RAW to time: set AG_RAW to a RAW file");
     let (tx, rx) = channel();
     let engine = Engine::new(move |e| {
         let _ = tx.send(e);

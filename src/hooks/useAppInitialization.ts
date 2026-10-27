@@ -11,6 +11,7 @@ import { COPYABLE_ADJUSTMENT_KEYS, withAdjustmentLayout } from '../utils/adjustm
 import { Invokes, LibraryViewMode, Theme, ThumbnailSize, ThumbnailAspectRatio } from '../components/ui/AppProperties';
 import { useTranslation } from 'react-i18next';
 import { shownFiltersOnly } from '../argentum/modern/shownFilters';
+import { LANGUAGES, switchLanguage } from '../argentum/locales/languages';
 
 interface UseAppInitializationProps {
   preloadedDataRef: React.RefObject<any>;
@@ -25,7 +26,8 @@ interface UseAppInitializationProps {
 const getDefaultLanguage = (i18nInstance: any): string => {
   const browserLang = navigator.language || (navigator as any).userLanguage || 'en';
   const shortLang = browserLang.split('-')[0].toLowerCase();
-  const supportedLanguages = Object.keys(i18nInstance.options.resources || {});
+  // Argentum: every language with a file, not only those loaded (argentum/locales/languages.ts).
+  const supportedLanguages: readonly string[] = LANGUAGES;
   const fallbackLang =
     typeof i18nInstance.options.fallbackLng === 'string'
       ? i18nInstance.options.fallbackLng
@@ -165,7 +167,7 @@ export const useAppInitialization = ({
         settings.workspace = reconciledWorkspace;
 
         setAppSettings(settings);
-        i18n.changeLanguage(settings.language);
+        switchLanguage(settings.language);
 
         if (settings?.sortCriteria) setSortCriteria(settings.sortCriteria);
 
@@ -354,7 +356,7 @@ export const useAppInitialization = ({
   useEffect(() => {
     if (isInitialMount.current || !appSettings) return;
     if (appSettings.language && appSettings.language !== i18n.language) {
-      i18n.changeLanguage(appSettings.language);
+      switchLanguage(appSettings.language);
     }
   }, [appSettings?.language, i18n.language]);
 
