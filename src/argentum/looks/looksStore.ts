@@ -58,6 +58,8 @@ interface LooksState {
   luts: LutEntry[];
   libraries: LutLibrary[];
   favourites: string[];
+  /** Whether `favourites` came from the file: until then a star is not written. */
+  favouritesRead: boolean;
   applied: AppliedPreset | null;
   /** Save > As LUT file asked for the Export tab in CUBE; ExportPanel.tsx clears it. */
   wantLutExport: boolean;
@@ -73,6 +75,7 @@ export const useLooks = create<LooksState>((set, get) => ({
   luts: [],
   libraries: [],
   favourites: [],
+  favouritesRead: false,
   applied: null,
   wantLutExport: false,
   loaded: false,
@@ -82,10 +85,13 @@ export const useLooks = create<LooksState>((set, get) => ({
     set({ loaded: true });
     const [builtin, favourites] = await Promise.all([
       ag<BuiltinGroup[]>('builtin_presets').catch(() => []),
-      ag<string[]>('looks_favourites').catch(() => []),
+      ag<string[]>('looks_favourites').catch((err) => {
+        console.error('Looks: could not read the starred looks:', err);
+        return null;
+      }),
       get().refreshLuts(),
     ]);
-    set({ builtin, favourites });
+    set({ builtin, favourites: favourites ?? [], favouritesRead: favourites !== null });
   },
 
   refreshLuts: async () => {
@@ -101,6 +107,8 @@ export const useLooks = create<LooksState>((set, get) => ({
   },
 
   toggleFavourite: (id) => {
+    // Unread, the list here is empty: writing it would replace the real one.
+    if (!get().favouritesRead) return;
     const was = get().favourites;
     const favourites = was.includes(id) ? was.filter((f) => f !== id) : [...was, id];
     set({ favourites });
