@@ -376,7 +376,6 @@
     "src/components/panel/editor/overlays/CompositionOverlays.tsx",
     "src/components/panel/right/ControlsPanel.tsx",
     "src/components/panel/right/FolderTree.tsx",
-    "src/components/panel/right/MasksPanel.tsx",
     "src/components/ui/LUTControl.tsx",
     "src/components/views/LibraryView.tsx",
     "src/hooks/useAndroidBackHandler.ts",

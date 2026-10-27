@@ -211,6 +211,14 @@ Apache-2.0; ONNX export by the Hugging Face onnx-community.
 DETR ResNet-50 panoptic, trained on COCO, says where a photo's people, animals and
 sky are. Apache-2.0; ONNX export by Xenova.
 
+### [EfficientSAM3](https://github.com/SimonZeng7108/efficientsam3)
+
+The Text mask finds what is typed with EfficientSAM3 EV-M, an image encoder, a
+text encoder and a decoder distilled from Meta's SAM 3, reading the words through
+CLIP's word list. Apache-2.0 as its authors publish it; SAM 3 itself is under
+Meta's SAM License. The ONNX files and the code that runs them are RapidRAW
+1.6.7's (`ai_processing.rs` @ `211ef559` and `ebe1d4a2`).
+
 ---
 
 ## AI enlargement and restoration

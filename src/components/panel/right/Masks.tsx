@@ -17,6 +17,7 @@ import {
   MopSparkles,
   Mountain,
   PersonStanding,
+  TextSearch,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +33,7 @@ export enum Mask {
   AgSky = 'ag-sky',
   AgBackground = 'ag-background',
   AgObject = 'ag-object',
+  AgText = 'ag-text',
   AiDepth = 'ai-depth',
   AiForeground = 'ai-foreground',
   AiSky = 'ai-sky',
@@ -88,6 +90,7 @@ export function formatMaskTypeName(type: string) {
   if (type === Mask.AgSky) return agText('selSky');
   if (type === Mask.AgBackground) return agText('selBackground');
   if (type === Mask.AgObject) return agText('selObject');
+  if (type === Mask.AgText) return agText('selText');
   if (type === Mask.AiDepth) return i18n.t('masks.types.depth');
   if (type === Mask.AiSubject) return i18n.t('masks.types.subject');
   if (type === Mask.AiForeground) return i18n.t('masks.types.foreground');
@@ -124,6 +127,7 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
   [Mask.AgSky]: Cloud,
   [Mask.AgBackground]: Mountain,
   [Mask.AgObject]: SquareMousePointer,
+  [Mask.AgText]: TextSearch,
   [Mask.AiDepth]: BringToFront,
   [Mask.AiForeground]: User,
   [Mask.AiSky]: Cloud,
@@ -144,7 +148,7 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
 
 // Argentum: Subject, Object, Sky and Background are RAWmakase's
 // (argentum/selection); their Sky and their Object (SAM 1) give way to them.
-// Foreground stays.
+// Foreground stays. Text is RapidRAW 1.6.7's (211ef559), after Depth as theirs is.
 export const MASK_AI_TYPES: Array<MaskType> = [
   { disabled: false, icon: PersonStanding, name: 'Subject', type: Mask.AgSubject },
   { disabled: false, icon: SquareMousePointer, name: 'Object', type: Mask.AgObject },
@@ -152,6 +156,7 @@ export const MASK_AI_TYPES: Array<MaskType> = [
   { disabled: false, icon: Mountain, name: 'Background', type: Mask.AgBackground },
   { disabled: false, icon: User, name: 'Foreground', type: Mask.AiForeground },
   { disabled: false, icon: BringToFront, name: 'Depth', type: Mask.AiDepth },
+  { disabled: false, icon: TextSearch, name: 'Text', type: Mask.AgText },
 ];
 
 export const MASK_BASIC_TYPES: Array<MaskType> = [

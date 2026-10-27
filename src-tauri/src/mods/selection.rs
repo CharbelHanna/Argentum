@@ -328,7 +328,7 @@ fn finish(
 /// As their AI masks store theirs (ai_commands.rs `encode_to_base64_png`), but
 /// with the fastest compression: a mask is long runs of black and white, so it
 /// stays small, and an Object click does not wait on a full-size PNG.
-fn png_data_url(mask: &GrayImage) -> Result<String, String> {
+pub(super) fn png_data_url(mask: &GrayImage) -> Result<String, String> {
     use image::ImageEncoder;
     use image::codecs::png::{CompressionType, FilterType as PngFilter, PngEncoder};
     let mut bytes = Cursor::new(Vec::new());

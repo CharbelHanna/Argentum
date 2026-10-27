@@ -197,7 +197,8 @@ fn transpose(src: &[f32], dest: &mut [f32], w: usize, h: usize) {
         });
 }
 
-fn box_filter_opt(
+// Argentum: shared with mods/esam3.rs's colour guided filter.
+pub(crate) fn box_filter_opt(
     src: &[f32],
     dest: &mut [f32],
     temp1: &mut [f32],
