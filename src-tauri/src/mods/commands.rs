@@ -201,7 +201,7 @@ pub fn refresh_image_metadata(
         && obj.remove("exif").is_some()
         && let Ok(out) = serde_json::to_string_pretty(&json)
     {
-        std::fs::write(&sidecar, out).map_err(|e| e.to_string())?;
+        crate::mods::atomic_write::write_atomic(&sidecar, out).map_err(|e| e.to_string())?;
         log::info!("[refresh] cleared cached exif from {}", sidecar.display());
     }
 
