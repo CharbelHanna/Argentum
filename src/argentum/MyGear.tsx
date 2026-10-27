@@ -26,6 +26,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { lensfunMakers } from './lensfunMakers';
 import { Trash2 } from 'lucide-react';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useAgTranslation } from './locales';
@@ -80,7 +81,7 @@ function MyLenses() {
   const lenses: MyLens[] = useMemo(() => appSettings?.myLenses || [], [appSettings]);
 
   useEffect(() => {
-    invoke<string[]>('get_lensfun_makers')
+    lensfunMakers()
       .then(setMakers)
       .catch(() => setMakers([]));
   }, []);
