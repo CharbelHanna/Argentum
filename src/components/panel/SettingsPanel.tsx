@@ -448,7 +448,6 @@ export default function SettingsPanel({
   const [newShortcut, setNewShortcut] = useState('');
   const [newAiTag, setNewAiTag] = useState('');
 
-  const [lensMakers, setLensMakers] = useState<string[]>([]);
   const [lensModels, setLensModels] = useState<string[]>([]);
   const [tempLensMaker, setTempLensMaker] = useState<string>('');
   const [tempLensModel, setTempLensModel] = useState<string>('');
@@ -604,10 +603,6 @@ export default function SettingsPanel({
       }
     };
     fetchLogPath();
-  }, []);
-
-  useEffect(() => {
-    invoke<string[]>('get_lensfun_makers').then(setLensMakers).catch(console.error);
   }, []);
 
   const handleProcessingSettingChange = async (key: string, value: any) => {
