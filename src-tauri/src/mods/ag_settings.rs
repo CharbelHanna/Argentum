@@ -94,7 +94,7 @@ pub fn set(library: &Path, key: &str, value: Value) -> Result<(), String> {
 
     std::fs::create_dir_all(library).map_err(|e| e.to_string())?;
     let text = serde_json::to_string_pretty(&Value::Object(all)).map_err(|e| e.to_string())?;
-    std::fs::write(path(library), text).map_err(|e| e.to_string())
+    crate::mods::atomic_write::write_atomic(&path(library), text).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

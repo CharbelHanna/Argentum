@@ -15,6 +15,18 @@ Newest first.
   A missing installer stops it rather than linking nothing. Its test writes 26.43.4's table, as
   written by hand, from 26.43.4's files.
 
+### Fixed
+
+- **A crash while saving can no longer cut a file short.** A photo's edit (`.agdata`), the
+  settings, Argentum's own preferences, albums, presets, the window position and a photo's XMP
+  were written in place, so a crash, a full disk or a killed process mid-write could leave a
+  short or empty file: the whole edit or every setting gone. They are now written to a temporary
+  file beside the target and swapped in with one rename once complete; until then the old file is
+  untouched (`src-tauri/src/mods/atomic_write.rs`, on `tempfile`'s `persist`, already a
+  dependency). A file a virus scanner or viewer holds for a moment is retried for about a second.
+  Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
+  migration) now log a warning.
+
 ## 26.44.1 — 2026-10-27
 
 ### Added

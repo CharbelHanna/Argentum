@@ -54,6 +54,17 @@ pub mod mods {
     pub mod raw_tone;
     pub mod salvage;
 
+    /// `mods::atomic_write`: how the preferences file is saved, which the
+    /// parity tests never do.
+    pub mod atomic_write {
+        pub fn write_atomic(
+            path: &std::path::Path,
+            contents: impl AsRef<[u8]>,
+        ) -> std::io::Result<()> {
+            std::fs::write(path, contents)
+        }
+    }
+
     /// `mods::decode`: the decode hook and the profile's daylight matrix,
     /// neither of which the tests reach.
     pub mod decode {

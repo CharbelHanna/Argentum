@@ -885,7 +885,7 @@ pub fn save_albums(mut tree: Vec<AlbumItem>, app_handle: AppHandle) -> Result<()
     let path = get_albums_path(&app_handle)?;
     sort_album_tree(&mut tree);
     let json_string = serde_json::to_string_pretty(&tree).map_err(|e| e.to_string())?;
-    fs::write(path, json_string).map_err(|e| e.to_string())
+    crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2926,8 +2926,10 @@ pub fn apply_import_edits_to_sidecar(
         exif.as_ref(),
     );
 
-    if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata) {
-        let _ = std::fs::write(sidecar_path, json_string);
+    if let Ok(json_string) = serde_json::to_string_pretty(&existing_metadata)
+        && let Err(e) = crate::mods::atomic_write::write_atomic(sidecar_path, json_string)
+    {
+        log::warn!("Could not save {}: {}", sidecar_path.display(), e);
     }
 
     if enable_xmp_sync {
@@ -3245,7 +3247,7 @@ pub fn load_presets(app_handle: AppHandle) -> Result<Vec<PresetItem>, String> {
 pub fn save_presets(presets: Vec<PresetItem>, app_handle: AppHandle) -> Result<(), String> {
     let path = get_presets_path(&app_handle)?;
     let json_string = serde_json::to_string_pretty(&presets).map_err(|e| e.to_string())?;
-    fs::write(path, json_string).map_err(|e| e.to_string())
+    crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())
 }
 
 fn get_internal_library_root_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, String> {
@@ -4008,8 +4010,9 @@ pub async fn import_files(
                 let mut meta = crate::exif_processing::load_sidecar(&sidecar_path);
                 if sync_metadata_from_xmp(dest_file_path, &mut meta, true)
                     && let Ok(json) = serde_json::to_string_pretty(&meta)
+                    && let Err(e) = crate::mods::atomic_write::write_atomic(&sidecar_path, json)
                 {
-                    let _ = fs::write(&sidecar_path, json);
+                    log::warn!("Could not save {}: {}", sidecar_path.display(), e);
                 }
             });
         }
@@ -4301,7 +4304,8 @@ pub fn create_virtual_copy(
             fs::copy(&source_sidecar_path, &new_sidecar_path)
                 .map_err(|e| format!("Failed to copy sidecar file: {}", e))?;
         } else {
-            fs::write(&new_sidecar_path, &default_json).map_err(|e| e.to_string())?;
+            crate::mods::atomic_write::write_atomic(&new_sidecar_path, &default_json)
+                .map_err(|e| e.to_string())?;
         }
 
         // The library hides the original when only virtual copy sidecars exist.
@@ -4659,7 +4663,9 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
             }
         }
 
-        let _ = fs::write(&xmp_file, content);
+        if let Err(e) = crate::mods::atomic_write::write_atomic(&xmp_file, content) {
+            log::warn!("Could not update {}: {}", xmp_file.display(), e);
+        }
     }
 }
 

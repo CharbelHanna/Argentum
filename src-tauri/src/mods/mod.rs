@@ -10,6 +10,7 @@
 
 pub mod ag_settings;
 pub mod ai_session;
+pub mod atomic_write;
 pub mod auto_wb;
 pub mod auto_wb_photo;
 pub mod black_white;
