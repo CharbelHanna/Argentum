@@ -5,7 +5,7 @@
   "npmPackages": 410,
   "dist": {
     "assets/App.css": 32780,
-    "assets/App.js": 2917612,
+    "assets/App.js": 2917831,
     "assets/AppProperties.js": 12373,
     "assets/Shell.css": 8548,
     "assets/Shell.js": 30248,
@@ -25,11 +25,6 @@
     "assets/undo-2.js": 47005,
     "assets/view.js": 1130,
     "assets/window.js": 15181,
-    "index.html": 1110,
-    "splash-dark.jpg": 482548,
-    "splash-grey.jpg": 560758,
-    "splash-light.jpg": 1315445,
-    "tauri.svg": 2599,
-    "vite.svg": 1497
+    "index.html": 1086
   }
 }
