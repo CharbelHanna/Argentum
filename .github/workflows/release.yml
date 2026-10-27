@@ -1,8 +1,13 @@
 name: 'Release: Build & Package App'
 
+# The only definition of the twelve desktop builds. Creating a release runs it and attaches every
+# installer; run it by hand from the Actions tab to build them all without a release (each
+# build's files are kept as an artifact for 7 days). Fast checks run on every push in lint.yml,
+# app.yml and engine.yml.
 on:
   release:
     types: [created]
+  workflow_dispatch:
 
 jobs:
   release:
@@ -68,6 +73,7 @@ jobs:
   # never links a file that is not there.
   downloads:
     needs: release
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     permissions:
       contents: write
