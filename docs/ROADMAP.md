@@ -14,7 +14,7 @@ Work that went out without being planned on this page, newest first.
 
 | Version | What |
 |---|---|
-| `26.44.1` | RAW decoder choice, rawler or FlashRaw. A RAW's colour built the way the DNG specification builds it, for new edits |
+| `26.44.1` | Face and Text masks, from RapidRAW 1.6.7. RAW decoder choice, rawler or FlashRaw. A RAW's colour built the way the DNG specification builds it, for new edits. The camera's own lens correction centred on the lens's optical centre and framed as Lightroom frames it (RAWmakase 0.4.6). Canon EOS R8 Mark II. Undo when a photo leaves the filter. The rest of RapidRAW 1.6.7's harvest: Heal texture, Relight on rotated photos, faster batch paste and reopen. Two new CI checks: a compatibility corpus and a UI walk |
 | `26.43.4` | The camera's own lens correction for Nikon Z and Coolpix, Olympus and OM System, Panasonic and Leica, Samsung, and Canon R5 Mark II / R6 Mark III. My Gear: "Correct new photos" per lens, and a profile for new photos per camera. The update notice beside the Settings gear. The golden-photos look check in CI. RapidRAW no longer merged; its releases are harvested by hand |
 | `26.43.3` | History kept per photo. LUTs suggested for each photo. Linear rendering for film LUTs |
 | `26.43.1` | The Modern window, now the only layout. B&W with an Auto mix. Subject, Sky and Background masks in one click and click-to-select Object, on SAM 2.1. The Looks tab. Snapshots. Color Grading as Lightroom renders it. The camera's own lens correction for DNG, Fujifilm and Sony. Relight, Fog and Auto straighten from RapidRAW 1.6.6. The engine crate, `src-tauri/engine/` |
