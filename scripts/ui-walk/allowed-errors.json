@@ -1,12 +1,3 @@
 {
-  "errors": [
-    {
-      "match": "Cannot use a ref on a React element as a container to `createRoot` or `createPortal` if that element also sets \"children\" text content",
-      "reason": "src/argentum/Argentum.tsx portals the Refresh metadata button into the Camera heading of MetadataPanel.tsx, which has text of its own. To fix in the app: give the button its own slot, then take this entry off."
-    },
-    {
-      "match": "i18n: missing key editor.toolbar.tooltips.rgbReadout",
-      "reason": "src/argentum/RgbReadoutButton.tsx asks RapidRAW's strings for a key they never had, with the English as its default. To fix in the app: move it to Argentum's own strings (src/argentum/locales/en.json), then take this entry off."
-    }
-  ]
+  "errors": []
 }

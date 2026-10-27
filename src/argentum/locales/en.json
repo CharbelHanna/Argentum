@@ -432,5 +432,6 @@
   "bwMix": "B&W Mix",
   "bwMixReset": "Reset",
   "bwMixAuto": "Auto",
-  "bwMixAutoTip": "This photo's own mix, as Lightroom's Auto"
+  "bwMixAutoTip": "This photo's own mix, as Lightroom's Auto",
+  "rgbReadoutTip": "Sample RGB under the cursor"
 }

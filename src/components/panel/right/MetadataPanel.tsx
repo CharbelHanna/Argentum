@@ -465,9 +465,10 @@ export default function MetadataPanel({ photo }: { photo?: ShownPhoto | null } =
               </div>
             </div>
 
-            <div data-argentum="camera-details">
+            <div>
               <Text variant={TextVariants.heading} className="mb-3">
                 {t('editor.metadata.camera.title')}
+                <span data-argentum="camera-details" />
               </Text>
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-2 gap-2">
