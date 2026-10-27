@@ -255,7 +255,9 @@ pub fn load_sidecar(sidecar_path: &Path) -> ImageMetadata {
     }
 
     if healed && let Ok(json) = serde_json::to_string_pretty(&meta) {
-        let _ = fs::write(sidecar_path, json);
+        if let Err(e) = crate::mods::atomic_write::write_atomic(sidecar_path, json) {
+            log::warn!("Could not rewrite {}: {}", sidecar_path.display(), e);
+        }
         log::info!(
             "Auto-healed bloated sidecar for: {}",
             sidecar_path.display()
@@ -309,7 +311,7 @@ pub fn write_sidecar(
     }
 
     let json = serde_json::to_string_pretty(metadata).map_err(std::io::Error::other)?;
-    fs::write(sidecar_path, json)
+    crate::mods::atomic_write::write_atomic(sidecar_path, json)
 }
 
 fn has_virtual_copy_sidecars(source_path: &Path) -> bool {
@@ -2006,7 +2008,7 @@ fn load_primary_metadata(image_path: &Path) -> ImageMetadata {
 fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
     let primary = get_primary_sidecar_path(image_path);
     let json = serde_json::to_string_pretty(metadata).map_err(std::io::Error::other)?;
-    fs::write(&primary, json)
+    crate::mods::atomic_write::write_atomic(&primary, json)
 }
 
 pub fn read_rrexif_sidecar(image_path: &Path) -> Option<HashMap<String, String>> {
