@@ -36,12 +36,6 @@ Newest first.
   dependency). A file a virus scanner or viewer holds for a moment is retried for about a second.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
-- **A thumbnail no longer shows an edited photo as unedited.** The grid read a photo's sidecar on
-  its own: if one key did not read (snapshots in an older shape, say), it took the whole photo as
-  unedited with no rating, while the editor kept the edit. Thumbnails and their cache key now read
-  the sidecar the way the editor does, key by key, and only look: nothing is copied or rewritten
-  while browsing (`peek_sidecar` in `src-tauri/src/exif_processing.rs`, on `salvage::readable`).
-  Affected photos redraw their thumbnail once.
 
 ## 26.44.1 — 2026-10-27
 
