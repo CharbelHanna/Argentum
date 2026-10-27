@@ -27,62 +27,30 @@ use ort::session::Session;
 use ort::value::Tensor;
 use tokenizers::Tokenizer;
 
-use super::esam3::{self, Features, Prompt};
+use super::esam3::{self, PROMPT_TOKENS, Prompt};
 use super::model_catalog::{TEXT_MASK_FILES, TEXT_MASKS};
-use super::model_download::{self, Progress, sha256_of};
+use super::model_download::{self, Progress, Status};
 use super::selection::{Frame, Selection, png_data_url};
-use super::selection_models::Status;
 
-/// RapidRAW's `ESAM3_PROMPT_TOKENS`: the text encoder reads this many.
-const PROMPT_TOKENS: usize = 16;
 /// RapidRAW's `ESAM3_TEXT_SCORE_THRESHOLD`.
 const SCORE_THRESHOLD: f32 = 0.3;
 /// RapidRAW's `ESAM3_TEXT_REFINE_EPS`.
 const REFINE_EPS: f32 = 0.01;
 
-const IMAGE_ENCODER: &str = "efficientsam3_ev_m_image_encoder.onnx";
-const DECODER: &str = "efficientsam3_ev_m_decoder.onnx";
 const TEXT_ENCODER: &str = "efficientsam3_ev_m_text_encoder.onnx";
 const TOKENIZER: &str = "clip_tokenizer.json";
 
 /// Whether the files are there, and how much is left to fetch. By size alone:
 /// cheap enough to ask before every mask.
 pub fn status(dir: &Path) -> Status {
-    let total_bytes = TEXT_MASK_FILES.iter().map(|f| f.bytes).sum();
-    let missing_bytes = TEXT_MASK_FILES
-        .iter()
-        .filter(|f| {
-            !std::fs::metadata(dir.join(f.name)).is_ok_and(|m| m.is_file() && m.len() == f.bytes)
-        })
-        .map(|f| f.bytes)
-        .sum();
-    Status {
-        installed: missing_bytes == 0,
-        missing_bytes,
-        total_bytes,
-    }
+    model_download::status(dir, TEXT_MASK_FILES)
 }
 
-/// The folder whose files were last found to match their checksums, so each is
-/// read through once per run, not once per mask.
+/// The folder last found whole (`model_download::verify`).
 static VERIFIED: Mutex<Option<PathBuf>> = Mutex::new(None);
 
-/// Every file there and every checksum right.
 fn verify(dir: &Path) -> Result<(), String> {
-    if VERIFIED.lock().map_err(|e| e.to_string())?.as_deref() == Some(dir) {
-        return Ok(());
-    }
-    for file in TEXT_MASK_FILES {
-        let path = dir.join(file.name);
-        if !std::fs::metadata(&path).is_ok_and(|m| m.len() == file.bytes) {
-            return Err(format!("{} is missing", file.name));
-        }
-        if sha256_of(&path)? != file.sha256 {
-            return Err(format!("{} does not match its checksum", file.name));
-        }
-    }
-    *VERIFIED.lock().map_err(|e| e.to_string())? = Some(dir.to_path_buf());
-    Ok(())
+    model_download::verify(dir, TEXT_MASK_FILES, &VERIFIED)
 }
 
 /// Fetch whatever is missing or wrong into the models folder `dir`, then check all four.
@@ -92,31 +60,15 @@ pub async fn download(dir: &Path, progress: impl Fn(&Progress)) -> Result<(), St
     verify(dir)
 }
 
+/// What turns words into a prompt; the image encoder and decoder are `esam3`'s.
 struct Loaded {
     dir: PathBuf,
-    encoder: Session,
-    decoder: Session,
     text_encoder: Session,
     tokenizer: Tokenizer,
-    /// The last picture encoded, by `selection::picture_key`.
-    features: Option<(u64, Features)>,
     used: Instant,
 }
 
 static LOADED: Mutex<Option<Loaded>> = Mutex::new(None);
-
-fn load(dir: &Path) -> Result<Loaded, String> {
-    let session = |name: &str| esam3::load(&dir.join(name)).map_err(|e| format!("{name}: {e}"));
-    Ok(Loaded {
-        dir: dir.to_path_buf(),
-        encoder: session(IMAGE_ENCODER)?,
-        decoder: session(DECODER)?,
-        text_encoder: session(TEXT_ENCODER)?,
-        tokenizer: Tokenizer::from_file(dir.join(TOKENIZER)).map_err(|e| e.to_string())?,
-        features: None,
-        used: Instant::now(),
-    })
-}
 
 /// RapidRAW's `esam3_text_prompt`: the words as CLIP's tokens, the end token
 /// kept when they run long, through the text encoder.
@@ -151,6 +103,24 @@ fn prompt(
     })
 }
 
+/// The words as a prompt, loading the text encoder and word list first if needed.
+fn words_prompt(dir: &Path, words: &str) -> Result<Prompt, String> {
+    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
+    if slot.as_ref().is_none_or(|l| l.dir != dir) {
+        *slot = None;
+        *slot = Some(Loaded {
+            dir: dir.to_path_buf(),
+            text_encoder: esam3::load(&dir.join(TEXT_ENCODER))
+                .map_err(|e| format!("{TEXT_ENCODER}: {e}"))?,
+            tokenizer: Tokenizer::from_file(dir.join(TOKENIZER)).map_err(|e| e.to_string())?,
+            used: Instant::now(),
+        });
+    }
+    let loaded = slot.as_mut().ok_or("the text encoder did not load")?;
+    loaded.used = Instant::now();
+    prompt(&loaded.tokenizer, &mut loaded.text_encoder, words).map_err(|e| e.to_string())
+}
+
 /// Find `words` in `picture` (the warped working image) with the models in
 /// the models folder `dir`. `key` names the photo and its geometry.
 pub fn select(
@@ -164,37 +134,18 @@ pub fn select(
         return Err("Type what to select first.".to_string());
     }
     verify(dir)?;
-    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
-    if slot.as_ref().is_none_or(|l| l.dir != dir) {
-        *slot = None;
-        *slot = Some(load(dir)?);
-    }
-    let loaded = slot.as_mut().ok_or("the text mask models did not load")?;
-    loaded.used = Instant::now();
-
-    if loaded.features.as_ref().map(|(k, _)| *k) != Some(key) {
-        let features = esam3::encode(picture, &mut loaded.encoder).map_err(|e| e.to_string())?;
-        loaded.features = Some((key, features));
-    }
-    let prompt =
-        prompt(&loaded.tokenizer, &mut loaded.text_encoder, words).map_err(|e| e.to_string())?;
-    let Loaded {
-        encoder,
-        decoder,
-        features,
-        ..
-    } = loaded;
-    let (_, features) = features.as_ref().ok_or("the picture was not encoded")?;
-    let found = esam3::find(
-        encoder,
-        decoder,
-        features,
-        &prompt,
-        picture,
-        SCORE_THRESHOLD,
-        REFINE_EPS,
-    )
-    .map_err(|e| e.to_string())?;
+    let prompt = words_prompt(dir, words)?;
+    let found = esam3::with_picture(dir, picture, key, |encoder, decoder, features| {
+        esam3::find(
+            encoder,
+            decoder,
+            features,
+            &prompt,
+            picture,
+            SCORE_THRESHOLD,
+            REFINE_EPS,
+        )
+    })?;
 
     // Nothing found: an empty mask, as their AI masks store one (1 x 1).
     let mask = found.as_ref().filter(|m| m.pixels().any(|p| p[0] > 0));
@@ -208,7 +159,7 @@ pub fn select(
     })
 }
 
-/// Let the models go once nothing has asked for a while (memory.rs's watcher).
+/// Let the text encoder go once nothing has asked for a while (memory.rs's watcher).
 pub fn unload_if_idle(after: Duration) -> bool {
     let Ok(mut slot) = LOADED.try_lock() else {
         return false;
@@ -242,7 +193,7 @@ mod tests {
         assert_eq!(status.total_bytes, 386_690_936);
         assert!(verify(&dir).is_err());
         let names: Vec<&str> = TEXT_MASK_FILES.iter().map(|f| f.name).collect();
-        assert_eq!(names, [IMAGE_ENCODER, DECODER, TEXT_ENCODER, TOKENIZER]);
+        assert_eq!(names[2..], [TEXT_ENCODER, TOKENIZER]);
         let _ = std::fs::remove_dir_all(&dir);
     }
 

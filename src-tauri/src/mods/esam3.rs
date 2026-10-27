@@ -12,12 +12,18 @@
 //! on the CPU, built as every model of theirs here is (`ai_session`).
 //!
 //! What asks the question is the caller's: `text_mask` turns typed words into
-//! a `Prompt`.
+//! a `Prompt`, `face_mask` reads RapidRAW's stored "face" prompt and asks for
+//! boxes (`run_esam3_boxes`). The encoder and decoder are loaded once for
+//! both, with the last picture encoded, and let go when idle.
+
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow};
 use image::imageops::{self, FilterType};
 use image::{DynamicImage, GenericImageView, GrayImage, Luma, RgbImage};
-use ndarray::{Array, Array4, ArrayD, ArrayViewD, s};
+use ndarray::{Array, Array4, ArrayD, ArrayViewD, IxDyn, s};
 use ort::session::Session;
 use ort::value::{Tensor, TensorRef};
 use rayon::prelude::*;
@@ -37,6 +43,13 @@ const ZOOM_MAX_FRACTION: f32 = 0.6;
 const ZOOM_MIN_SIDE: f32 = 1024.0;
 const ZOOM_FEATHER: f32 = 0.1;
 
+/// RapidRAW's `ESAM3_PROMPT_TOKENS` and `ESAM3_EMBED_DIM`: a prompt's shape.
+pub const PROMPT_TOKENS: usize = 16;
+const EMBED_DIM: usize = 256;
+
+const IMAGE_ENCODER: &str = "efficientsam3_ev_m_image_encoder.onnx";
+const DECODER: &str = "efficientsam3_ev_m_decoder.onnx";
+
 /// The picture, encoded once: every prompt on it is answered from these.
 pub struct Features {
     fpn: [ArrayD<f32>; 3],
@@ -49,9 +62,99 @@ pub struct Prompt {
     pub padding: ArrayD<f32>,
 }
 
-/// A session for one of the model's files.
-pub fn load(path: &std::path::Path) -> Result<Session> {
+impl Prompt {
+    /// RapidRAW's `stored_prompt`: a prompt they worked out once and saved,
+    /// as little-endian floats, the features and then the padding.
+    pub fn from_file(path: &Path) -> Result<Prompt> {
+        let bytes = std::fs::read(path)?;
+        let values: Vec<f32> = bytes
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|&chunk| f32::from_le_bytes(chunk))
+            .collect();
+        let feature_len = PROMPT_TOKENS * EMBED_DIM;
+        if values.len() != feature_len + PROMPT_TOKENS {
+            return Err(anyhow!("Invalid prompt embedding {}", path.display()));
+        }
+        Ok(Prompt {
+            features: Array::from_shape_vec(
+                IxDyn(&[PROMPT_TOKENS, 1, EMBED_DIM]),
+                values[..feature_len].to_vec(),
+            )?,
+            padding: Array::from_shape_vec(
+                IxDyn(&[1, PROMPT_TOKENS]),
+                values[feature_len..].to_vec(),
+            )?,
+        })
+    }
+}
+
+/// A session for one of the models' files.
+pub fn load(path: &Path) -> Result<Session> {
     Ok(super::ai_session::session_builder()?.commit_from_file(path)?)
+}
+
+/// The encoder and decoder, with the last picture encoded.
+pub struct Sessions {
+    dir: PathBuf,
+    pub encoder: Session,
+    pub decoder: Session,
+    features: Option<(u64, Features)>,
+    used: Instant,
+}
+
+static LOADED: Mutex<Option<Sessions>> = Mutex::new(None);
+
+/// Run `work` with the encoder, the decoder and `picture`'s encoding, loading
+/// them from the models folder `dir` and encoding the picture first when they
+/// are not already there. `key` names the photo and its geometry
+/// (`selection::picture_key`).
+pub fn with_picture<T>(
+    dir: &Path,
+    picture: &DynamicImage,
+    key: u64,
+    work: impl FnOnce(&mut Session, &mut Session, &Features) -> Result<T>,
+) -> Result<T, String> {
+    let mut slot = LOADED.lock().map_err(|e| e.to_string())?;
+    if slot.as_ref().is_none_or(|s| s.dir != dir) {
+        *slot = None;
+        let session = |name: &str| load(&dir.join(name)).map_err(|e| format!("{name}: {e}"));
+        *slot = Some(Sessions {
+            dir: dir.to_path_buf(),
+            encoder: session(IMAGE_ENCODER)?,
+            decoder: session(DECODER)?,
+            features: None,
+            used: Instant::now(),
+        });
+    }
+    let sessions = slot.as_mut().ok_or("EfficientSAM3 did not load")?;
+    sessions.used = Instant::now();
+    if sessions.features.as_ref().map(|(k, _)| *k) != Some(key) {
+        sessions.features = None;
+        let features = encode(picture, &mut sessions.encoder).map_err(|e| e.to_string())?;
+        sessions.features = Some((key, features));
+    }
+    let Sessions {
+        encoder,
+        decoder,
+        features,
+        ..
+    } = sessions;
+    let (_, features) = features.as_ref().ok_or("the picture was not encoded")?;
+    work(encoder, decoder, features).map_err(|e| e.to_string())
+}
+
+/// Let them go once nothing has asked for a while (memory.rs's watcher).
+pub fn unload_if_idle(after: Duration) -> bool {
+    let Ok(mut slot) = LOADED.try_lock() else {
+        return false;
+    };
+    if slot.as_ref().is_some_and(|s| s.used.elapsed() > after) {
+        *slot = None;
+        return true;
+    }
+    false
 }
 
 fn sigmoid(value: f32) -> f32 {
@@ -93,12 +196,12 @@ pub fn encode(image: &DynamicImage, encoder: &mut Session) -> Result<Features> {
     })
 }
 
-/// RapidRAW's `run_esam3_queries`: each query's score, and its masks.
+/// RapidRAW's `run_esam3_queries`: each query's score, box and mask.
 fn queries<T>(
     decoder: &mut Session,
     features: &Features,
     prompt: &Prompt,
-    read: impl FnOnce(Vec<f32>, ArrayViewD<f32>) -> T,
+    read: impl FnOnce(Vec<f32>, ArrayViewD<f32>, ArrayViewD<f32>) -> T,
 ) -> Result<T> {
     let exemplar_boxes = Array::<f32, _>::zeros((EXEMPLAR_SLOTS, 1, 4));
     let exemplar_labels = Array::<i64, _>::zeros((EXEMPLAR_SLOTS, 1));
@@ -128,8 +231,45 @@ fn queries<T>(
         .collect();
     Ok(read(
         scores,
+        outputs["pred_boxes"].try_extract_array::<f32>()?,
         outputs["pred_masks"].try_extract_array::<f32>()?,
     ))
+}
+
+/// RapidRAW's `run_esam3_boxes`: what scores above `score_threshold`, best
+/// first, each as `[left, top, right, bottom]` in fractions of the picture.
+pub fn boxes(
+    decoder: &mut Session,
+    features: &Features,
+    prompt: &Prompt,
+    score_threshold: f32,
+) -> Result<Vec<(f32, [f32; 4])>> {
+    let mut detections = queries(decoder, features, prompt, |scores, boxes, _| {
+        scores
+            .iter()
+            .enumerate()
+            .filter(|&(_, &score)| score > score_threshold)
+            .map(|(query, &score)| {
+                let size = INPUT_SIZE as f32;
+                let padding = INPUT_PADDING as f32;
+                let inner = size - 2.0 * padding;
+                let [cx, cy, w, h]: [f32; 4] = std::array::from_fn(|i| {
+                    let v = boxes[[0, query, i]] * size;
+                    if i < 2 {
+                        (v - padding) / inner
+                    } else {
+                        v / inner
+                    }
+                });
+                (
+                    score,
+                    [cx - w / 2.0, cy - h / 2.0, cx + w / 2.0, cy + h / 2.0],
+                )
+            })
+            .collect::<Vec<_>>()
+    })?;
+    detections.sort_by(|a, b| b.0.total_cmp(&a.0));
+    Ok(detections)
 }
 
 /// RapidRAW's `run_esam3_decoder`: every query above `score_threshold`, joined,
@@ -143,7 +283,7 @@ fn decode(
     score_threshold: f32,
     refine_eps: f32,
 ) -> Result<Option<GrayImage>> {
-    let (coarse_mask, mask_w, mask_h) = queries(decoder, features, prompt, |scores, masks| {
+    let (coarse_mask, mask_w, mask_h) = queries(decoder, features, prompt, |scores, _, masks| {
         let (mask_h, mask_w) = (masks.shape()[2], masks.shape()[3]);
         let mut coarse_mask: Option<Vec<f32>> = None;
         for (query, &score) in scores.iter().enumerate() {
@@ -336,7 +476,7 @@ fn bilinear_sample(i: usize, scale: f32, n: usize) -> (usize, usize, f32) {
 /// RapidRAW's `fast_color_guided_filter`: the guided filter worked out on the
 /// small mask with the photo's three colours as the guide, then applied at the
 /// photo's size, so the mask follows edges a grey guide cannot see.
-fn fast_color_guided_filter(
+pub(super) fn fast_color_guided_filter(
     guide_hr: &RgbImage,
     mask_lr: &GrayImage,
     r: usize,

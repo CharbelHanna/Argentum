@@ -17,6 +17,7 @@ import {
   MopSparkles,
   Mountain,
   PersonStanding,
+  ScanFace,
   TextSearch,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -34,6 +35,7 @@ export enum Mask {
   AgBackground = 'ag-background',
   AgObject = 'ag-object',
   AgText = 'ag-text',
+  AgFace = 'ag-face',
   AiDepth = 'ai-depth',
   AiForeground = 'ai-foreground',
   AiSky = 'ai-sky',
@@ -91,6 +93,7 @@ export function formatMaskTypeName(type: string) {
   if (type === Mask.AgBackground) return agText('selBackground');
   if (type === Mask.AgObject) return agText('selObject');
   if (type === Mask.AgText) return agText('selText');
+  if (type === Mask.AgFace) return agText('selFace');
   if (type === Mask.AiDepth) return i18n.t('masks.types.depth');
   if (type === Mask.AiSubject) return i18n.t('masks.types.subject');
   if (type === Mask.AiForeground) return i18n.t('masks.types.foreground');
@@ -128,6 +131,7 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
   [Mask.AgBackground]: Mountain,
   [Mask.AgObject]: SquareMousePointer,
   [Mask.AgText]: TextSearch,
+  [Mask.AgFace]: ScanFace,
   [Mask.AiDepth]: BringToFront,
   [Mask.AiForeground]: User,
   [Mask.AiSky]: Cloud,
@@ -148,7 +152,7 @@ export const MASK_ICON_MAP: Record<Mask, any> = {
 
 // Argentum: Subject, Object, Sky and Background are RAWmakase's
 // (argentum/selection); their Sky and their Object (SAM 1) give way to them.
-// Foreground stays. Text is RapidRAW 1.6.7's (211ef559), after Depth as theirs is.
+// Foreground stays. Text and Face are RapidRAW 1.6.7's (211ef559, 07ef9211), after Depth as theirs are.
 export const MASK_AI_TYPES: Array<MaskType> = [
   { disabled: false, icon: PersonStanding, name: 'Subject', type: Mask.AgSubject },
   { disabled: false, icon: SquareMousePointer, name: 'Object', type: Mask.AgObject },
@@ -157,6 +161,7 @@ export const MASK_AI_TYPES: Array<MaskType> = [
   { disabled: false, icon: User, name: 'Foreground', type: Mask.AiForeground },
   { disabled: false, icon: BringToFront, name: 'Depth', type: Mask.AiDepth },
   { disabled: false, icon: TextSearch, name: 'Text', type: Mask.AgText },
+  { disabled: false, icon: ScanFace, name: 'Face', type: Mask.AgFace },
 ];
 
 export const MASK_BASIC_TYPES: Array<MaskType> = [

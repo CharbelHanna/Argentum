@@ -18,7 +18,9 @@
  *
  * Text is RapidRAW 1.6.7's (211ef559): type what to select, and EfficientSAM3
  * finds it (mods/text_mask.rs). It is stored the same way, its words kept as
- * `agWords`, and its own models (387 MB) are asked for the same way.
+ * `agWords`, and its own models (387 MB) are asked for the same way. Face is
+ * RapidRAW 1.6.7's too (07ef9211): every face, with the parts picked, kept as
+ * `agParts` (mods/face_mask.rs); its models (226 MB, 205 of them Text's) the same.
  */
 
 import { listen } from '@tauri-apps/api/event';
@@ -33,7 +35,21 @@ import { ag } from '../ag';
 import { formatSize } from '../formatSize';
 import { agText, type AgKey } from '../locales';
 
-export type SelectionKind = 'subject' | 'sky' | 'background' | 'object' | 'text';
+export type SelectionKind = 'subject' | 'sky' | 'background' | 'object' | 'text' | 'face';
+
+/** RapidRAW 1.6.7's FACE_PARTS (Masks.tsx @ 07ef9211), in their order. */
+export const FACE_PARTS = [
+  'faceSkin',
+  'bodySkin',
+  'eyebrows',
+  'eyeWhites',
+  'iris',
+  'lips',
+  'teeth',
+  'nose',
+  'hair',
+] as const;
+export type FacePart = (typeof FACE_PARTS)[number];
 
 const KINDS: Partial<Record<Mask, SelectionKind>> = {
   [Mask.AgSubject]: 'subject',
@@ -41,6 +57,7 @@ const KINDS: Partial<Record<Mask, SelectionKind>> = {
   [Mask.AgBackground]: 'background',
   [Mask.AgObject]: 'object',
   [Mask.AgText]: 'text',
+  [Mask.AgFace]: 'face',
 };
 
 /** The selection a menu entry makes, if it is one of ours. */
@@ -64,6 +81,8 @@ export const startingParameters = (kind: SelectionKind) => ({
   feather: 0,
   ...(kind === 'object' ? { agClicks: [], agBounds: null } : {}),
   ...(kind === 'text' ? { agWords: '' } : {}),
+  // Theirs starts with Face Skin picked (maskUtils.ts @ 07ef9211).
+  ...(kind === 'face' ? { agParts: ['faceSkin'] } : {}),
 });
 
 /** An Object selection: the canvas takes clicks and boxes for it. */
@@ -73,6 +92,10 @@ export const isObjectSelection = (subMask?: Pick<SubMask, 'parameters'> | null):
 /** A Text selection: the properties show its words box. */
 export const isTextSelection = (subMask?: Pick<SubMask, 'parameters'> | null): boolean =>
   subMask?.parameters?.agSelection === 'text';
+
+/** A Face selection: the properties show its picker. */
+export const isFaceSelection = (subMask?: Pick<SubMask, 'parameters'> | null): boolean =>
+  subMask?.parameters?.agSelection === 'face';
 
 /** A click on the photo, in the canvas's frame of the whole photo, as the Object box is. */
 export interface Click {
@@ -136,6 +159,17 @@ const TEXT_MODELS: Models = {
   ask: 'textDownloadAsk',
   downloading: 'textDownloading',
   downloaded: 'textDownloaded',
+  size: formatSize,
+};
+
+/** The Face mask's, the same way. */
+const FACE_MODELS: Models = {
+  status: 'face_mask_models_status',
+  download: 'download_face_mask_models',
+  id: 'face-masks',
+  ask: 'faceDownloadAsk',
+  downloading: 'faceDownloading',
+  downloaded: 'faceDownloaded',
   size: formatSize,
 };
 
@@ -312,6 +346,46 @@ export function cancelWords(subMaskId: string) {
   useProcessStore.getState().unregisterAiTask(subMaskId);
 }
 
+/** The latest Face request per sub-mask: an answer for parts since changed is dropped. */
+const faceRequests = new Map<string, number>();
+
+/**
+ * A Face selection's parts (FaceParts.tsx, or Face Skin when it is made):
+ * every face in the photo is found once and the parts drawn, and its outline
+ * follows when the models answer.
+ */
+export async function findFace(
+  subMaskId: string,
+  parts: ReadonlyArray<FacePart>,
+  update: (id: string, data: Partial<SubMask>) => void,
+) {
+  if (!(await ensureModels(FACE_MODELS))) return;
+  const request = (faceRequests.get(subMaskId) ?? 0) + 1;
+  faceRequests.set(subMaskId, request);
+  const { adjustments, patchesSentToBackend } = useEditorStore.getState();
+  const tasks = useProcessStore.getState();
+  tasks.registerAiTask(subMaskId, 'face');
+  try {
+    const { found, ...result } = await ag<Selection>('face_mask', {
+      jsAdjustments: geometryOf(adjustments),
+      parts,
+      rotation: adjustments.rotation,
+      flipHorizontal: adjustments.flipHorizontal,
+      flipVertical: adjustments.flipVertical,
+      orientationSteps: adjustments.orientationSteps,
+    });
+    if (faceRequests.get(subMaskId) !== request) return;
+    const latest = findSubMask(useEditorStore.getState().adjustments, subMaskId)?.parameters ?? {};
+    patchesSentToBackend.delete(subMaskId);
+    update(subMaskId, { parameters: { ...latest, ...result } });
+    if (!found) toast.info(agText('faceNotFound'));
+  } catch (err) {
+    if (faceRequests.get(subMaskId) === request) toast.error(agText('selFailed').replace('{error}', String(err)));
+  } finally {
+    if (faceRequests.get(subMaskId) === request) tasks.unregisterAiTask(subMaskId);
+  }
+}
+
 /** Clears an Object selection's clicks, box and outline, to begin again. */
 export function startOverObject(subMaskId: string, update: (id: string, data: Partial<SubMask>) => void) {
   const sm = findSubMask(useEditorStore.getState().adjustments, subMaskId);
@@ -356,12 +430,17 @@ export function useSelectionMasks() {
   return useCallback(
     async (subMaskId: string, kind: SelectionKind) => {
       if (!useEditorStore.getState().selectedImage?.path) return;
-      if (!(await ensureModels(kind === 'text' ? TEXT_MODELS : SELECTION_MODELS))) {
+      const models = kind === 'text' ? TEXT_MODELS : kind === 'face' ? FACE_MODELS : SELECTION_MODELS;
+      if (!(await ensureModels(models))) {
         drop(subMaskId);
         return;
       }
       // Object waits for clicks on the photo (refineObject), Text for its words (findWords).
       if (kind === 'object' || kind === 'text') return;
+      if (kind === 'face') {
+        await findFace(subMaskId, ['faceSkin'], (id, data) => fill(id, data.parameters ?? {}));
+        return;
+      }
       const { adjustments, patchesSentToBackend } = useEditorStore.getState();
       registerAiTask(subMaskId, 'foreground');
       try {
