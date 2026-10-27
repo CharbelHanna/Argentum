@@ -15,6 +15,11 @@ on:
       - main
   pull_request:
 
+# A new push to a pull request cancels the run it replaces; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   unit:
     name: App unit tests
@@ -46,8 +51,9 @@ jobs:
       # THE GOLDEN PHOTOS (src-tauri/src/mods/look_check.rs): ten CC0 RAWs
       # from raw.pixls.us through the app's own decode and render, held to the
       # text references in src-tauri/tests/look/. They run on every pull
-      # request so the job can be required later, and stop here when nothing
-      # under src-tauri/ changed. Advisory for now (continue-on-error).
+      # request that changes something under src-tauri/, and a case that moved
+      # fails this required job: bless it in the same pull request
+      # (AG_LOOK_BLESS, a row in LEDGER.tsv) when the change is meant.
       - name: Golden photos - anything to check?
         id: look-scope
         env:
@@ -127,7 +133,6 @@ jobs:
 
       - name: Golden photos
         if: steps.look-samples.outputs.ok == 'true'
-        continue-on-error: true
         working-directory: src-tauri
         timeout-minutes: 30
         env:

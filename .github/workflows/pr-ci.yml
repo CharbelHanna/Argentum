@@ -16,11 +16,9 @@ jobs:
       matrix:
         include:
           - platform: 'windows-latest'
-            builds-args: '--bundles nsis'
             target: ''
             asset-prefix: '01'
           - platform: 'windows-11-arm'
-            builds-args: '--bundles nsis'
             target: 'aarch64-pc-windows-msvc'
             asset-prefix: '01'
           - platform: 'macos-14'

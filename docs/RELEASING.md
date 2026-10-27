@@ -7,7 +7,8 @@ A release is a merge commit on `main`, published in this order.
    ISO week has rolled over since (`date +%g.%V`), the release sets the real
    `yy.ww.n` in `src-tauri/Cargo.toml`, Argentum's entry in `src-tauri/Cargo.lock`
    and `src-tauri/tauri.conf.json`.
-2. **Notes.** The version's section of `CHANGELOG.md`, its plain-language line in
+2. **Notes.** First `node scripts/changelog.mjs` folds the entries waiting in
+   `changelog.d/` into the version's section of `CHANGELOG.md`. That section, its plain-language line in
    `src/argentum/releases.ts`, and its rows in `docs/ROADMAP.md` and
    `src/argentum/roadmap.ts` say what actually shipped. Whatever a later PR made
    stale is fixed in a "Release <version>" PR.
@@ -23,6 +24,17 @@ A release is a merge commit on `main`, published in this order.
    row over budget: row, size, backend, measured and budget. **A breach blocks
    the release** until the slowdown is fixed. GitHub's runners have no real GPU,
    so this cannot run in CI.
+
+   The engine's slider tick, on the same laptop, from `src-tauri/engine/`, on one
+   of your RAWs:
+
+   ```bash
+   AG_RAW=a.CR3 cargo test --test budgets -- --ignored --nocapture
+   ```
+
+   It prints each slider's ticks and fails when the median tick with every tool
+   on is over its budget (`SLIDER_TICK` in `tests/budgets.rs`), or when no RAW is
+   set. A breach blocks the release the same way.
 
    Then, on its own, **the golden photos on your own RAWs**: the check CI runs
    on ten public samples (`src-tauri/src/mods/look_check.rs`), on the RAWs you
