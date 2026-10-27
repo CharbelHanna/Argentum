@@ -120,20 +120,19 @@ export default function MyCameras() {
     }
   };
 
-  const removeProfile = async (file: string) => {
-    await ag('remove_camera_profile', { file }).catch(() => {});
+  /** A change that fails says so under its camera instead of looking like nothing happened. */
+  const change = async (model: string, name: string, args: Record<string, unknown>) => {
+    setNote(null);
+    await ag(name, args).catch((e) => setNote({ model, text: String(e) }));
     refresh();
   };
 
-  const setDefaultProfile = async (model: string, file: string) => {
-    await ag('set_camera_default_profile', { model, file: file || null }).catch(() => {});
-    refresh();
-  };
+  const removeProfile = (model: string, file: string) => change(model, 'remove_camera_profile', { file });
 
-  const forgetCamera = async (model: string) => {
-    await ag('forget_camera', { model }).catch(() => {});
-    refresh();
-  };
+  const setDefaultProfile = (model: string, file: string) =>
+    change(model, 'set_camera_default_profile', { model, file: file || null });
+
+  const forgetCamera = (model: string) => change(model, 'forget_camera', { model });
 
   return (
     <div className="p-6 bg-surface rounded-xl shadow-md">
@@ -194,7 +193,7 @@ export default function MyCameras() {
                           {p.name ?? p.file}
                         </span>
                         <button
-                          onClick={() => removeProfile(p.file)}
+                          onClick={() => removeProfile(c.model, p.file)}
                           className="p-1 text-text-secondary hover:text-red-400 rounded transition-colors shrink-0"
                           data-tooltip={t('gearRemoveProfile')}
                         >
