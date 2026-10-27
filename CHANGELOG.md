@@ -4,7 +4,7 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
-## 26.44.1 — 2026-10-26
+## 26.44.1 — 2026-10-27
 
 ### Added
 
@@ -79,6 +79,14 @@ Newest first.
 
 ### Changed
 
+- **Two more checks before anything merges.** A compatibility corpus (#217) holds synthetic
+  `settings.json` and `.agdata` files from each release to a strict parse that keeps every key,
+  and pins what the GPU is given for a synthetic image. A UI walk (#218, `npm run check:ui`)
+  clicks every menu, tab, Settings section, context menu and default shortcut in a headless
+  browser, fails on console errors or raw translation keys, and commits what it reached
+  (`scripts/ui-walk/`), so a deletion shows exactly what went. The two issues it first allowed
+  are fixed (#219): the metadata panel's Refresh button no longer mounts into a heading that has
+  text of its own, and the RGB readout's tooltip has its own string.
 - **The camera's own lens correction turns about the lens's optical centre and is framed as
   Lightroom frames it, from the next time it is switched on.** As RAWmakase 0.4.6 reads it
   (`52da1bf`, MIT), each correction is measured from where the camera's data or Adobe's own

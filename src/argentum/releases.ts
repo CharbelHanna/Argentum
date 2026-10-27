@@ -32,6 +32,31 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.44.1',
+    date: '2026-10-27',
+    notes: [
+      'Two new AI masks: Face, which picks the skin, eyes, lips or hair of every face, and Text, ' +
+        'which selects what you type ("car", "sky"). Each downloads its model the first time.',
+      'A faster way to open RAWs, as a choice in Settings > Processing > RAW decoder: Canon, ' +
+        'Fujifilm, Olympus, Panasonic and Pentax files open 1.5 to 3.4 times faster, with the same pixels.',
+      'New edits take the camera’s colours the way the DNG specification builds them: hues closer ' +
+        'to the camera’s own JPEG. Photos you have edited keep their look.',
+      'The camera’s own lens correction now turns about the lens’s real centre and is framed as ' +
+        'Lightroom frames it, so corrected photos keep a little more of the picture.',
+      'Canon EOS R8 Mark II photos open, and Olympus E-M1X photos have their right colours.',
+      'Undo, when a rating, flag or colour label hides a photo from the library’s filter.',
+      'Heal, Remove and the Quick Eraser keep the texture around what they remove; a new Quick ' +
+        'Eraser starts with a wider selection.',
+      'Relight lights rotated or warped photos from the right side, and Fog, Lens blur and Relight ' +
+        'follow the camera’s lens correction when it is switched.',
+      'Pasting, resetting and auto lens correction on many photos redraw their thumbnails sooner, ' +
+        'and reopening a photo reuses what was already read.',
+      'Adobe profiles made for a sister camera (Lumix G97 and G99, E-M10 Mark III S) are offered.',
+      'Searching for a tag finds it, Copy settings works on a selection, and right-click menus fit ' +
+        'their longest label.',
+    ],
+  },
+  {
     version: '26.43.4',
     date: '2026-10-25',
     notes: [
