@@ -26,7 +26,6 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import * as prettier from 'prettier';
 import { findBrowser, launchBrowser } from './browser.mjs';
 import { CHAPTERS, EDITOR_READY, LIBRARY_READY, walkChapter } from './chapters.mjs';
 import { startServer } from './server.mjs';
@@ -93,14 +92,16 @@ async function walk() {
   })();
   const server = await startServer(root);
   lap('Vite started');
-  const browser = await launchBrowser({ executable: findBrowser(), ...VIEWPORT });
-  lap('browser started');
+  let browser = null;
   try {
+    browser = await launchBrowser({ executable: findBrowser(), ...VIEWPORT });
+    lap('browser started');
     const w = await openSession({ page: browser.page, url: server.url, keys, verbose });
-    // The first loads transform the app's modules; the times are taken after them.
+    // The first loads transform the app's modules; the times are the fastest of the next two.
     await w.load('', LIBRARY_READY);
     await w.load('?open', EDITOR_READY);
-    const startup = { libraryMs: await w.load('', LIBRARY_READY), editorMs: await w.load('?open', EDITOR_READY) };
+    const fastest = async (query, ready) => Math.min(await w.load(query, ready), await w.load(query, ready));
+    const startup = { libraryMs: await fastest('', LIBRARY_READY), editorMs: await fastest('?open', EDITOR_READY) };
     const unanswered = new Set();
     const offline = new Set();
     const stopped = [];
@@ -118,7 +119,7 @@ async function walk() {
     return { w, startup, stopped, unanswered: [...unanswered].sort(), offline: [...offline].sort() };
   } finally {
     lap('walked');
-    await browser.close();
+    await browser?.close();
     lap('browser closed');
     await server.close();
     lap('Vite closed');
@@ -127,6 +128,7 @@ async function walk() {
 
 async function writeReachability(startup, reachable) {
   const text = JSON.stringify({ startupMs: startup, reachable }, null, 2);
+  const prettier = await import('prettier');
   const options = { ...(await prettier.resolveConfig(reachabilityPath)), parser: 'json' };
   writeFileSync(reachabilityPath, await prettier.format(text, options));
 }
@@ -182,6 +184,9 @@ async function main() {
     }
   }
 
+  if (w.unsettled.length > 0) {
+    console.log(`Steps still changing after 6 s, recorded as they were: ${[...new Set(w.unsettled)].join(', ')}.`);
+  }
   if (unanswered.length > 0) console.log(`Calls the stub answered with null: ${unanswered.join(', ')}.`);
   if (offline.length > 0) console.log(`Fetches refused, as offline: ${offline.join(', ')}.`);
   if (failures.length > 0) {

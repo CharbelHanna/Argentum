@@ -8,7 +8,6 @@
 // that arrived in time.
 
 import { join } from 'node:path';
-import { createServer } from 'vite';
 
 export const STUB_ENTRY = '/scripts/ui-walk/stub/bridge.js';
 
@@ -27,6 +26,8 @@ function bridgeStub() {
 
 /** Serve the frontend at a free local port. Returns { url, close }. */
 export async function startServer(root) {
+  // Imported here, so the walk's tests (scripts/ui-walk/test-ui-walk.mjs) run without node_modules.
+  const { createServer } = await import('vite');
   const server = await createServer({
     root,
     configFile: join(root, 'vite.config.mjs'),

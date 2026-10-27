@@ -10,8 +10,9 @@
 
 import { mockIPC, mockWindows } from '@tauri-apps/api/mocks';
 import { MotionGlobalConfig } from 'framer-motion';
+import i18n from 'i18next';
 import { answer } from './answers.js';
-import { photoAt, PHOTOS } from './photos.js';
+import { photoAt } from './photos.js';
 
 // Every load starts from the stub's settings, never from a layout an earlier walk left behind.
 try {
@@ -86,4 +87,9 @@ window.__TAURI_OS_PLUGIN_INTERNALS__ = {
   exe_extension: 'exe',
 };
 
-walk.photos = PHOTOS.map((photo) => photo.path);
+// A translation the app asks for and the locale lacks is an error, on screen or not: the text a
+// deleted locale section leaves behind (tethering.title) reads like a key to no one else.
+i18n.on('initialized', () => {
+  i18n.options.saveMissing = true;
+  i18n.options.missingKeyHandler = (_languages, _namespace, key) => console.error(`i18n: missing key ${key}`);
+});

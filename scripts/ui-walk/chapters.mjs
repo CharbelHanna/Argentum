@@ -201,7 +201,17 @@ export function outcome(before, after) {
   return changes.length > 0 ? changes.join('; ') : 'no visible change';
 }
 
-/** Every default shortcut pressed from the chapter's page, and what it did there, in words. */
+/** The app's commands called between two counts of the stub's calls, the window's own left out. */
+export function calledBetween(before, after) {
+  return Object.keys(after)
+    .filter((name) => after[name] > (before[name] ?? 0) && !/^plugin:(window|event)\|/.test(name))
+    .sort();
+}
+
+/**
+ * Every default shortcut pressed from the chapter's page, and what it did there: what changed on
+ * screen, and which of the app's commands it called (a rating or a copy shows only there).
+ */
 async function walkShortcuts(w, home, context) {
   const shortcuts = await w.evaluate(
     `import('/src/utils/keyboardUtils.ts').then((m) => m.KEYBIND_DEFINITIONS.map((d) => ({ action: d.action, combo: m.getDefaultCombo(d, 'windows') })))`,
@@ -210,8 +220,11 @@ async function walkShortcuts(w, home, context) {
     await home.restore();
     const path = `Shortcuts > ${context} > ${comboName(combo)} (${action})`;
     const before = await w.facts();
+    const callsBefore = await w.evaluate('({ ...window.__uiWalk.calls })');
     await w.press(combo, path);
     w.note(`${path} > ${outcome(before, await w.facts())}`);
+    const called = calledBetween(callsBefore, await w.evaluate('({ ...window.__uiWalk.calls })'));
+    if (called.length > 0) w.note(`${path} > calls ${called.join(', ')}`);
     const top = await w.layer();
     if (top.kind === 'dialog') await closeDialog(w, path);
     else if (top.kind === 'menu') await w.closeMenus();

@@ -44,10 +44,12 @@ class Connection {
   #pending = new Map();
   #handlers = new Map();
   #buffered = [];
+  #gone = null;
 
   constructor(toBrowser, fromBrowser) {
     this.toBrowser = toBrowser;
     fromBrowser.on('data', (chunk) => this.#receive(chunk));
+    toBrowser.on('error', (error) => this.abandon(error.message));
   }
 
   #receive(chunk) {
@@ -75,6 +77,7 @@ class Connection {
   }
 
   send(method, params = {}, sessionId = undefined) {
+    if (this.#gone) return Promise.reject(new Error(`${method}: ${this.#gone}`));
     const id = ++this.#next;
     this.toBrowser.write(`${JSON.stringify({ id, method, params, sessionId })}\0`);
     return new Promise((resolve, reject) => this.#pending.set(id, { method, resolve, reject }));
@@ -86,6 +89,7 @@ class Connection {
 
   /** Fail every command still waiting, when the browser has gone. */
   abandon(reason) {
+    this.#gone ??= reason;
     for (const { method, reject } of this.#pending.values()) reject(new Error(`${method}: ${reason}`));
     this.#pending.clear();
   }
@@ -118,6 +122,8 @@ export async function launchBrowser({ executable, width, height }) {
     '--disable-renderer-backgrounding',
     '--disable-features=Translate,MediaRouter,OptimizationHints',
     '--mute-audio',
+    // No network but the page's own server, whatever asks (fetch, images, sockets, workers).
+    '--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1',
     // GitHub's Ubuntu runners allow no user namespaces, so Chrome's sandbox cannot start there.
     ...(process.platform === 'linux' ? ['--no-sandbox', '--disable-dev-shm-usage'] : []),
     'about:blank',
@@ -132,14 +138,24 @@ export async function launchBrowser({ executable, width, height }) {
   child.once('exit', (code) => connection.abandon(`the browser exited (${code}): ${stderr.trim().slice(-600)}`));
   child.once('error', (error) => connection.abandon(error.message));
 
-  const { targetId } = await connection.send('Target.createTarget', { url: 'about:blank' });
-  const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
-  const page = {
-    send: (method, params) => connection.send(method, params, sessionId),
-    on: (event, handler) => connection.on(event, (params, from) => from === sessionId && handler(params)),
-  };
-  // The page's own size, whatever the window around it: the same layout on every machine.
-  await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+  let page;
+  try {
+    // The tab the browser opened with, the only one, as the app's window has no tabs.
+    const { targetInfos } = await connection.send('Target.getTargets');
+    const { targetId } = targetInfos.find((target) => target.type === 'page');
+    const { sessionId } = await connection.send('Target.attachToTarget', { targetId, flatten: true });
+    page = {
+      send: (method, params) => connection.send(method, params, sessionId),
+      on: (event, handler) => connection.on(event, (params, from) => from === sessionId && handler(params)),
+    };
+    // The page's own size, whatever the window around it: the same layout on every machine.
+    await page.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await page.send('Emulation.setTimezoneOverride', { timezoneId: 'UTC' });
+  } catch (error) {
+    child.kill();
+    rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    throw error;
+  }
 
   const close = async () => {
     const asked = connection.send('Browser.close').catch(() => {});

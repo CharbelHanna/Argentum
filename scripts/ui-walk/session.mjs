@@ -127,7 +127,14 @@ export async function openSession({ page, url, keys, verbose = false }) {
     await page.send('Page.navigate', { url: `${url}${query}` });
     await parsed.finally(() => clearTimeout(timer));
     const ms = await call('waitFor', ready.selector, ready.count ?? 1);
-    if (ms === null) throw new Error(`The app did not show ${ready.what} within a minute of loading ${query || '/'}.`);
+    if (ms === null) {
+      const shows = await evaluate(`document.getElementById('root')?.innerText.replace(/\\s+/g, ' ').slice(0, 400)`);
+      const said = errors.map((e) => e.text.split('\n')[0].slice(0, 200)).slice(-5);
+      throw new Error(
+        `The app did not show ${ready.what} within a minute of loading ${query || '/'}. ` +
+          `It shows: "${shows ?? ''}". Errors so far: ${said.length ? said.join(' | ') : 'none'}.`,
+      );
+    }
     await settle();
     return Math.round(ms);
   }

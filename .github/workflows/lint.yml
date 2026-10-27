@@ -33,13 +33,6 @@ jobs:
       - name: Tests
         run: npm run test:frontend
 
-      # Today's interface in headless Chrome over a stub of the app: every
-      # menu, tab, Settings section, context menu and default shortcut. Fails
-      # on a page error, a raw translation key, or controls that differ from
-      # scripts/ui-walk/ui-reachability.json.
-      - name: UI walk
-        run: npm run check:ui
-
       # Types, lint and formatting against scripts/frontend-baseline.json:
       # nothing may get worse than main already was.
       - name: Types, lint and formatting
@@ -48,6 +41,14 @@ jobs:
       - name: Check Translation Sync
         run: npm run i18n:check
         continue-on-error: true
+
+      # Today's interface in headless Chrome over a stub of the app: every
+      # menu, tab, Settings section, context menu and default shortcut. Fails
+      # on a page error, a raw translation key, or controls that differ from
+      # scripts/ui-walk/ui-reachability.json.
+      - name: UI walk
+        run: npm run check:ui
+        timeout-minutes: 15
 
   fmt:
     name: cargo fmt
