@@ -73,10 +73,13 @@ fn run(app: AppHandle) {
             collect();
             log::info!("[memory] unloaded the idle selection models");
         }
-        // The Text mask's (text_mask.rs), the same.
-        if super::text_mask::unload_if_idle(IDLE_MASKS) {
+        // The Text and Face masks' (text_mask.rs, face_mask.rs) and the
+        // EfficientSAM3 encoder and decoder they share (esam3.rs), the same.
+        let text = super::text_mask::unload_if_idle(IDLE_MASKS);
+        let face = super::face_mask::unload_if_idle(IDLE_MASKS);
+        if super::esam3::unload_if_idle(IDLE_MASKS) || text || face {
             collect();
-            log::info!("[memory] unloaded the idle text mask models");
+            log::info!("[memory] unloaded the idle text and face mask models");
         }
 
         // The guard on ai_state is gone by the time take_idle returns, so the

@@ -82,8 +82,10 @@ import {
   getVisibleAdjustmentSections,
 } from '../../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../../../argentum/editSections';
+import FaceParts from '../../../argentum/selection/FaceParts';
 import TextWords from '../../../argentum/selection/TextWords';
 import {
+  isFaceSelection,
   isObjectSelection,
   isTextSelection,
   menuTypeOf,
@@ -2174,9 +2176,12 @@ function SettingsPanel({
         isContentVisible={true}
       >
         <div className="space-y-4 pt-2">
-          {/* Argentum: the Text mask's words, first as in RapidRAW 1.6.7 (argentum/selection). */}
+          {/* Argentum: the Text mask's words and the Face mask's parts, first as in RapidRAW 1.6.7 (argentum/selection). */}
           {isComponentMode && isTextSelection(activeSubMask) && (
             <TextWords subMask={activeSubMask} update={updateSubMask} />
+          )}
+          {isComponentMode && isFaceSelection(activeSubMask) && (
+            <FaceParts subMask={activeSubMask} update={updateSubMask} />
           )}
 
           <Switch

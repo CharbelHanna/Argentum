@@ -159,6 +159,52 @@ fn in_place(dir: &Path, file: &File) -> bool {
         && sha256_of(&path).is_ok_and(|sha| sha == file.sha256)
 }
 
+/// Whether a feature's files are all here, and how much is left to fetch.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    pub installed: bool,
+    pub missing_bytes: u64,
+    pub total_bytes: u64,
+}
+
+fn has_size(dir: &Path, file: &File) -> bool {
+    std::fs::metadata(dir.join(file.name)).is_ok_and(|m| m.is_file() && m.len() == file.bytes)
+}
+
+/// `files` in `dir`, by size alone: cheap enough to ask before every mask.
+pub fn status(dir: &Path, files: &[File]) -> Status {
+    let missing_bytes = files
+        .iter()
+        .filter(|f| !has_size(dir, f))
+        .map(|f| f.bytes)
+        .sum();
+    Status {
+        installed: missing_bytes == 0,
+        missing_bytes,
+        total_bytes: files.iter().map(|f| f.bytes).sum(),
+    }
+}
+
+/// Every one of `files` in `dir`, each with its checksum. `verified` holds the
+/// folder last found whole, so each file is read through once per run, not
+/// once per mask; set it to None after a download.
+pub fn verify(dir: &Path, files: &[File], verified: &Mutex<Option<PathBuf>>) -> Result<(), String> {
+    if verified.lock().map_err(|e| e.to_string())?.as_deref() == Some(dir) {
+        return Ok(());
+    }
+    for file in files {
+        if !has_size(dir, file) {
+            return Err(format!("{} is missing", file.name));
+        }
+        if sha256_of(&dir.join(file.name))? != file.sha256 {
+            return Err(format!("{} does not match its checksum", file.name));
+        }
+    }
+    *verified.lock().map_err(|e| e.to_string())? = Some(dir.to_path_buf());
+    Ok(())
+}
+
 pub(super) fn sha256_of(path: &Path) -> Result<String, String> {
     let mut reader = std::fs::File::open(path).map_err(|e| e.to_string())?;
     let mut hasher = Sha256::new();

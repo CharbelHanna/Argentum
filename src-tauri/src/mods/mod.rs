@@ -37,6 +37,7 @@ pub mod engine_frame;
 pub mod esam3;
 pub mod export_metadata;
 pub mod export_precision;
+pub mod face_mask;
 pub mod file_ops;
 pub mod film_lut;
 pub mod folder_counts;

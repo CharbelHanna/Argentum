@@ -217,7 +217,15 @@ The Text mask finds what is typed with EfficientSAM3 EV-M, an image encoder, a
 text encoder and a decoder distilled from Meta's SAM 3, reading the words through
 CLIP's word list. Apache-2.0 as its authors publish it; SAM 3 itself is under
 Meta's SAM License. The ONNX files and the code that runs them are RapidRAW
-1.6.7's (`ai_processing.rs` @ `211ef559` and `ebe1d4a2`).
+1.6.7's (`ai_processing.rs` @ `211ef559` and `ebe1d4a2`). It also finds the faces
+for the Face mask.
+
+### [MediaPipe](https://github.com/google-ai-edge/mediapipe) — Google
+
+The Face mask draws each face's parts with MediaPipe's face landmarks (478 points)
+and its selfie multiclass segmenter (hair, face and body skin). Apache-2.0. The
+ONNX files and the code that runs them are RapidRAW 1.6.7's (`face_masking.rs` @
+`07ef9211` and `49beb431`).
 
 ---
 
