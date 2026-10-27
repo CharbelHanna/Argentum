@@ -17,11 +17,11 @@ Newest first.
 
 ### Fixed
 
-- **Starred looks and a photo's snapshots are no longer wiped after a failed read.** When the
-  starred looks could not be read they showed as none, and the next star wrote that one star over
-  the whole list; a photo's snapshots that could not be read (or had not been read yet) were
-  replaced by the next snapshot taken. Both now write only after a successful read
-  (`src/argentum/looks/looksStore.ts`, `src/argentum/snapshots/snapshotsStore.ts`, with tests).
+- **Settings > My Gear says when a camera change fails.** Removing a camera profile, choosing a
+  camera's default profile or forgetting a camera ignored a failure, so it looked like nothing
+  happened; the error now shows under that camera, as a failed profile import already did
+  (`src/argentum/MyCameras.tsx`). The profile and lens chosen for a newly opened photo log a
+  failed question instead of treating it as "none found" silently (`newPhotoDefaults.ts`).
 - **Import with "delete after import" no longer loses an XMP it could not copy.** The XMP beside
   an imported photo (which may hold another app's edits) was copied with its error ignored, and
   the source XMP was then deleted with the photo. A failed copy now stops that photo's import
