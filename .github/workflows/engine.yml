@@ -6,15 +6,22 @@ name: Engine
 # engine's tests compiling without touching the engine at all. This runs them
 # on every push and pull request.
 #
-# The runner has no GPU and no test photos: the GPU tests and the real-photo
-# tests say they skipped and pass. What runs here is the build, every test
-# that needs neither, and the reference crate against today's app files; then
-# the memory budget on a software GPU.
+# The runner has no graphics card, so the tests run on Mesa's Vulkan driver for
+# the CPU (lavapipe), as wgpu's own CI runs its GPU tests: the GPU parity tests
+# hold the engine's copies of the app's shaders to the app's, and the memory
+# budget counts what the engine allocates, which holds on any GPU. With
+# AG_REQUIRE_GPU set, a test that finds no GPU fails rather than skipping.
+# There are no test photos: the real-photo tests say they skipped and pass.
 on:
   push:
     branches:
       - main
   pull_request:
+
+# A new push to a pull request cancels the run it replaces; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
@@ -31,17 +38,11 @@ jobs:
           rust-src-dir: src-tauri
           cache-workspaces: src-tauri/engine
 
-      - name: Test
-        working-directory: src-tauri/engine
-        run: cargo test
-
-      # The memory budget counts what the engine allocates, so it holds on any
-      # GPU, a software one included: Mesa's Vulkan driver for the CPU
-      # (lavapipe), as wgpu's own CI runs its GPU tests. Installed after the
-      # step above, so the other GPU tests still skip there.
       - name: Install a software GPU
         run: sudo apt-get update && sudo apt-get install -y mesa-vulkan-drivers libvulkan1
 
-      - name: Memory budget, on the software GPU
+      - name: Test
         working-directory: src-tauri/engine
-        run: cargo test --test memory -- --nocapture
+        env:
+          AG_REQUIRE_GPU: '1'
+        run: cargo test

@@ -3,9 +3,7 @@
 // the app. Nothing of Tauri runs: every call the app makes is answered by the
 // stub in the page.
 //
-// Two changes to the page, both here: the stub's script comes first in <head>,
-// and the Google Fonts links go, so no run depends on the network or on a font
-// that arrived in time.
+// One change to the page, here: the stub's script comes first in <head>.
 
 import { join } from 'node:path';
 
@@ -16,10 +14,7 @@ function bridgeStub() {
     name: 'argentum-ui-walk-bridge-stub',
     transformIndexHtml: {
       order: 'pre',
-      handler: (html) => ({
-        html: html.replace(/\s*<link[^>]*fonts\.(googleapis|gstatic)\.com[^>]*>/g, ''),
-        tags: [{ tag: 'script', attrs: { type: 'module', src: STUB_ENTRY }, injectTo: 'head-prepend' }],
-      }),
+      handler: () => [{ tag: 'script', attrs: { type: 'module', src: STUB_ENTRY }, injectTo: 'head-prepend' }],
     },
   };
 }

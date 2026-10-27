@@ -201,6 +201,9 @@ const AG = {
   set_snapshots: none,
   history: none,
   set_history: none,
+  // The Looks tab: no presets of its own, nothing starred.
+  builtin_presets: empty,
+  looks_favourites: empty,
   lens_builtin: () => ({ correction: null, defaultOn: false }),
   dng_standard_held_back: none,
   highlight_recovery: () => false,

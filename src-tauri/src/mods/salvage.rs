@@ -82,6 +82,22 @@ pub fn readable_keys<T: DeserializeOwned>(
     Some((value, refused))
 }
 
+/// `content` read as `T` as far as it goes, touching no file: the whole of it,
+/// or else every top-level key `T` accepts over `base()`, with the keys it
+/// refused. `None` when it is not a JSON object `T` can be built from.
+pub fn readable<T: DeserializeOwned>(
+    content: &str,
+    base: impl FnOnce() -> Map<String, Value>,
+) -> Option<(T, Vec<String>)> {
+    if let Ok(value) = serde_json::from_str(content) {
+        return Some((value, Vec::new()));
+    }
+    let Ok(Value::Object(stored)) = serde_json::from_str::<Value>(content) else {
+        return None;
+    };
+    readable_keys(base(), stored)
+}
+
 /// `content`, the text of `path`, read as `T`. When it does not read, a copy is
 /// kept (`keep_copy`) and every key `T` accepts is read over `base()`; a file
 /// that is not a JSON object at all reads as `T::default()`.
@@ -90,15 +106,12 @@ pub fn read_or_keep<T: DeserializeOwned + Default>(
     content: &str,
     base: impl FnOnce() -> Map<String, Value>,
 ) -> T {
-    let error = match serde_json::from_str(content) {
+    let error = match serde_json::from_str::<T>(content) {
         Ok(value) => return value,
         Err(error) => error,
     };
     keep_copy(path, &error);
-    let Ok(Value::Object(stored)) = serde_json::from_str::<Value>(content) else {
-        return T::default();
-    };
-    match readable_keys(base(), stored) {
+    match readable(content, base) {
         Some((value, refused)) => {
             if !refused.is_empty() {
                 log::warn!(
