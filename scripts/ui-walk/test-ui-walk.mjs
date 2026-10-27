@@ -85,9 +85,15 @@ test('what a shortcut did is told in words, or no visible change', () => {
   assert.equal(outcome({ photo: 'a.jpg' }, { photo: 'a.jpg' }), 'no visible change');
 });
 
-test('a shortcut is told by the commands it called, the window\x27s own left out', () => {
+test('a shortcut is told by the commands it called, the background calls left out', () => {
   const before = { load_settings: 1, 'plugin:window|is_maximized': 3 };
-  const after = { load_settings: 1, 'plugin:window|is_maximized': 5, set_rating_for_paths: 1, 'ag:history': 2 };
+  const after = {
+    load_settings: 1,
+    'plugin:window|is_maximized': 5,
+    set_rating_for_paths: 1,
+    'ag:history': 2,
+    frontend_log: 4,
+  };
   assert.deepEqual(calledBetween(before, after), ['ag:history', 'set_rating_for_paths']);
   assert.deepEqual(calledBetween(after, after), []);
 });

@@ -201,10 +201,16 @@ export function outcome(before, after) {
   return changes.length > 0 ? changes.join('; ') : 'no visible change';
 }
 
-/** The app's commands called between two counts of the stub's calls, the window's own left out. */
+/**
+ * Calls that come when they please rather than from the key: the window's own, the log, the
+ * auto sharpening asked in the background, and settings saved after a pause.
+ */
+const BACKGROUND_CALLS = /^(plugin:(window|event)\|.*|frontend_log|ag:sharpen_auto|save_settings)$/;
+
+/** The app's commands called between two counts of the stub's calls, the background's left out. */
 export function calledBetween(before, after) {
   return Object.keys(after)
-    .filter((name) => after[name] > (before[name] ?? 0) && !/^plugin:(window|event)\|/.test(name))
+    .filter((name) => after[name] > (before[name] ?? 0) && !BACKGROUND_CALLS.test(name))
     .sort();
 }
 

@@ -88,8 +88,12 @@ window.__TAURI_OS_PLUGIN_INTERNALS__ = {
 };
 
 // A translation the app asks for and the locale lacks is an error, on screen or not: the text a
-// deleted locale section leaves behind (tethering.title) reads like a key to no one else.
+// deleted locale section leaves behind (tethering.title) reads like a key to no one else. From
+// when Argentum's own strings are in (src/argentum/locales): the first frame is drawn before.
 i18n.on('initialized', () => {
-  i18n.options.saveMissing = true;
-  i18n.options.missingKeyHandler = (_languages, _namespace, key) => console.error(`i18n: missing key ${key}`);
+  i18n.store.on('added', (_language, namespace) => {
+    if (namespace !== 'ag') return;
+    i18n.options.saveMissing = true;
+    i18n.options.missingKeyHandler = (_languages, _namespace, key) => console.error(`i18n: missing key ${key}`);
+  });
 });
