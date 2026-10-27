@@ -17,11 +17,11 @@ Newest first.
 
 ### Fixed
 
-- **Focus stacking and panoramas no longer crash the app on an odd frame.** A frame with a NaN
-  pixel (blank or broken) made focus stacking panic while sorting (`focus_stacking.rs`, two
-  sorts now use `total_cmp`), and two panorama photos whose match could not be inverted
-  (degenerate points) panicked instead of saying so: the panorama now stops with "Photos 1 and 2
-  could not be placed against each other." (`panorama_stitching.rs`). Same pixels otherwise.
+- **Settings > My Gear says when a camera change fails.** Removing a camera profile, choosing a
+  camera's default profile or forgetting a camera ignored a failure, so it looked like nothing
+  happened; the error now shows under that camera, as a failed profile import already did
+  (`src/argentum/MyCameras.tsx`). The profile and lens chosen for a newly opened photo log a
+  failed question instead of treating it as "none found" silently (`newPhotoDefaults.ts`).
 - **Import with "delete after import" no longer loses an XMP it could not copy.** The XMP beside
   an imported photo (which may hold another app's edits) was copied with its error ignored, and
   the source XMP was then deleted with the photo. A failed copy now stops that photo's import
