@@ -15,6 +15,14 @@ Newest first.
   A missing installer stops it rather than linking nothing. Its test writes 26.43.4's table, as
   written by hand, from 26.43.4's files.
 
+### Fixed
+
+- **Settings > My Gear says when a camera change fails.** Removing a camera profile, choosing a
+  camera's default profile or forgetting a camera ignored a failure, so it looked like nothing
+  happened; the error now shows under that camera, as a failed profile import already did
+  (`src/argentum/MyCameras.tsx`). The profile and lens chosen for a newly opened photo log a
+  failed question instead of treating it as "none found" silently (`newPhotoDefaults.ts`).
+
 ## 26.44.1 — 2026-10-27
 
 ### Added
