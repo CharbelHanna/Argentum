@@ -2,10 +2,10 @@
   "uncalledCommands": [],
   "uncalledAg": ["list_camera_profiles"],
   "cargoPackages": 827,
-  "npmPackages": 410,
+  "npmPackages": 409,
   "dist": {
     "assets/App.css": 32780,
-    "assets/App.js": 2917831,
+    "assets/App.js": 2917591,
     "assets/AppProperties.js": 12373,
     "assets/Shell.css": 8548,
     "assets/Shell.js": 30248,
@@ -25,6 +25,6 @@
     "assets/undo-2.js": 47005,
     "assets/view.js": 1130,
     "assets/window.js": 15181,
-    "index.html": 1086
+    "index.html": 734
   }
 }
