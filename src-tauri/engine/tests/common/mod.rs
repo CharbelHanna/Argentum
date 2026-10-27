@@ -47,6 +47,8 @@ pub fn raw(test: &str) -> Option<PathBuf> {
 }
 
 /// A GPU of the engine's own, or `None` with a line saying the test skipped.
+/// With `AG_REQUIRE_GPU` set (CI, which installs a software GPU first), no GPU
+/// fails the test instead: a skip there would pass with nothing checked.
 pub fn gpu(test: &str) -> Option<Arc<Gpu>> {
     match Gpu::new() {
         Ok(gpu) => {
@@ -55,6 +57,9 @@ pub fn gpu(test: &str) -> Option<Arc<Gpu>> {
                 gpu.adapter.name, gpu.adapter.backend
             );
             Some(Arc::new(gpu))
+        }
+        Err(e) if std::env::var_os("AG_REQUIRE_GPU").is_some() => {
+            panic!("{test}: no GPU adapter ({e}), and AG_REQUIRE_GPU is set")
         }
         Err(e) => {
             eprintln!("{test}: SKIPPED - no GPU adapter ({e})");
