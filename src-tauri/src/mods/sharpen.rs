@@ -702,10 +702,8 @@ fn luminance_plane(image: &DynamicImage, is_raw: bool) -> (Vec<f32>, usize, usiz
     let lin = |v: f32| {
         if is_raw {
             v
-        } else if v <= 0.04045 {
-            v / 12.92
         } else {
-            ((v + 0.055) / 1.055).powf(2.4)
+            argentum_engine::colour::srgb_decode(v)
         }
     };
     let from = |samples: &[f32], channels: usize| -> Vec<f32> {

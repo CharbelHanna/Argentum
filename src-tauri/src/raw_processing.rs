@@ -2,6 +2,7 @@ use crate::as_shot::AsShot;
 use crate::image_processing::apply_orientation;
 use crate::white_balance::WhiteBalance;
 use anyhow::{Result, anyhow};
+use argentum_engine::colour::srgb_decode;
 use image::{DynamicImage, ImageBuffer, Rgb};
 use rawler::{
     decoders::{Decoder, Orientation, RawDecodeParams},
@@ -66,18 +67,6 @@ fn is_linear_raw_format(raw_image: &RawImage) -> bool {
 
 fn decode_clamp_limit(fast_demosaic: bool) -> f32 {
     if fast_demosaic { 1.0 } else { 1000.0 }
-}
-
-#[inline]
-fn srgb_to_linear(value: f32) -> f32 {
-    if value <= 0.04045 {
-        value / 12.92
-    } else {
-        // upstream #1633
-        // 2.4 is the sRGB standard exponent; this read 3.0.
-        ((value + 0.055) / 1.055).powf(2.4)
-        // end upstream #1633
-    }
 }
 
 fn develop_internal(
@@ -184,7 +173,7 @@ fn develop_internal(
             pixels.data.par_iter_mut().for_each(|p| {
                 let mut linear_val = *p * rescale_factor;
                 if is_linear_format && apply_ungamma {
-                    linear_val = srgb_to_linear(linear_val.max(0.0));
+                    linear_val = srgb_decode(linear_val.max(0.0));
                 }
                 *p = linear_val.clamp(0.0, clamp_limit);
             });
@@ -196,9 +185,9 @@ fn develop_internal(
                 let mut b = (p[2] * rescale_factor).max(0.0);
 
                 if is_linear_format && apply_ungamma {
-                    r = srgb_to_linear(r.max(0.0));
-                    g = srgb_to_linear(g.max(0.0));
-                    b = srgb_to_linear(b.max(0.0));
+                    r = srgb_decode(r.max(0.0));
+                    g = srgb_decode(g.max(0.0));
+                    b = srgb_decode(b.max(0.0));
                 }
 
                 // Keep scene-linear values above nominal white for the editor's
@@ -215,7 +204,7 @@ fn develop_internal(
                 p.iter_mut().for_each(|c| {
                     let mut linear_val = *c * rescale_factor;
                     if is_linear_format && apply_ungamma {
-                        linear_val = srgb_to_linear(linear_val.max(0.0));
+                        linear_val = srgb_decode(linear_val.max(0.0));
                     }
                     *c = linear_val.clamp(0.0, clamp_limit);
                 });

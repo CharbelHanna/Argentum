@@ -32,6 +32,7 @@ use rawler::imgop::xyz::Illuminant;
 use rawler::rawimage::{RawImage, RawPhotometricInterpretation};
 use serde::{Deserialize, Serialize};
 
+use crate::colour::BRADFORD;
 use crate::{Context, Field, Pixel, Section, Source, Stage, Tool};
 
 pub const MIN_TEMPERATURE_K: f64 = 2000.0;
@@ -173,10 +174,6 @@ const TINT_SCALE: f64 = -3000.0;
 const ILLUMINANT_A_TEMPERATURE: f64 = 2856.0;
 const ILLUMINANT_D65_TEMPERATURE: f64 = 6504.0;
 const MIN_LMS_FRACTION_OF_LOCUS: f64 = 0.25;
-
-const BRADFORD: DMat3 = DMat3::from_cols_array(&[
-    0.8951, -0.7502, 0.0389, 0.2664, 1.7135, -0.0685, -0.1614, 0.0367, 1.0296,
-]);
 
 const ROBERTSON_ISOTHERMS: [[f64; 4]; 31] = [
     [0.0, 0.18006, 0.26352, -0.24341],

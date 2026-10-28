@@ -46,15 +46,9 @@
 //! changes — but what rawler now applies is the profile's own rendering
 //! transform rather than a matrix borrowed from a different job.
 
-/// Bradford chromatic adaptation, D65 to D50. The standard published values.
-///
-/// Needed because `ForwardMatrix` is defined against D50 and rawler's
-/// conversion is built around sRGB, whose white is D65.
-const BRADFORD_D65_TO_D50: [[f32; 3]; 3] = [
-    [1.047_811_2, 0.022_886_6, -0.050_127_0],
-    [0.029_542_4, 0.990_484_4, -0.017_049_1],
-    [-0.009_234_5, 0.015_043_6, 0.752_131_6],
-];
+// Bradford D65 to D50, because `ForwardMatrix` is defined against D50 and
+// rawler's conversion is built around sRGB, whose white is D65.
+use argentum_engine::colour::BRADFORD_D65_TO_D50;
 
 pub fn multiply(a: &[[f32; 3]; 3], b: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
     let mut out = [[0.0f32; 3]; 3];
@@ -96,7 +90,7 @@ pub fn invert(m: &[[f32; 3]; 3]) -> Option<[[f32; 3]; 3]> {
     ])
 }
 
-fn as_rows(flat: &[f32; 9]) -> [[f32; 3]; 3] {
+pub fn as_rows(flat: &[f32; 9]) -> [[f32; 3]; 3] {
     [
         [flat[0], flat[1], flat[2]],
         [flat[3], flat[4], flat[5]],
@@ -122,6 +116,7 @@ pub fn xyz2cam_from_forward(forward: &[f32; 9]) -> Option<[f32; 9]> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use argentum_engine::colour::SRGB_TO_XYZ_D65;
 
     /// Canon EOS 5D Mark II, ForwardMatrix2, read out of the profile
     /// RawTherapee publishes. Not typed from memory: the first version of this
@@ -180,13 +175,6 @@ mod tests {
     /// matrix that is subtly wrong still renders, just wrongly.
     #[test]
     fn neutral_survives_rawlers_own_arithmetic() {
-        // sRGB primaries to XYZ D65, as rawler holds them.
-        const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
-            [0.412_456_4, 0.357_576_1, 0.180_437_5],
-            [0.212_672_9, 0.715_152_2, 0.072_175_0],
-            [0.019_333_9, 0.119_192, 0.950_304_1],
-        ];
-
         let xyz2cam = as_rows(&xyz2cam_from_forward(&CANON_5D2_FORWARD).expect("derivable"));
 
         // rgb2cam, with rows normalised to sum to one.

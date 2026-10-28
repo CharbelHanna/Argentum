@@ -1386,14 +1386,6 @@ pub fn apply_cpu_default_raw_processing(image: &mut DynamicImage) {
     crate::mods::preview_encode::apply(image);
 }
 
-fn srgb_channel_to_linear(c: f32) -> f32 {
-    if c <= 0.04045 {
-        c / 12.92
-    } else {
-        ((c + 0.055) / 1.055).powf(2.4)
-    }
-}
-
 fn map_color_channels(
     mut image: DynamicImage,
     map: impl Fn(f32) -> f32 + Send + Sync,
@@ -1415,7 +1407,7 @@ fn map_color_channels(
 }
 
 pub fn apply_srgb_to_linear(image: DynamicImage) -> DynamicImage {
-    map_color_channels(image, |x| srgb_channel_to_linear(x.max(0.0)))
+    map_color_channels(image, |x| argentum_engine::colour::srgb_decode(x.max(0.0)))
 }
 
 pub fn apply_linear_to_srgb(image: DynamicImage) -> DynamicImage {
@@ -3642,10 +3634,6 @@ pub fn calculate_waveform(
 pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
     const ANALYSIS_MAX_DIM: u32 = 1024;
 
-    const LUMA_R: f32 = 0.2126;
-    const LUMA_G: f32 = 0.7152;
-    const LUMA_B: f32 = 0.0722;
-
     const EXPOSURE_MIDPOINT: f64 = 128.0;
     const EXPOSURE_SCALE: f64 = 0.125;
     const WHITE_POINT_HARD_LIMIT: usize = 245;
@@ -3711,7 +3699,7 @@ pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
         let g = pixel[1] as f32;
         let b = pixel[2] as f32;
 
-        let luma_f = LUMA_R * r + LUMA_G * g + LUMA_B * b;
+        let luma_f = argentum_engine::colour::luma([r, g, b]);
         luma_hist[(luma_f.round() as usize).min(255)] += 1;
 
         let r_n = r / 255.0;
@@ -3831,7 +3819,8 @@ pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
         let r = pixel[0] as f64;
         let g = pixel[1] as f64;
         let b = pixel[2] as f64;
-        let mut luma = LUMA_R as f64 * r + LUMA_G as f64 * g + LUMA_B as f64 * b;
+        let [lr, lg, lb] = argentum_engine::colour::LUMA.map(f64::from);
+        let mut luma = lr * r + lg * g + lb * b;
         luma += exposure;
         luma = (luma - MID_GRAY) * (1.0 + contrast / 100.0) + MID_GRAY;
         adjusted_luma_hist[luma.clamp(0.0, 255.0).round() as usize] += 1;
@@ -4073,7 +4062,7 @@ fn read_linear_rgb(image: &DynamicImage, x: u32, y: u32, is_raw: bool) -> Option
     if is_raw {
         Some(rgb)
     } else {
-        Some(rgb.map(srgb_channel_to_linear))
+        Some(rgb.map(argentum_engine::colour::srgb_decode))
     }
 }
 
