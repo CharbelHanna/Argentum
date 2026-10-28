@@ -57,12 +57,7 @@ fn srgb_to_linear_lut() -> &'static [f32; 256] {
     LUT.get_or_init(|| {
         let mut lut = [0.0f32; 256];
         for (i, v) in lut.iter_mut().enumerate() {
-            let x = i as f32 / 255.0;
-            *v = if x <= 0.04045 {
-                x / 12.92
-            } else {
-                ((x + 0.055) / 1.055).powf(2.4)
-            };
+            *v = argentum_engine::colour::srgb_decode(i as f32 / 255.0);
         }
         lut
     })

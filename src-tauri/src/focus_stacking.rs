@@ -331,9 +331,11 @@ impl PlanarRgb {
     pub fn luma(&self) -> Plane {
         let mut out = Plane::new(self.w, self.h);
         out.data.par_iter_mut().enumerate().for_each(|(i, v)| {
-            *v = 0.2126 * self.c[0].data[i]
-                + 0.7152 * self.c[1].data[i]
-                + 0.0722 * self.c[2].data[i];
+            *v = argentum_engine::colour::luma([
+                self.c[0].data[i],
+                self.c[1].data[i],
+                self.c[2].data[i],
+            ]);
         });
         out
     }

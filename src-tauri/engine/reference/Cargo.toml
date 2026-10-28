@@ -6,6 +6,8 @@ edition = "2024"
 publish = false
 
 [dependencies]
+# The colour constants and curves the app files import (`argentum_engine::colour`).
+argentum-engine = { path = ".." }
 # sharpen.rs names `tauri::AppHandle` in one function the tests never call.
 tauri = { package = "argentum-engine-tauri-stub", path = "tauri-stub" }
 rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "e865df57b7da0607e6c5c972c2a2ce47a486c2e3" }

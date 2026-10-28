@@ -158,7 +158,7 @@ fn run_pipeline(
             let mut g = apply_curve(n_g);
             let mut b = apply_curve(n_b);
 
-            let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            let luma = argentum_engine::colour::luma([r, g, b]);
             let max_ch = r.max(g).max(b);
 
             if max_ch > 0.9 {

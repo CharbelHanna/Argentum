@@ -140,7 +140,7 @@ fn build_coc_field(
             let base = y * w * 3;
             for (x, out) in row.iter_mut().enumerate() {
                 let i = base + x * 3;
-                *out = (0.2126 * raw[i] + 0.7152 * raw[i + 1] + 0.0722 * raw[i + 2])
+                *out = argentum_engine::colour::luma([raw[i], raw[i + 1], raw[i + 2]])
                     .max(0.0)
                     .sqrt();
             }

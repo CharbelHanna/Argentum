@@ -101,7 +101,7 @@ pub fn detail(image: &Rgb32FImage) -> Vec<f32> {
     let (w, h) = (image.width() as usize, image.height() as usize);
     let mut y: Vec<f32> = image
         .par_chunks(3)
-        .map(|p| 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2])
+        .map(|p| argentum_engine::colour::luma([p[0], p[1], p[2]]))
         .collect();
     // So grain on its own does not count as detail.
     gaussian_blur(&mut y, w, h, 1.2);

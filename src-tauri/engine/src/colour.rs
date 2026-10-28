@@ -1,7 +1,7 @@
-//! Colour maths on the CPU, defined once: the frame histogram's luminance,
-//! the sRGB curve the tests judge pictures by, and the colour difference they
-//! measure with (`lab`, `delta_e2000`). On the GPU the first two are
-//! `src/pixels/common.wgsl`.
+//! Colour maths on the CPU, defined once for the engine and the app:
+//! luminance, the sRGB curve, the sRGB-to-XYZ and Bradford matrices, and the
+//! colour difference the tests measure with (`lab`, `delta_e2000`). On the
+//! GPU the first two are `src/pixels/common.wgsl`.
 //!
 //! RapidRAW's, from `src-tauri/src/shaders/shader.wgsl` @ c786c146
 //! (`LUMA_COEFF`, `get_luma`, `linear_to_srgb`, `srgb_to_linear`), written
@@ -33,6 +33,27 @@ pub fn srgb_decode(e: f32) -> f32 {
         ((e + 0.055) / 1.055).powf(2.4)
     }
 }
+
+/// Linear sRGB (D65) to CIE XYZ, row by row: the constant rawler holds.
+pub const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
+    [0.412_456_4, 0.357_576_1, 0.180_437_5],
+    [0.212_672_9, 0.715_152_2, 0.072_175_0],
+    [0.019_333_9, 0.119_192, 0.950_304_1],
+];
+
+/// Bradford chromatic adaptation, XYZ D65 to XYZ D50, row by row: the
+/// standard published values. ICC colourants and DNG forward matrices are
+/// stored against D50.
+pub const BRADFORD_D65_TO_D50: [[f32; 3]; 3] = [
+    [1.047_811_2, 0.022_886_6, -0.050_127_0],
+    [0.029_542_4, 0.990_484_4, -0.017_049_1],
+    [-0.009_234_5, 0.015_043_6, 0.752_131_6],
+];
+
+/// The Bradford cone response, XYZ to LMS, that white balance adapts in.
+pub const BRADFORD: glam::DMat3 = glam::DMat3::from_cols_array(&[
+    0.8951, -0.7502, 0.0389, 0.2664, 1.7135, -0.0685, -0.1614, 0.0367, 1.0296,
+]);
 
 // Copied from RAWmakase `crates/rawmakase-decode/src/half_check.rs`
 // @ 183e09fd (pch/rawmakase#526, MIT): `lab` and `delta_e2000`, on f32

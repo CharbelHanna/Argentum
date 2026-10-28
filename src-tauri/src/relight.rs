@@ -44,7 +44,7 @@ fn relight_smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
 
 #[inline(always)]
 pub(crate) fn relight_luma(r: f32, g: f32, b: f32) -> f32 {
-    (0.2126 * r + 0.7152 * g + 0.0722 * b).max(0.0).sqrt()
+    argentum_engine::colour::luma([r, g, b]).max(0.0).sqrt()
 }
 
 pub(crate) struct RelightTap {
@@ -336,7 +336,7 @@ pub fn apply_relight<'a>(
                         base[1] * (1.0 - 0.35 * tint),
                         base[2] * (1.0 - 0.45 * temperature + 0.15 * tint),
                     ];
-                    let luma = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+                    let luma = argentum_engine::colour::luma(rgb);
                     let strength = get("intensity", 60.0).max(0.0) / 100.0 * 4.0 / luma.max(1e-3);
                     let radius = 0.05 + get("radius", 30.0) / 100.0 * 1.45;
                     let angle = get("angle", 135.0).to_radians();

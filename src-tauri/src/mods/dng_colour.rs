@@ -149,6 +149,8 @@ pub fn correction(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mods::profile_matrix::as_rows;
+    use argentum_engine::colour::SRGB_TO_XYZ_D65;
     use serde_json::json;
 
     /// Canon EOS 5D Mark II in rawler's data, D65 and A.
@@ -161,17 +163,7 @@ mod tests {
 
     /// rawler's camera to sRGB, as profile_correction.rs works it out.
     fn developed(xyz2cam: &[f32; 9]) -> [[f32; 3]; 3] {
-        const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
-            [0.412_456_4, 0.357_576_1, 0.180_437_5],
-            [0.212_672_9, 0.715_152_2, 0.072_175_0],
-            [0.019_333_9, 0.119_192, 0.950_304_1],
-        ];
-        let rows = [
-            [xyz2cam[0], xyz2cam[1], xyz2cam[2]],
-            [xyz2cam[3], xyz2cam[4], xyz2cam[5]],
-            [xyz2cam[6], xyz2cam[7], xyz2cam[8]],
-        ];
-        let mut rgb2cam = multiply(&rows, &SRGB_TO_XYZ_D65);
+        let mut rgb2cam = multiply(&as_rows(xyz2cam), &SRGB_TO_XYZ_D65);
         for row in rgb2cam.iter_mut() {
             let sum: f32 = row.iter().sum();
             for cell in row.iter_mut() {

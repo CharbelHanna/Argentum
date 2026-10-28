@@ -49,6 +49,7 @@ use std::sync::OnceLock;
 use crate::mods::highlight_protection::{self, HeldBack};
 use crate::mods::profiles::same_model;
 use crate::mods::raw_tone::ToneCurvePoint;
+use argentum_engine::colour::{srgb_decode, srgb_encode};
 
 /// The `rawToneRendering` value that selects this.
 pub const MODE: &str = "dngStandard";
@@ -351,13 +352,14 @@ pub fn linear_points(ev: f32) -> Vec<ToneCurvePoint> {
 /// through the edit's point nearest middle grey. Read back from the edit
 /// rather than the table, so a later change to the table cannot move it.
 pub fn offset_of(points: &[ToneCurvePoint], linear: bool) -> Option<f32> {
-    let grey = encode(0.18) * 255.0;
+    let grey = srgb_encode(0.18) * 255.0;
     let point = points
         .iter()
         .filter(|p| p.x > 0.0 && p.x < 255.0)
         .min_by(|a, b| (a.x - grey).abs().total_cmp(&(b.x - grey).abs()))?;
-    let v = decode(point.x / 255.0);
-    let made_with = |ev: f32| encode(if linear { exposed(v, ev) } else { tone(v, ev) }) * 255.0;
+    let v = srgb_decode(point.x / 255.0);
+    let made_with =
+        |ev: f32| srgb_encode(if linear { exposed(v, ev) } else { tone(v, ev) }) * 255.0;
     // Both curves rise with the offset; halving the range 32 times is well
     // under a thousandth of a stop.
     let (mut low, mut high) = (-4.0f32, 4.0f32);
@@ -378,27 +380,10 @@ fn sixteen_points(curve: impl Fn(f32) -> f32) -> Vec<ToneCurvePoint> {
             let x = (i as f32 / 15.0).powf(1.3);
             ToneCurvePoint {
                 x: x * 255.0,
-                y: encode(curve(decode(x))) * 255.0,
+                y: srgb_encode(curve(srgb_decode(x))) * 255.0,
             }
         })
         .collect()
-}
-
-fn encode(v: f32) -> f32 {
-    let v = v.clamp(0.0, 1.0);
-    if v <= 0.0031308 {
-        v * 12.92
-    } else {
-        1.055 * v.powf(1.0 / 2.4) - 0.055
-    }
-}
-
-fn decode(e: f32) -> f32 {
-    if e <= 0.04045 {
-        e / 12.92
-    } else {
-        ((e + 0.055) / 1.055).powf(2.4)
-    }
 }
 
 // ---------------------------------------------------------------------------
@@ -744,7 +729,7 @@ mod tests {
         (0..=4000)
             .map(|k| {
                 let e = k as f32 / 4000.0;
-                (apply_curve(e, &points) - encode(tone(decode(e), ev))).abs() * 255.0
+                (apply_curve(e, &points) - srgb_encode(tone(srgb_decode(e), ev))).abs() * 255.0
             })
             .fold(0.0, f32::max)
     }
@@ -774,7 +759,8 @@ mod tests {
             let miss = (0..=4000)
                 .map(|k| {
                     let e = k as f32 / 4000.0;
-                    (apply_curve(e, &points) - encode(exposed(decode(e), ev))).abs() * 255.0
+                    (apply_curve(e, &points) - srgb_encode(exposed(srgb_decode(e), ev))).abs()
+                        * 255.0
                 })
                 .fold(0.0, f32::max);
             assert!(miss < 0.5, "{ev:+} EV: off by {miss:.2}/255");
@@ -1178,7 +1164,7 @@ pub(crate) mod gpu {
         } else {
             pp.map(|v| lo_t + (v - lo) * (hi_t - lo_t) / (hi - lo))
         };
-        mul(FROM, toned).map(encode)
+        mul(FROM, toned).map(srgb_encode)
     }
 
     fn worst(got: &image::Rgba32FImage, want: impl Fn([f32; 3]) -> [f32; 3]) -> f32 {
@@ -1279,7 +1265,7 @@ pub(crate) mod gpu {
         );
         let miss = worst(&theirs, |c| {
             c.map(|v| {
-                let s = encode(v).powf(1.0 / 1.1);
+                let s = srgb_encode(v).powf(1.0 / 1.1);
                 let curve = s * s * (3.0 - 2.0 * s);
                 s + (curve - s) * 0.75
             })
@@ -1294,7 +1280,7 @@ pub(crate) mod gpu {
         });
         let got = render(&ctx, &image, js, wb);
         let miss = worst(&got, |c| {
-            c.map(|v| super::tests::apply_curve(encode(v), &base))
+            c.map(|v| super::tests::apply_curve(srgb_encode(v), &base))
         });
         assert!(miss < 1.0, "Base Curve moved by {miss:.2}/255");
     }
@@ -1622,7 +1608,7 @@ pub(crate) mod gpu {
         let small = crate::image_processing::downscale_f32_image(image, iw / 8, ih / 8).to_rgb32f();
         let luma = |x: u32, y: u32| {
             let p = small.get_pixel(x.min(small.width() - 1), y.min(small.height() - 1));
-            encode(0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2])
+            srgb_encode(argentum_engine::colour::luma(p.0))
         };
         let (sw, sh) = (w / 8, h / 8);
         let mut best = (0.0f32, 0, 0);
@@ -1740,7 +1726,7 @@ pub(crate) mod gpu {
             .flat_map(|y| (0..w).map(move |x| (x, y)))
             .map(|(x, y)| {
                 let p = rgb.get_pixel(x * step, y * step);
-                0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
+                argentum_engine::colour::luma(p.0)
             })
             .collect();
         let mean = v.iter().sum::<f32>() / v.len() as f32;
@@ -1828,7 +1814,7 @@ pub(crate) mod gpu {
         let rgb = image.to_rgb32f();
         let l = |x: u32, y: u32| {
             let p = rgb.get_pixel(x, y);
-            0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
+            argentum_engine::colour::luma(p.0)
         };
         let (w, h) = (rgb.width(), rgb.height());
         let mut sum = 0.0;

@@ -57,6 +57,7 @@ use serde_json::{Map, Value};
 use crate::app_state::LoadedImage;
 use crate::image_processing::{GlobalAdjustments, HslColor};
 
+use argentum_engine::colour::srgb_decode;
 pub use argentum_engine::rm_black_white::{CELLS, gray_grid};
 use argentum_engine::rm_black_white::{ColorSpread, SRGB_TO_PROPHOTO, auto_mix};
 
@@ -207,13 +208,6 @@ pub(crate) fn linear_pixel(
     image: &DynamicImage,
     is_raw: bool,
 ) -> impl Fn(usize, usize) -> [f32; 3] + '_ {
-    let srgb_to_linear = |v: f32| {
-        if v <= 0.04045 {
-            v / 12.92
-        } else {
-            ((v + 0.055) / 1.055).powf(2.4)
-        }
-    };
     move |x: usize, y: usize| -> [f32; 3] {
         let (x, y) = (x as u32, y as u32);
         let rgb = match image {
@@ -232,7 +226,7 @@ pub(crate) fn linear_pixel(
                 [p[0], p[1], p[2]].map(|v| f32::from(v) / 255.0)
             }
         };
-        if is_raw { rgb } else { rgb.map(srgb_to_linear) }
+        if is_raw { rgb } else { rgb.map(srgb_decode) }
     }
 }
 
