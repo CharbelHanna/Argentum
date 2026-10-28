@@ -8,7 +8,6 @@ import { useContextMenu } from '../../context/ContextMenuContext';
 import { toast } from 'react-toastify';
 import Slider from './Slider';
 import { useEditorStore } from '../../store/useEditorStore';
-import { useSettingsStore } from '../../store/useSettingsStore';
 
 interface LutEntry {
   name: string;
@@ -247,53 +246,20 @@ export default function LUTControl({
 
   const handleImport = async (targetLibraryId = selectedLibraryId) => {
     try {
-      const { osPlatform } = useSettingsStore.getState();
-      const isAndroid = osPlatform === 'android';
-
       const selected = await open({
         multiple: true,
-        filters: isAndroid
-          ? []
-          : [
-              {
-                name: t('ui.lut.filterLabel'),
-                extensions: [...SUPPORTED_EXTENSIONS, ...SUPPORTED_EXTENSIONS.map((ext) => ext.toUpperCase())],
-              },
-            ],
+        filters: [
+          {
+            name: t('ui.lut.filterLabel'),
+            extensions: [...SUPPORTED_EXTENSIONS, ...SUPPORTED_EXTENSIONS.map((ext) => ext.toUpperCase())],
+          },
+        ],
       });
       const sourcePaths = Array.isArray(selected) ? selected : selected ? [selected] : [];
       if (sourcePaths.length === 0) return;
 
-      let validPaths = sourcePaths;
-      if (isAndroid) {
-        const resolvedNames = await Promise.all(
-          sourcePaths.map(async (path) => {
-            try {
-              return await invoke<string>('resolve_android_content_uri_name', { uriStr: path });
-            } catch (e) {
-              console.error('Failed to resolve Android URI:', e);
-              return path;
-            }
-          }),
-        );
-        const allowedExtensions = new Set(SUPPORTED_EXTENSIONS);
-        validPaths = sourcePaths.filter((_, index) => {
-          const resolvedName = resolvedNames[index];
-          const ext = resolvedName.split('.').pop()?.toLowerCase() || '';
-          if (!allowedExtensions.has(ext)) {
-            console.warn(`Skipping unsupported file: ${resolvedName}`);
-            return false;
-          }
-          return true;
-        });
-        if (validPaths.length === 0) {
-          toast.error(t('ui.lut.importFailed'));
-          return;
-        }
-      }
-
       const list = await invoke<LutEntry[]>('import_luts', {
-        sourcePaths: validPaths,
+        sourcePaths,
         libraryId: targetLibraryId,
       });
       previewCache.current.clear();

@@ -1167,7 +1167,6 @@
       "brand": "Argentum",
       "continueSession": "セッションを続行",
       "contribute": "GitHubで貢献する",
-      "descriptionAndroid": "圧倒的に高速な、GPUアクセラレーション対応RAW画像エディタ。ライブラリを開いて始めましょう。",
       "descriptionDesktop": "圧倒的に高速な、GPUアクセラレーション対応RAW画像エディタ。フォルダを開いて始めましょう。",
       "donate": "Ko-fiで寄付する",
       "downloadVersion": "クリックしてバージョン {{version}} をダウンロード",
@@ -1202,8 +1201,7 @@
     },
     "tooltips": {
       "communityPresets": "コミュニティプリセット",
-      "goHome": "ホームへ移動",
-      "importImages": "画像をインポート"
+      "goHome": "ホームへ移動"
     }
   },
   "masks": {
@@ -1916,7 +1914,6 @@
       "thumbnailResDesc": "生成されるライブラリ用サムネイルの解像度を指定します。高い値にすると、ロード中もシャープに表示されます。",
       "title": "処理エンジン",
       "wgpu": "WGPUダイレクトレンダリング",
-      "wgpuDescAndroid": "ブラウザエンコードをバイパスし、即座に反応するプレビューを実現します。（Androidでは無効: モバイルのWebview環境下でのネイティブWGPUサーフェスの作成は現在サポートされていません。）",
       "wgpuDescLinux": "ブラウザエンコードをバイパスし、即座に反応するプレビューを実現します。（Linuxでは無効: TauriはGTKウェブビューを使用しており、同一X11サーフェス上でWGPUと競合してちらつきが発生するためです。）",
       "wgpuDescRecommended": "ブラウザエンコードをバイパスし、即座に反応するライブプレビューを実現します。パフォーマンス向上のため、強く推奨します。",
       "wgpuLabel": "WGPUダイレクトレンダリングを有効化",

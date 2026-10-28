@@ -1226,7 +1226,6 @@
       "brand": "Argentum",
       "continueSession": "Kontynuuj sesję",
       "contribute": "Współtwórz na GitHubie",
-      "descriptionAndroid": "Niewiarygodnie szybki, akcelerowany przez GPU edytor obrazów RAW. Otwórz bibliotekę, aby rozpocząć.",
       "descriptionDesktop": "Niewiarygodnie szybki, akcelerowany przez GPU edytor obrazów RAW. Otwórz folder, aby rozpocząć.",
       "donate": "Przekaż darowiznę na Ko-Fi",
       "downloadVersion": "Kliknij, aby pobrać wersję {{version}}",
@@ -1261,8 +1260,7 @@
     },
     "tooltips": {
       "communityPresets": "Presety społeczności",
-      "goHome": "Przejdź do strony głównej",
-      "importImages": "Importuj obrazy"
+      "goHome": "Przejdź do strony głównej"
     }
   },
   "masks": {
@@ -1995,7 +1993,6 @@
       "thumbnailResDesc": "Decyduje o rozdzielczości generowanych miniatur w bibliotece. Wyższa wartość da ostrzejszy obraz po wczytaniu.",
       "title": "Silnik przetwarzania",
       "wgpu": "Bezpośrednie renderowanie WGPU",
-      "wgpuDescAndroid": "Omija enkoder przeglądarki dla najszybszego podglądu. (Wyłączone na Androidzie: Tworzenie powierzchni WGPU obecnie nie jest obsługiwane wraz z WebView.)",
       "wgpuDescLinux": "Omija enkoder przeglądarki. (Wyłączone na Linuksie: Tauri używa GTK dla WebView, co wchodzi w konflikt z WGPU na tej samej powierzchni X11, wywołując migotanie.)",
       "wgpuDescRecommended": "Omija kodowanie w przeglądarce pozwalając na natychmiastowe reakcje podglądu. Wysoce zalecane dla zachowania płynności.",
       "wgpuLabel": "Włącz bezpośrednie renderowanie WGPU",

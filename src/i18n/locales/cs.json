@@ -1173,7 +1173,6 @@
       "brand": "Argentum",
       "continueSession": "Pokračovat v relaci",
       "contribute": "Přispějte na GitHubu",
-      "descriptionAndroid": "Ohromně rychlý editor snímků RAW s akcelerací GPU. Otevřete knihovnu a začněte.",
       "descriptionDesktop": "Ohromně rychlý editor snímků RAW s akcelerací GPU. Otevřete složku a začněte.",
       "donate": "Darujte na Ko-Fi",
       "downloadVersion": "Kliknutím stáhnete verzi {{version}}",
@@ -1208,8 +1207,7 @@
     },
     "tooltips": {
       "communityPresets": "Presety komunity",
-      "goHome": "Přejít na domovskou stránku",
-      "importImages": "Import snímků"
+      "goHome": "Přejít na domovskou stránku"
     }
   },
   "masks": {
@@ -1922,7 +1920,6 @@
       "thumbnailResDesc": "Určuje rozlišení generovaných miniatur knihovny. Vyšší hodnoty produkují ostřejší snímky během načítání.",
       "title": "Engine zpracování",
       "wgpu": "Přímé vykreslování WGPU",
-      "wgpuDescAndroid": "Obchází kódování prohlížeče pro okamžitě reagující živé náhledy. (Na Androidu zakázáno: nativní tvorba povrchů WGPU není v současnosti podporována vedle mobilního webview.)",
       "wgpuDescLinux": "Obchází kódování prohlížeče pro okamžitě reagující živé náhledy. (Na Linuxu zakázáno: Tauri používá GTK pro webview, což je v konfliktu s WGPU na stejném povrchu X11 a způsobuje blikání.)",
       "wgpuDescRecommended": "Obchází kódování prohlížeče pro okamžitě reagující živé náhledy. Důrazně doporučeno pro výkon.",
       "wgpuLabel": "Povolit přímé vykreslování WGPU",

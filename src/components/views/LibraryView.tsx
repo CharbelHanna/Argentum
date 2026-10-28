@@ -18,14 +18,12 @@ interface LibraryViewProps {
   thumbnailSize: ThumbnailSize;
   thumbnailAspectRatio: ThumbnailAspectRatio;
   libraryViewMode: LibraryViewMode;
-  isAndroid: boolean;
   setThumbnailSize: (size: ThumbnailSize) => void;
   handleClearSelection: () => void;
   handleLibraryImageSingleClick: (...args: any) => void;
   handleImageSelect: (...args: any) => void;
   handleThumbnailContextMenu: (...args: any) => void;
   handleMainLibraryContextMenu: (...args: any) => void;
-  handleImportClick: (path: string) => void;
   requestThumbnails: any;
 }
 
@@ -35,14 +33,12 @@ export default function LibraryView({
   thumbnailSize,
   thumbnailAspectRatio,
   libraryViewMode,
-  isAndroid,
   setThumbnailSize,
   handleClearSelection,
   handleLibraryImageSingleClick,
   handleImageSelect,
   handleThumbnailContextMenu,
   handleMainLibraryContextMenu,
-  handleImportClick,
   requestThumbnails,
 }: LibraryViewProps) {
   const { activeView } = useUIStore(
@@ -105,7 +101,6 @@ export default function LibraryView({
             importState={importState}
             indexingProgress={indexingProgress}
             isIndexing={isIndexing}
-            isAndroid={isAndroid}
             libraryViewMode={libraryViewMode}
             multiSelectedPaths={multiSelectedPaths}
             onClearSelection={handleClearSelection}
@@ -113,7 +108,6 @@ export default function LibraryView({
             onEmptyAreaContextMenu={handleMainLibraryContextMenu}
             onImageClick={handleLibraryImageSingleClick}
             onImageDoubleClick={handleImageSelect}
-            onImportClick={() => handleImportClick(currentFolderPath as string)}
             onThumbnailSizeChange={setThumbnailSize}
             onRequestThumbnails={requestThumbnails}
             rootPaths={rootPaths}

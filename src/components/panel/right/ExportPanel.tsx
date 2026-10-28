@@ -27,7 +27,6 @@ import {
 import { Invokes, SelectedImage, AppSettings, Panel } from '../../ui/AppProperties';
 import ExportPresetsList from '../../ui/ExportPresetsList';
 import { useExportSettings } from '../../../hooks/useExportSettings';
-import { useOsPlatform } from '../../../hooks/useOsPlatform';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
@@ -514,8 +513,6 @@ export default function ExportPanel({
   const [watermarkImageAspectRatio, setWatermarkImageAspectRatio] = useState(1);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
   const filenameInputRef = useRef<HTMLInputElement>(null);
-  const osPlatform = useOsPlatform();
-  const isAndroid = osPlatform === 'android';
   const activePanels = useUIStore((state) => state.activePanels);
   const isPanelReallyActive = Object.values(activePanels).includes(Panel.Export);
 
@@ -776,42 +773,36 @@ export default function ExportPanel({
         const suggestedName = (filenameTemplate || '').replace('{original_filename}', stem);
         const outputFileName = `${suggestedName}.${selectedFormat.extensions[0]}`;
 
-        outputFolderOrFile = isAndroid
-          ? outputFileName
-          : ((await save({
-              title: t('export.dialog.saveEditedImageTitle'),
-              defaultPath: lastExportPath ? `${lastExportPath}/${outputFileName}` : outputFileName,
-              filters: [
-                { name: selectedFormat.name, extensions: selectedFormat.extensions },
-                ...FILE_FORMATS.filter((f: FileFormat) => f.id !== fileFormat).map((f: FileFormat) => ({
-                  name: f.name,
-                  extensions: f.extensions,
-                })),
-              ],
-            })) as string);
+        outputFolderOrFile = (await save({
+          title: t('export.dialog.saveEditedImageTitle'),
+          defaultPath: lastExportPath ? `${lastExportPath}/${outputFileName}` : outputFileName,
+          filters: [
+            { name: selectedFormat.name, extensions: selectedFormat.extensions },
+            ...FILE_FORMATS.filter((f: FileFormat) => f.id !== fileFormat).map((f: FileFormat) => ({
+              name: f.name,
+              extensions: f.extensions,
+            })),
+          ],
+        })) as string;
       } else {
-        outputFolderOrFile = isAndroid
-          ? ''
-          : ((await open({
-              title: t('export.dialog.selectFolderTitle', { count: numImages }),
-              directory: true,
-              defaultPath: lastExportPath ?? undefined,
-            })) as string);
+        outputFolderOrFile = (await open({
+          title: t('export.dialog.selectFolderTitle', { count: numImages }),
+          directory: true,
+          defaultPath: lastExportPath ?? undefined,
+        })) as string;
       }
 
-      if (isAndroid || outputFolderOrFile) {
-        if (!isAndroid) {
-          if (isOriginalFolder) {
-            saveLastUsedPreset(lastExportPath || '');
-          } else {
-            const dir = shouldChooseOutputFile
-              ? outputFolderOrFile.substring(
-                  0,
-                  Math.max(outputFolderOrFile.lastIndexOf('/'), outputFolderOrFile.lastIndexOf('\\')),
-                )
-              : outputFolderOrFile;
-            if (dir) saveLastUsedPreset(dir);
-          }
+      if (outputFolderOrFile) {
+        if (isOriginalFolder) {
+          saveLastUsedPreset(lastExportPath || '');
+        } else {
+          const dir = shouldChooseOutputFile
+            ? outputFolderOrFile.substring(
+                0,
+                Math.max(outputFolderOrFile.lastIndexOf('/'), outputFolderOrFile.lastIndexOf('\\')),
+              )
+            : outputFolderOrFile;
+          if (dir) saveLastUsedPreset(dir);
         }
 
         setExportState({ status: Status.Exporting, progress: { current: 0, total: numImages }, errorMessage: '' });

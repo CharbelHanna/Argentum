@@ -1174,7 +1174,6 @@
       "brand": "Argentum",
       "continueSession": "Continuar sessió",
       "contribute": "Contribuir a GitHub",
-      "descriptionAndroid": "Un editor d'imatges RAW increïblement ràpid i accelerat per GPU. Obriu la biblioteca per començar.",
       "descriptionDesktop": "Un editor d'imatges RAW increïblement ràpid i accelerat per GPU. Obriu una carpeta per començar.",
       "donate": "Fer una donació a Ko-Fi",
       "downloadVersion": "Feu clic per baixar la versió {{version}}",
@@ -1209,8 +1208,7 @@
     },
     "tooltips": {
       "communityPresets": "Ajustos preestablerts de la comunitat",
-      "goHome": "Anar a l'inici",
-      "importImages": "Importar imatges"
+      "goHome": "Anar a l'inici"
     }
   },
   "masks": {
@@ -1923,7 +1921,6 @@
       "thumbnailResDesc": "Determina la resolució de les miniatures generades per a la biblioteca. Valors més alts produeixen imatges més nítides durant la càrrega.",
       "title": "Motor de processament",
       "wgpu": "Renderització directa WGPU",
-      "wgpuDescAndroid": "Omet la codificació del navegador per a unes vistes prèvies en directe que responen a l'instant. (Desactivat a Android: La creació de la superfície nativa WGPU actualment no és compatible juntament amb la vista web mòbil.)",
       "wgpuDescLinux": "Omet la codificació del navegador per a unes vistes prèvies en directe que responen a l'instant. (Desactivat a Linux: Tauri utilitza GTK per a les vistes web, la qual cosa entra en conflicte amb WGPU a la mateixa superfície X11 i causa parpellejos.)",
       "wgpuDescRecommended": "Omet la codificació del navegador per a unes vistes prèvies en directe que responen a l'instant. Molt recomanat pel seu rendiment.",
       "wgpuLabel": "Activar la renderització directa WGPU",
