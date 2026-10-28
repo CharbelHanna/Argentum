@@ -80,23 +80,7 @@ pub fn load_and_composite(
     let use_fast_raw_dev = use_fast_raw_dev && adjustments["aiPatches"][0].is_null(); // Argentum
     let base_image =
         load_base_image_from_bytes(base_image, path, use_fast_raw_dev, settings, cancel_token)?;
-    prepare_base_image(&base_image, path, adjustments)
-}
-
-pub fn prepare_base_image(
-    base_image: &DynamicImage,
-    path: &str,
-    adjustments: &Value,
-) -> Result<DynamicImage> {
-    let has_patches = adjustments
-        .get("aiPatches")
-        .and_then(|v| v.as_array())
-        .is_some_and(|a| !a.is_empty());
-
-    match crate::ai_denoise::apply_ai_denoise(base_image, path, adjustments) {
-        std::borrow::Cow::Owned(denoised) if !has_patches => Ok(denoised),
-        denoised => composite_patches_on_image(&denoised, adjustments),
-    }
+    composite_patches_on_image(&base_image, adjustments)
 }
 
 pub fn load_base_image_from_bytes(

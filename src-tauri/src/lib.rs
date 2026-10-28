@@ -25,11 +25,6 @@ macro_rules! cli_eprintln {
 mod adjustment_utils;
 mod ai_commands;
 mod ai_connector;
-// Argentum: RapidRAW's live AI denoise was not taken at the 1.6.6 release review.
-// Their preview cache and loader still ask it whether a photo is denoised, and
-// it answers no: nothing turns it on and nothing registers its commands.
-#[allow(dead_code)]
-mod ai_denoise;
 mod ai_processing;
 mod app_settings;
 mod app_state;
