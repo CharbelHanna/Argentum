@@ -201,7 +201,7 @@
       "@typescript-eslint/no-explicit-any": 3
     },
     "src/components/panel/SettingsPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 36,
+      "@typescript-eslint/no-explicit-any": 34,
       "@typescript-eslint/no-unused-vars": 5,
       "i18next/no-literal-string": 2
     },
@@ -392,7 +392,6 @@
     "src/components/panel/SettingsPanel.tsx",
     "src/components/panel/editor/Waveform.tsx",
     "src/components/panel/editor/overlays/CompositionOverlays.tsx",
-    "src/components/panel/right/ControlsPanel.tsx",
     "src/components/panel/right/FolderTree.tsx",
     "src/components/views/LibraryView.tsx",
     "src/utils/CollageVariants.tsx",

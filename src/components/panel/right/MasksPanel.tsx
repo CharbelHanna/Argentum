@@ -25,7 +25,6 @@ import {
   pointerWithin,
 } from '@dnd-kit/core';
 import {
-  ChartArea,
   Circle,
   ClipboardPaste,
   Copy,
@@ -53,8 +52,6 @@ import CurveGraph from '../../adjustments/Curves';
 import ColorPanel from '../../adjustments/Color';
 import DetailsPanel from '../../adjustments/Details';
 import EffectsPanel from '../../adjustments/Effects';
-import Waveform from '../editor/Waveform';
-import Resizer from '../../ui/Resizer';
 import { DepthRangePicker } from '../../ui/DepthRangePicker';
 import AdjustmentSectionsSubMenu from './AdjustmentSectionsSubMenu';
 
@@ -97,7 +94,7 @@ import {
 } from '../../../argentum/selection/selection';
 import { agText } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';
-import { OPTION_SEPARATOR, Orientation, Panel } from '../../ui/AppProperties';
+import { OPTION_SEPARATOR } from '../../ui/AppProperties';
 import { createSubMask } from '../../../utils/maskUtils';
 import { usePresets } from '../../../hooks/usePresets';
 import Text from '../../ui/Text';
@@ -108,7 +105,6 @@ import { useProcessStore } from '../../../store/useProcessStore';
 import { useAiMasking } from '../../../hooks/useAiMasking';
 import { useEditorActions } from '../../../hooks/useEditorActions';
 import { useUIStore } from '../../../store/useUIStore';
-import { useWaveformControls } from '../../../hooks/useWaveformControls';
 
 interface DragData {
   type: 'Container' | 'SubMask' | 'Creation';
@@ -268,7 +264,7 @@ function MasksListRoot({ children, onClick }: { children: React.ReactNode; onCli
   );
 }
 
-export default function MasksPanel({ showWaveform = true }: { showWaveform?: boolean }) {
+export default function MasksPanel() {
   const { t } = useTranslation();
   const { setAdjustments } = useEditorActions();
   const isAiFree = useSettingsStore((s) => s.appSettings?.aiProvider === 'ai-free');
@@ -277,23 +273,7 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
   // Argentum: Subject, Sky and Background from RAWmakase (argentum/selection).
   const generateSelection = useSelectionMasks();
 
-  const { setCustomEscapeHandler, isAdjustmentsPanelVisible } = useUIStore(
-    useShallow((state) => {
-      const leftVisible = state.uiVisibility.leftPanel;
-      const rightVisible = state.uiVisibility.rightPanel;
-
-      const isVisible =
-        (leftVisible && state.activePanels.leftTop === Panel.Adjustments) ||
-        (leftVisible && state.activePanels.leftBottom === Panel.Adjustments) ||
-        (rightVisible && state.activePanels.rightTop === Panel.Adjustments) ||
-        (rightVisible && state.activePanels.rightBottom === Panel.Adjustments);
-
-      return {
-        setCustomEscapeHandler: state.setCustomEscapeHandler,
-        isAdjustmentsPanelVisible: isVisible,
-      };
-    }),
-  );
+  const setCustomEscapeHandler = useUIStore((state) => state.setCustomEscapeHandler);
 
   const { appSettings } = useSettingsStore(
     useShallow((state) => ({
@@ -316,10 +296,6 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
     copiedMask,
     histogram,
     selectedImage,
-    isWaveformVisible,
-    waveform,
-    activeWaveformChannel,
-    waveformHeight,
     setEditor,
   } = useEditorStore(
     useShallow((state) => ({
@@ -330,16 +306,9 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
       copiedMask: state.copiedMask,
       histogram: state.histogram,
       selectedImage: state.selectedImage,
-      isWaveformVisible: state.isWaveformVisible,
-      waveform: state.waveform,
-      activeWaveformChannel: state.activeWaveformChannel,
-      waveformHeight: state.waveformHeight,
       setEditor: state.setEditor,
     })),
   );
-
-  const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, setWaveformHeight, handleWaveformResize } =
-    useWaveformControls();
 
   const setBrushSettings = useCallback(
     (updater: any) => {
@@ -1009,26 +978,6 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
           <Text variant={TextVariants.title}>{t('editor.masks.maskingTitle')}</Text>
           <div className="flex items-center gap-1">
             <button
-              className={clsx(
-                'p-2 rounded-full transition-colors',
-                !showWaveform && 'hidden',
-                isAdjustmentsPanelVisible
-                  ? 'opacity-50 cursor-not-allowed text-text-secondary'
-                  : isWaveformVisible
-                    ? 'bg-surface hover:bg-card-active'
-                    : 'hover:bg-surface',
-              )}
-              onClick={onToggleWaveform}
-              disabled={isAdjustmentsPanelVisible}
-              data-tooltip={
-                isAdjustmentsPanelVisible
-                  ? t('editor.masks.toggleAnalyticsInAdjustments')
-                  : t('editor.masks.toggleAnalyticsTooltip')
-              }
-            >
-              <ChartArea size={18} />
-            </button>
-            <button
               className="p-2 rounded-full hover:bg-surface transition-colors"
               onClick={handleResetAllMasks}
               data-tooltip={t('editor.masks.resetMaskingTooltip')}
@@ -1037,35 +986,6 @@ export default function MasksPanel({ showWaveform = true }: { showWaveform?: boo
             </button>
           </div>
         </div>
-
-        <AnimatePresence initial={false}>
-          {showWaveform && isWaveformVisible && !isAdjustmentsPanelVisible && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: waveformHeight || 256, opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: isResizingWaveform ? 0 : 0.2, ease: 'easeOut' }}
-              className="shrink-0 flex flex-col relative border-b border-surface overflow-hidden"
-            >
-              <div className="grow w-full h-full p-3 pb-2 min-h-0">
-                <Waveform
-                  waveformData={waveform || null}
-                  histogram={histogram}
-                  displayMode={activeWaveformChannel || 'luma'}
-                  setDisplayMode={setActiveWaveformChannel}
-                  showClipping={adjustments.showClipping || false}
-                  onToggleClipping={() => {
-                    setAdjustments((prev: Adjustments) => ({
-                      ...prev,
-                      showClipping: ((Number(prev.showClipping) || 0) + 1) % 5, // Argentum: cycles off / all / R / G / B
-                    }));
-                  }}
-                />
-              </div>
-              <Resizer direction={Orientation.Horizontal} onMouseDown={handleWaveformResize} />
-            </motion.div>
-          )}
-        </AnimatePresence>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col min-h-0 p-3">
           {selectedImage ? (

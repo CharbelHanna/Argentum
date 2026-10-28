@@ -1126,32 +1126,6 @@ pub fn try_get_exif_creation_date(path: &Path) -> Option<DateTime<Utc>> {
     None
 }
 
-#[cfg(target_os = "android")]
-pub fn get_creation_date_from_bytes(path_hint: &str, file_bytes: &[u8]) -> DateTime<Utc> {
-    if let Some(exif_obj) = read_exif(file_bytes) {
-        for tag in [exif::Tag::DateTimeOriginal, exif::Tag::DateTime] {
-            if let Some(field) = exif_obj.get_field(tag, exif::In::PRIMARY)
-                && let Some(dt) = parse_creation_field(field)
-            {
-                return dt;
-            }
-        }
-    }
-
-    if is_raw_file(path_hint)
-        && let Some(metadata) = read_raw_metadata(file_bytes)
-    {
-        if let Some(dt) = parse_raw_creation_date(metadata.exif.date_time_original.as_deref()) {
-            return dt;
-        }
-        if let Some(dt) = parse_raw_creation_date(metadata.exif.create_date.as_deref()) {
-            return dt;
-        }
-    }
-
-    Utc::now()
-}
-
 fn copy_full_exif_from_source(
     metadata: &mut Metadata,
     original_path: &Path,

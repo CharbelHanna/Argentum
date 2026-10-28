@@ -32,6 +32,11 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use anyhow::{Context, Result};
 use ort::session::Session;
 
+/// The runtime's folder inside the models folder, named for its version
+/// (`model_catalog::GPU_RUNTIME` finds it, and older ones, by its prefix).
+#[cfg_attr(not(windows), allow(dead_code))]
+pub const FOLDER: &str = "onnxruntime-directml-1.22.0";
+
 /// Set the moment this process points ONNX Runtime at the DirectML build.
 ///
 /// `ort` loads the library lazily, on first use, from the path it was given,
@@ -130,7 +135,7 @@ mod windows_runtime {
     use ort::execution_providers::{DirectMLExecutionProvider, ExecutionProvider};
     use ort::session::Session;
     use sha2::{Digest, Sha256};
-    use tauri::{Emitter, Manager};
+    use tauri::Emitter;
     use tokio::sync::Mutex as TokioMutex;
 
     use super::Device;
@@ -164,11 +169,9 @@ mod windows_runtime {
     static INSTALL: TokioMutex<()> = TokioMutex::const_new(());
 
     fn runtime_path(app: &tauri::AppHandle) -> Result<PathBuf> {
-        Ok(app
-            .path()
-            .app_data_dir()?
-            .join("models")
-            .join("onnxruntime-directml-1.22.0")
+        Ok(crate::mods::model_manager::models_dir(app)
+            .map_err(anyhow::Error::msg)?
+            .join(super::FOLDER)
             .join("onnxruntime.dll"))
     }
 

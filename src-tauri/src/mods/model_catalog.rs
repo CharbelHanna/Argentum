@@ -61,13 +61,7 @@ pub enum Stored {
     /// Every folder whose name starts with `prefix`, so a runtime left behind
     /// by an older version is found and removed with the current one. Not
     /// downloaded from the settings page: the feature that needs it installs it.
-    FoldersStartingWith {
-        prefix: &'static str,
-        /// Nothing downloads from here; the tests hold it to the code that does.
-        #[cfg_attr(not(test), allow(dead_code))]
-        url: &'static str,
-        bytes: u64,
-    },
+    FoldersStartingWith { prefix: &'static str, bytes: u64 },
 }
 
 impl Stored {
@@ -425,7 +419,6 @@ pub const CATALOGUE: &[Model] = &[
         purpose: "Lets Super Resolution and Restore run on the graphics card, many times faster than without it. Windows only.",
         stored: Stored::FoldersStartingWith {
             prefix: "onnxruntime-directml-",
-            url: "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
             bytes: 17_898_472,
         },
         listed_when_missing: false,
@@ -455,8 +448,6 @@ pub fn find(id: &str) -> Option<&'static Model> {
 mod tests {
     use super::*;
     use std::collections::HashSet;
-
-    const OUR_GPU_RUNTIME: &str = include_str!("gpu_runtime.rs");
 
     #[test]
     fn ids_are_unique_and_every_entry_names_something() {
@@ -548,16 +539,14 @@ mod tests {
         }
     }
 
-    /// The graphics card runtime's folder and address are copies of `gpu_runtime`'s.
+    /// The graphics card runtime is found by the folder `gpu_runtime` installs it in.
     #[test]
-    fn the_gpu_runtime_entry_matches_the_code_that_installs_it() {
-        let Stored::FoldersStartingWith { prefix, url, .. } =
-            find(GPU_RUNTIME).expect("listed").stored
+    fn the_gpu_runtime_entry_finds_the_folder_it_is_installed_in() {
+        let Stored::FoldersStartingWith { prefix, .. } = find(GPU_RUNTIME).expect("listed").stored
         else {
             panic!("the graphics card runtime is a folder");
         };
-        assert!(OUR_GPU_RUNTIME.contains(&format!("\"{prefix}")), "{prefix}");
-        assert!(OUR_GPU_RUNTIME.contains(&format!("\"{url}\"")), "{url}");
+        assert!(super::super::gpu_runtime::FOLDER.starts_with(prefix));
     }
 
     /// Every file an earlier version saved straight into the models folder,
@@ -683,17 +672,13 @@ mod tests {
         );
     }
 
-    /// Every source file that puts something in the models folder is one this
-    /// list was checked against above. A new feature saving a model there
-    /// fails this until it has an entry here and a line in `WRITERS`.
+    /// Only `model_manager::models_dir` names the models folder: everything
+    /// else that saves a model there asks it, and fetches through
+    /// `model_download` what this list holds. A feature that built the path
+    /// itself would be a downloader this list cannot see.
     #[test]
-    fn every_writer_into_the_models_folder_is_known() {
-        // Each, with the test above that holds the catalogue to it.
-        const WRITERS: &[&str] = &[
-            "mods/gpu_runtime.rs", // the_gpu_runtime_entry_matches_the_code_that_installs_it
-            "mods/selection_models.rs", // the_selection_entry_is_what_selection_models_reads
-            "mods/model_manager.rs", // the folder itself, for listing and deleting
-        ];
+    fn only_model_manager_names_the_models_folder() {
+        const WRITERS: &[&str] = &["mods/model_manager.rs"];
         let needle = concat!("join(", "\"models\")");
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut found = Vec::new();

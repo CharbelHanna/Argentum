@@ -1016,38 +1016,10 @@ fn save_image_with_metadata(
         export_settings.dpi,
     )?;
 
-    #[cfg(target_os = "android")]
-    {
-        let file_name = output_path
-            .file_name()
-            .and_then(|name| name.to_str())
-            .ok_or_else(|| "Missing Android export file name".to_string())?;
-        crate::android_integration::save_image_bytes_to_android_gallery(
-            file_name,
-            mime_type_for_extension(&extension),
-            &image_bytes,
-        )?;
-    }
-
-    #[cfg(not(target_os = "android"))]
     fs::write(output_path, image_bytes)
         .map_err(|e| format!("Failed to write file to '{}': {}", output_path.display(), e))?;
 
     Ok(())
-}
-
-#[cfg(target_os = "android")]
-pub fn mime_type_for_extension(extension: &str) -> &'static str {
-    match extension {
-        "jpg" | "jpeg" => "image/jpeg",
-        "png" => "image/png",
-        "webp" => "image/webp",
-        "bmp" => "image/bmp",
-        "gif" => "image/gif",
-        "tif" | "tiff" => "image/tiff",
-        "jxl" => "image/jxl",
-        _ => "application/octet-stream",
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1325,20 +1297,6 @@ fn export_masks_for_image(
 
             let alpha_bytes = encode_grayscale_to_png(&alpha_resized)?;
             ensure_export_not_cancelled(cancellation_token)?;
-            #[cfg(target_os = "android")]
-            {
-                let file_name = mask_alpha_path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .ok_or_else(|| "Missing Android mask export file name".to_string())?;
-                crate::android_integration::save_image_bytes_to_android_gallery(
-                    file_name,
-                    "image/png",
-                    &alpha_bytes,
-                )?;
-            }
-
-            #[cfg(not(target_os = "android"))]
             fs::write(&mask_alpha_path, alpha_bytes).map_err(|e| e.to_string())?;
             ensure_export_not_cancelled(cancellation_token)?;
         }
@@ -1669,19 +1627,6 @@ pub(crate) async fn export_images_impl(
                             &cancellation_token_clone,
                         )?;
                         ensure_export_not_cancelled(&cancellation_token_clone)?;
-                        #[cfg(target_os = "android")]
-                        {
-                            let file_name = output_path
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .ok_or_else(|| "Missing Android LUT file name".to_string())?;
-                            crate::android_integration::save_file_bytes_to_android_downloads(
-                                file_name,
-                                "application/octet-stream",
-                                &cube_bytes,
-                            )?;
-                        }
-                        #[cfg(not(target_os = "android"))]
                         fs::write(&output_path, cube_bytes).map_err(|e| e.to_string())?;
                         ensure_export_not_cancelled(&cancellation_token_clone)?;
                         return Ok(());

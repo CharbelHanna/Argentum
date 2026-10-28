@@ -146,7 +146,7 @@ function TabBody({
   const name = libraryActivePath?.split(/[\\/]/).pop();
 
   if (tab === Panel.Adjustments) {
-    if (editing) return <Controls showWaveform={false} />;
+    if (editing) return <Controls />;
     if (!libraryActivePath) return <Quiet text={t('mwNoPhoto')} />;
     return (
       <>
@@ -157,12 +157,12 @@ function TabBody({
             {selectedCount > 1 && <> {t('mwReadOnlyMany').replace('{count}', String(selectedCount))}</>}
           </span>
         </div>
-        {gridAdjustments && <Controls showWaveform={false} readOnly={{ adjustments: gridAdjustments }} />}
+        {gridAdjustments && <Controls readOnly={{ adjustments: gridAdjustments }} />}
       </>
     );
   }
   if (tab === Panel.Presets) return <LooksPanel editing={editing} />;
-  if (tab === Panel.Masks) return editing ? <MasksPanel showWaveform={false} /> : <Quiet text={t('mwOpenToUse')} />;
+  if (tab === Panel.Masks) return editing ? <MasksPanel /> : <Quiet text={t('mwOpenToUse')} />;
   if (tab === Panel.Metadata && !editing) {
     // The grid's selection, from what the library read of it.
     return libraryActivePath ? (

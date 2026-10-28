@@ -23,10 +23,8 @@ import ExportPanel from './components/panel/right/ExportPanel';
 import GlobalTooltip from './components/ui/GlobalTooltip';
 import AppModals from './components/modals/AppModals';
 
-import Controls from './components/panel/right/ControlsPanel';
 import MetadataPanel from './components/panel/right/MetadataPanel';
 import CropPanel from './components/panel/right/CropPanel';
-import MasksPanel from './components/panel/right/MasksPanel';
 import AIPanel from './components/panel/right/AIPanel';
 import TetheringPanel from './components/panel/right/TetheringPanel';
 
@@ -596,14 +594,10 @@ function App() {
               onClose={() => setUI({ isLibraryExportPanelVisible: false })}
             />
           );
-        case Panel.Adjustments:
-          return <Controls />;
         case Panel.Metadata:
           return <MetadataPanel />;
         case Panel.Crop:
           return <CropPanel />;
-        case Panel.Masks:
-          return <MasksPanel />;
         case Panel.Ai:
           return <AIPanel />;
         case Panel.Tethering:

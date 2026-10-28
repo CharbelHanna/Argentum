@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use rm_selection::manifest::all_files;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 
 use super::model_catalog::{File, SELECTION};
 use super::model_download::{self, Progress, Status, fetch_missing};
@@ -30,12 +30,7 @@ pub const FOLDER: &str = "rawmakase-selection";
 
 /// Where the five files live.
 pub fn dir(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("models")
-        .join(FOLDER))
+    Ok(super::model_manager::models_dir(app)?.join(FOLDER))
 }
 
 /// The five, as the catalogue and the downloader describe a file.

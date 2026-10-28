@@ -27,8 +27,6 @@ use walkdir::WalkDir;
 
 use crate::AppState;
 use crate::PendingMetadata;
-#[cfg(target_os = "android")]
-use crate::android_integration::*;
 use crate::app_settings::*;
 use crate::as_shot::as_shot;
 use crate::exif_processing;
@@ -3244,33 +3242,6 @@ pub fn save_presets(presets: Vec<PresetItem>, app_handle: AppHandle) -> Result<(
     crate::mods::atomic_write::write_atomic(&path, json_string).map_err(|e| e.to_string())
 }
 
-fn get_internal_library_root_path(app_handle: &AppHandle) -> Result<std::path::PathBuf, String> {
-    #[cfg(not(target_os = "android"))]
-    {
-        let library_dir = app_handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| e.to_string())?
-            .join("library");
-
-        if !library_dir.exists() {
-            fs::create_dir_all(&library_dir).map_err(|e| e.to_string())?;
-        }
-        Ok(library_dir)
-    }
-    #[cfg(target_os = "android")]
-    {
-        crate::android_integration::get_android_internal_library_root()
-    }
-}
-
-#[tauri::command]
-pub fn get_or_create_internal_library_root(app_handle: AppHandle) -> Result<String, String> {
-    let library_root = get_internal_library_root_path(&app_handle)?;
-
-    Ok(library_root.to_string_lossy().to_string())
-}
-
 fn preset_file_display_name(file_path: &str) -> String {
     Path::new(file_path)
         .file_name()
@@ -3567,16 +3538,6 @@ pub fn show_in_finder(path: String) -> Result<(), String> {
         } else {
             return Err("Could not get parent directory".into());
         }
-    }
-
-    #[cfg(target_os = "android")]
-    {
-        return Err("Show in File Manager is not natively supported via CLI on Android.".into());
-    }
-
-    #[cfg(target_os = "ios")]
-    {
-        return Err("Show in File Manager is not supported on iOS.".into());
     }
 
     Ok(())
@@ -3879,63 +3840,6 @@ pub async fn import_files(
             );
 
             let import_result: Result<Option<PathBuf>, String> = (|| {
-                #[cfg(target_os = "android")]
-                if is_android_content_uri(source_path_str) {
-                    let resolved_name = resolve_android_content_uri_name(source_path_str)?;
-                    let source_bytes = read_android_content_uri(source_path_str)?;
-                    let source_name_path = Path::new(&resolved_name);
-                    let file_date = exif_processing::get_creation_date_from_bytes(
-                        &resolved_name,
-                        &source_bytes,
-                    );
-
-                    let mut final_dest_folder = PathBuf::from(&destination_folder);
-                    if settings.organize_by_date {
-                        let date_format_str = settings
-                            .date_folder_format
-                            .replace("YYYY", "%Y")
-                            .replace("MM", "%m")
-                            .replace("DD", "%d");
-                        let subfolder = file_date.format(&date_format_str).to_string();
-                        final_dest_folder.push(subfolder);
-                    }
-
-                    fs::create_dir_all(&final_dest_folder)
-                        .map_err(|e| format!("Failed to create destination folder: {}", e))?;
-
-                    let new_stem = generate_filename_from_template(
-                        &settings.filename_template,
-                        source_name_path,
-                        i + 1,
-                        total_files,
-                        &file_date,
-                    );
-                    let extension = source_name_path
-                        .extension()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("");
-                    let new_filename = format!("{}.{}", new_stem, extension);
-                    let dest_file_path = final_dest_folder.join(new_filename);
-
-                    if dest_file_path.exists() {
-                        return Err(format!(
-                            "File already exists at destination: {}",
-                            dest_file_path.display()
-                        ));
-                    }
-
-                    fs::write(&dest_file_path, source_bytes).map_err(|e| e.to_string())?;
-
-                    if settings.delete_after_import {
-                        log::info!(
-                            "Skipping delete_after_import for Android content URI source: {}",
-                            source_path_str
-                        );
-                    }
-
-                    return Ok(Some(dest_file_path));
-                }
-
                 let (source_path, source_sidecar) = parse_virtual_path(source_path_str);
                 if !source_path.exists() {
                     return Err(format!("Source file not found: {}", source_path_str));
