@@ -661,9 +661,6 @@ async fn json(
             serde_json::to_value(commands::import_camera_profile(a.path)?)
                 .map_err(|e| e.to_string())
         }
-        "list_camera_profiles" => {
-            serde_json::to_value(commands::list_camera_profiles()?).map_err(|e| e.to_string())
-        }
         "remove_camera_profile" => {
             let a: FileArgs = args_for(&name, args)?;
             commands::remove_camera_profile(a.file)?;

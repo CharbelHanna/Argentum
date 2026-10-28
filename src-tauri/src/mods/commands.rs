@@ -274,11 +274,6 @@ pub fn import_camera_profile(path: String) -> Result<crate::mods::profiles::Inst
     Ok(installed)
 }
 
-/// Everything in the library.
-pub fn list_camera_profiles() -> Result<Vec<crate::mods::profiles::Installed>, String> {
-    Ok(crate::mods::profiles::installed(profile_library()?))
-}
-
 /// Delete a profile file from the library.
 pub fn remove_camera_profile(file: String) -> Result<(), String> {
     crate::mods::profiles::remove(profile_library()?, &file)
