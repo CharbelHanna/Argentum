@@ -254,11 +254,6 @@
     "src/components/panel/right/MetadataPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 2
     },
-    "src/components/panel/right/PresetsPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 41,
-      "@typescript-eslint/no-unused-vars": 4,
-      "no-useless-assignment": 1
-    },
     "src/components/panel/right/TetheringPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 5,
       "@typescript-eslint/no-unused-vars": 4
@@ -285,9 +280,6 @@
     },
     "src/hooks/useAiMasking.ts": {
       "@typescript-eslint/no-explicit-any": 10
-    },
-    "src/hooks/useAndroidBackHandler.ts": {
-      "@typescript-eslint/no-explicit-any": 5
     },
     "src/hooks/useAppContextMenus.ts": {
       "@typescript-eslint/no-explicit-any": 20
@@ -331,8 +323,7 @@
       "@typescript-eslint/no-explicit-any": 34
     },
     "src/store/useCloudStore.ts": {
-      "@typescript-eslint/no-explicit-any": 1,
-      "no-useless-assignment": 1
+      "@typescript-eslint/no-explicit-any": 1
     },
     "src/store/useEditorStore.ts": {
       "@typescript-eslint/no-explicit-any": 1,
@@ -403,9 +394,7 @@
     "src/components/panel/editor/overlays/CompositionOverlays.tsx",
     "src/components/panel/right/ControlsPanel.tsx",
     "src/components/panel/right/FolderTree.tsx",
-    "src/components/ui/LUTControl.tsx",
     "src/components/views/LibraryView.tsx",
-    "src/hooks/useAndroidBackHandler.ts",
     "src/utils/CollageVariants.tsx",
     "src/utils/frontendLogBridge.ts",
     "src/utils/maskUtils.ts"

@@ -19,25 +19,19 @@
 //!
 //! The feature that uses a model asks `model_download::ensure` for it, which
 //! fetches whatever of its files is missing or wrong, as the settings page's
-//! Download does: one list, one downloader. RapidRAW's features still fetch
-//! their own, the same files from the same addresses (see below).
+//! Download does: one list, one downloader.
 //!
 //! NEVER A NEW NAME FOR A FILE USERS HAVE
 //!
 //! Users already have gigabytes of these files. A file is kept only when its
 //! name and checksum match, so renaming one, or moving it to another folder,
-//! downloads it again for everyone. `files_users_already_have_keep_their_names_and_checksums`
-//! holds this list to every file an earlier version saved.
+//! downloads it again for everyone. A test
+//! (`files_users_already_have_keep_their_names_and_checksums`) holds this list
+//! to every file an earlier version saved, and `RENAMED` keeps an old name of
+//! RapidRAW's in use.
 //!
-//! UPSTREAM'S MODELS ARE COPIES
-//!
-//! RapidRAW's file names, addresses and checksums are private constants in
-//! their `ai_processing.rs`. Making them `pub` would be an edit to their file
-//! for the sake of a settings page, so they are copied here instead, and the
-//! tests below read their file and fail when the copies drift — a renamed
-//! model, or a new one upstream added that this list does not know about yet.
-//! The selection models are not copied: their
-//! list is `rm_selection::manifest`, read through `selection_models::files`.
+//! The selection models' list is `rm_selection::manifest`, read through
+//! `selection_models::files`.
 
 /// One file of a model: where the feature that uses it saves it, fetches it
 /// from, and what it checks it against.
@@ -105,10 +99,6 @@ pub struct Model {
     /// What it is for, in one plain-English line.
     pub purpose: &'static str,
     pub stored: Stored,
-    /// RapidRAW's code downloads it, so `stored` copies constants of theirs,
-    /// and the tests check them against their file.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub upstream: bool,
     /// Listed even when it is not on disk. Off for things that only exist on
     /// some machines, like the Windows-only graphics card runtime.
     pub listed_when_missing: bool,
@@ -143,12 +133,12 @@ macro_rules! rapidraw {
 pub const TEXT_MASKS: &str = "text-masks";
 
 /// CLIP's word list. Photo tagging and the Text mask both read this one file.
-const CLIP_TOKENIZER: File = rapidraw!(
+pub const CLIP_TOKENIZER: File = rapidraw!(
     "clip_tokenizer.json",
     "clip_tokenizer.json",
-    // Their code checks no checksum for the tokenizer. This one is ours: the
-    // file Hugging Face served on 2026-10-21 (git blob 564c0ebd, the one their
-    // listing names).
+    // RapidRAW's code checked no checksum for the tokenizer. This one is ours:
+    // the file Hugging Face served on 2026-10-21 (git blob 564c0ebd, the one
+    // their listing names, unchanged since it was uploaded on 2025-07-27).
     "b556ac8c99757ffb677208af34bc8c6721572114111a6e0aaf5fa69ff0b8d842",
     2_224_041
 );
@@ -214,6 +204,72 @@ pub const TEXT_MASK_FILES: &[File] = &[
     CLIP_TOKENIZER,
 ];
 
+/// RapidRAW's models' ids and files: `ai_processing` loads them under these
+/// names, the names and checksums its own code saved them with (1.6.6).
+pub const SUBJECT: &str = "subject";
+pub const FOREGROUND: &str = "foreground";
+pub const SKY: &str = "sky";
+pub const DEPTH: &str = "depth";
+pub const RELIGHT: &str = "relight";
+pub const INPAINTING: &str = "inpainting";
+pub const DENOISE: &str = "denoise";
+pub const TAGGING: &str = "tagging";
+
+pub const SAM_ENCODER: File = rapidraw!(
+    "sam_vit_b_01ec64_encoder.onnx",
+    "sam_vit_b_01ec64_encoder.onnx",
+    "16ab73d9c824886f0de2938c19df22fb9ec3deebfd0de58e65177e479213d7d1",
+    100_293_382
+);
+pub const SAM_DECODER: File = rapidraw!(
+    "sam_vit_b_01ec64_decoder.onnx",
+    "sam_vit_b_01ec64_decoder.onnx",
+    "85d0d672cf5b7fe763edcde429e5533e62f674af4b15c7d688b7673b0ef00bf7",
+    8_751_331
+);
+pub const U2NET: File = rapidraw!(
+    "u2net.onnx",
+    "u2net.onnx",
+    "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+    175_997_641
+);
+pub const SKYSEG: File = rapidraw!(
+    "skyseg_u2net.onnx",
+    "skyseg-u2net.onnx",
+    "ab9c34c64c3d821220a2886a4a06da4642ffa14d5b30e8d5339056a089aa1d39",
+    175_997_079
+);
+pub const DEPTH_ANYTHING: File = rapidraw!(
+    "depth_anything_v2_vits.onnx",
+    "depth_anything_v2_vits.onnx",
+    "d2b11a11c1d4a12b47608fa65a17ee9a4c605b55ee1730c8e3b526304f2562be",
+    99_373_606
+);
+pub const MOGE_NORMAL: File = rapidraw!(
+    "moge-2-vits-normal-onnx.onnx",
+    "moge-2-vits-normal-onnx.onnx",
+    "24eacb5dc7a2c54c7bc98f7de085ffbed79ad006ea5b664c2c2cdc02ff3a52f0",
+    140_852_051
+);
+pub const LAMA: File = rapidraw!(
+    "lama_fp16.onnx",
+    "lama_fp16.onnx",
+    "2d6be6277c400d6f1b91819737f7c3da935e5c63d1b521d393be1196a2bfa82c",
+    111_545_583
+);
+pub const NIND_DENOISE: File = rapidraw!(
+    "nind_denoise_utnet_684.onnx",
+    "nind_denoise_utnet_684.onnx",
+    "ee3586279d514df557ff3f7dec6df37fafc51ba5d3a3435b2cc9ac2d9017e7fe",
+    124_202_581
+);
+pub const CLIP_MODEL: File = rapidraw!(
+    "clip_model.onnx",
+    "clip_model.onnx",
+    "57879bb1c23cdeb350d23569dd251ed4b740a96d747c529e94a2bb8040ac5d00",
+    605_804_513
+);
+
 /// Super Resolution's and Restore's ids and files: `super_resolution` loads
 /// them under these names.
 pub const SUPER_RESOLUTION_2X: &str = "super-resolution-2x";
@@ -256,7 +312,6 @@ pub const CATALOGUE: &[Model] = &[
             name: super::selection_models::FOLDER,
             files: super::selection_models::files,
         },
-        upstream: false,
         listed_when_missing: true,
     },
     // --- RapidRAW's: their code downloads these four together
@@ -268,122 +323,63 @@ pub const CATALOGUE: &[Model] = &[
     // them. Loading it only for the Sky mask would save its 168 MB, but that
     // is a change to their loader, not to this list.
     Model {
-        id: "subject",
+        id: SUBJECT,
         label: "Subject selection",
         // Also redraws the box of a Subject mask made before the selection
         // masks: the mask is kept in the edit, and only a new box runs this.
         purpose: "Picks out the thing you draw a box around, for Quick Erase and Subject in Inpainting. The Masks menu no longer uses it.",
-        stored: Stored::Files(&[
-            rapidraw!(
-                "sam_vit_b_01ec64_encoder.onnx",
-                "sam_vit_b_01ec64_encoder.onnx",
-                "16ab73d9c824886f0de2938c19df22fb9ec3deebfd0de58e65177e479213d7d1",
-                100_293_382
-            ),
-            rapidraw!(
-                "sam_vit_b_01ec64_decoder.onnx",
-                "sam_vit_b_01ec64_decoder.onnx",
-                "85d0d672cf5b7fe763edcde429e5533e62f674af4b15c7d688b7673b0ef00bf7",
-                8_751_331
-            ),
-        ]),
-        upstream: true,
+        stored: Stored::Files(&[SAM_ENCODER, SAM_DECODER]),
         listed_when_missing: true,
     },
     Model {
-        id: "foreground",
+        id: FOREGROUND,
         label: "Foreground detection",
         purpose: "Finds the main subject on its own, for the Foreground mask.",
-        stored: Stored::Files(&[rapidraw!(
-            "u2net.onnx",
-            "u2net.onnx",
-            "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
-            175_997_641
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[U2NET]),
         listed_when_missing: true,
     },
     Model {
-        id: "sky",
+        id: SKY,
         label: "Sky detection",
         purpose: "Loaded with Foreground and Depth, which need it to be here. The Sky mask itself now uses Selection masks.",
         // Saved under an underscore, downloaded from a name with a hyphen.
-        stored: Stored::Files(&[rapidraw!(
-            "skyseg_u2net.onnx",
-            "skyseg-u2net.onnx",
-            "ab9c34c64c3d821220a2886a4a06da4642ffa14d5b30e8d5339056a089aa1d39",
-            175_997_079
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[SKYSEG]),
         listed_when_missing: true,
     },
     Model {
-        id: "depth",
+        id: DEPTH,
         label: "Depth estimation",
         purpose: "Works out how far away each part of the photo is, for the Depth mask, Lens blur and Fog.",
-        stored: Stored::Files(&[rapidraw!(
-            "depth_anything_v2_vits.onnx",
-            "depth_anything_v2_vits.onnx",
-            "d2b11a11c1d4a12b47608fa65a17ee9a4c605b55ee1730c8e3b526304f2562be",
-            99_373_606
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[DEPTH_ANYTHING]),
         listed_when_missing: true,
     },
     // --- RapidRAW's: one feature each.
     Model {
-        id: "relight",
+        id: RELIGHT,
         label: "Surface directions",
         purpose: "Works out which way each surface faces, for Relight.",
-        stored: Stored::Files(&[rapidraw!(
-            "moge-2-vits-normal-onnx.onnx",
-            "moge-2-vits-normal-onnx.onnx",
-            "24eacb5dc7a2c54c7bc98f7de085ffbed79ad006ea5b664c2c2cdc02ff3a52f0",
-            140_852_051
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[MOGE_NORMAL]),
         listed_when_missing: true,
     },
     Model {
-        id: "inpainting",
+        id: INPAINTING,
         label: "Inpainting",
         purpose: "Fills in the area you erase with Inpainting.",
-        stored: Stored::Files(&[rapidraw!(
-            "lama_fp16.onnx",
-            "lama_fp16.onnx",
-            "2d6be6277c400d6f1b91819737f7c3da935e5c63d1b521d393be1196a2bfa82c",
-            111_545_583
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[LAMA]),
         listed_when_missing: true,
     },
     Model {
-        id: "denoise",
+        id: DENOISE,
         label: "AI noise reduction",
         purpose: "Cleans up noise when you use Denoise Image.",
-        stored: Stored::Files(&[rapidraw!(
-            "nind_denoise_utnet_684.onnx",
-            "nind_denoise_utnet_684.onnx",
-            "ee3586279d514df557ff3f7dec6df37fafc51ba5d3a3435b2cc9ac2d9017e7fe",
-            124_202_581
-        )]),
-        upstream: true,
+        stored: Stored::Files(&[NIND_DENOISE]),
         listed_when_missing: true,
     },
     Model {
-        id: "tagging",
+        id: TAGGING,
         label: "Photo tagging",
         purpose: "Tags photos by what is in them so a folder can be searched. Only used when AI Tagging is on.",
-        stored: Stored::Files(&[
-            rapidraw!(
-                "clip_model.onnx",
-                "clip_model.onnx",
-                "57879bb1c23cdeb350d23569dd251ed4b740a96d747c529e94a2bb8040ac5d00",
-                605_804_513
-            ),
-            CLIP_TOKENIZER,
-        ]),
-        upstream: true,
+        stored: Stored::Files(&[CLIP_MODEL, CLIP_TOKENIZER]),
         listed_when_missing: true,
     },
     // --- RapidRAW 1.6.7's, run by our code (`text_mask`, `face_mask`).
@@ -392,7 +388,6 @@ pub const CATALOGUE: &[Model] = &[
         label: "Text masks",
         purpose: "Picks out what you type, such as car or water, for the Text mask.",
         stored: Stored::Files(TEXT_MASK_FILES),
-        upstream: false,
         listed_when_missing: true,
     },
     Model {
@@ -400,7 +395,6 @@ pub const CATALOGUE: &[Model] = &[
         label: "Face masks",
         purpose: "Finds every face and picks out the parts you choose (skin, hair, eyes, lips and more) for the Face mask.",
         stored: Stored::Files(FACE_MASK_FILES),
-        upstream: false,
         listed_when_missing: true,
     },
     // --- Argentum's.
@@ -409,7 +403,6 @@ pub const CATALOGUE: &[Model] = &[
         label: "Super Resolution 2x",
         purpose: "Enlarges a photo to twice its size.",
         stored: Stored::Files(&[REALESRGAN_X2]),
-        upstream: false,
         listed_when_missing: true,
     },
     Model {
@@ -417,7 +410,6 @@ pub const CATALOGUE: &[Model] = &[
         label: "Super Resolution 4x",
         purpose: "Enlarges a photo to four times its size.",
         stored: Stored::Files(&[REALESRGAN_X4]),
-        upstream: false,
         listed_when_missing: true,
     },
     Model {
@@ -425,7 +417,6 @@ pub const CATALOGUE: &[Model] = &[
         label: "Restore",
         purpose: "Undoes lens softness, such as a lens used wide open, at the photo's own size. Used by Restore in the Super Resolution window.",
         stored: Stored::Files(&[OMNILENS_RESTORE]),
-        upstream: false,
         listed_when_missing: true,
     },
     Model {
@@ -437,7 +428,6 @@ pub const CATALOGUE: &[Model] = &[
             url: "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/1.22.0/microsoft.ml.onnxruntime.directml.1.22.0.nupkg",
             bytes: 17_898_472,
         },
-        upstream: false,
         listed_when_missing: false,
     },
 ];
@@ -450,10 +440,10 @@ pub const CATALOGUE: &[Model] = &[
 ///   model, 26.41.4 only. The Object mask lost to the Subject mask's box.
 pub const RETIRED: &[&str] = &["vitmatte_small_composition_1k.onnx"];
 
-/// `(old name, current name)`: a model their code renames to the current
-/// name the first time it is used (`promote_legacy_model_filename`). Kept
-/// while the current one is missing, since it is that model; a leftover once
-/// the current one is there.
+/// `(old name, current name)`: a model saved under an old name, renamed to the
+/// current one before anything would download it (`model_download`, as
+/// RapidRAW's `promote_legacy_model_filename` did). Kept while the current one
+/// is missing, since it is that model; a leftover once the current one is there.
 pub const RENAMED: &[(&str, &str)] = &[("skyseg-u2net.onnx", "skyseg_u2net.onnx")];
 
 /// The catalogue entry with this id.
@@ -466,25 +456,7 @@ mod tests {
     use super::*;
     use std::collections::HashSet;
 
-    const THEIR_AI: &str = include_str!("../ai_processing.rs");
     const OUR_GPU_RUNTIME: &str = include_str!("gpu_runtime.rs");
-
-    /// The value of every `const NAME<suffix>: &str = "...";` in their file.
-    fn their_constants(suffix: &str) -> Vec<(String, String)> {
-        THEIR_AI
-            .lines()
-            .filter_map(|line| {
-                let line = line.trim();
-                let rest = line.strip_prefix("const ")?;
-                let (name, value) = rest.split_once(": &str = \"")?;
-                if !name.ends_with(suffix) {
-                    return None;
-                }
-                let value = value.strip_suffix("\";")?;
-                Some((name.to_string(), value.to_string()))
-            })
-            .collect()
-    }
 
     #[test]
     fn ids_are_unique_and_every_entry_names_something() {
@@ -541,67 +513,6 @@ mod tests {
                     assert!(url.starts_with("https://"), "{url}");
                 }
             }
-        }
-    }
-
-    /// The copies of RapidRAW's constants are still what their code uses. A
-    /// rename upstream would otherwise leave a model their code downloads that
-    /// this list cannot see, a row here for a file that never arrives, or a
-    /// download their code would reject and fetch again.
-    #[test]
-    fn upstream_names_addresses_and_checksums_match_their_constants() {
-        for model in CATALOGUE.iter().filter(|m| m.upstream) {
-            for file in model.stored.files() {
-                for value in [file.name, file.url] {
-                    assert!(
-                        THEIR_AI.contains(&format!("\"{value}\"")),
-                        "{}: {value} is no longer in ai_processing.rs",
-                        model.id
-                    );
-                }
-                // The one file their code never checks.
-                if file.name == "clip_tokenizer.json" {
-                    assert!(!THEIR_AI.contains(&format!("\"{}\"", file.sha256)));
-                    continue;
-                }
-                assert!(
-                    THEIR_AI.contains(&format!("\"{}\"", file.sha256)),
-                    "{}: the checksum of {} is no longer the one in ai_processing.rs",
-                    model.id,
-                    file.name
-                );
-            }
-        }
-    }
-
-    /// The other direction: every model file their code saves is in this list.
-    /// When upstream adds a model, this fails until it has an entry, so the
-    /// settings page never quietly under-reports what is on disk.
-    #[test]
-    fn every_model_their_code_saves_is_listed() {
-        let ours: HashSet<&str> = CATALOGUE
-            .iter()
-            .filter(|m| m.upstream)
-            .flat_map(|m| m.stored.files().into_iter().map(|f| f.name))
-            .collect();
-        let theirs = their_constants("_FILENAME");
-        assert!(
-            theirs.len() >= 10,
-            "found only {theirs:?}; has the file's layout changed?"
-        );
-        for (constant, value) in theirs {
-            // A name their code renames to the current one on first use.
-            if constant.contains("LEGACY") {
-                assert!(
-                    RENAMED.iter().any(|(old, _)| *old == value),
-                    "{constant} = {value:?} is not in RENAMED"
-                );
-                continue;
-            }
-            assert!(
-                ours.contains(value.as_str()),
-                "{constant} = {value:?} in ai_processing.rs has no entry in CATALOGUE"
-            );
         }
     }
 
@@ -779,7 +690,6 @@ mod tests {
     fn every_writer_into_the_models_folder_is_known() {
         // Each, with the test above that holds the catalogue to it.
         const WRITERS: &[&str] = &[
-            "ai_processing.rs", // upstream_names_addresses_and_checksums_match_their_constants
             "mods/gpu_runtime.rs", // the_gpu_runtime_entry_matches_the_code_that_installs_it
             "mods/selection_models.rs", // the_selection_entry_is_what_selection_models_reads
             "mods/model_manager.rs", // the folder itself, for listing and deleting

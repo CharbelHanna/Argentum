@@ -319,93 +319,61 @@ export function useFileOperations(
     [startImportFiles],
   );
 
-  const handleImportClick = useCallback(
-    async (targetPath: string) => {
-      const { supportedTypes, osPlatform } = useSettingsStore.getState();
-      const { setUI } = useUIStore.getState();
-      const isAndroid = osPlatform === 'android';
+  const handleImportClick = useCallback(async (targetPath: string) => {
+    const { supportedTypes } = useSettingsStore.getState();
+    const { setUI } = useUIStore.getState();
 
-      try {
-        const nonRaw = supportedTypes?.nonRaw || [];
-        const raw = supportedTypes?.raw || [];
+    try {
+      const nonRaw = supportedTypes?.nonRaw || [];
+      const raw = supportedTypes?.raw || [];
 
-        const expandExtensions = (exts: string[]) => {
-          return Array.from(new Set(exts.flatMap((ext) => [ext.toLowerCase(), ext.toUpperCase()])));
-        };
+      const expandExtensions = (exts: string[]) => {
+        return Array.from(new Set(exts.flatMap((ext) => [ext.toLowerCase(), ext.toUpperCase()])));
+      };
 
-        const processedNonRaw = expandExtensions(nonRaw);
-        const processedRaw = expandExtensions(raw);
-        const allImageExtensions = [...processedNonRaw, ...processedRaw];
+      const processedNonRaw = expandExtensions(nonRaw);
+      const processedRaw = expandExtensions(raw);
+      const allImageExtensions = [...processedNonRaw, ...processedRaw];
 
-        const typeFilters = isAndroid
-          ? []
-          : [
-              { name: 'All Supported Images', extensions: allImageExtensions },
-              { name: 'RAW Images', extensions: processedRaw },
-              { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
-              { name: 'All Files', extensions: ['*'] },
-            ];
+      const typeFilters = [
+        { name: 'All Supported Images', extensions: allImageExtensions },
+        { name: 'RAW Images', extensions: processedRaw },
+        { name: 'Standard Images (JPEG, PNG, etc.)', extensions: processedNonRaw },
+        { name: 'All Files', extensions: ['*'] },
+      ];
 
-        const selected = await open({
-          filters: typeFilters,
-          multiple: true,
-          title: 'Select files to import',
+      const selected = await open({
+        filters: typeFilters,
+        multiple: true,
+        title: 'Select files to import',
+      });
+
+      if (Array.isArray(selected) && selected.length > 0) {
+        const invalidExtensions = new Set<string>();
+        const allowedExtensions = new Set(allImageExtensions.map((e) => e.toLowerCase()));
+
+        const validFiles = selected.filter((path) => {
+          const ext = path.split('.').pop()?.toLowerCase() || 'unknown';
+
+          if (!allowedExtensions.has(ext)) {
+            invalidExtensions.add(`.${ext}`);
+            return false;
+          }
+          return true;
         });
 
-        if (Array.isArray(selected) && selected.length > 0) {
-          const invalidExtensions = new Set<string>();
-          const allowedExtensions = new Set(allImageExtensions.map((e) => e.toLowerCase()));
-
-          const resolvedFiles = await Promise.all(
-            selected.map(async (path) => {
-              if (isAndroid) {
-                try {
-                  return await invoke<string>('resolve_android_content_uri_name', { uriStr: path });
-                } catch (e) {
-                  console.error('Failed to resolve URI:', e);
-                  return path;
-                }
-              }
-              return path;
-            }),
-          );
-
-          const validFiles = selected.filter((originalPath, index) => {
-            const resolvedName = resolvedFiles[index];
-            const ext = resolvedName.split('.').pop()?.toLowerCase() || 'unknown';
-
-            if (!allowedExtensions.has(ext)) {
-              invalidExtensions.add(`.${ext}`);
-              return false;
-            }
-            return true;
-          });
-
-          if (invalidExtensions.size > 0) {
-            const extList = Array.from(invalidExtensions).join(', ');
-            toast.error(`Unsupported file format(s) detected: ${extList}`);
-            return;
-          }
-
-          if (isAndroid) {
-            const DEFAULT_IMPORT_SETTINGS = {
-              filenameTemplate: '{original_filename}',
-              organizeByDate: false,
-              dateFolderFormat: 'YYYY/MM-DD',
-              deleteAfterImport: false,
-            };
-            await startImportFiles(validFiles, targetPath, DEFAULT_IMPORT_SETTINGS);
-            return;
-          }
-
-          setUI({ importSourcePaths: validFiles, importTargetFolder: targetPath, isImportModalOpen: true });
+        if (invalidExtensions.size > 0) {
+          const extList = Array.from(invalidExtensions).join(', ');
+          toast.error(`Unsupported file format(s) detected: ${extList}`);
+          return;
         }
-      } catch (err) {
-        console.error('Failed to open file dialog for import:', err);
+
+        setUI({ importSourcePaths: validFiles, importTargetFolder: targetPath, isImportModalOpen: true });
       }
-    },
-    [startImportFiles],
-  );
+    } catch (err) {
+      console.error('Failed to open file dialog for import:', err);
+    }
+  }, []);
 
   const handlePasteFiles = useCallback(
     async (mode = 'copy') => {

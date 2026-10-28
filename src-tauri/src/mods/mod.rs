@@ -86,7 +86,6 @@ pub mod shader_check;
 pub mod sharpen;
 pub mod sharpen_gpu;
 pub mod shell_photos;
-pub mod sigmoid;
 pub mod snapshots;
 #[cfg(test)]
 mod speed_budgets;

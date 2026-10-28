@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import type { Clerk } from '@clerk/clerk-js';
 import { fetch } from '@tauri-apps/plugin-http';
-import { platform } from '@tauri-apps/plugin-os';
 
 export const CLOUD_API_BASE_URL = 'https://www.getrapidraw.com/api';
 
@@ -36,17 +35,6 @@ export const useCloudStore = create<CloudStoreState>((set, get) => ({
   initAuth: async () => {
     const { authStatus } = get();
     if (authStatus === 'loading' || authStatus === 'ready' || authStatus === 'unsupported') return;
-
-    let os = '';
-    try {
-      os = platform();
-    } catch (_error) {
-      os = '';
-    }
-    if (os === 'android' || os === 'ios') {
-      set({ authStatus: 'unsupported' });
-      return;
-    }
 
     set({ authStatus: 'loading' });
     try {
