@@ -19,9 +19,9 @@
 // folder, and to the editor showing the demo photo. The times are printed and
 // fail past three times those recorded (and at least 3 s over), so a slow
 // machine never fails it but a start that got much slower does. They fail in
-// CI only, where the machine runs nothing else: on a laptop compiling in other
-// windows the same start measured 3.6 times as long, and a wall-clock time has
-// no limit that is right for both. Elsewhere a slow start is printed, with the
+// CI only, where the machine runs nothing else: a start recorded at 1.4 s took
+// 5.0 s on a laptop compiling in other windows, and a wall-clock time has no
+// limit that is right for both. Elsewhere a slow start is printed, with the
 // limit CI holds it to; CI=1 npm run check:ui fails on it there too.
 //
 //   npm run check:ui              check
