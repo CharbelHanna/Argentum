@@ -162,6 +162,22 @@ const COMMANDS = {
   preview_negative_conversion: (args) => photoFor(args).dataUrl,
   is_image_cached: () => false,
   get_image_dimensions: (args) => ({ width: photoFor(args).width, height: photoFor(args).height }),
+  // The analysis's keys (auto_results_to_json in image_processing.rs); no lens keys, as for a lens it cannot resolve.
+  calculate_auto_adjustments: () => ({
+    exposure: 0.3,
+    brightness: 0,
+    contrast: 10,
+    highlights: -20,
+    shadows: 15,
+    vibrance: 10,
+    vignetteAmount: 0,
+    clarity: 5,
+    centré: 0,
+    dehaze: 0,
+    sectionVisibility: { basic: true, color: true, effects: true },
+    whites: 5,
+    blacks: -5,
+  }),
 
   // Settings.
   get_lensfun_makers: empty,

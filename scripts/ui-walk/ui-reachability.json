@@ -53,7 +53,6 @@
     "Editor > Photo menu > Merge > Menu > Focus Stacking [menuitem]",
     "Editor > Photo menu > Merge > Menu > Merge to HDR [menuitem]",
     "Editor > Photo menu > Merge > Menu > Stitch Panorama [menuitem]",
-    "Editor > Photo menu > Productivity > Auto Adjust Image > message \"Failed to apply auto adjustments: TypeError: Cannot read properties of null (reading 'activeTools')\"",
     "Editor > Photo menu > Productivity > Auto Straighten > message \"No straight lines found to level from\"",
     "Editor > Photo menu > Productivity > Convert Negative > Dialog \"Negative Conversion\" > Blue (Yellow) [slider]",
     "Editor > Photo menu > Productivity > Convert Negative > Dialog \"Negative Conversion\" > Cancel [button]",
