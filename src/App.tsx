@@ -28,7 +28,6 @@ import MetadataPanel from './components/panel/right/MetadataPanel';
 import CropPanel from './components/panel/right/CropPanel';
 import MasksPanel from './components/panel/right/MasksPanel';
 import AIPanel from './components/panel/right/AIPanel';
-import PresetsPanel from './components/panel/right/PresetsPanel';
 import TetheringPanel from './components/panel/right/TetheringPanel';
 
 import { ContextMenuProvider } from './context/ContextMenuContext';
@@ -607,8 +606,6 @@ function App() {
           return <MasksPanel />;
         case Panel.Ai:
           return <AIPanel />;
-        case Panel.Presets:
-          return <PresetsPanel onNavigateToCommunity={() => setUI({ activeView: 'community' })} />;
         case Panel.Tethering:
           return <TetheringPanel onLibraryRefresh={handleLibraryRefresh} onImageSelect={handleImageSelect} />;
         default:
