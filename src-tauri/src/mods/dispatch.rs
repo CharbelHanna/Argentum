@@ -726,40 +726,40 @@ commands! {
         crate::mods::sharpen::auto_values(&a.path)
     }
     "camera_profile_status" => (a: PathArgs) -> crate::mods::profiles::Status {
-        commands::camera_profile_status(a.path)?
+        crate::mods::profiles::status_for(crate::mods::profiles::library_ready()?, std::path::Path::new(&a.path))
     }
     "import_camera_profile" => (a: PathArgs) -> crate::mods::profiles::Installed {
         commands::import_camera_profile(a.path)?
     }
     "remove_camera_profile" => (a: FileArgs) -> () {
-        commands::remove_camera_profile(a.file)?;
+        crate::mods::profiles::remove(crate::mods::profiles::library_ready()?, &a.file)?;
     }
     "list_cameras" => () -> Vec<crate::mods::profiles::Camera> {
-        commands::list_cameras()?
+        crate::mods::profiles::cameras(crate::mods::profiles::library_ready()?)
     }
     "forget_camera" => (a: ModelArgs) -> () {
-        commands::forget_camera(a.model)?;
+        crate::mods::profiles::forget_camera(crate::mods::profiles::library_ready()?, &a.model);
     }
     "set_camera_default_profile" => (a: DefaultProfileArgs) -> () {
-        commands::set_camera_default_profile(a.model, a.file)?;
+        crate::mods::profiles::set_default_profile(crate::mods::profiles::library_ready()?, &a.model, a.file);
     }
     "camera_default_profile" => (a: ModelArgs) -> Option<String> {
-        commands::camera_default_profile(a.model)?
+        crate::mods::profiles::default_profile(crate::mods::profiles::library_ready()?, &a.model)
     }
     "get_profile_online" => (a: ModelArgs) -> Option<String> {
         commands::get_profile_online(a.make, a.model).await?
     }
     "highlight_recovery" => () -> bool {
-        commands::highlight_recovery()?
+        crate::mods::highlights::enabled()
     }
     "set_highlight_recovery" => (a: OnArgs) -> () {
-        commands::set_highlight_recovery(a.on)?;
+        crate::mods::highlights::save(crate::mods::profiles::library_ready()?, a.on)?;
     }
     "raw_decoder" => () -> crate::mods::raw_decoder::RawDecoder {
-        commands::raw_decoder()
+        crate::mods::raw_decoder::default_decoder()
     }
     "set_raw_decoder" => (a: DecoderArgs) -> () {
-        commands::set_raw_decoder(a.decoder)?;
+        crate::mods::raw_decoder::save(crate::mods::profiles::library_ready()?, a.decoder)?;
     }
     "set_photo_raw_decoder" => (a: PhotoDecoderArgs) -> () {
         crate::mods::raw_decoder::remember(&a.path, a.decoder);
@@ -775,31 +775,37 @@ commands! {
         crate::mods::redecode::open_photo(state, app_handle).await?
     }
     "tiff_bit_depth" => () -> u8 {
-        commands::tiff_bit_depth()
+        crate::mods::export_precision::tiff_depth().as_u8()
     }
     "set_tiff_bit_depth" => (a: DepthArgs) -> () {
-        commands::set_tiff_bit_depth(a.depth)?;
+        crate::mods::export_precision::save(
+            crate::mods::profiles::library_ready()?,
+            crate::mods::export_precision::TiffDepth::from_u8(a.depth),
+        )?;
     }
     "compact_slider_gap" => () -> u8 {
-        commands::compact_slider_gap()?
+        crate::mods::editor_layout::compact_slider_gap(crate::mods::profiles::library_ready()?)
     }
     "set_compact_slider_gap" => (a: GapArgs) -> () {
-        commands::set_compact_slider_gap(a.gap)?;
+        crate::mods::editor_layout::save_compact_slider_gap(crate::mods::profiles::library_ready()?, a.gap)?;
     }
     "editor_layout_panels" => () -> Option<crate::mods::editor_layout::LayoutPanels> {
-        commands::editor_layout_panels()?
+        crate::mods::editor_layout::panels(crate::mods::profiles::library_ready()?)
     }
     "set_editor_layout_panels" => (a: LayoutPanelsArgs) -> () {
-        commands::set_editor_layout_panels(&a.panels)?;
+        crate::mods::editor_layout::save_panels(crate::mods::profiles::library_ready()?, &a.panels)?;
     }
     "modern_theme" => () -> crate::mods::editor_layout::ModernTheme {
-        commands::modern_theme()?
+        crate::mods::editor_layout::theme(crate::mods::profiles::library_ready()?)
     }
     "set_modern_theme" => (a: ThemeArgs) -> () {
-        commands::set_modern_theme(&a.theme)?;
+        crate::mods::editor_layout::save_theme(
+            crate::mods::profiles::library_ready()?,
+            crate::mods::editor_layout::ModernTheme::from_name(&a.theme),
+        )?;
     }
     "text_size" => () -> crate::mods::editor_layout::TextSize {
-        commands::text_size()?
+        crate::mods::editor_layout::text_size(crate::mods::profiles::library_ready()?)
     }
     "builtin_presets" => () -> Vec<crate::mods::looks::PresetGroup> {
         let handle = app_handle.clone();
@@ -808,30 +814,42 @@ commands! {
             .map_err(|e| e.to_string())?
     }
     "snapshots" => (a: PathArgs) -> Vec<crate::mods::snapshots::Snapshot> {
-        tokio::task::spawn_blocking(move || commands::snapshots(&a.path))
+        tokio::task::spawn_blocking(move || {
+            let (_, sidecar) = crate::file_management::parse_virtual_path(&a.path);
+            crate::mods::snapshots::read(&sidecar)
+        })
             .await
             .map_err(|e| e.to_string())?
     }
     "set_snapshots" => (a: SnapshotsArgs) -> () {
-        tokio::task::spawn_blocking(move || commands::set_snapshots(&a.path, a.snapshots))
+        tokio::task::spawn_blocking(move || {
+            let (_, sidecar) = crate::file_management::parse_virtual_path(&a.path);
+            crate::mods::snapshots::write(&sidecar, a.snapshots)
+        })
             .await
             .map_err(|e| e.to_string())??;
     }
     "history" => (a: PathArgs) -> Option<crate::mods::history::HistoryRecord> {
-        tokio::task::spawn_blocking(move || commands::history(&a.path))
+        tokio::task::spawn_blocking(move || {
+            let (_, sidecar) = crate::file_management::parse_virtual_path(&a.path);
+            crate::mods::history::read(&sidecar)
+        })
             .await
             .map_err(|e| e.to_string())?
     }
     "set_history" => (a: HistoryArgs) -> () {
-        tokio::task::spawn_blocking(move || commands::set_history(&a.path, a.record))
+        tokio::task::spawn_blocking(move || {
+            let (source, sidecar) = crate::file_management::parse_virtual_path(&a.path);
+            crate::mods::history::write(&source, &sidecar, a.record)
+        })
             .await
             .map_err(|e| e.to_string())??;
     }
     "looks_favourites" => () -> Vec<String> {
-        commands::looks_favourites()?
+        crate::mods::looks::favourites(crate::mods::profiles::library_ready()?)
     }
     "set_looks_favourites" => (a: IdsArgs) -> () {
-        commands::set_looks_favourites(&a.ids)?;
+        crate::mods::looks::save_favourites(crate::mods::profiles::library_ready()?, &a.ids)?;
     }
     "look_suggestions" => (a: PathArgs) -> crate::mods::look_picks::Suggested {
         let loaded = the_open_photo(&state, &a.path)?;
@@ -846,13 +864,16 @@ commands! {
         commands::look_unpick(&a.path, &loaded)?
     }
     "set_look_learning" => (a: LearningArgs) -> () {
-        commands::set_look_learning(a.on)?;
+        crate::mods::look_picks::change(crate::mods::profiles::library_ready()?, |book| book.learning = a.on)?;
     }
     "forget_look_picks" => () -> () {
-        commands::forget_look_picks()?;
+        crate::mods::look_picks::change(crate::mods::profiles::library_ready()?, |book| book.picks.clear())?;
     }
     "set_text_size" => (a: TextSizeArgs) -> () {
-        commands::set_text_size(&a.size)?;
+        crate::mods::editor_layout::save_text_size(
+            crate::mods::profiles::library_ready()?,
+            crate::mods::editor_layout::TextSize::from_name(&a.size),
+        )?;
     }
     "modern_start" => (a: ModernStartArgs) -> crate::mods::modern_start::ModernStart {
         tokio::task::spawn_blocking(move || {
