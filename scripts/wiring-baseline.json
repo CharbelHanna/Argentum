@@ -1,11 +1,11 @@
 {
   "uncalledCommands": [],
   "uncalledAg": ["list_camera_profiles"],
-  "cargoPackages": 827,
-  "npmPackages": 410,
+  "cargoPackages": 825,
+  "npmPackages": 409,
   "dist": {
     "assets/App.css": 32780,
-    "assets/App.js": 1803561,
+    "assets/App.js": 1803321,
     "assets/AppProperties.js": 12373,
     "assets/Shell.css": 8548,
     "assets/Shell.js": 30248,

@@ -86,7 +86,7 @@ jobs:
           brew install libgphoto2 pkg-config
 
       - name: Install frontend dependencies
-        run: npm install
+        run: npm ci
 
       - name: rustup install target
         if: ${{ inputs.target != '' }}

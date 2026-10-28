@@ -5,9 +5,10 @@
 //! enlargement. The file is named for what was done: `_Restored`,
 //! `_Upscaled_x2`, `_Restored_Upscaled_x4`.
 //!
-//! The model is downloaded lazily into the same per-user model directory used
-//! by the other AI features. Inference is tiled so normal camera files do not
-//! require the whole image to fit in the ONNX Runtime working set at once.
+//! The model is downloaded the first time it is used, into the models folder,
+//! as `model_catalog` describes it and `model_download` fetches it. Inference
+//! is tiled so normal camera files do not require the whole image to fit in
+//! the ONNX Runtime working set at once.
 //!
 //! It runs on the graphics card where `gpu_runtime` can provide one (Windows,
 //! DirectML) and on the CPU everywhere else, with the same output.
@@ -18,7 +19,7 @@
 //! it as an ordinary image: see `encode_for_reopening` and `carry_raw_look`.
 
 use std::fs;
-use std::io::{Cursor, Read, Write};
+use std::io::Cursor;
 use std::mem::size_of;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -33,12 +34,13 @@ use ort::session::Session;
 use ort::value::Tensor;
 use serde::Serialize;
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 use sysinfo::System;
 use tauri::{Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
 use super::gpu_runtime::{self, Device};
+use super::model_catalog::{self, File};
+use super::model_download;
 use crate::white_balance::{self, WhiteBalance};
 
 const TILE_SIZES: [u32; 7] = [512, 384, 256, 192, 128, 96, 64];
@@ -85,6 +87,21 @@ impl ModelKind {
         }
     }
 
+    /// Its entry in the model catalogue, and the file it loads.
+    const fn catalogue(self) -> (&'static str, File) {
+        match self {
+            Self::X2 => (
+                model_catalog::SUPER_RESOLUTION_2X,
+                model_catalog::REALESRGAN_X2,
+            ),
+            Self::X4 => (
+                model_catalog::SUPER_RESOLUTION_4X,
+                model_catalog::REALESRGAN_X4,
+            ),
+            Self::Restore => (model_catalog::RESTORE, model_catalog::OMNILENS_RESTORE),
+        }
+    }
+
     const fn scale(self) -> u32 {
         match self {
             Self::X2 => 2,
@@ -105,35 +122,6 @@ impl ModelKind {
 
 /// OmniLens's window attention fixes the shape it was exported at.
 const RESTORE_TILE: u32 = 256;
-
-struct ModelSpec {
-    url: &'static str,
-    filename: &'static str,
-    sha256: &'static str,
-}
-
-fn model_spec(kind: ModelKind) -> ModelSpec {
-    match kind {
-        ModelKind::X2 => ModelSpec {
-            url: "https://huggingface.co/fernandotonon/QtMeshEditor-realesrgan-onnx/resolve/main/RealESRGAN_x2plus.onnx?download=true",
-            filename: "realesrgan_x2plus.onnx",
-            // SHA-256 of the published Real-ESRGAN x2plus ONNX artifact.
-            sha256: "35d016524a6eb7e9a99f192cfa81b6cf1f80fdf8f1b51605d77f0763f5ccba7f",
-        },
-        ModelKind::X4 => ModelSpec {
-            url: "https://huggingface.co/mhmtaufiq/realesrgan-onnx/resolve/main/RealESRGAN_x4plus.onnx?download=true",
-            filename: "realesrgan_x4plus.onnx",
-            // SHA-256 of the published Real-ESRGAN x4plus ONNX artifact.
-            sha256: "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
-        },
-        ModelKind::Restore => ModelSpec {
-            url: "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
-            filename: "omnilens_swinir_aodlib_256.onnx",
-            // SHA-256 of Argentum's ONNX export of SwinIR_AODLib_EAOD.pth.
-            sha256: "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
-        },
-    }
-}
 
 struct LoadedModel {
     session: Mutex<Session>,
@@ -235,31 +223,6 @@ pub fn result_bytes() -> usize {
         + super::restore::kept_bytes()
 }
 
-fn models_dir(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
-    let dir = app_handle.path().app_data_dir()?.join("models");
-    fs::create_dir_all(&dir)?;
-    Ok(dir)
-}
-
-fn verify_sha256(path: &Path, expected: &str) -> Result<bool> {
-    if !path.exists() {
-        return Ok(false);
-    }
-
-    let mut file = fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 8192];
-    loop {
-        let count = file.read(&mut buffer)?;
-        if count == 0 {
-            break;
-        }
-        hasher.update(&buffer[..count]);
-    }
-
-    Ok(hex::encode(hasher.finalize()) == expected)
-}
-
 fn model_slot(kind: ModelKind) -> &'static OnceLock<Arc<LoadedModel>> {
     match kind {
         ModelKind::X2 => &MODEL_X2,
@@ -276,65 +239,13 @@ fn model_init(kind: ModelKind) -> &'static TokioMutex<()> {
     }
 }
 
+/// The model's file, downloaded first when it is missing or wrong.
 async fn ensure_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<PathBuf> {
-    let spec = model_spec(kind);
-    let dir = models_dir(app_handle)?;
-    let path = dir.join(spec.filename);
-
-    if !verify_sha256(&path, spec.sha256)? {
-        if path.exists() {
-            fs::remove_file(&path)?;
-        }
-
-        let _ = app_handle.emit("ai-model-download-start", kind.download_name());
-        let download = async {
-            let bytes = reqwest::get(spec.url)
-                .await
-                .with_context(|| {
-                    format!(
-                        "Could not download the {} model; check your internet connection",
-                        kind.label()
-                    )
-                })?
-                .error_for_status()
-                .with_context(|| format!("The {} model server returned an error", kind.label()))?
-                .bytes()
-                .await
-                .with_context(|| format!("Could not read the downloaded {} model", kind.label()))?;
-            if bytes.is_empty() {
-                return Err(anyhow!("Super-resolution model download was empty"));
-            }
-
-            let temporary = path.with_extension("onnx.download");
-            {
-                let mut file = fs::File::create(&temporary)?;
-                file.write_all(&bytes)?;
-                file.sync_all()?;
-            }
-            fs::rename(&temporary, &path).or_else(|rename_error| -> std::io::Result<()> {
-                if path.exists() {
-                    fs::remove_file(&path)?;
-                    fs::rename(&temporary, &path)?;
-                    Ok(())
-                } else {
-                    Err(rename_error)
-                }
-            })?;
-            Ok::<(), anyhow::Error>(())
-        }
-        .await;
-        let _ = app_handle.emit("ai-model-download-finish", kind.download_name());
-        download?;
-
-        if !verify_sha256(&path, spec.sha256)? {
-            return Err(anyhow!(
-                "The {} failed integrity verification",
-                kind.download_name()
-            ));
-        }
-    }
-
-    Ok(path)
+    let (id, file) = kind.catalogue();
+    let dir = model_download::ensure_in_app(app_handle, id, &kind.download_name())
+        .await
+        .map_err(|e| anyhow!("Could not get the {} model: {e}", kind.label()))?;
+    Ok(dir.join(file.name))
 }
 
 async fn get_model(app_handle: &tauri::AppHandle, kind: ModelKind) -> Result<Arc<LoadedModel>> {
