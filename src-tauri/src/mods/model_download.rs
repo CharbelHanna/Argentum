@@ -13,9 +13,9 @@
 //! fails or is stopped is removed. Progress is reported once a MiB, as
 //! Shoebox's `Hashed` does, not once a network chunk.
 //!
-//! The files, addresses and checksums are the catalogue's, which the tests in
-//! `model_catalog` hold to the code of each feature: what lands here is what
-//! that feature would have fetched itself, so it fetches nothing.
+//! The files, addresses and checksums are the catalogue's, the one list every
+//! feature loads its model from, so what lands here is what that feature
+//! looks for.
 //!
 //! ONE AT A TIME
 //!
@@ -102,8 +102,9 @@ pub async fn download(
 }
 
 /// Fetch whatever of `files` is missing from `dir` or does not match its
-/// checksum, reporting progress as catalogue entry `id`. Returns the bytes
-/// fetched.
+/// checksum, reporting progress as catalogue entry `id`. A file saved under
+/// an old name (`model_catalog::RENAMED`) is renamed rather than fetched.
+/// Returns the bytes fetched.
 pub async fn fetch_missing(
     dir: &Path,
     id: &str,
@@ -112,11 +113,17 @@ pub async fn fetch_missing(
 ) -> Result<u64, String> {
     let _running = RUNNING.lock().await;
     STOP.store(false, Ordering::Relaxed);
+    {
+        let (dir, files) = (dir.to_path_buf(), files.to_vec());
+        tokio::task::spawn_blocking(move || promote_renamed(&dir, &files, model_catalog::RENAMED))
+            .await
+            .map_err(|e| e.to_string())??;
+    }
     let wanted = not_in_place(dir, files).await?;
     if wanted.is_empty() {
         return Ok(0);
     }
-    if std::fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()) {
+    if is_link(dir) {
         return Err(format!(
             "{} is a link to another folder, so Argentum does not download into it",
             dir.display()
@@ -194,6 +201,39 @@ pub async fn ensure_in_app(
         let _ = app.emit("ai-model-download-finish", notice);
     }
     fetched.map(|_| dir)
+}
+
+fn is_link(dir: &Path) -> bool {
+    std::fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink())
+}
+
+/// Each `(old, current)` of `renamed` whose current name is one of `files`:
+/// when the current file is missing and the old one is that model, size and
+/// checksum, it takes the current name (RapidRAW's ai_processing.rs at 1.6.6,
+/// `promote_legacy_model_filename`). Nothing is renamed through a link.
+fn promote_renamed(
+    dir: &Path,
+    files: &[File],
+    renamed: &[(&'static str, &'static str)],
+) -> Result<(), String> {
+    if is_link(dir) {
+        return Ok(());
+    }
+    for &(old, current) in renamed {
+        let Some(file) = files.iter().find(|f| f.name == current) else {
+            continue;
+        };
+        let current_path = dir.join(current);
+        if current_path.exists() || !in_place(dir, &File { name: old, ..*file }) {
+            continue;
+        }
+        if let Err(e) = std::fs::rename(dir.join(old), &current_path)
+            && !current_path.exists()
+        {
+            return Err(format!("Could not rename {old} to {current}: {e}"));
+        }
+    }
+    Ok(())
 }
 
 /// Those of `files` that are not in place in `dir`.
@@ -577,6 +617,54 @@ mod tests {
         )
         .await;
         assert_eq!(fetched, Ok(Ok(0)));
+    }
+
+    /// RapidRAW saved the sky model as `skyseg-u2net.onnx` before 1.6.6. That
+    /// file takes today's name instead of being fetched again.
+    #[tokio::test]
+    async fn the_sky_model_under_its_old_name_is_renamed_not_fetched() {
+        let tmp = tempfile::tempdir().unwrap();
+        let body = b"the sky model".to_vec();
+        std::fs::write(tmp.path().join("skyseg-u2net.onnx"), &body).unwrap();
+        let files = [file(
+            "skyseg_u2net.onnx",
+            "http://127.0.0.1:9/sky".into(),
+            &body,
+        )];
+
+        assert_eq!(ensure(tmp.path(), "test", &files, |_| {}).await, Ok(0));
+        assert_eq!(names_in(tmp.path()), ["skyseg_u2net.onnx"]);
+        assert_eq!(
+            std::fs::read(tmp.path().join("skyseg_u2net.onnx")).unwrap(),
+            body
+        );
+    }
+
+    /// Only the model itself is renamed, and only when today's name is free.
+    #[test]
+    fn an_old_name_is_renamed_only_when_it_is_that_model() {
+        let tmp = tempfile::tempdir().unwrap();
+        let dir = tmp.path();
+        let renamed = [("old.onnx", "new.onnx")];
+        let files = [file("new.onnx", "http://127.0.0.1:9/n".into(), b"model")];
+
+        std::fs::write(dir.join("old.onnx"), b"other").unwrap();
+        promote_renamed(dir, &files, &renamed).unwrap();
+        assert_eq!(
+            names_in(dir),
+            ["old.onnx"],
+            "wrong bytes stay where they are"
+        );
+
+        std::fs::write(dir.join("old.onnx"), b"model").unwrap();
+        std::fs::write(dir.join("new.onnx"), b"newer").unwrap();
+        promote_renamed(dir, &files, &renamed).unwrap();
+        assert_eq!(names_in(dir), ["new.onnx", "old.onnx"]);
+        assert_eq!(std::fs::read(dir.join("new.onnx")).unwrap(), b"newer");
+
+        std::fs::remove_file(dir.join("new.onnx")).unwrap();
+        promote_renamed(dir, &files, &renamed).unwrap();
+        assert_eq!(names_in(dir), ["new.onnx"]);
     }
 
     #[tokio::test]
