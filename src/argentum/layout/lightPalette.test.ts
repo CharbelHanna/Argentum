@@ -1,8 +1,13 @@
-import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { isLightPalette, useEditorLayout } from './editorLayout';
 
-const source = (path: string) => readFileSync(new URL(`../../${path}`, import.meta.url), 'utf8');
+// The two files' text, as Vite reads it.
+const sources = import.meta.glob(['../../App.tsx', '../../components/adjustments/Curves.tsx'], {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+const source = (path: string) => sources[`../../${path}`];
 
 describe('the light palette', () => {
   it('is Light only', () => {
