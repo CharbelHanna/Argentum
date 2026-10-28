@@ -8,6 +8,8 @@
 //! See `docs/ARCHITECTURE.md` for why the split matters, and
 //! `docs/ADDING_A_TOOL.md` for the recipe.
 
+#[cfg(test)]
+mod ag_contract;
 pub mod ag_settings;
 pub mod ai_session;
 pub mod atomic_write;

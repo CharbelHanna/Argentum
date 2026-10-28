@@ -23,31 +23,14 @@ import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { rawToneRenderingOf } from './editSections';
 import { useAgTranslation } from './locales';
+import type { HeldBack } from './ag.generated';
 
 type RawToneRenderingMode = 'default' | 'baseCurve' | 'autoMatched' | 'dngStandard' | 'linear';
-
-interface ToneCurvePoint {
-  x: number;
-  y: number;
-}
 
 const MODES: RawToneRenderingMode[] = ['default', 'baseCurve', 'autoMatched', 'dngStandard', 'linear'];
 
 /** The renderings the renderer fills in from the photo itself: nothing to fit here. */
 const READ_BY_RENDERER: RawToneRenderingMode[] = ['dngStandard', 'linear'];
-
-/** What a highlight-protecting camera mode held back (mods/highlight_protection.rs). */
-interface HeldBack {
-  mode:
-    | 'fujifilmDr200'
-    | 'fujifilmDr400'
-    | 'canonHighlightTonePriority'
-    | 'nikonHlg'
-    | 'nikonActiveDLighting'
-    | 'olympusGradation'
-    | 'pentaxDynamicRange';
-  ev: number;
-}
 
 const HELD_BACK_NAMES = {
   fujifilmDr200: 'heldBackFujifilmDr200',
@@ -70,7 +53,7 @@ function HeldBackNote({ path }: { path: string }) {
   useEffect(() => {
     let current = true;
     setHeldBack(null);
-    ag<HeldBack | null>('dng_standard_held_back', { path })
+    ag('dng_standard_held_back', { path })
       .then((found) => current && setHeldBack(found))
       .catch((error) => console.warn('Could not read what the camera held back', error));
     return () => {
@@ -105,7 +88,7 @@ export default function RawToneRendering() {
       if (!path) return;
       setBusy(true);
       try {
-        const curve = await ag<ToneCurvePoint[]>('raw_tone_curve', { path, mode });
+        const curve = await ag('raw_tone_curve', { path, mode });
         if (useEditorStore.getState().selectedImage?.path !== path) return;
         setAdjustments((prev: any) => ({
           ...prev,

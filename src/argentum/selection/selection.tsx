@@ -34,6 +34,8 @@ import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
 import { formatSize } from '../formatSize';
 import { agText, type AgKey } from '../locales';
+import type { Bounds, Click } from '../ag.generated';
+export type { Bounds, Click } from '../ag.generated';
 
 export type SelectionKind = 'subject' | 'sky' | 'background' | 'object' | 'text' | 'face';
 
@@ -97,42 +99,12 @@ export const isTextSelection = (subMask?: Pick<SubMask, 'parameters'> | null): b
 export const isFaceSelection = (subMask?: Pick<SubMask, 'parameters'> | null): boolean =>
   subMask?.parameters?.agSelection === 'face';
 
-/** A click on the photo, in the canvas's frame of the whole photo, as the Object box is. */
-export interface Click {
-  x: number;
-  y: number;
-  positive: boolean;
-}
-
-/** A dragged box, in the same frame. */
-export interface Bounds {
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-}
-
-interface Status {
-  installed: boolean;
-  missingBytes: number;
-  totalBytes: number;
-}
-
-interface Selection {
-  maskDataBase64: string;
-  rotation: number;
-  flipHorizontal: boolean;
-  flipVertical: boolean;
-  orientationSteps: number;
-  found: boolean;
-}
-
 const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
 
 /** A set of models: how to ask whether they are here, fetch them, and say so. */
 interface Models {
-  status: string;
-  download: string;
+  status: 'selection_models_status' | 'text_mask_models_status' | 'face_mask_models_status';
+  download: 'download_selection_models' | 'download_text_mask_models' | 'download_face_mask_models';
   /** Their entry in mods/model_catalog.rs, which their download progress names. */
   id: string;
   ask: AgKey;
@@ -210,7 +182,7 @@ function askToDownload(models: Models, bytes: number): Promise<boolean> {
 
 /** The models are there, or fetched now with the user's yes. */
 async function ensureModels(models: Models = SELECTION_MODELS): Promise<boolean> {
-  const status = await ag<Status>(models.status);
+  const status = await ag(models.status);
   if (status.installed) return true;
   if (!(await askToDownload(models, status.missingBytes))) return false;
   const note = toast.info(agText(models.downloading).replace('{percent}', '0'), { autoClose: false });
@@ -274,7 +246,7 @@ export async function refineObject(
   const tasks = useProcessStore.getState();
   tasks.registerAiTask(subMaskId, 'subject');
   try {
-    const { found: _found, ...result } = await ag<Selection>('selection_object', {
+    const { found: _found, ...result } = await ag('selection_object', {
       jsAdjustments: geometryOf(adjustments),
       clicks,
       bounds,
@@ -320,7 +292,7 @@ export async function findWords(
   const tasks = useProcessStore.getState();
   tasks.registerAiTask(subMaskId, 'text');
   try {
-    const { found, ...result } = await ag<Selection>('text_mask', {
+    const { found, ...result } = await ag('text_mask', {
       jsAdjustments: geometryOf(adjustments),
       words: typed,
       rotation: adjustments.rotation,
@@ -366,7 +338,7 @@ export async function findFace(
   const tasks = useProcessStore.getState();
   tasks.registerAiTask(subMaskId, 'face');
   try {
-    const { found, ...result } = await ag<Selection>('face_mask', {
+    const { found, ...result } = await ag('face_mask', {
       jsAdjustments: geometryOf(adjustments),
       parts,
       rotation: adjustments.rotation,
@@ -444,7 +416,7 @@ export function useSelectionMasks() {
       const { adjustments, patchesSentToBackend } = useEditorStore.getState();
       registerAiTask(subMaskId, 'foreground');
       try {
-        const { found, ...parameters } = await ag<Selection>('selection_mask', {
+        const { found, ...parameters } = await ag('selection_mask', {
           kind,
           jsAdjustments: geometryOf(adjustments),
           rotation: adjustments.rotation,

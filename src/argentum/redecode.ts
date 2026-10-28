@@ -11,7 +11,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { ag } from './ag';
 
 export async function redecodeOpenPhoto(): Promise<void> {
-  if (await ag<boolean>('redecode_open_photo')) {
+  if (await ag('redecode_open_photo')) {
     // A new adjustments object with the same values: the render effect fires
     // on identity, exactly as after a slider, and nothing changes.
     useEditorStore.getState().setEditor((s) => ({ adjustments: { ...s.adjustments } }));

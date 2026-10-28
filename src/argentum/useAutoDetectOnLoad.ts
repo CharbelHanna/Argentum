@@ -34,7 +34,7 @@ import { useEditorStore } from '../store/useEditorStore';
 
 /** Read the lens from the file, and put it into the EXIF if one is there. */
 async function readLensFromFile(path: string) {
-  const lens = await ag<string | null>('recover_lens_name', { path }).catch(() => null);
+  const lens = await ag('recover_lens_name', { path }).catch(() => null);
   if (!lens) {
     return;
   }

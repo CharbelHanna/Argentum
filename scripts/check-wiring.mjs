@@ -35,9 +35,9 @@ export function registeredCommands(libRs) {
   );
 }
 
-/** Names the `ag` command routes: the `"name" =>` arms, outside the tests. */
+/** Names the `ag` command routes: the `"name" =>` arms (the `commands!` table's too), outside the tests module. */
 export function dispatchArms(dispatchRs) {
-  const code = dispatchRs.split('#[cfg(test)]')[0];
+  const code = dispatchRs.split(/^#\[cfg\(test\)\]\s*mod tests\b/m)[0];
   return new Set([...code.matchAll(/^\s*"([a-z0-9_]+)"\s*=>/gm)].map((m) => m[1]));
 }
 

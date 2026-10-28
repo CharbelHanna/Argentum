@@ -38,6 +38,7 @@ const LONG_EDGE: u32 = 1280;
 
 /// Which part of the photo to select.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
     Subject,
@@ -48,6 +49,7 @@ pub enum Kind {
 /// What the mask stores: the fields of their `AiForegroundMaskParameters`, and
 /// whether anything was found at all.
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Selection {
     pub mask_data_base64: String,
@@ -60,6 +62,7 @@ pub struct Selection {
 
 /// The photo's frame as the mask stores it, passed through unchanged.
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Frame {
     #[serde(default)]
@@ -124,6 +127,7 @@ pub fn select(
 /// (rotated, flipped and turned as it is shown, before the crop), and whether
 /// it adds or leaves out.
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Click {
     pub x: f64,
@@ -133,6 +137,7 @@ pub struct Click {
 
 /// A box dragged on the photo, in the same frame as a click.
 #[derive(Debug, Clone, Copy, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Bounds {
     pub start_x: f64,

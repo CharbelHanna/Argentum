@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub id: String,
@@ -22,6 +23,7 @@ pub struct Snapshot {
     /// When it was made or last updated, in milliseconds since 1970.
     pub at: u64,
     /// The whole edit as it was.
+    #[cfg_attr(test, ts(type = "unknown"))]
     pub adjustments: Value,
 }
 

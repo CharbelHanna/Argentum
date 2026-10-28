@@ -33,19 +33,26 @@ use serde_json::Value;
 
 /// A step of the History: its name and what it changed.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct HistoryStep {
     /// As the History tab names it.
     pub name: String,
     /// Each value the step set, under its place in the edit.
     #[serde(default, skip_serializing_if = "serde_json::Map::is_empty")]
+    #[cfg_attr(
+        test,
+        ts(as = "Option<crate::mods::ag_contract::EditValues>", optional)
+    )]
     pub set: serde_json::Map<String, Value>,
     /// The places it took out.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[cfg_attr(test, ts(as = "Option<Vec<String>>", optional))]
     pub unset: Vec<String>,
 }
 
 /// A photo's History as its sidecar keeps it.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct HistoryRecord {
     /// The step the edit is at, darktable's history_end. Those after it were
     /// undone and can be redone.
@@ -55,6 +62,7 @@ pub struct HistoryRecord {
     /// The fingerprint of the edit saved beside it when it was written. Set
     /// here, never by the editor.
     #[serde(default, skip_serializing_if = "String::is_empty")]
+    #[cfg_attr(test, ts(as = "Option<String>", optional))]
     pub edit: String,
 }
 

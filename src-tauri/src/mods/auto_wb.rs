@@ -46,6 +46,7 @@ pub const D65_X: f32 = 0.312_726_9;
 pub const D65_Y: f32 = 0.329_023_2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum DetectMode {
     /// Weighted by chroma variance and covariance — real coloured surfaces.
@@ -70,6 +71,7 @@ pub enum DetectMode {
 
 /// What the detector found, and the white balance that removes it.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct AutoWhiteBalance {
     /// Detected illuminant chromaticity (CIE 1931 2° observer).

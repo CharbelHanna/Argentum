@@ -24,6 +24,7 @@ pub const PASTE_WAIT: Duration = Duration::from_secs(10);
 
 /// The camera's white balance and the one Auto found, in kelvin and tint.
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Measured {
     pub as_shot: WhiteBalance,

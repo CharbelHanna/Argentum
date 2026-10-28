@@ -32,6 +32,7 @@ const CANON_LIGHTING_OPT: u16 = 0x4018;
 
 /// A camera mode that recorded the photo darker, and by how many stops.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct HeldBack {
     pub mode: Mode,
@@ -40,6 +41,7 @@ pub struct HeldBack {
 
 /// The modes, named as the Profile note names them (src/argentum/locales).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Mode {
     FujifilmDr200,

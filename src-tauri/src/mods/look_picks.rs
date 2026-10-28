@@ -80,6 +80,7 @@ const WEIGHT: [f32; 8] = [1.0, 0.3, 0.8, 1.2, 1.2, 1.2, 0.8, 1.0];
 const OTHER_LIGHT: f32 = 6.0;
 
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Light {
     Lamp,
@@ -330,6 +331,7 @@ impl Default for Book {
 }
 
 #[derive(Serialize, PartialEq, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Suggestion {
     /// The LUT's path.
@@ -344,6 +346,7 @@ pub struct Suggestion {
 
 /// What the Looks tab shows for the open photo.
 #[derive(Serialize, PartialEq, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Suggested {
     pub learning: bool,

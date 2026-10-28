@@ -14,7 +14,7 @@
 
 import { listen } from '@tauri-apps/api/event';
 
-import { ag } from '../../argentum/ag';
+import { agUntyped } from '../../argentum/ag';
 import {
   ENGINE_EVENT,
   FRAME_HEADER_BYTES,
@@ -93,7 +93,7 @@ export function pageSharedBuffers(
 }
 
 export const tauriTransport: Transport = {
-  ag,
+  ag: agUntyped,
   listen: (event, handler) => listen(event, (e) => handler(e.payload as never)),
   sharedBuffers: pageSharedBuffers(),
 };

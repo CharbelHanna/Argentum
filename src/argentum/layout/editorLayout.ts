@@ -16,33 +16,8 @@
 import { create } from 'zustand';
 import { Panel } from '../../components/ui/AppProperties';
 import { ag } from '../ag';
-
-/** Mirrors mods::editor_layout::ModernTheme. Hand-written: the app does not generate its types yet. */
-export type ModernThemeName = 'grey' | 'deep' | 'light';
-
-/** Mirrors mods::editor_layout::TextSize. Hand-written, as above. */
-export type TextSizeName = 'small' | 'normal' | 'large';
-
-/** Mirrors mods::editor_layout::LayoutPanels. Hand-written, as above. */
-export interface LayoutPanels {
-  /** The Navigator section is open. */
-  navigatorOpen: boolean;
-  /** Saved by an earlier form of the Modern layout, which had a tab panel; kept so the file still reads. */
-  tab: string | null;
-  tabWidthPx: number;
-  /** The History section is open. */
-  historyOpen: boolean;
-  /** History's height in the left column; null until dragged. */
-  historyHeightPx: number | null;
-  /** The Snapshots list's height in the left column; null until dragged. */
-  snapshotsHeightPx: number | null;
-  /** The Navigator floats over the photo instead of sitting in the left column. */
-  navigatorFloating: boolean;
-  /** The floating Navigator's top-left corner, as fractions of the centre; null until moved. */
-  navigatorAt: [number, number] | null;
-  /** The panes folded by their headings (FoldingPane.tsx), by id. */
-  folded: string[];
-}
+import type { LayoutPanels, ModernTheme as ModernThemeName, TextSize as TextSizeName } from '../ag.generated';
+export type { ModernTheme as ModernThemeName, TextSize as TextSizeName, LayoutPanels } from '../ag.generated';
 
 /** As the arrangement first opens: the Navigator and History open in the left column. */
 export const DEFAULT_PANELS: LayoutPanels = {
@@ -83,9 +58,9 @@ export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
   load: async () => {
     // Unreadable is the panels as they first open, Grey and Normal.
     const [panels, theme, textSize] = await Promise.all([
-      ag<LayoutPanels | null>('editor_layout_panels').catch(() => null),
-      ag<ModernThemeName>('modern_theme').catch((): ModernThemeName => 'grey'),
-      ag<TextSizeName>('text_size').catch((): TextSizeName => 'normal'),
+      ag('editor_layout_panels').catch(() => null),
+      ag('modern_theme').catch((): ModernThemeName => 'grey'),
+      ag('text_size').catch((): TextSizeName => 'normal'),
     ]);
     set({ panels: panels ?? DEFAULT_PANELS, theme, textSize });
   },

@@ -20,24 +20,8 @@ import { useSettingsStore } from '../../store/useSettingsStore';
 import { useEditorStore } from '../../store/useEditorStore';
 import { useProcessStore } from '../../store/useProcessStore';
 import { Invokes, type ImageFile } from '../../components/ui/AppProperties';
-
-/** A disk as mods/drives.rs lists it. Hand-written until the contract is generated. */
-export interface Drive {
-  path: string;
-  label: string;
-  removable: boolean;
-  /** Zero where the system does not report it. */
-  freeBytes: number;
-  totalBytes: number;
-}
-
-/** mods/modern_start.rs `ModernStart`. Hand-written until the contract is generated. */
-interface ModernStart {
-  drives: Drive[];
-  recent: string[];
-  startFolder: string | null;
-  expanded: string[];
-}
+import type { Drive, ModernStart } from '../ag.generated';
+export type { Drive } from '../ag.generated';
 
 interface FoldersState {
   drives: Drive[];
@@ -55,7 +39,7 @@ const ALBUM_PREFIX = 'Album: ';
 /** The disks and recent folders, as the backend sees them now. None if they could not be listed. */
 async function listDisks(lastFolder: string | null, expanded: string[]): Promise<ModernStart | null> {
   try {
-    const start = await ag<ModernStart>('modern_start', { lastFolder, expanded });
+    const start = await ag('modern_start', { lastFolder, expanded });
     useModernFolders.setState({ drives: start.drives, recent: start.recent, unavailable: start.drives.length === 0 });
     return start;
   } catch (err) {
@@ -172,7 +156,7 @@ function watchLibrary() {
   useLibraryStore.subscribe((state, previous) => {
     const folder = state.currentFolderPath;
     if (folder && folder !== previous.currentFolderPath && !folder.startsWith(ALBUM_PREFIX)) {
-      ag<string[]>('add_recent_folder', { path: folder })
+      ag('add_recent_folder', { path: folder })
         .then((recent) => useModernFolders.setState({ recent }))
         .catch((err) => console.warn('Recent folders not saved:', err));
     }

@@ -33,14 +33,17 @@ pub const GROUPS: [(&str, &str); 6] = [
 const FAVOURITES: Setting<Vec<String>> = Setting::new("looksFavourites");
 
 #[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct BuiltinPreset {
     /// `rawmakase:<folder>/<file name>`: the same on every machine, so a star stays on it.
     pub id: String,
     pub name: String,
+    #[cfg_attr(test, ts(type = "unknown"))]
     pub adjustments: Value,
 }
 
 #[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct PresetGroup {
     pub name: String,
     pub presets: Vec<BuiltinPreset>,

@@ -46,7 +46,7 @@ export default function ExportPrecision() {
 
   const refresh = useCallback(async () => {
     try {
-      const value = await ag<number>('tiff_bit_depth');
+      const value = await ag('tiff_bit_depth');
       // Anything we do not recognise is 16, which is what an export did before
       // this control existed. A preference file from a newer Argentum must not
       // leave an older one with no selection at all.
@@ -117,9 +117,7 @@ export default function ExportPrecision() {
           </button>
         ))}
       </div>
-      <p className="text-xs text-text-secondary mt-1.5">
-        {t(depth === 8 ? 'tiffDepth8Help' : 'tiffDepth16Help')}
-      </p>
+      <p className="text-xs text-text-secondary mt-1.5">{t(depth === 8 ? 'tiffDepth8Help' : 'tiffDepth16Help')}</p>
     </div>
   );
 }

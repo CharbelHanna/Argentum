@@ -257,7 +257,12 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         .map((group) => ({
           id: `builtin:${group.name}`,
           name: group.name,
-          looks: group.presets.map((p) => ({ id: p.id, name: p.name, kind: 'preset' as const, preset: p.adjustments })),
+          looks: group.presets.map((p) => ({
+            id: p.id,
+            name: p.name,
+            kind: 'preset' as const,
+            preset: p.adjustments as Partial<Adjustments>,
+          })),
         }))
         .sort(byName),
     };

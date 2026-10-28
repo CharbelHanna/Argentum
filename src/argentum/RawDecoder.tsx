@@ -24,9 +24,7 @@ import { ag } from './ag';
 import { useAgTranslation } from './locales';
 import { redecodeOpenPhoto } from './redecode';
 import { isVirtualCopyPath } from './paths';
-
-/** `RawDecoder` in src-tauri/src/mods/raw_decoder.rs. */
-type RawDecoderName = 'rawler' | 'flashraw';
+import type { RawDecoder as RawDecoderName } from './ag.generated';
 
 const NAMES: Record<RawDecoderName, string> = { rawler: 'rawler', flashraw: 'FlashRaw' };
 
@@ -41,7 +39,7 @@ export function RawDecoderSetting() {
   const [value, setValue] = useState<RawDecoderName | null>(null);
 
   useEffect(() => {
-    ag<RawDecoderName>('raw_decoder')
+    ag('raw_decoder')
       .then(setValue)
       .catch(() => setValue(null));
   }, []);
@@ -92,7 +90,7 @@ export default function RawDecoder() {
       return;
     }
     let live = true;
-    ag<RawDecoderName>('raw_decoder')
+    ag('raw_decoder')
       .then((d) => live && setAppDecoder(d))
       .catch(() => live && setAppDecoder(null));
     return () => {
@@ -110,7 +108,7 @@ export default function RawDecoder() {
       return;
     }
     let live = true;
-    ag<boolean>('flashraw_handles', { path })
+    ag('flashraw_handles', { path })
       .then((h) => live && setHandled(h))
       .catch(() => live && setHandled(null));
     return () => {

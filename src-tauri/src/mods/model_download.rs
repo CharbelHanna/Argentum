@@ -50,6 +50,7 @@ pub const STOPPED: &str = "Download stopped.";
 const REPORT_EVERY: u64 = 1 << 20;
 
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Progress {
     /// The catalogue entry being downloaded.
@@ -253,6 +254,8 @@ fn in_place(dir: &Path, file: &File) -> bool {
 
 /// Whether a feature's files are all here, and how much is left to fetch.
 #[derive(Debug, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(rename = "ModelsStatus"))]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     pub installed: bool,

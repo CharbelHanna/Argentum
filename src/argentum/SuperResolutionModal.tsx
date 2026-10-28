@@ -5,11 +5,7 @@ import { ag } from './ag';
 import { SUPER_RESOLUTION_OPEN_EVENT } from './superResolution';
 import { useAgTranslation } from './locales';
 import { useProcessStore } from '../store/useProcessStore';
-
-interface PreviewPayload {
-  result: string;
-  original: string;
-}
+import type { PreviewPayload } from './ag.generated';
 
 interface ProgressPayload {
   completed: number;
@@ -105,7 +101,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     setProgress(agT('superResolutionPreparing'));
     setProgressPercent(null);
     try {
-      const result = await ag<PreviewPayload>('super_resolution_preview', {
+      const result = await ag('super_resolution_preview', {
         path: paths[0],
         scale,
         restore: restoreArg,
@@ -152,7 +148,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     const timer = window.setTimeout(async () => {
       setMaskBusy(true);
       try {
-        const url = await ag<string>('restore_mask', { path: paths[0], mask });
+        const url = await ag('restore_mask', { path: paths[0], mask });
         if (active) setMaskUrl(url);
       } catch (reason) {
         if (active) setError(String(reason));
@@ -172,7 +168,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     let active = true;
     const timer = window.setTimeout(async () => {
       try {
-        const url = await ag<string>('restore_reblend', { mask });
+        const url = await ag('restore_reblend', { mask });
         if (!active) return;
         setPreview((shown) => (shown ? { ...shown, result: url } : shown));
         setPreviewMask(mask);
@@ -192,7 +188,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     setProgress(agT('superResolutionSaving'));
     setProgressPercent(null);
     try {
-      const savedPath = await ag<string>('save_super_resolution', { path: paths[0] });
+      const savedPath = await ag('save_super_resolution', { path: paths[0] });
       await onLibraryRefresh();
       close();
       onImageSelect(savedPath);
@@ -210,7 +206,7 @@ export default function SuperResolutionModal({ onLibraryRefresh, onImageSelect }
     setProgress(agT('superResolutionBatching'));
     setProgressPercent(null);
     try {
-      await ag<string[]>('batch_super_resolution', { paths, scale, restore: restoreArg });
+      await ag('batch_super_resolution', { paths, scale, restore: restoreArg });
       await onLibraryRefresh();
       close();
     } catch (reason) {

@@ -47,11 +47,7 @@ import {
   useSharpenMask,
 } from './sharpenSettings';
 import './sharpening.css';
-
-interface AutoValues {
-  radius: number | null;
-  contrast: number | null;
-}
+import type { AutoValues } from './ag.generated';
 
 /** What auto picked for this photo, asked again whenever the picture changes. */
 export function useAutoValues(path: string | undefined, adjustments: any): AutoValues {
@@ -65,7 +61,7 @@ export function useAutoValues(path: string | undefined, adjustments: any): AutoV
     }
     // After the render the change sets off, which is what measures.
     const timer = window.setTimeout(() => {
-      ag<AutoValues>('sharpen_auto', { path })
+      ag('sharpen_auto', { path })
         .then(setValues)
         .catch(() => {});
     }, 600);

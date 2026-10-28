@@ -33,45 +33,7 @@ import { useAgTranslation } from './locales';
 import Text from '../components/ui/Text';
 import { TextColors, TextVariants } from '../types/typography';
 import { formatSize } from './formatSize';
-
-type OnDisk = 'downloaded' | 'partial' | 'missing';
-
-interface ModelStatus {
-  id: string;
-  label: string;
-  purpose: string;
-  onDisk: OnDisk;
-  bytes: number;
-  /** What a download fetches now. */
-  downloadBytes: number;
-  removingAtNextStart: boolean;
-}
-
-interface Leftover {
-  name: string;
-  bytes: number;
-}
-
-interface Progress {
-  id: string;
-  done: number;
-  total: number;
-}
-
-interface Listing {
-  models: ModelStatus[];
-  totalBytes: number;
-  otherBytes: number;
-  other: Leftover[];
-  downloading: Progress | null;
-}
-
-type Outcome = 'deleted' | 'atNextStart' | 'notThere';
-
-interface Cleared {
-  freedBytes: number;
-  left: string[];
-}
+import type { Leftover, Listing, ModelStatus, Progress } from './ag.generated';
 
 /** What mods/model_download.rs ends a stopped download with. */
 const STOPPED = 'Download stopped.';
@@ -98,7 +60,7 @@ export default function AiModels() {
 
   const refresh = useCallback(async () => {
     try {
-      const next = await ag<Listing>('list_ai_models');
+      const next = await ag('list_ai_models');
       setListing(next);
       // A download that began before this page opened, or in the editor.
       setProgress((current) => current ?? next.downloading);
@@ -129,7 +91,7 @@ export default function AiModels() {
     setBusy(m.id);
     setProgress({ id: m.id, done: 0, total: m.downloadBytes });
     try {
-      const fetched = await ag<number>('download_ai_model', { id: m.id });
+      const fetched = await ag('download_ai_model', { id: m.id });
       setNote({ id: m.id, text: fetched > 0 ? t('modelsFetched') : t('modelsAlreadyHere'), tone: 'ok' });
     } catch (e) {
       const text = String(e);
@@ -145,7 +107,7 @@ export default function AiModels() {
     setNote(null);
     setBusy(id);
     try {
-      const outcome = await ag<Outcome>('delete_ai_model', { id });
+      const outcome = await ag('delete_ai_model', { id });
       if (outcome === 'atNextStart') {
         setNote({ id, text: t('modelsAtNextStart'), tone: 'warn' });
       }
@@ -162,7 +124,7 @@ export default function AiModels() {
     setNote(null);
     setBusy('other');
     try {
-      const cleared = await ag<Cleared>('clear_ai_model_leftovers', { names: other.map((o) => o.name) });
+      const cleared = await ag('clear_ai_model_leftovers', { names: other.map((o) => o.name) });
       const done = t('modelsCleared').replace('{size}', formatSize(cleared.freedBytes));
       setNote(
         cleared.left.length

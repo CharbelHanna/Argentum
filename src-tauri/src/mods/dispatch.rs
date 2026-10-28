@@ -53,22 +53,29 @@ fn args_for<T: for<'de> Deserialize<'de>>(
 
 /// Arguments are sent as the frontend writes them, so camelCase throughout.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct PointArgs {
     x: f32,
     y: f32,
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct AutoWbArgs {
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
     mode: DetectMode,
 }
 
 /// A photo to measure Auto white balance on, and the photo a pasted Auto came from.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct MeasureWbArgs {
     path: String,
@@ -77,9 +84,12 @@ struct MeasureWbArgs {
 
 /// A one-click selection: which part, the edit's geometry, and the frame it is stored in.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct SelectionArgs {
     kind: crate::mods::selection::Kind,
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
     #[serde(flatten)]
     frame: crate::mods::selection::Frame,
@@ -87,8 +97,11 @@ struct SelectionArgs {
 
 /// Object: the clicks and the box on the photo, the edit's geometry, and the frame.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct ObjectArgs {
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
     #[serde(default)]
     clicks: Vec<crate::mods::selection::Click>,
@@ -100,8 +113,11 @@ struct ObjectArgs {
 
 /// A Text mask: the words, the edit's geometry, and the frame.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct TextMaskArgs {
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
     words: String,
     #[serde(flatten)]
@@ -110,15 +126,20 @@ struct TextMaskArgs {
 
 /// A Face mask: the parts to draw, the edit's geometry, and the frame.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct FaceMaskArgs {
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
+    #[cfg_attr(test, ts(type = "ReadonlyArray<string>"))]
     parts: Vec<String>,
     #[serde(flatten)]
     frame: crate::mods::selection::Frame,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct PathArgs {
     path: String,
@@ -126,6 +147,7 @@ struct PathArgs {
 
 /// A folder's path before and after a rename.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct FolderRenameArgs {
     old_path: String,
@@ -133,6 +155,7 @@ struct FolderRenameArgs {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct PathsArgs {
     paths: Vec<String>,
@@ -140,13 +163,17 @@ struct PathsArgs {
 
 /// The open photo, as the editor names it, and its edit.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct OpenPhotoArgs {
     path: String,
+    /// The edit, as the interface holds it: untyped on both sides.
+    #[cfg_attr(test, ts(type = "unknown"))]
     js_adjustments: serde_json::Value,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct RawToneArgs {
     path: String,
@@ -154,6 +181,7 @@ struct RawToneArgs {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct FileArgs {
     file: String,
@@ -161,23 +189,27 @@ struct FileArgs {
 
 /// The app's RAW decoder.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct DecoderArgs {
     decoder: crate::mods::raw_decoder::RawDecoder,
 }
 
 /// A photo's RAW decoder; none is the app's.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct PhotoDecoderArgs {
     path: String,
     decoder: Option<crate::mods::raw_decoder::RawDecoder>,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct OnArgs {
     on: bool,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct SuperResolutionPreviewArgs {
     path: String,
@@ -188,12 +220,14 @@ struct SuperResolutionPreviewArgs {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct SuperResolutionSaveArgs {
     path: String,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct RestoreMaskArgs {
     path: String,
@@ -201,12 +235,14 @@ struct RestoreMaskArgs {
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct RestoreReblendArgs {
     mask: f32,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct SuperResolutionBatchArgs {
     paths: Vec<String>,
@@ -222,30 +258,35 @@ struct SuperResolutionBatchArgs {
 /// to a depth we support by `TiffDepth::from_u8`, which treats anything
 /// unrecognised as 16 - what an export did before the setting existed.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct DepthArgs {
     depth: u8,
 }
 
 /// Space under a compact slider row, in pixels.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct GapArgs {
     gap: u8,
 }
 
 /// Looks' ids: a built-in preset's, a preset's own, a LUT's path.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct IdsArgs {
     ids: Vec<String>,
 }
 
 /// The open photo and the LUT just put on it (its path).
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct LookPickArgs {
     path: String,
     lut: String,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct LearningArgs {
     on: bool,
 }
@@ -268,6 +309,7 @@ fn the_open_photo(state: &AppState, path: &str) -> Result<crate::app_state::Load
 
 /// A photo and the snapshots to keep for it.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct SnapshotsArgs {
     path: String,
     snapshots: Vec<crate::mods::snapshots::Snapshot>,
@@ -275,6 +317,7 @@ struct SnapshotsArgs {
 
 /// A photo and the History to keep for it; none takes it out.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct HistoryArgs {
     path: String,
     record: Option<crate::mods::history::HistoryRecord>,
@@ -282,23 +325,27 @@ struct HistoryArgs {
 
 /// A text size's name, narrowed by `TextSize::from_name`, Normal if unknown.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct TextSizeArgs {
     size: String,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct LayoutPanelsArgs {
     panels: crate::mods::editor_layout::LayoutPanels,
 }
 
 /// A Modern palette's name, narrowed by `ModernTheme::from_name`.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct ThemeArgs {
     theme: String,
 }
 
 /// The library's saved folder state, for `modern_start`.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct ModernStartArgs {
     last_folder: Option<String>,
@@ -308,27 +355,32 @@ struct ModernStartArgs {
 
 /// A catalogue id from `mods::model_catalog`, never a path.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct IdArgs {
     id: String,
 }
 
 /// Leftovers in the models folder, as `list_ai_models` named them.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct NamesArgs {
     names: Vec<String>,
 }
 
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 struct ModelArgs {
     /// Absent for commands that only identify a camera by model.
     #[serde(default)]
+    #[cfg_attr(test, ts(as = "Option<String>", optional))]
     make: String,
     model: String,
 }
 
 /// A camera and the profile its new photos open with (none: built-in).
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct DefaultProfileArgs {
     model: String,
     file: Option<String>,
@@ -353,10 +405,20 @@ struct TicketArgs {
 
 /// The folder a file dialog opens in: the open photo's, when there is one.
 #[derive(Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 struct PickArgs {
     #[serde(default)]
     from: Option<String>,
 }
+
+/// `black_white_auto`'s answer: the B&W mix's bands as the edit names them,
+/// -100..100. `unknown` to the interface: it is a piece of the edit, whose band
+/// names the interface defines (`BlackWhite.tsx`), and the edit is untyped on
+/// both sides.
+#[derive(Serialize)]
+#[serde(transparent)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+struct AutoMix(#[cfg_attr(test, ts(type = "unknown"))] serde_json::Map<String, serde_json::Value>);
 
 /// What a refused call answers: for the engine's calls, the engine's own
 /// error as the contract writes it (`{ kind, message }`); for the rest, a
@@ -448,535 +510,454 @@ async fn engine_call(
     value.map_err(internal)
 }
 
-async fn json(
-    name: String,
-    args: serde_json::Value,
-    state: tauri::State<'_, AppState>,
-    app_handle: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-) -> Result<serde_json::Value, String> {
-    match name.as_str() {
-        "selection_models_status" => {
-            let dir = crate::mods::selection_models::dir(&app_handle)?;
-            serde_json::to_value(crate::mods::selection_models::status(&dir))
-                .map_err(|e| e.to_string())
+/// Every JSON command, named once: its name, what it takes, what it answers
+/// and what it does. The match in `json` and the interface's types
+/// (`src/argentum/ag.generated.ts`, written by the test in
+/// `mods/ag_contract.rs`) are both made from this list, so neither can name a
+/// command the other does not.
+///
+/// An entry is `"name" => (a: Args) -> Answer { ... }`, or `()` for a command
+/// that takes nothing. The block is the answer; `?` refuses with a message.
+/// `state`, `app_handle` and `window` are in scope.
+macro_rules! commands {
+    (@visit $v:ident $name:literal () $Out:ty) => {
+        $v.command_without_args::<$Out>($name)
+    };
+    (@visit $v:ident $name:literal ($Args:ty) $Out:ty) => {
+        $v.command::<$Args, $Out>($name)
+    };
+    (
+        $state:ident, $app:ident, $window:ident;
+        $( $name:literal => ( $($a:ident : $Args:ty)? ) -> $Out:ty $body:block )*
+    ) => {
+        // A command that answers nothing runs its block for what it does:
+        // `()` is the answer, sent as null.
+        #[allow(clippy::unit_arg)]
+        async fn json(
+            name: String,
+            args: serde_json::Value,
+            $state: tauri::State<'_, AppState>,
+            $app: tauri::AppHandle,
+            $window: tauri::WebviewWindow,
+        ) -> Result<serde_json::Value, String> {
+            match name.as_str() {
+                $( $name => {
+                    $( let $a: $Args = args_for(&name, args)?; )?
+                    serde_json::to_value::<$Out>($body).map_err(|e| e.to_string())
+                } )*
+                other => Err(format!("unknown Argentum command: {other}")),
+            }
         }
-        "download_selection_models" => {
-            use tauri::Emitter;
-            let dir = crate::mods::selection_models::dir(&app_handle)?;
-            let app = app_handle.clone();
-            crate::mods::selection_models::download(&dir, move |progress| {
-                let _ = app.emit(crate::mods::model_download::EVENT, progress);
-            })
-            .await?;
-            Ok(serde_json::Value::Null)
+
+        /// Each command's name, arguments and answer, for the interface's types.
+        #[cfg(test)]
+        pub(crate) fn visit_commands(v: &mut crate::mods::ag_contract::Commands) {
+            $( commands!(@visit v $name ($($Args)?) $Out); )*
         }
-        "selection_mask" => {
-            let a: SelectionArgs = args_for(&name, args)?;
-            let dir = crate::mods::selection_models::dir(&app_handle)?;
-            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
-            let path = state
-                .original_image
-                .lock()
-                .map_err(|e| e.to_string())?
-                .as_ref()
-                .map(|loaded| loaded.path.clone())
-                .ok_or("No image loaded")?;
-            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
-            let selection = tokio::task::spawn_blocking(move || {
-                crate::mods::selection::select(&dir, &picture, key, a.kind, a.frame)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(selection).map_err(|e| e.to_string())
-        }
-        "selection_object" => {
-            let a: ObjectArgs = args_for(&name, args)?;
-            let dir = crate::mods::selection_models::dir(&app_handle)?;
-            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
-            let path = state
-                .original_image
-                .lock()
-                .map_err(|e| e.to_string())?
-                .as_ref()
-                .map(|loaded| loaded.path.clone())
-                .ok_or("No image loaded")?;
-            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
-            let selection = tokio::task::spawn_blocking(move || {
-                crate::mods::selection::select_object(
-                    &dir, &picture, key, &a.clicks, a.bounds, a.frame,
-                )
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(selection).map_err(|e| e.to_string())
-        }
-        "text_mask_models_status" => {
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            serde_json::to_value(crate::mods::text_mask::status(&dir)).map_err(|e| e.to_string())
-        }
-        "download_text_mask_models" => {
-            use tauri::Emitter;
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            let app = app_handle.clone();
-            crate::mods::text_mask::download(&dir, move |progress| {
-                let _ = app.emit(crate::mods::model_download::EVENT, progress);
-            })
-            .await?;
-            Ok(serde_json::Value::Null)
-        }
-        "text_mask" => {
-            let a: TextMaskArgs = args_for(&name, args)?;
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
-            let path = state
-                .original_image
-                .lock()
-                .map_err(|e| e.to_string())?
-                .as_ref()
-                .map(|loaded| loaded.path.clone())
-                .ok_or("No image loaded")?;
-            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
-            let selection = tokio::task::spawn_blocking(move || {
-                crate::mods::text_mask::select(&dir, &picture, key, &a.words, a.frame)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(selection).map_err(|e| e.to_string())
-        }
-        "face_mask_models_status" => {
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            serde_json::to_value(crate::mods::face_mask::status(&dir)).map_err(|e| e.to_string())
-        }
-        "download_face_mask_models" => {
-            use tauri::Emitter;
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            let app = app_handle.clone();
-            crate::mods::face_mask::download(&dir, move |progress| {
-                let _ = app.emit(crate::mods::model_download::EVENT, progress);
-            })
-            .await?;
-            Ok(serde_json::Value::Null)
-        }
-        "face_mask" => {
-            let a: FaceMaskArgs = args_for(&name, args)?;
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
-            let path = state
-                .original_image
-                .lock()
-                .map_err(|e| e.to_string())?
-                .as_ref()
-                .map(|loaded| loaded.path.clone())
-                .ok_or("No image loaded")?;
-            let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
-            let selection = tokio::task::spawn_blocking(move || {
-                crate::mods::face_mask::select(&dir, &picture, key, &a.parts, a.frame)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(selection).map_err(|e| e.to_string())
-        }
-        "detect_auto_white_balance" => {
-            let a: AutoWbArgs = args_for(&name, args)?;
-            let r = commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "black_white_auto" => {
-            let a: OpenPhotoArgs = args_for(&name, args)?;
-            let loaded = the_open_photo(&state, &a.path)?;
-            let mix = tokio::task::spawn_blocking(move || {
-                crate::mods::black_white::auto(&loaded, &a.js_adjustments)
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-            Ok(serde_json::Value::Object(mix))
-        }
-        "measure_auto_white_balance" => {
-            let a: MeasureWbArgs = args_for(&name, args)?;
-            let handle = app_handle.clone();
-            let measured = tokio::task::spawn_blocking(move || {
-                let settings = crate::app_settings::load_settings(handle).unwrap_or_default();
-                crate::mods::auto_wb_photo::measure(
-                    &a.path,
-                    a.from.as_deref(),
-                    &settings,
-                    crate::mods::auto_wb_photo::PASTE_WAIT,
-                )
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(measured).map_err(|e| e.to_string())
-        }
-        "sample_processed_pixel" => {
-            let a: PointArgs = args_for(&name, args)?;
-            let r = commands::sample_processed_pixel(a.x, a.y, a.js_adjustments, state, app_handle)
-                .await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "refresh_image_metadata" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let r = commands::refresh_image_metadata(a.path, app_handle)?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "recover_lens_name" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let r = crate::mods::lens_name::recover_lens_name(a.path).await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "lens_builtin" => {
-            // The camera's own lens correction, when the photo opens.
-            let a: PathArgs = args_for(&name, args)?;
-            let r = tokio::task::spawn_blocking(move || {
-                crate::mods::lens_builtin::lens_builtin(&a.path)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "raw_tone_curve" => {
-            let a: RawToneArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::raw_tone_curve(a.path, a.mode, app_handle)?)
-                .map_err(|e| e.to_string())
-        }
-        "dng_standard_held_back" => {
-            // What a highlight-protecting camera mode held back, for the note
-            // under Rendering.
-            let a: PathArgs = args_for(&name, args)?;
-            serde_json::to_value(crate::mods::dng_standard::held_back_of(&a.path)?)
-                .map_err(|e| e.to_string())
-        }
-        "sharpen_auto" => {
-            // What auto picked for this photo, for the Sharpening card to show.
-            let a: PathArgs = args_for(&name, args)?;
-            Ok(crate::mods::sharpen::auto_values(&a.path))
-        }
-        "camera_profile_status" => {
-            let a: PathArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::camera_profile_status(a.path)?)
-                .map_err(|e| e.to_string())
-        }
-        "import_camera_profile" => {
-            let a: PathArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::import_camera_profile(a.path)?)
-                .map_err(|e| e.to_string())
-        }
-        "remove_camera_profile" => {
-            let a: FileArgs = args_for(&name, args)?;
-            commands::remove_camera_profile(a.file)?;
-            Ok(serde_json::Value::Null)
-        }
-        "list_cameras" => {
-            serde_json::to_value(commands::list_cameras()?).map_err(|e| e.to_string())
-        }
-        "forget_camera" => {
-            let a: ModelArgs = args_for(&name, args)?;
-            commands::forget_camera(a.model)?;
-            Ok(serde_json::Value::Null)
-        }
-        "set_camera_default_profile" => {
-            let a: DefaultProfileArgs = args_for(&name, args)?;
-            commands::set_camera_default_profile(a.model, a.file)?;
-            Ok(serde_json::Value::Null)
-        }
-        "camera_default_profile" => {
-            let a: ModelArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::camera_default_profile(a.model)?)
-                .map_err(|e| e.to_string())
-        }
-        "get_profile_online" => {
-            let a: ModelArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::get_profile_online(a.make, a.model).await?)
-                .map_err(|e| e.to_string())
-        }
-        "highlight_recovery" => {
-            serde_json::to_value(commands::highlight_recovery()?).map_err(|e| e.to_string())
-        }
-        "set_highlight_recovery" => {
-            let a: OnArgs = args_for(&name, args)?;
-            commands::set_highlight_recovery(a.on)?;
-            Ok(serde_json::Value::Null)
-        }
-        "raw_decoder" => serde_json::to_value(commands::raw_decoder()).map_err(|e| e.to_string()),
-        "set_raw_decoder" => {
-            let a: DecoderArgs = args_for(&name, args)?;
-            commands::set_raw_decoder(a.decoder)?;
-            Ok(serde_json::Value::Null)
-        }
-        "set_photo_raw_decoder" => {
-            let a: PhotoDecoderArgs = args_for(&name, args)?;
-            crate::mods::raw_decoder::remember(&a.path, a.decoder);
-            Ok(serde_json::Value::Null)
-        }
-        "flashraw_handles" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let handles = tokio::task::spawn_blocking(move || {
-                crate::mods::raw_decoder::flashraw_handles(&a.path)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(handles).map_err(|e| e.to_string())
-        }
-        "redecode_open_photo" => {
-            let r = crate::mods::redecode::open_photo(state, app_handle).await?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "tiff_bit_depth" => {
-            serde_json::to_value(commands::tiff_bit_depth()).map_err(|e| e.to_string())
-        }
-        "set_tiff_bit_depth" => {
-            let a: DepthArgs = args_for(&name, args)?;
-            commands::set_tiff_bit_depth(a.depth)?;
-            Ok(serde_json::Value::Null)
-        }
-        "compact_slider_gap" => {
-            serde_json::to_value(commands::compact_slider_gap()?).map_err(|e| e.to_string())
-        }
-        "set_compact_slider_gap" => {
-            let a: GapArgs = args_for(&name, args)?;
-            commands::set_compact_slider_gap(a.gap)?;
-            Ok(serde_json::Value::Null)
-        }
-        "editor_layout_panels" => {
-            serde_json::to_value(commands::editor_layout_panels()?).map_err(|e| e.to_string())
-        }
-        "set_editor_layout_panels" => {
-            let a: LayoutPanelsArgs = args_for(&name, args)?;
-            commands::set_editor_layout_panels(&a.panels)?;
-            Ok(serde_json::Value::Null)
-        }
-        "modern_theme" => {
-            serde_json::to_value(commands::modern_theme()?).map_err(|e| e.to_string())
-        }
-        "set_modern_theme" => {
-            let a: ThemeArgs = args_for(&name, args)?;
-            commands::set_modern_theme(&a.theme)?;
-            Ok(serde_json::Value::Null)
-        }
-        "text_size" => serde_json::to_value(commands::text_size()?).map_err(|e| e.to_string()),
-        "builtin_presets" => {
-            let handle = app_handle.clone();
-            let groups = tokio::task::spawn_blocking(move || commands::builtin_presets(&handle))
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(groups).map_err(|e| e.to_string())
-        }
-        "snapshots" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let list = tokio::task::spawn_blocking(move || commands::snapshots(&a.path))
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(list).map_err(|e| e.to_string())
-        }
-        "set_snapshots" => {
-            let a: SnapshotsArgs = args_for(&name, args)?;
-            tokio::task::spawn_blocking(move || commands::set_snapshots(&a.path, a.snapshots))
-                .await
-                .map_err(|e| e.to_string())??;
-            Ok(serde_json::Value::Null)
-        }
-        "history" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let record = tokio::task::spawn_blocking(move || commands::history(&a.path))
-                .await
-                .map_err(|e| e.to_string())?;
-            serde_json::to_value(record).map_err(|e| e.to_string())
-        }
-        "set_history" => {
-            let a: HistoryArgs = args_for(&name, args)?;
-            tokio::task::spawn_blocking(move || commands::set_history(&a.path, a.record))
-                .await
-                .map_err(|e| e.to_string())??;
-            Ok(serde_json::Value::Null)
-        }
-        "looks_favourites" => {
-            serde_json::to_value(commands::looks_favourites()?).map_err(|e| e.to_string())
-        }
-        "set_looks_favourites" => {
-            let a: IdsArgs = args_for(&name, args)?;
-            commands::set_looks_favourites(&a.ids)?;
-            Ok(serde_json::Value::Null)
-        }
-        "look_suggestions" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let loaded = the_open_photo(&state, &a.path)?;
-            serde_json::to_value(commands::look_suggestions(&a.path, &loaded)?)
-                .map_err(|e| e.to_string())
-        }
-        "look_pick" => {
-            let a: LookPickArgs = args_for(&name, args)?;
-            let loaded = the_open_photo(&state, &a.path)?;
-            serde_json::to_value(commands::look_pick(&a.path, &a.lut, &loaded)?)
-                .map_err(|e| e.to_string())
-        }
-        "look_unpick" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let loaded = the_open_photo(&state, &a.path)?;
-            serde_json::to_value(commands::look_unpick(&a.path, &loaded)?)
-                .map_err(|e| e.to_string())
-        }
-        "set_look_learning" => {
-            let a: LearningArgs = args_for(&name, args)?;
-            commands::set_look_learning(a.on)?;
-            Ok(serde_json::Value::Null)
-        }
-        "forget_look_picks" => {
-            commands::forget_look_picks()?;
-            Ok(serde_json::Value::Null)
-        }
-        "set_text_size" => {
-            let a: TextSizeArgs = args_for(&name, args)?;
-            commands::set_text_size(&a.size)?;
-            Ok(serde_json::Value::Null)
-        }
-        "modern_start" => {
-            let a: ModernStartArgs = args_for(&name, args)?;
-            let start = tokio::task::spawn_blocking(move || {
-                commands::modern_start(a.last_folder.as_deref(), &a.expanded)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(start).map_err(|e| e.to_string())
-        }
-        "folder_photo_count" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let count = tokio::task::spawn_blocking(move || {
-                crate::mods::folder_counts::photo_count(std::path::Path::new(&a.path))
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-            serde_json::to_value(count).map_err(|e| e.to_string())
-        }
-        "add_recent_folder" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let list = tokio::task::spawn_blocking(move || commands::add_recent_folder(&a.path))
-                .await
-                .map_err(|e| e.to_string())??;
-            serde_json::to_value(list).map_err(|e| e.to_string())
-        }
-        "rename_recent_folder" => {
-            let a: FolderRenameArgs = args_for(&name, args)?;
-            let list = tokio::task::spawn_blocking(move || {
-                commands::rename_recent_folder(&a.old_path, &a.new_path)
-            })
-            .await
-            .map_err(|e| e.to_string())??;
-            serde_json::to_value(list).map_err(|e| e.to_string())
-        }
-        "super_resolution_preview" => {
-            let a: SuperResolutionPreviewArgs = args_for(&name, args)?;
-            serde_json::to_value(
-                crate::mods::super_resolution::preview(a.path, a.scale, a.restore, app_handle)
-                    .await
-                    .map_err(|e| e.to_string())?,
+    };
+}
+
+commands! {
+    state, app_handle, window;
+
+    "selection_models_status" => () -> crate::mods::model_download::Status {
+        let dir = crate::mods::selection_models::dir(&app_handle)?;
+        crate::mods::selection_models::status(&dir)
+    }
+    "download_selection_models" => () -> () {
+        use tauri::Emitter;
+        let dir = crate::mods::selection_models::dir(&app_handle)?;
+        let app = app_handle.clone();
+        crate::mods::selection_models::download(&dir, move |progress| {
+            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+        })
+        .await?;
+    }
+    "selection_mask" => (a: SelectionArgs) -> crate::mods::selection::Selection {
+        let dir = crate::mods::selection_models::dir(&app_handle)?;
+        let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+        let path = state
+            .original_image
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|loaded| loaded.path.clone())
+            .ok_or("No image loaded")?;
+        let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+        tokio::task::spawn_blocking(move || {
+            crate::mods::selection::select(&dir, &picture, key, a.kind, a.frame)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "selection_object" => (a: ObjectArgs) -> crate::mods::selection::Selection {
+        let dir = crate::mods::selection_models::dir(&app_handle)?;
+        let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+        let path = state
+            .original_image
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|loaded| loaded.path.clone())
+            .ok_or("No image loaded")?;
+        let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+        tokio::task::spawn_blocking(move || {
+            crate::mods::selection::select_object(
+                &dir, &picture, key, &a.clicks, a.bounds, a.frame,
             )
-            .map_err(|e| e.to_string())
-        }
-        "save_super_resolution" => {
-            let a: SuperResolutionSaveArgs = args_for(&name, args)?;
-            serde_json::to_value(crate::mods::super_resolution::save(a.path, app_handle).await?)
-                .map_err(|e| e.to_string())
-        }
-        "discard_super_resolution" => {
-            crate::mods::super_resolution::discard();
-            Ok(serde_json::Value::Null)
-        }
-        "restore_mask" => {
-            let a: RestoreMaskArgs = args_for(&name, args)?;
-            serde_json::to_value(
-                crate::mods::super_resolution::restore_mask(a.path, a.mask, app_handle).await?,
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "text_mask_models_status" => () -> crate::mods::model_download::Status {
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        crate::mods::text_mask::status(&dir)
+    }
+    "download_text_mask_models" => () -> () {
+        use tauri::Emitter;
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let app = app_handle.clone();
+        crate::mods::text_mask::download(&dir, move |progress| {
+            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+        })
+        .await?;
+    }
+    "text_mask" => (a: TextMaskArgs) -> crate::mods::selection::Selection {
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+        let path = state
+            .original_image
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|loaded| loaded.path.clone())
+            .ok_or("No image loaded")?;
+        let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+        tokio::task::spawn_blocking(move || {
+            crate::mods::text_mask::select(&dir, &picture, key, &a.words, a.frame)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "face_mask_models_status" => () -> crate::mods::model_download::Status {
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        crate::mods::face_mask::status(&dir)
+    }
+    "download_face_mask_models" => () -> () {
+        use tauri::Emitter;
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let app = app_handle.clone();
+        crate::mods::face_mask::download(&dir, move |progress| {
+            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+        })
+        .await?;
+    }
+    "face_mask" => (a: FaceMaskArgs) -> crate::mods::selection::Selection {
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let picture = crate::get_cached_full_warped_image(&state, &a.js_adjustments)?;
+        let path = state
+            .original_image
+            .lock()
+            .map_err(|e| e.to_string())?
+            .as_ref()
+            .map(|loaded| loaded.path.clone())
+            .ok_or("No image loaded")?;
+        let key = crate::mods::selection::picture_key(&path, &a.js_adjustments);
+        tokio::task::spawn_blocking(move || {
+            crate::mods::face_mask::select(&dir, &picture, key, &a.parts, a.frame)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "detect_auto_white_balance" => (a: AutoWbArgs) -> crate::mods::auto_wb::AutoWhiteBalance {
+        commands::detect_auto_white_balance(a.js_adjustments, a.mode, state).await?
+    }
+    "black_white_auto" => (a: OpenPhotoArgs) -> AutoMix {
+        let loaded = the_open_photo(&state, &a.path)?;
+        let mix = tokio::task::spawn_blocking(move || {
+            crate::mods::black_white::auto(&loaded, &a.js_adjustments)
+        })
+        .await
+        .map_err(|e| e.to_string())?;
+        AutoMix(mix)
+    }
+    "measure_auto_white_balance" => (a: MeasureWbArgs) -> crate::mods::auto_wb_photo::Measured {
+        let handle = app_handle.clone();
+        tokio::task::spawn_blocking(move || {
+            let settings = crate::app_settings::load_settings(handle).unwrap_or_default();
+            crate::mods::auto_wb_photo::measure(
+                &a.path,
+                a.from.as_deref(),
+                &settings,
+                crate::mods::auto_wb_photo::PASTE_WAIT,
             )
-            .map_err(|e| e.to_string())
-        }
-        "restore_reblend" => {
-            let a: RestoreReblendArgs = args_for(&name, args)?;
-            serde_json::to_value(crate::mods::super_resolution::restore_reblend(a.mask).await?)
-                .map_err(|e| e.to_string())
-        }
-        "batch_super_resolution" => {
-            let a: SuperResolutionBatchArgs = args_for(&name, args)?;
-            serde_json::to_value(
-                crate::mods::super_resolution::batch(a.paths, a.scale, a.restore, app_handle)
-                    .await
-                    .map_err(|e| e.to_string())?,
-            )
-            .map_err(|e| e.to_string())
-        }
-        "profiles_for_camera" => {
-            let a: ModelArgs = args_for(&name, args)?;
-            serde_json::to_value(commands::profiles_for_camera(a.make, a.model)?)
-                .map_err(|e| e.to_string())
-        }
-        "list_ai_models" => {
-            serde_json::to_value(crate::mods::model_manager::list_for_app(&app_handle)?)
-                .map_err(|e| e.to_string())
-        }
-        "download_ai_model" => {
-            use tauri::Emitter;
-            let a: IdArgs = args_for(&name, args)?;
-            let dir = crate::mods::model_manager::models_dir(&app_handle)?;
-            let app = app_handle.clone();
-            let fetched = crate::mods::model_download::download(&dir, &a.id, move |progress| {
-                let _ = app.emit(crate::mods::model_download::EVENT, progress);
-            })
-            .await?;
-            serde_json::to_value(fetched).map_err(|e| e.to_string())
-        }
-        "stop_ai_model_download" => {
-            crate::mods::model_download::stop();
-            Ok(serde_json::Value::Null)
-        }
-        "clear_ai_model_leftovers" => {
-            let a: NamesArgs = args_for(&name, args)?;
-            let r = crate::mods::model_manager::clear_for_app(&app_handle, &a.names)?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "delete_ai_model" => {
-            let a: IdArgs = args_for(&name, args)?;
-            let r = crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "upgrade_white_balance" => {
-            // The photos among these whose saved edit predates RapidRAW 1.6.5,
-            // converted. Those converted by this call are saved one at a time
-            // in the background; see wb_legacy::save_in_turn.
-            let a: PathsArgs = args_for(&name, args)?;
-            let (found, fresh) =
-                tokio::task::spawn_blocking(move || crate::mods::wb_legacy::find_old(&a.paths))
-                    .await
-                    .map_err(|e| e.to_string())?;
-            crate::mods::wb_legacy::save_in_turn(fresh, app_handle);
-            serde_json::to_value(found).map_err(|e| e.to_string())
-        }
-        // The new interface, inside the app: see shell_photos.rs.
-        "shell_show_window" => {
-            // The window is built hidden and today's interface shows it; the
-            // new one has no window buttons of its own, so it gets the system's.
-            window.show().map_err(|e| e.to_string())?;
-            window.set_decorations(true).map_err(|e| e.to_string())?;
-            window.set_focus().map_err(|e| e.to_string())?;
-            Ok(serde_json::Value::Null)
-        }
-        "shell_launch_photo" => {
-            serde_json::to_value(shell_photos::launched_with(std::env::args().skip(1)))
-                .map_err(|e| e.to_string())
-        }
-        "shell_folder" => {
-            let a: PathArgs = args_for(&name, args)?;
-            let r = tokio::task::spawn_blocking(move || {
-                shell_photos::folder(std::path::Path::new(&a.path))
-            })
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "sample_processed_pixel" => (a: PointArgs) -> [u8; 3] {
+        commands::sample_processed_pixel(a.x, a.y, a.js_adjustments, state, app_handle)
+            .await?
+    }
+    "refresh_image_metadata" => (a: PathArgs) -> std::collections::HashMap<String, String> {
+        commands::refresh_image_metadata(a.path, app_handle)?
+    }
+    "recover_lens_name" => (a: PathArgs) -> Option<String> {
+        crate::mods::lens_name::recover_lens_name(a.path).await?
+    }
+    "lens_builtin" => (a: PathArgs) -> crate::mods::lens_builtin::Found {
+        // The camera's own lens correction, when the photo opens.
+        tokio::task::spawn_blocking(move || {
+            crate::mods::lens_builtin::lens_builtin(&a.path)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "raw_tone_curve" => (a: RawToneArgs) -> Vec<crate::mods::raw_tone::ToneCurvePoint> {
+        commands::raw_tone_curve(a.path, a.mode, app_handle)?
+    }
+    "dng_standard_held_back" => (a: PathArgs) -> Option<crate::mods::highlight_protection::HeldBack> {
+        // What a highlight-protecting camera mode held back, for the note
+        // under Rendering.
+        crate::mods::dng_standard::held_back_of(&a.path)?
+    }
+    "sharpen_auto" => (a: PathArgs) -> crate::mods::sharpen::AutoValues {
+        // What auto picked for this photo, for the Sharpening card to show.
+        crate::mods::sharpen::auto_values(&a.path)
+    }
+    "camera_profile_status" => (a: PathArgs) -> crate::mods::profiles::Status {
+        commands::camera_profile_status(a.path)?
+    }
+    "import_camera_profile" => (a: PathArgs) -> crate::mods::profiles::Installed {
+        commands::import_camera_profile(a.path)?
+    }
+    "remove_camera_profile" => (a: FileArgs) -> () {
+        commands::remove_camera_profile(a.file)?;
+    }
+    "list_cameras" => () -> Vec<crate::mods::profiles::Camera> {
+        commands::list_cameras()?
+    }
+    "forget_camera" => (a: ModelArgs) -> () {
+        commands::forget_camera(a.model)?;
+    }
+    "set_camera_default_profile" => (a: DefaultProfileArgs) -> () {
+        commands::set_camera_default_profile(a.model, a.file)?;
+    }
+    "camera_default_profile" => (a: ModelArgs) -> Option<String> {
+        commands::camera_default_profile(a.model)?
+    }
+    "get_profile_online" => (a: ModelArgs) -> Option<String> {
+        commands::get_profile_online(a.make, a.model).await?
+    }
+    "highlight_recovery" => () -> bool {
+        commands::highlight_recovery()?
+    }
+    "set_highlight_recovery" => (a: OnArgs) -> () {
+        commands::set_highlight_recovery(a.on)?;
+    }
+    "raw_decoder" => () -> crate::mods::raw_decoder::RawDecoder {
+        commands::raw_decoder()
+    }
+    "set_raw_decoder" => (a: DecoderArgs) -> () {
+        commands::set_raw_decoder(a.decoder)?;
+    }
+    "set_photo_raw_decoder" => (a: PhotoDecoderArgs) -> () {
+        crate::mods::raw_decoder::remember(&a.path, a.decoder);
+    }
+    "flashraw_handles" => (a: PathArgs) -> bool {
+        tokio::task::spawn_blocking(move || {
+            crate::mods::raw_decoder::flashraw_handles(&a.path)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "redecode_open_photo" => () -> bool {
+        crate::mods::redecode::open_photo(state, app_handle).await?
+    }
+    "tiff_bit_depth" => () -> u8 {
+        commands::tiff_bit_depth()
+    }
+    "set_tiff_bit_depth" => (a: DepthArgs) -> () {
+        commands::set_tiff_bit_depth(a.depth)?;
+    }
+    "compact_slider_gap" => () -> u8 {
+        commands::compact_slider_gap()?
+    }
+    "set_compact_slider_gap" => (a: GapArgs) -> () {
+        commands::set_compact_slider_gap(a.gap)?;
+    }
+    "editor_layout_panels" => () -> Option<crate::mods::editor_layout::LayoutPanels> {
+        commands::editor_layout_panels()?
+    }
+    "set_editor_layout_panels" => (a: LayoutPanelsArgs) -> () {
+        commands::set_editor_layout_panels(&a.panels)?;
+    }
+    "modern_theme" => () -> crate::mods::editor_layout::ModernTheme {
+        commands::modern_theme()?
+    }
+    "set_modern_theme" => (a: ThemeArgs) -> () {
+        commands::set_modern_theme(&a.theme)?;
+    }
+    "text_size" => () -> crate::mods::editor_layout::TextSize {
+        commands::text_size()?
+    }
+    "builtin_presets" => () -> Vec<crate::mods::looks::PresetGroup> {
+        let handle = app_handle.clone();
+        tokio::task::spawn_blocking(move || commands::builtin_presets(&handle))
             .await
             .map_err(|e| e.to_string())?
-            .map_err(|e| e.to_string())?;
-            serde_json::to_value(r).map_err(|e| e.to_string())
-        }
-        "shell_pick" => {
-            let a: PickArgs = args_for(&name, args)?;
-            serde_json::to_value(shell_photos::pick(&app_handle, a.from).await)
-                .map_err(|e| e.to_string())
-        }
-        other => Err(format!("unknown Argentum command: {other}")),
+    }
+    "snapshots" => (a: PathArgs) -> Vec<crate::mods::snapshots::Snapshot> {
+        tokio::task::spawn_blocking(move || commands::snapshots(&a.path))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    "set_snapshots" => (a: SnapshotsArgs) -> () {
+        tokio::task::spawn_blocking(move || commands::set_snapshots(&a.path, a.snapshots))
+            .await
+            .map_err(|e| e.to_string())??;
+    }
+    "history" => (a: PathArgs) -> Option<crate::mods::history::HistoryRecord> {
+        tokio::task::spawn_blocking(move || commands::history(&a.path))
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    "set_history" => (a: HistoryArgs) -> () {
+        tokio::task::spawn_blocking(move || commands::set_history(&a.path, a.record))
+            .await
+            .map_err(|e| e.to_string())??;
+    }
+    "looks_favourites" => () -> Vec<String> {
+        commands::looks_favourites()?
+    }
+    "set_looks_favourites" => (a: IdsArgs) -> () {
+        commands::set_looks_favourites(&a.ids)?;
+    }
+    "look_suggestions" => (a: PathArgs) -> crate::mods::look_picks::Suggested {
+        let loaded = the_open_photo(&state, &a.path)?;
+        commands::look_suggestions(&a.path, &loaded)?
+    }
+    "look_pick" => (a: LookPickArgs) -> crate::mods::look_picks::Suggested {
+        let loaded = the_open_photo(&state, &a.path)?;
+        commands::look_pick(&a.path, &a.lut, &loaded)?
+    }
+    "look_unpick" => (a: PathArgs) -> crate::mods::look_picks::Suggested {
+        let loaded = the_open_photo(&state, &a.path)?;
+        commands::look_unpick(&a.path, &loaded)?
+    }
+    "set_look_learning" => (a: LearningArgs) -> () {
+        commands::set_look_learning(a.on)?;
+    }
+    "forget_look_picks" => () -> () {
+        commands::forget_look_picks()?;
+    }
+    "set_text_size" => (a: TextSizeArgs) -> () {
+        commands::set_text_size(&a.size)?;
+    }
+    "modern_start" => (a: ModernStartArgs) -> crate::mods::modern_start::ModernStart {
+        tokio::task::spawn_blocking(move || {
+            commands::modern_start(a.last_folder.as_deref(), &a.expanded)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "folder_photo_count" => (a: PathArgs) -> u32 {
+        tokio::task::spawn_blocking(move || {
+            crate::mods::folder_counts::photo_count(std::path::Path::new(&a.path))
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+    "add_recent_folder" => (a: PathArgs) -> Vec<String> {
+        tokio::task::spawn_blocking(move || commands::add_recent_folder(&a.path))
+            .await
+            .map_err(|e| e.to_string())??
+    }
+    "rename_recent_folder" => (a: FolderRenameArgs) -> Vec<String> {
+        tokio::task::spawn_blocking(move || {
+            commands::rename_recent_folder(&a.old_path, &a.new_path)
+        })
+        .await
+        .map_err(|e| e.to_string())??
+    }
+    "super_resolution_preview" => (a: SuperResolutionPreviewArgs) -> crate::mods::super_resolution::PreviewPayload {
+        crate::mods::super_resolution::preview(a.path, a.scale, a.restore, app_handle)
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    "save_super_resolution" => (a: SuperResolutionSaveArgs) -> String {
+        crate::mods::super_resolution::save(a.path, app_handle).await?
+    }
+    "discard_super_resolution" => () -> () {
+        crate::mods::super_resolution::discard();
+    }
+    "restore_mask" => (a: RestoreMaskArgs) -> String {
+        crate::mods::super_resolution::restore_mask(a.path, a.mask, app_handle).await?
+    }
+    "restore_reblend" => (a: RestoreReblendArgs) -> String {
+        crate::mods::super_resolution::restore_reblend(a.mask).await?
+    }
+    "batch_super_resolution" => (a: SuperResolutionBatchArgs) -> Vec<String> {
+        crate::mods::super_resolution::batch(a.paths, a.scale, a.restore, app_handle)
+            .await
+            .map_err(|e| e.to_string())?
+    }
+    "profiles_for_camera" => (a: ModelArgs) -> commands::CameraProfiles {
+        commands::profiles_for_camera(a.make, a.model)?
+    }
+    "list_ai_models" => () -> crate::mods::model_manager::Listing {
+        crate::mods::model_manager::list_for_app(&app_handle)?
+    }
+    "download_ai_model" => (a: IdArgs) -> u64 {
+        use tauri::Emitter;
+        let dir = crate::mods::model_manager::models_dir(&app_handle)?;
+        let app = app_handle.clone();
+        crate::mods::model_download::download(&dir, &a.id, move |progress| {
+            let _ = app.emit(crate::mods::model_download::EVENT, progress);
+        })
+        .await?
+    }
+    "stop_ai_model_download" => () -> () {
+        crate::mods::model_download::stop();
+    }
+    "clear_ai_model_leftovers" => (a: NamesArgs) -> crate::mods::model_manager::Cleared {
+        crate::mods::model_manager::clear_for_app(&app_handle, &a.names)?
+    }
+    "delete_ai_model" => (a: IdArgs) -> crate::mods::model_manager::Outcome {
+        crate::mods::model_manager::delete_for_app(&app_handle, &a.id)?
+    }
+    "upgrade_white_balance" => (a: PathsArgs) -> Vec<crate::mods::wb_legacy::Found> {
+        // The photos among these whose saved edit predates RapidRAW 1.6.5,
+        // converted. Those converted by this call are saved one at a time
+        // in the background; see wb_legacy::save_in_turn.
+        let (found, fresh) =
+            tokio::task::spawn_blocking(move || crate::mods::wb_legacy::find_old(&a.paths))
+                .await
+                .map_err(|e| e.to_string())?;
+        crate::mods::wb_legacy::save_in_turn(fresh, app_handle);
+        found
+    }
+    // The new interface, inside the app: see shell_photos.rs.
+    "shell_show_window" => () -> () {
+        // The window is built hidden and today's interface shows it; the
+        // new one has no window buttons of its own, so it gets the system's.
+        window.show().map_err(|e| e.to_string())?;
+        window.set_decorations(true).map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    "shell_launch_photo" => () -> Option<String> {
+        shell_photos::launched_with(std::env::args().skip(1))
+    }
+    "shell_folder" => (a: PathArgs) -> Vec<String> {
+        tokio::task::spawn_blocking(move || {
+            shell_photos::folder(std::path::Path::new(&a.path))
+        })
+        .await
+        .map_err(|e| e.to_string())?
+        .map_err(|e| e.to_string())?
+    }
+    "shell_pick" => (a: PickArgs) -> Option<String> {
+        shell_photos::pick(&app_handle, a.from).await
     }
 }
 

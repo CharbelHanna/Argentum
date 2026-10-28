@@ -36,7 +36,7 @@ export default function RefreshMetadataButton() {
 
     setBusy(true);
     try {
-      const exif: Record<string, string> = await ag('refresh_image_metadata', {
+      const exif = await ag('refresh_image_metadata', {
         path: selected.path,
       });
 

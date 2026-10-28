@@ -30,6 +30,7 @@ const MAX_SLIDER_GAP: u8 = 12;
 /// What the Modern arrangement's own parts were left as. The interface
 /// owns the tab ids, the widths and what they start as; this only keeps them.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct LayoutPanels {
     /// The Navigator section is open.
@@ -80,6 +81,7 @@ pub fn save_panels(library: &Path, panels: &LayoutPanels) -> Result<(), String> 
 /// The Modern window's palette. Crosses to the interface as its lowercase
 /// name. Classic keeps the app's own theme setting and never reads this.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum ModernTheme {
     /// Lightroom Classic's neutral greys, with a lighter backdrop behind the photo.
@@ -110,6 +112,7 @@ pub fn save_theme(library: &Path, theme: ModernTheme) -> Result<(), String> {
 /// How large the panels' text is drawn. Crosses to the interface as its
 /// lowercase name; the interface owns what each step scales by.
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "lowercase")]
 pub enum TextSize {
     Small,

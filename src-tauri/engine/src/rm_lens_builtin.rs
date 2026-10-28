@@ -106,6 +106,7 @@ mod test_files;
 /// beyond 1 (`reach`). Values are linearly interpolated and held constant
 /// beyond the outermost knots.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Radial {
     pub knots: Vec<f32>,
@@ -144,6 +145,7 @@ impl Radial {
 
 /// One flag for each part of a lens correction.
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct Parts {
     pub distortion: bool,
@@ -161,6 +163,7 @@ impl Parts {
 
 /// Built-in lens correction for one photo.
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
 #[serde(deny_unknown_fields)]
 pub struct LensCorrection {
     /// Where the data came from, for display, e.g. "Fujifilm built-in".
@@ -181,6 +184,7 @@ pub struct LensCorrection {
     /// the profile has none. `None`, as in every correction stored before this
     /// field: all three, so no profile is ever used beside it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub always: Option<Parts>,
     /// The optical centre the radial functions are measured from, in
     /// fractions of the developed image's width and height: where the
@@ -189,6 +193,7 @@ pub struct LensCorrection {
     /// this field: the image centre, framed as it was then
     /// (`fill_scale_with`), so a saved edit renders as it did.
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[cfg_attr(feature = "ts", ts(optional))]
     pub centre: Option<[f32; 2]>,
 }
 

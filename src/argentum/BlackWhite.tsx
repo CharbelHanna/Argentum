@@ -61,7 +61,8 @@ async function measureAuto(edit: unknown): Promise<{ mix: Mix | null; stale: boo
   }
   let mix: Mix | null = null;
   try {
-    mix = await agCommand<Mix>('black_white_auto', { path: photo.path, jsAdjustments: edit });
+    // A piece of the edit, whose band names are ours: `unknown` from the Rust side.
+    mix = (await agCommand('black_white_auto', { path: photo.path, jsAdjustments: edit })) as Mix;
   } catch (err) {
     console.error('Auto B&W mix failed:', err);
   }
