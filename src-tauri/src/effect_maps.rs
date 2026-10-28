@@ -1,4 +1,4 @@
-use crate::cache_utils::GEOMETRY_KEYS;
+use crate::cache_utils::hash_geometry;
 use crate::image_processing::{
     GeometryParams, get_geometry_params_from_json, is_geometry_identity, warp_image_geometry,
 };
@@ -37,13 +37,7 @@ pub fn effect_map_key(data_url: &str, adjustments: &serde_json::Value) -> u64 {
     data_url.hash(&mut hasher);
 
     if is_source_space_map(data_url) {
-        for key in GEOMETRY_KEYS {
-            if let Some(val) = adjustments.get(key) {
-                key.hash(&mut hasher);
-                val.to_string().hash(&mut hasher);
-            }
-        }
-        crate::mods::lens_builtin::fold(0, adjustments).hash(&mut hasher); // Argentum
+        hash_geometry(adjustments, &mut hasher);
     }
 
     hasher.finish()

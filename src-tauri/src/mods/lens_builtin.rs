@@ -27,7 +27,6 @@
 //! there, off. A photo edited before this existed keeps the look it was
 //! edited with until the switch is turned on.
 
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use argentum_engine::rm_lens_builtin::{Amounts, LensCorrection, LensMap, Parts};
@@ -145,25 +144,6 @@ pub fn with_lensfun(
         }
     }
     (Some(builtin), lensfun)
-}
-
-/// A geometry cache's `hash` with the edit's keys for it folded in. Their
-/// `GEOMETRY_KEYS` (cache_utils.rs) has no room for ours, so the preview's
-/// caches in lib.rs fold them in here.
-pub fn fold(hash: u64, adjustments: &serde_json::Value) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    hash.hash(&mut hasher);
-    hash_into(adjustments, &mut hasher);
-    hasher.finish()
-}
-
-fn hash_into(adjustments: &serde_json::Value, hasher: &mut impl Hasher) {
-    for key in KEYS {
-        if let Some(value) = adjustments.get(key) {
-            key.hash(hasher);
-            value.to_string().hash(hasher);
-        }
-    }
 }
 
 /// What the editor needs when a photo opens.
@@ -511,8 +491,8 @@ mod tests {
     fn its_keys_change_the_geometry_hash() {
         let on = json!({ "lensBuiltin": true, "lensBuiltinParams": correction() });
         let off = json!({ "lensBuiltin": false, "lensBuiltinParams": correction() });
-        assert_ne!(fold(7, &on), fold(7, &off));
-        assert_eq!(fold(7, &on), fold(7, &on.clone()));
-        assert_ne!(fold(7, &on), fold(8, &on));
+        let hash = crate::cache_utils::calculate_geometry_hash;
+        assert_ne!(hash(&on), hash(&off));
+        assert_eq!(hash(&on), hash(&on.clone()));
     }
 }

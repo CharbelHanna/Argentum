@@ -29,6 +29,21 @@ pub const GEOMETRY_KEYS: &[&str] = &[
     "guidedPerspective",
 ];
 
+/// Hashes what moves pixels around: `GEOMETRY_KEYS`, then the camera's own
+/// lens correction (`mods/lens_builtin.rs`). A new warp's keys go in a list
+/// of their own, chained here: `calculate_visual_hash` skips `GEOMETRY_KEYS`.
+pub fn hash_geometry(adjustments: &serde_json::Value, hasher: &mut impl Hasher) {
+    let keys = GEOMETRY_KEYS
+        .iter()
+        .chain(crate::mods::lens_builtin::KEYS.iter());
+    for key in keys {
+        if let Some(val) = adjustments.get(key) {
+            key.hash(hasher);
+            val.to_string().hash(hasher);
+        }
+    }
+}
+
 fn hash_ai_patches(adjustments: &serde_json::Value, hasher: &mut DefaultHasher) {
     if let Some(patches_val) = adjustments.get("aiPatches")
         && let Some(patches_arr) = patches_val.as_array()
@@ -137,12 +152,7 @@ pub fn calculate_patch_hash(adjustments: &serde_json::Value) -> u64 {
     if uses_generated_masks {
         hash_orientation(adjustments, &mut hasher);
 
-        for key in GEOMETRY_KEYS {
-            if let Some(val) = adjustments.get(key) {
-                key.hash(&mut hasher);
-                val.to_string().hash(&mut hasher);
-            }
-        }
+        hash_geometry(adjustments, &mut hasher);
     }
 
     hasher.finish()
@@ -153,12 +163,7 @@ pub fn calculate_geometry_hash(adjustments: &serde_json::Value) -> u64 {
 
     calculate_patch_hash(adjustments).hash(&mut hasher);
 
-    for key in GEOMETRY_KEYS {
-        if let Some(val) = adjustments.get(key) {
-            key.hash(&mut hasher);
-            val.to_string().hash(&mut hasher);
-        }
-    }
+    hash_geometry(adjustments, &mut hasher);
 
     hasher.finish()
 }
@@ -371,12 +376,7 @@ pub fn calculate_transform_hash(adjustments: &serde_json::Value) -> u64 {
         crop_val.to_string().hash(&mut hasher);
     }
 
-    for key in GEOMETRY_KEYS {
-        if let Some(val) = adjustments.get(key) {
-            key.hash(&mut hasher);
-            val.to_string().hash(&mut hasher);
-        }
-    }
+    hash_geometry(adjustments, &mut hasher);
 
     hash_ai_patches(adjustments, &mut hasher);
 
@@ -735,5 +735,60 @@ mod tests {
         cache.insert("d".into(), fp.clone(), image(), HashMap::new());
         assert!(cache.get("c", &fp).is_none());
         assert!(cache.get("b", &fp).is_some());
+    }
+
+    fn geometry_of(adjustments: &serde_json::Value) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        hash_geometry(adjustments, &mut hasher);
+        hasher.finish()
+    }
+
+    /// Every key that moves pixels around, ours for the camera's own lens
+    /// correction included, moves the geometry.
+    #[test]
+    fn every_geometry_key_moves_the_geometry() {
+        let none = serde_json::json!({});
+        let keys = GEOMETRY_KEYS
+            .iter()
+            .chain(crate::mods::lens_builtin::KEYS.iter());
+        for key in keys {
+            let one = serde_json::json!({ *key: 1 });
+            assert_ne!(geometry_of(&none), geometry_of(&one), "{key}");
+        }
+    }
+
+    /// The built-in lens correction warps the picture, so the transform hash
+    /// tells the two apart for every cache keyed on it: the preview, the
+    /// export's reuse of it, the LUT swatches.
+    #[test]
+    fn the_built_in_lens_correction_moves_the_transform_hash() {
+        let off = serde_json::json!({ "lensBuiltin": false });
+        let on = serde_json::json!({ "lensBuiltin": true });
+        assert_ne!(
+            calculate_transform_hash(&off),
+            calculate_transform_hash(&on)
+        );
+        let params =
+            |k1: f64| serde_json::json!({ "lensBuiltin": true, "lensBuiltinParams": { "k1": k1 } });
+        assert_ne!(
+            calculate_transform_hash(&params(0.1)),
+            calculate_transform_hash(&params(0.2))
+        );
+    }
+
+    /// The visual hash keys the picture before the warp. It skips
+    /// `GEOMETRY_KEYS` and reads every other key, the built-in lens's
+    /// included; folding ours into the geometry leaves it as it was.
+    #[test]
+    fn the_visual_hash_skips_the_geometry_keys_and_reads_the_rest() {
+        let visual = |adjustments| calculate_visual_hash("photo.cr3", &adjustments);
+        assert_eq!(
+            visual(serde_json::json!({ "transformRotate": 0 })),
+            visual(serde_json::json!({ "transformRotate": 5 }))
+        );
+        assert_ne!(
+            visual(serde_json::json!({ "lensBuiltin": false })),
+            visual(serde_json::json!({ "lensBuiltin": true }))
+        );
     }
 }
