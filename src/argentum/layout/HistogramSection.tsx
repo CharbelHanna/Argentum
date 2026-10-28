@@ -6,8 +6,8 @@
  * through the same controls as the Adjustments and Masks panels feed it. Open
  * or folded is today's isWaveformVisible: the same switch as their chart
  * button and its keyboard shortcut, saved where it always was, and what tells
- * the renderer to compute the waveform at all. Those panels leave their own
- * copy out in this arrangement (their showWaveform prop), so there is one.
+ * the renderer to compute the waveform at all. Those panels no longer carry
+ * a copy of their own, so there is one.
  */
 
 import { useShallow } from 'zustand/react/shallow';

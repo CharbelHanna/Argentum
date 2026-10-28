@@ -62,7 +62,7 @@ export default function ModernSettings(props: SettingsProps) {
         <div className="agm-settings-foot">{agT('mwSettingsKeys')}</div>
       </nav>
       <div className="agm-settings-body custom-scrollbar">
-        <SettingsPanel {...props} onBack={close} modernCategory={section} />
+        <SettingsPanel {...props} modernCategory={section} />
       </div>
     </div>
   );
