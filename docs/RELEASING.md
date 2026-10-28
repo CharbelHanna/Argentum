@@ -62,5 +62,9 @@ A release is a merge commit on `main`, published in this order.
    `_tethering` files are (`scripts/release-downloads.mjs`). If a build failed,
    that job does not run; once the files are attached, run
    `node scripts/release-downloads.mjs <version>` by hand.
+   Another job compares each installer with the same file of the previous
+   release (`scripts/installer-size.mjs`) and fails when one grew by more than
+   3%: add a line starting `Installer size:` to the notes saying why, then re-run
+   that job.
 5. **Bump.** A "Bump development version to <next>" PR changes the same three
    lines as step 1.

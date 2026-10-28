@@ -84,3 +84,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
+
+  # Each installer against the same file of the release before: one that grew by more than 3%
+  # fails this job until the notes say why, in a line starting "Installer size:"; then re-run it
+  # (scripts/installer-size.mjs). North star 7: installer size is the smoke alarm.
+  installer-size:
+    needs: release
+    if: github.event_name == 'release'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installer size against the last release
+        run: node scripts/installer-size.mjs "${{ github.event.release.tag_name }}"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
