@@ -17,11 +17,15 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::ag_settings;
+use super::ag_settings::Setting;
 
-const PANELS_KEY: &str = "editorLayoutPanels";
-const THEME_KEY: &str = "modernTheme";
-const TEXT_SIZE_KEY: &str = "modernTextSize";
+const PANELS: Setting<LayoutPanels> = Setting::new("editorLayoutPanels");
+const THEME: Setting<ModernTheme> = Setting::new("modernTheme");
+const TEXT_SIZE: Setting<TextSize> = Setting::new("modernTextSize");
+const COMPACT_SLIDER_GAP: Setting<u64> = Setting::new("compactSliderGap");
+
+/// The most space Row spacing offers under a compact slider, in pixels.
+const MAX_SLIDER_GAP: u8 = 12;
 
 /// What the Modern arrangement's own parts were left as. The interface
 /// owns the tab ids, the widths and what they start as; this only keeps them.
@@ -65,13 +69,12 @@ fn open() -> bool {
 /// The arrangement's parts as last left, or `None` if never saved or not
 /// readable as panels, for the interface to start them its own way.
 pub fn panels(library: &Path) -> Option<LayoutPanels> {
-    ag_settings::get(library, PANELS_KEY).and_then(|value| serde_json::from_value(value).ok())
+    PANELS.load(library)
 }
 
 /// Remember the arrangement's parts.
 pub fn save_panels(library: &Path, panels: &LayoutPanels) -> Result<(), String> {
-    let value = serde_json::to_value(panels).map_err(|e| e.to_string())?;
-    ag_settings::set(library, PANELS_KEY, value)
+    PANELS.save(library, panels)
 }
 
 /// The Modern window's palette. Crosses to the interface as its lowercase
@@ -96,15 +99,12 @@ impl ModernTheme {
 
 /// The chosen palette, or Grey.
 pub fn theme(library: &Path) -> ModernTheme {
-    ag_settings::get(library, THEME_KEY)
-        .and_then(|value| value.as_str().map(ModernTheme::from_name))
-        .unwrap_or_default()
+    THEME.load(library).unwrap_or_default()
 }
 
 /// Choose a palette.
 pub fn save_theme(library: &Path, theme: ModernTheme) -> Result<(), String> {
-    let value = serde_json::to_value(theme).map_err(|e| e.to_string())?;
-    ag_settings::set(library, THEME_KEY, value)
+    THEME.save(library, &theme)
 }
 
 /// How large the panels' text is drawn. Crosses to the interface as its
@@ -127,15 +127,25 @@ impl TextSize {
 
 /// The chosen text size, or Normal.
 pub fn text_size(library: &Path) -> TextSize {
-    ag_settings::get(library, TEXT_SIZE_KEY)
-        .and_then(|value| value.as_str().map(TextSize::from_name))
-        .unwrap_or_default()
+    TEXT_SIZE.load(library).unwrap_or_default()
 }
 
 /// Choose a text size.
 pub fn save_text_size(library: &Path, size: TextSize) -> Result<(), String> {
-    let value = serde_json::to_value(size).map_err(|e| e.to_string())?;
-    ag_settings::set(library, TEXT_SIZE_KEY, value)
+    TEXT_SIZE.save(library, &size)
+}
+
+/// Space under each compact slider row, in pixels. 4 until chosen.
+pub fn compact_slider_gap(library: &Path) -> u8 {
+    COMPACT_SLIDER_GAP
+        .load(library)
+        .map(|gap| gap.min(u64::from(MAX_SLIDER_GAP)) as u8)
+        .unwrap_or(4)
+}
+
+/// Choose it. Anything past the slider's end is stored as its end.
+pub fn save_compact_slider_gap(library: &Path, gap: u8) -> Result<(), String> {
+    COMPACT_SLIDER_GAP.save(library, &u64::from(gap.min(MAX_SLIDER_GAP)))
 }
 
 #[cfg(test)]
@@ -179,12 +189,12 @@ mod tests {
     #[test]
     fn panels_saved_by_an_earlier_version_still_read() {
         let dir = scratch("panels-earlier");
-        ag_settings::set(
-            &dir,
-            PANELS_KEY,
-            serde_json::json!({ "navigatorOpen": true, "tab": null, "tabWidthPx": 245 }),
-        )
-        .expect("write");
+        Setting::<Value>::new("editorLayoutPanels")
+            .save(
+                &dir,
+                &serde_json::json!({ "navigatorOpen": true, "tab": null, "tabWidthPx": 245 }),
+            )
+            .expect("write");
         let read = panels(&dir).expect("readable");
         assert!(read.history_open);
         assert_eq!(read.history_height_px, None);
@@ -197,14 +207,12 @@ mod tests {
     #[test]
     fn a_value_that_is_not_panels_reads_as_none() {
         let dir = scratch("panels-foreign");
-        ag_settings::set(
-            &dir,
-            PANELS_KEY,
-            serde_json::json!({ "navigatorOpen": false }),
-        )
-        .expect("write");
+        let raw = Setting::<Value>::new("editorLayoutPanels");
+        raw.save(&dir, &serde_json::json!({ "navigatorOpen": false }))
+            .expect("write");
         assert_eq!(panels(&dir), None);
-        ag_settings::set(&dir, PANELS_KEY, Value::from("not an object")).expect("write");
+        raw.save(&dir, &Value::from("not an object"))
+            .expect("write");
         assert_eq!(panels(&dir), None);
     }
 
@@ -237,7 +245,7 @@ mod tests {
     #[test]
     fn saving_leaves_the_other_preferences_alone() {
         let dir = scratch("neighbours");
-        ag_settings::set(&dir, "compactSliderGap", Value::from(6)).expect("write");
+        save_compact_slider_gap(&dir, 6).expect("write");
         save_theme(&dir, ModernTheme::Deep).expect("write");
         save_text_size(&dir, TextSize::Large).expect("write");
         let left = LayoutPanels {
@@ -252,9 +260,6 @@ mod tests {
             folded: Vec::new(),
         };
         save_panels(&dir, &left).expect("write");
-        assert_eq!(
-            ag_settings::get(&dir, "compactSliderGap"),
-            Some(Value::from(6))
-        );
+        assert_eq!(compact_slider_gap(&dir), 6);
     }
 }

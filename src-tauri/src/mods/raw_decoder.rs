@@ -47,8 +47,12 @@ pub enum RawDecoder {
     FlashRaw,
 }
 
-/// The key the app's default is stored under (mods/ag_settings.rs).
+/// The key of a decoder choice: the app's default in our preferences, and a
+/// photo's own in its edit's adjustments.
 const KEY: &str = "rawDecoder";
+
+/// The app's default, as saved (mods/ag_settings.rs).
+const SETTING: super::ag_settings::Setting<RawDecoder> = super::ag_settings::Setting::new(KEY);
 
 static FLASHRAW_BY_DEFAULT: AtomicBool = AtomicBool::new(false);
 
@@ -66,16 +70,14 @@ pub fn default_decoder() -> RawDecoder {
 
 /// Read the default at startup. Missing or unreadable means rawler.
 pub fn load(library: &Path) {
-    let saved = super::ag_settings::get(library, KEY)
-        .and_then(|v| serde_json::from_value::<RawDecoder>(v).ok());
+    let saved = SETTING.load(library);
     FLASHRAW_BY_DEFAULT.store(saved == Some(RawDecoder::FlashRaw), Ordering::Relaxed);
 }
 
 /// Write the default, and use it from the next decode.
 pub fn save(library: &Path, decoder: RawDecoder) -> Result<(), String> {
     FLASHRAW_BY_DEFAULT.store(decoder == RawDecoder::FlashRaw, Ordering::Relaxed);
-    let value = serde_json::to_value(decoder).map_err(|e| e.to_string())?;
-    super::ag_settings::set(library, KEY, value)
+    SETTING.save(library, &decoder)
 }
 
 /// A photo's choice, from the interface, in force from the next decode.

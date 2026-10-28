@@ -996,8 +996,9 @@ pub fn auto_values(photo: &str) -> serde_json::Value {
 /// the version that brings capture sharpening, and leave it a user's setting
 /// from then on. The marker is ours, so a user who turns it back up keeps it.
 pub fn retire_presharpening_once(app: &tauri::AppHandle, library: &std::path::Path) {
-    const DONE: &str = "preSharpeningRetired";
-    if super::ag_settings::get(library, DONE).is_some() {
+    const DONE: super::ag_settings::Setting<bool> =
+        super::ag_settings::Setting::new("preSharpeningRetired");
+    if DONE.load(library).is_some() {
         return;
     }
     let Ok(mut settings) = crate::app_settings::load_settings(app.clone()) else {
@@ -1005,7 +1006,7 @@ pub fn retire_presharpening_once(app: &tauri::AppHandle, library: &std::path::Pa
     };
     settings.raw_preprocessing_sharpening = Some(0.0);
     if crate::app_settings::save_settings(settings, app.clone()).is_ok() {
-        let _ = super::ag_settings::set(library, DONE, Value::Bool(true));
+        let _ = DONE.save(library, &true);
         log::info!("Base pre-sharpening set to 0: capture sharpening replaces it");
     }
 }

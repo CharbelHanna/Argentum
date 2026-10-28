@@ -373,26 +373,16 @@ pub fn set_tiff_bit_depth(depth: u8) -> Result<(), String> {
     )
 }
 
-/// The most space Row spacing offers under a compact slider, in pixels.
-const MAX_SLIDER_GAP: u8 = 12;
-
-/// Space under each compact slider row, in pixels. 4 until chosen.
+/// Space under each compact slider row, in pixels (mods/editor_layout.rs).
 pub fn compact_slider_gap() -> Result<u8, String> {
-    Ok(
-        crate::mods::ag_settings::get(profile_library()?, "compactSliderGap")
-            .and_then(|v| v.as_u64())
-            .map(|gap| gap.min(MAX_SLIDER_GAP as u64) as u8)
-            .unwrap_or(4),
-    )
+    Ok(crate::mods::editor_layout::compact_slider_gap(
+        profile_library()?,
+    ))
 }
 
-/// Choose it. Anything past the slider's end is stored as its end.
+/// Choose it.
 pub fn set_compact_slider_gap(gap: u8) -> Result<(), String> {
-    crate::mods::ag_settings::set(
-        profile_library()?,
-        "compactSliderGap",
-        serde_json::Value::from(gap.min(MAX_SLIDER_GAP)),
-    )
+    crate::mods::editor_layout::save_compact_slider_gap(profile_library()?, gap)
 }
 
 /// What the Modern arrangement's own parts were left as, if ever saved.

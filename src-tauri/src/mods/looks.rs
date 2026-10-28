@@ -17,7 +17,7 @@ use std::path::Path;
 use serde::Serialize;
 use serde_json::Value;
 
-use super::ag_settings;
+use super::ag_settings::Setting;
 
 /// The groups shipped, in the order RAWmakase lists them: each one's folder,
 /// and its name as shown.
@@ -30,7 +30,7 @@ pub const GROUPS: [(&str, &str); 6] = [
     ("Vignetting", "Vignetting"),
 ];
 
-const FAVOURITES_KEY: &str = "looksFavourites";
+const FAVOURITES: Setting<Vec<String>> = Setting::new("looksFavourites");
 
 #[derive(Serialize, Debug)]
 pub struct BuiltinPreset {
@@ -88,14 +88,12 @@ pub fn builtin_presets(dir: &Path) -> Vec<PresetGroup> {
 
 /// The starred looks' ids, none until one is starred.
 pub fn favourites(library: &Path) -> Vec<String> {
-    ag_settings::get(library, FAVOURITES_KEY)
-        .and_then(|value| serde_json::from_value(value).ok())
-        .unwrap_or_default()
+    FAVOURITES.load(library).unwrap_or_default()
 }
 
 /// Keep `ids` as the starred looks.
 pub fn save_favourites(library: &Path, ids: &[String]) -> Result<(), String> {
-    ag_settings::set(library, FAVOURITES_KEY, Value::from(ids.to_vec()))
+    FAVOURITES.save(library, &ids.to_vec())
 }
 
 #[cfg(test)]

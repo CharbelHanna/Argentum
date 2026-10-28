@@ -21,16 +21,52 @@
 //! caused it.
 //!
 //! So reading and writing go through here: load the object, change one key, put
-//! it back. Nothing else in the file is touched.
+//! it back. Nothing else in the file is touched. Each preference is a
+//! [`Setting`], its key and type declared once by the module that owns it.
 //!
 //! A missing, empty or corrupt file reads as "no value" rather than an error;
 //! a corrupt one is copied aside first (mods/salvage.rs).
 //! The preference is a convenience; it is not worth failing a startup over, and
 //! every caller has a sensible default already.
 
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
+
+/// One preference: its key in the file and the type it is stored as. The
+/// module that owns it declares it once, as a `const`, and reads and writes
+/// only through it.
+pub struct Setting<T> {
+    key: &'static str,
+    stored_as: PhantomData<fn() -> T>,
+}
+
+impl<T> Setting<T> {
+    pub const fn new(key: &'static str) -> Self {
+        Self {
+            key,
+            stored_as: PhantomData,
+        }
+    }
+}
+
+impl<T: DeserializeOwned> Setting<T> {
+    /// What was saved, or `None` if nothing was or it is not a `T`.
+    pub fn load(&self, library: &Path) -> Option<T> {
+        get(library, self.key).and_then(|value| serde_json::from_value(value).ok())
+    }
+}
+
+impl<T: Serialize> Setting<T> {
+    /// Save `value`, leaving every other preference exactly as it was.
+    pub fn save(&self, library: &Path, value: &T) -> Result<(), String> {
+        let value = serde_json::to_value(value).map_err(|e| e.to_string())?;
+        set(library, self.key, value)
+    }
+}
 
 /// Where the preferences live.
 fn path(library: &Path) -> PathBuf {
@@ -65,7 +101,7 @@ fn read_all(library: &Path) -> Map<String, Value> {
 }
 
 /// One preference, or `None` if it has never been set.
-pub fn get(library: &Path, key: &str) -> Option<Value> {
+fn get(library: &Path, key: &str) -> Option<Value> {
     read_all(library).remove(key)
 }
 
@@ -84,7 +120,7 @@ pub fn get(library: &Path, key: &str) -> Option<Value> {
 static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 /// Set one preference, leaving every other key exactly as it was.
-pub fn set(library: &Path, key: &str, value: Value) -> Result<(), String> {
+fn set(library: &Path, key: &str, value: Value) -> Result<(), String> {
     let _serialised = WRITING
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -215,5 +251,29 @@ mod tests {
         assert_eq!(get(&dir, "highlightRecovery"), None);
         set(&dir, "tiffBitDepth", Value::from(16)).expect("write");
         assert_eq!(get(&dir, "tiffBitDepth"), Some(Value::from(16)));
+    }
+
+    #[test]
+    fn a_setting_reads_back_what_it_saved_and_none_before() {
+        let dir = scratch("typed");
+        let folders: Setting<Vec<String>> = Setting::new("recentFolders");
+        assert_eq!(folders.load(&dir), None);
+        folders.save(&dir, &vec!["/a".to_string()]).expect("write");
+        assert_eq!(folders.load(&dir), Some(vec!["/a".to_string()]));
+    }
+
+    /// A hand-edited or future file can hold anything under a key: a value
+    /// that is not the setting's type reads as unset, and the caller's
+    /// default applies.
+    #[test]
+    fn a_value_of_another_type_reads_as_unset() {
+        let dir = scratch("typed-foreign");
+        let depth: Setting<u8> = Setting::new("tiffBitDepth");
+        for stored in [Value::from("eight"), Value::from(264), Value::from(-8)] {
+            Setting::<Value>::new("tiffBitDepth")
+                .save(&dir, &stored)
+                .expect("write");
+            assert_eq!(depth.load(&dir), None, "{stored}");
+        }
     }
 }

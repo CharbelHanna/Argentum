@@ -1692,26 +1692,22 @@ pub fn enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
 }
 
-/// The key this preference is stored under.
-///
-/// The file itself, and the read-modify-write that keeps other preferences
-/// alive, are in `mods/ag_settings.rs`. This module used to own both, and wrote
-/// the whole file on every save - which was correct while Argentum had exactly
-/// one preference and would have quietly erased it the moment there were two.
-const KEY: &str = "highlightRecovery";
+/// The preference, stored in `mods/ag_settings.rs`'s file. This module used
+/// to own the file too, and wrote all of it on every save - which was correct
+/// while Argentum had exactly one preference and would have quietly erased it
+/// the moment there were two.
+const SETTING: super::ag_settings::Setting<bool> =
+    super::ag_settings::Setting::new("highlightRecovery");
 
 /// Read the preference at startup. Missing or unreadable means on.
 pub fn load(library: &std::path::Path) {
-    let on = super::ag_settings::get(library, KEY)
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-    set_enabled(on);
+    set_enabled(SETTING.load(library).unwrap_or(true));
 }
 
 /// Write it, and apply it now.
 pub fn save(library: &std::path::Path, on: bool) -> Result<(), String> {
     set_enabled(on);
-    super::ag_settings::set(library, KEY, serde_json::Value::Bool(on))
+    SETTING.save(library, &on)
 }
 
 #[cfg(test)]

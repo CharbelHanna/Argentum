@@ -204,8 +204,10 @@ impl TiffDepth {
 /// the UI, and it is one byte.
 static TIFF_DEPTH: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(16);
 
-/// The key in `argentum-processing.json`.
-const TIFF_DEPTH_KEY: &str = "tiffBitDepth";
+/// The preference in `argentum-processing.json`. A stored value that is not a
+/// byte reads as unset: `try_from`, not `as`, so 264 is not 8.
+const TIFF_DEPTH_SETTING: crate::mods::ag_settings::Setting<u8> =
+    crate::mods::ag_settings::Setting::new("tiffBitDepth");
 
 /// What an export will use right now.
 pub fn tiff_depth() -> TiffDepth {
@@ -223,27 +225,24 @@ pub fn set_runtime_depth(depth: TiffDepth) {
 /// what every export did before this setting existed - so upgrading changes
 /// nobody's output until they ask for it.
 pub fn load(library: &std::path::Path) {
-    let depth = depth_from(crate::mods::ag_settings::get(library, TIFF_DEPTH_KEY));
+    let depth = saved_depth(library);
     TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
 }
 
-/// What a stored value means, with no file and no global involved.
+/// The saved depth, with no global involved.
 ///
-/// Pure so the awkward values can be tested without writing to `TIFF_DEPTH`.
-/// The first version of that test did write to it, and since `for_extension`
-/// reads the same global and `cargo test` runs in parallel, it was a flake that
-/// would have passed hundreds of times and then failed once on CI for a commit
-/// that touched nothing near it. That is the whole reason `for_extension_at`
-/// exists, and the test went round it.
+/// Apart from `load` so the awkward values can be tested without writing to
+/// `TIFF_DEPTH`. The first version of that test did write to it, and since
+/// `for_extension` reads the same global and `cargo test` runs in parallel, it
+/// was a flake that would have passed hundreds of times and then failed once
+/// on CI for a commit that touched nothing near it. That is the whole reason
+/// `for_extension_at` exists, and the test went round it.
 ///
-/// `try_from` rather than `as`: a hand-edited or future preferences file saying
-/// 264 would truncate to 8 and silently export at half the depth that was asked
-/// for. Out of range means "not a depth we know", which is 16 - what an export
-/// did before the setting existed.
-fn depth_from(stored: Option<serde_json::Value>) -> TiffDepth {
-    stored
-        .and_then(|v| v.as_u64())
-        .and_then(|v| u8::try_from(v).ok())
+/// Unset or not a byte means "not a depth we know", which is 16 - what an
+/// export did before the setting existed.
+fn saved_depth(library: &std::path::Path) -> TiffDepth {
+    TIFF_DEPTH_SETTING
+        .load(library)
         .map(TiffDepth::from_u8)
         .unwrap_or(TiffDepth::Sixteen)
 }
@@ -251,11 +250,7 @@ fn depth_from(stored: Option<serde_json::Value>) -> TiffDepth {
 /// Write it, and apply it now.
 pub fn save(library: &std::path::Path, depth: TiffDepth) -> Result<(), String> {
     TIFF_DEPTH.store(depth.as_u8(), std::sync::atomic::Ordering::Relaxed);
-    crate::mods::ag_settings::set(
-        library,
-        TIFF_DEPTH_KEY,
-        serde_json::Value::from(depth.as_u8()),
-    )
+    TIFF_DEPTH_SETTING.save(library, &depth.as_u8())
 }
 
 /// Write a TIFF at the depth its pixels are already carrying.
@@ -940,36 +935,42 @@ mod tests {
     /// chose and look like the setting being ignored.
     #[test]
     fn an_out_of_range_stored_depth_does_not_wrap() {
+        let dir = std::env::temp_dir().join("argentum-tiff-depth-setting");
+        let _ = std::fs::remove_dir_all(&dir);
+        let depth_after = |stored: serde_json::Value| {
+            crate::mods::ag_settings::Setting::<serde_json::Value>::new("tiffBitDepth")
+                .save(&dir, &stored)
+                .expect("write");
+            saved_depth(&dir)
+        };
         for stored in [264u64, 272, 65544, u64::from(u32::MAX)] {
             assert_eq!(
-                depth_from(Some(serde_json::Value::from(stored))),
+                depth_after(serde_json::Value::from(stored)),
                 TiffDepth::Sixteen,
                 "{stored} should read as 16, not wrap into a depth nobody chose",
             );
         }
+        assert_eq!(depth_after(serde_json::Value::from(8u64)), TiffDepth::Eight);
         assert_eq!(
-            depth_from(Some(serde_json::Value::from(8u64))),
-            TiffDepth::Eight
-        );
-        assert_eq!(
-            depth_from(Some(serde_json::Value::from(16u64))),
+            depth_after(serde_json::Value::from(16u64)),
             TiffDepth::Sixteen
         );
 
         // Anything that is not a number at all, and nothing stored at all.
-        assert_eq!(depth_from(None), TiffDepth::Sixteen);
         assert_eq!(
-            depth_from(Some(serde_json::Value::from("8"))),
+            depth_after(serde_json::Value::from("8")),
             TiffDepth::Sixteen
         );
         assert_eq!(
-            depth_from(Some(serde_json::Value::Bool(true))),
+            depth_after(serde_json::Value::Bool(true)),
             TiffDepth::Sixteen
         );
         assert_eq!(
-            depth_from(Some(serde_json::Value::from(-8i64))),
+            depth_after(serde_json::Value::from(-8i64)),
             TiffDepth::Sixteen
         );
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(saved_depth(&dir), TiffDepth::Sixteen);
     }
 
     #[test]
