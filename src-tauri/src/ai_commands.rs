@@ -1,5 +1,5 @@
 use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use std::hash::Hasher;
 use std::io::Cursor;
 
 use base64::{Engine as _, engine::general_purpose};
@@ -13,7 +13,7 @@ use crate::ai_processing::{
 };
 use crate::app_settings::load_settings;
 use crate::app_state::{AiTaskGuard, AppState};
-use crate::cache_utils::GEOMETRY_KEYS;
+use crate::cache_utils::hash_geometry;
 use crate::get_cached_full_warped_image;
 
 #[tauri::command]
@@ -175,15 +175,8 @@ pub async fn generate_ai_depth_mask(
         let mut hasher = blake3::Hasher::new();
         hasher.update(path.as_bytes());
         let mut geo_hasher = DefaultHasher::new();
-        for key in GEOMETRY_KEYS {
-            if let Some(val) = js_adjustments.get(key) {
-                key.hash(&mut geo_hasher);
-                val.to_string().hash(&mut geo_hasher);
-            }
-        }
-        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
-        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
-        hasher.update(&geo.to_le_bytes());
+        hash_geometry(&js_adjustments, &mut geo_hasher);
+        hasher.update(&geo_hasher.finish().to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
@@ -364,15 +357,8 @@ pub async fn generate_ai_subject_mask(
         let mut hasher = blake3::Hasher::new();
         hasher.update(path.as_bytes());
         let mut geo_hasher = DefaultHasher::new();
-        for key in GEOMETRY_KEYS {
-            if let Some(val) = js_adjustments.get(key) {
-                key.hash(&mut geo_hasher);
-                val.to_string().hash(&mut geo_hasher);
-            }
-        }
-        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
-        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
-        hasher.update(&geo.to_le_bytes());
+        hash_geometry(&js_adjustments, &mut geo_hasher);
+        hasher.update(&geo_hasher.finish().to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
@@ -544,15 +530,8 @@ pub async fn precompute_ai_subject_mask(
         let mut hasher = blake3::Hasher::new();
         hasher.update(path.as_bytes());
         let mut geo_hasher = DefaultHasher::new();
-        for key in GEOMETRY_KEYS {
-            if let Some(val) = js_adjustments.get(key) {
-                key.hash(&mut geo_hasher);
-                val.to_string().hash(&mut geo_hasher);
-            }
-        }
-        // Argentum: the camera's lens correction is geometry too (mods/lens_builtin.rs).
-        let geo = crate::mods::lens_builtin::fold(geo_hasher.finish(), &js_adjustments);
-        hasher.update(&geo.to_le_bytes());
+        hash_geometry(&js_adjustments, &mut geo_hasher);
+        hasher.update(&geo_hasher.finish().to_le_bytes());
         hasher.finalize().to_hex().to_string()
     };
 
