@@ -21,7 +21,7 @@ const RestoreDown = () => (
   </svg>
 );
 
-/** The platform, or '' until it is known (and on Android, where there is no window to control). */
+/** The platform, or '' until it is known. */
 export function usePlatform(): string {
   const [os, setOs] = useState('');
   useEffect(() => {
@@ -31,7 +31,7 @@ export function usePlatform(): string {
       setOs('windows');
     }
   }, []);
-  return os === 'android' ? '' : os;
+  return os;
 }
 
 function useWindow(os: string) {

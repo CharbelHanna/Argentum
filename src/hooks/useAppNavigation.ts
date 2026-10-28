@@ -542,20 +542,12 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
   }, [handleSelectSubfolder, handleSelectAlbum]);
 
   const handleOpenFolder = useCallback(async () => {
-    const { osPlatform, appSettings, handleSettingsChange } = useSettingsStore.getState();
+    const { appSettings, handleSettingsChange } = useSettingsStore.getState();
     const { rootPaths, folderTrees, setLibrary } = useLibraryStore.getState();
-    const isAndroid = osPlatform === 'android';
 
     try {
-      let selectedPath = '';
-      if (isAndroid) {
-        selectedPath = await invoke<string>(Invokes.GetOrCreateInternalLibraryRoot);
-      } else {
-        const selected = await open({ directory: true, multiple: false, defaultPath: await homeDir() });
-        if (typeof selected === 'string') {
-          selectedPath = selected;
-        }
-      }
+      const selected = await open({ directory: true, multiple: false, defaultPath: await homeDir() });
+      const selectedPath = typeof selected === 'string' ? selected : '';
 
       if (selectedPath) {
         if (!rootPaths.includes(selectedPath)) {
@@ -584,8 +576,8 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         await handleSelectSubfolder(selectedPath, true);
       }
     } catch (err) {
-      console.error(isAndroid ? 'Failed to open Android library root:' : 'Failed to open directory dialog:', err);
-      toast.error(isAndroid ? 'Failed to open library.' : 'Failed to open folder selection dialog.');
+      console.error('Failed to open directory dialog:', err);
+      toast.error('Failed to open folder selection dialog.');
     }
   }, [handleSelectSubfolder]);
 

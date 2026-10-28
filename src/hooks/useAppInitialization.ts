@@ -52,27 +52,18 @@ export const useAppInitialization = ({
   const isInitialMount = useRef(true);
   const { i18n } = useTranslation();
 
-  const {
-    appSettings,
-    theme,
-    osPlatform,
-    setAppSettings,
-    setTheme,
-    setSupportedTypes,
-    initPlatform,
-    handleSettingsChange,
-  } = useSettingsStore(
-    useShallow((state) => ({
-      appSettings: state.appSettings,
-      theme: state.theme,
-      osPlatform: state.osPlatform,
-      setAppSettings: state.setAppSettings,
-      setTheme: state.setTheme,
-      setSupportedTypes: state.setSupportedTypes,
-      initPlatform: state.initPlatform,
-      handleSettingsChange: state.handleSettingsChange,
-    })),
-  );
+  const { appSettings, theme, setAppSettings, setTheme, setSupportedTypes, initPlatform, handleSettingsChange } =
+    useSettingsStore(
+      useShallow((state) => ({
+        appSettings: state.appSettings,
+        theme: state.theme,
+        setAppSettings: state.setAppSettings,
+        setTheme: state.setTheme,
+        setSupportedTypes: state.setSupportedTypes,
+        initPlatform: state.initPlatform,
+        handleSettingsChange: state.handleSettingsChange,
+      })),
+    );
 
   const { uiVisibility, collapsibleSectionsState, setUI } = useUIStore(
     useShallow((state) => ({
@@ -124,9 +115,6 @@ export const useAppInitialization = ({
     })),
   );
 
-  const isAndroid = osPlatform === 'android';
-  const defaultThumbnailSize = isAndroid ? ThumbnailSize.Small : ThumbnailSize.Medium;
-  const defaultLibraryViewMode = isAndroid ? LibraryViewMode.Recursive : LibraryViewMode.Flat;
   const prevImageCountsNeed = useRef<boolean | undefined>(undefined);
 
   useEffect(() => {
@@ -200,8 +188,8 @@ export const useAppInitialization = ({
         if (settings?.activeWaveformChannel) setEditor({ activeWaveformChannel: settings.activeWaveformChannel });
         if (typeof settings?.waveformHeight === 'number') setEditor({ waveformHeight: settings.waveformHeight });
 
-        setLibraryViewMode(settings?.libraryViewMode ?? defaultLibraryViewMode);
-        setThumbnailSize(settings?.thumbnailSize ?? defaultThumbnailSize);
+        setLibraryViewMode(settings?.libraryViewMode ?? LibraryViewMode.Flat);
+        setThumbnailSize(settings?.thumbnailSize ?? ThumbnailSize.Medium);
         if (settings?.thumbnailAspectRatio) setThumbnailAspectRatio(settings.thumbnailAspectRatio);
 
         if (settings?.pinnedFolders && settings.pinnedFolders.length > 0) {
@@ -223,7 +211,7 @@ export const useAppInitialization = ({
             ? [settings.lastRootPath]
             : [];
 
-        if (!isAndroid && rootFolders.length > 0) {
+        if (rootFolders.length > 0) {
           const currentPath = settings.lastFolderState?.currentFolderPath || rootFolders[0];
           const isAlbum = currentPath.startsWith('Album: ');
           const command =
@@ -265,20 +253,17 @@ export const useAppInitialization = ({
         setAppSettings({
           lastRootPath: null,
           theme: DEFAULT_THEME_ID as Theme,
-          thumbnailSize: defaultThumbnailSize,
-          libraryViewMode: defaultLibraryViewMode,
+          thumbnailSize: ThumbnailSize.Medium,
+          libraryViewMode: LibraryViewMode.Flat,
         });
       })
       .finally(() => {
         isInitialMount.current = false;
       });
   }, [
-    isAndroid,
     setAppSettings,
     setTheme,
     setUI,
-    defaultLibraryViewMode,
-    defaultThumbnailSize,
     setSortCriteria,
     setFilterCriteria,
     setEditor,

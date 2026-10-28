@@ -465,8 +465,7 @@ export default function SettingsPanel({
     linuxGpuOptimization: appSettings?.linuxGpuOptimization ?? false,
     highResZoomMultiplier: appSettings?.highResZoomMultiplier || 1.0,
     useFullDpiRendering: appSettings?.useFullDpiRendering ?? false,
-    useWgpuRenderer:
-      appSettings?.useWgpuRenderer ?? (osPlatform === 'linux' || osPlatform === 'android' ? false : true),
+    useWgpuRenderer: appSettings?.useWgpuRenderer ?? osPlatform !== 'linux',
     thumbnailWorkerThreads: appSettings?.thumbnailWorkerThreads ?? 4,
     imageCacheSize: appSettings?.imageCacheSize ?? 5,
     rawPreprocessingColorNr: appSettings?.rawPreprocessingColorNr ?? 0.5,
@@ -1807,14 +1806,12 @@ export default function SettingsPanel({
                         description={
                           osPlatform === 'linux'
                             ? t('settings.processing.wgpuDescLinux')
-                            : osPlatform === 'android'
-                              ? t('settings.processing.wgpuDescAndroid')
-                              : t('settings.processing.wgpuDescRecommended')
+                            : t('settings.processing.wgpuDescRecommended')
                         }
                       >
                         <Switch
                           checked={processingSettings.useWgpuRenderer}
-                          disabled={osPlatform === 'linux' || osPlatform === 'android'}
+                          disabled={osPlatform === 'linux'}
                           id="wgpu-renderer-toggle"
                           label={t('settings.processing.wgpuLabel')}
                           onChange={(checked) => handleProcessingSettingChange('useWgpuRenderer', checked)}

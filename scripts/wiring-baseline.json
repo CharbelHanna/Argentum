@@ -1,5 +1,5 @@
 {
-  "uncalledCommands": [],
+  "uncalledCommands": ["get_or_create_internal_library_root", "resolve_android_content_uri_name"],
   "uncalledAg": [],
   "cargoPackages": 825,
   "npmPackages": 409,
