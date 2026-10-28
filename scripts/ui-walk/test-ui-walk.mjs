@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 
 import { findBrowser } from './browser.mjs';
 import { calledBetween, outcome } from './chapters.mjs';
-import { compareReachable, slowStart, sortErrors } from './check-ui.mjs';
+import { compareReachable, slowStart, sortErrors, startupGated } from './check-ui.mjs';
 import { comboName, consoleText, keyOf } from './session.mjs';
 
 let ran = 0;
@@ -57,6 +57,15 @@ test('a start fails only past three times the recorded time and at least 3 s ove
   assert.equal(slowStart('Editor', 3500, 500), null);
   assert.match(slowStart('Editor', 3501, 500), /over 3500 ms/);
   assert.equal(slowStart('Editor', 99999, undefined), null);
+});
+
+test('a slow start fails in CI only; elsewhere the machine may be busy with other work', () => {
+  assert.equal(startupGated({ CI: 'true' }), true);
+  assert.equal(startupGated({ CI: '1' }), true);
+  assert.equal(startupGated({}), false);
+  assert.equal(startupGated({ CI: '' }), false);
+  assert.equal(startupGated({ CI: 'false' }), false);
+  assert.equal(startupGated({ CI: '0' }), false);
 });
 
 test('a shortcut code becomes the key a US keyboard sends', () => {

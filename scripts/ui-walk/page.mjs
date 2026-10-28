@@ -7,8 +7,9 @@
 //   rawKeys()        visible text that is an i18n key rather than its words;
 //   facts()          what the window shows, in a few words, to tell what a
 //                    shortcut did;
-//   settle()         resolves once no call to the stub is running and the page
-//                    has stopped changing.
+//   settle()         resolves once no call to the stub is running, no work the
+//                    app put off a moment is waiting, and the page has stopped
+//                    changing.
 //
 // "Reachable" is about what is rendered and not hidden by CSS, never about
 // where it lands on screen: a font that is a pixel wider on Linux must not
@@ -50,6 +51,31 @@ export function installWalker(keys) {
     ['.agm-centre', 'Centre'],
   ];
   const MAX_LABEL = 60;
+  /** A timer this short is work the app put off a moment; a longer one (a check every half hour) is not. */
+  const SHORT_TIMER_MS = 2000;
+
+  // The app puts work off: the History written 600 ms after the last change, a photo's EXIF read
+  // 500 ms after it shows, a status cleared after a second. Until such a timer has run, the step that
+  // set it is not over: what it calls belongs to that step however busy the machine, so settle()
+  // waits for it as for a call to the stub. Measured over a walk, every timer the app sets is a
+  // second or less, or half an hour.
+  const wait = window.setTimeout.bind(window);
+  const unwait = window.clearTimeout.bind(window);
+  const putOff = new Set();
+  window.setTimeout = function setTimeout(handler, ms, ...args) {
+    const delay = Number(ms ?? 0);
+    if (typeof handler !== 'function' || !(delay <= SHORT_TIMER_MS)) return wait(handler, ms, ...args);
+    const id = wait(() => {
+      putOff.delete(id);
+      handler(...args);
+    }, delay);
+    putOff.add(id);
+    return id;
+  };
+  window.clearTimeout = function clearTimeout(id) {
+    putOff.delete(id);
+    unwait(id);
+  };
 
   let lastChange = performance.now();
   new MutationObserver(() => (lastChange = performance.now())).observe(document, {
@@ -379,27 +405,35 @@ export function installWalker(keys) {
     return clean(`${icons.sort().join(' ')} ${colours ? `${colours} colour` : ''}`);
   }
 
-  /** The words of the messages (react-toastify) on screen. */
-  const toasts = () =>
-    [...document.querySelectorAll('.Toastify__toast')].filter(shown).map((t) => clean(t.textContent));
+  /** A message (react-toastify), by its role: App.tsx's toastClassName replaces the library's own class. */
+  const TOAST = '.Toastify__toast-container > [role="alert"]';
+
+  /** The words of the messages on screen. */
+  const toasts = () => [...document.querySelectorAll(TOAST)].filter(shown).map((t) => clean(t.textContent));
 
   /** Close every message, as a click on one does. */
   function dismissToasts() {
-    for (const toast of document.querySelectorAll('.Toastify__toast')) toast.click();
+    for (const toast of document.querySelectorAll(TOAST)) toast.click();
   }
 
-  /** Resolves true once nothing is running and the page has not changed for `quietMs`; false at the timeout. */
+  /** Resolves true once nothing is running or put off and the page has not changed for `quietMs`; false at the timeout. */
   async function settle(quietMs = 150, timeoutMs = 6000) {
     const start = performance.now();
     while (performance.now() - start < timeoutMs) {
-      await new Promise((resolve) => setTimeout(resolve, 40));
+      await new Promise((resolve) => wait(resolve, 40));
       // A fade changes no DOM until the modal unmounts at its end (components/modals wait 300 ms):
-      // a running transition counts as a change. Spinners run for ever and do not.
+      // a running transition counts as a change. Spinners run for ever and do not, nor does the bar
+      // of a message counting down the 5 s to closing itself: the message is recorded where it shows.
       const fading = document
         .getAnimations()
-        .some((a) => a.playState === 'running' && a.effect?.getTiming().iterations !== Infinity);
+        .some(
+          (a) =>
+            a.playState === 'running' &&
+            a.effect?.getTiming().iterations !== Infinity &&
+            !a.effect?.target?.closest?.('.Toastify__progress-bar'),
+        );
       if (fading) lastChange = performance.now();
-      const busy = (window.__uiWalk?.pending ?? 0) > 0;
+      const busy = (window.__uiWalk?.pending ?? 0) > 0 || putOff.size > 0;
       if (!busy && performance.now() - lastChange >= quietMs) return true;
     }
     return false;
@@ -410,7 +444,7 @@ export function installWalker(keys) {
     const start = performance.now();
     while (performance.now() - start < timeoutMs) {
       if (document.querySelectorAll(selector).length >= count) return performance.now();
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await new Promise((resolve) => wait(resolve, 25));
     }
     return null;
   }
@@ -420,7 +454,7 @@ export function installWalker(keys) {
     const start = performance.now();
     while (performance.now() - start < timeoutMs) {
       if (menuCount() >= count) return true;
-      await new Promise((resolve) => setTimeout(resolve, 25));
+      await new Promise((resolve) => wait(resolve, 25));
     }
     return false;
   }

@@ -17,8 +17,12 @@
 //
 // It also times the start: from navigation to the library showing the demo
 // folder, and to the editor showing the demo photo. The times are printed and
-// fail only past three times those recorded (and at least 3 s over), so a slow
-// machine never fails it but a start that got much slower does.
+// fail past three times those recorded (and at least 3 s over), so a slow
+// machine never fails it but a start that got much slower does. They fail in
+// CI only, where the machine runs nothing else: on a laptop compiling in other
+// windows the same start measured 3.6 times as long, and a wall-clock time has
+// no limit that is right for both. Elsewhere a slow start is printed, with the
+// limit CI holds it to; CI=1 npm run check:ui fails on it there too.
 //
 //   npm run check:ui              check
 //   npm run check:ui -- --update  rewrite ui-reachability.json from the walk
@@ -67,6 +71,9 @@ export function compareReachable(before, now) {
   const is = new Set(now);
   return { appeared: now.filter((e) => !was.has(e)), gone: before.filter((e) => !is.has(e)) };
 }
+
+/** Whether a slow start fails the walk: in CI, the machine is the walk's alone. */
+export const startupGated = (env) => !!env.CI && env.CI !== 'false' && env.CI !== '0';
 
 /** A start-up time over its ceiling, or null. */
 export function slowStart(name, ms, recordedMs) {
@@ -176,11 +183,14 @@ async function main() {
         '  If that is what the change meant, say so in the pull request, then: npm run check:ui -- --update',
       );
     }
+    const gated = startupGated(process.env);
     for (const slow of [
       slowStart('Library', startup.libraryMs, before.startupMs?.libraryMs),
       slowStart('Editor', startup.editorMs, before.startupMs?.editorMs),
     ]) {
-      if (slow) failures.push(`Start-up got slower: ${slow}.`);
+      if (slow && gated) failures.push(`Start-up got slower: ${slow}.`);
+      else if (slow)
+        console.log(`Start-up slower than CI allows, not failed outside CI (a busy machine is slow too): ${slow}.`);
     }
   }
 
