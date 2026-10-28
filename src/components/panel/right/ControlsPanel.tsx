@@ -4,14 +4,12 @@ import {
   Copy,
   ClipboardPaste,
   PencilSparkles,
-  ChartArea,
   LayoutList,
   MoreHorizontal,
   Check,
   RefreshCw,
   SlidersHorizontal,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import BasicAdjustments from '../../adjustments/Basic';
@@ -20,14 +18,8 @@ import ColorPanel from '../../adjustments/Color';
 import DetailsPanel from '../../adjustments/Details';
 import EffectsPanel from '../../adjustments/Effects';
 import CollapsibleSection from '../../ui/CollapsibleSection';
-import Waveform from '../editor/Waveform';
-import Resizer from '../../ui/Resizer';
 import AdjustmentSectionsSubMenu from './AdjustmentSectionsSubMenu';
-import {
-  Adjustments,
-  INITIAL_ADJUSTMENTS,
-  getVisibleAdjustmentSections,
-} from '../../../utils/adjustments';
+import { Adjustments, INITIAL_ADJUSTMENTS, getVisibleAdjustmentSections } from '../../../utils/adjustments';
 import {
   EDIT_SECTION_KEYS,
   initialValues,
@@ -38,7 +30,7 @@ import {
 import ProfileSection, { PROFILE_SECTION } from '../../../argentum/ProfileSection';
 import { useAgTranslation } from '../../../argentum/locales';
 import { useContextMenu } from '../../../context/ContextMenuContext';
-import { OPTION_SEPARATOR, Orientation } from '../../ui/AppProperties';
+import { OPTION_SEPARATOR } from '../../ui/AppProperties';
 import Text from '../../ui/Text';
 import { TextVariants, TextColors, TextWeights } from '../../../types/typography';
 import { useShallow } from 'zustand/react/shallow';
@@ -46,7 +38,6 @@ import { useEditorStore } from '../../../store/useEditorStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useUIStore } from '../../../store/useUIStore';
 import { useEditorActions } from '../../../hooks/useEditorActions';
-import { useWaveformControls } from '../../../hooks/useWaveformControls';
 
 /**
  * Argentum: the Modern window's grid shows the selected photo's settings here,
@@ -57,17 +48,9 @@ export interface ReadOnlyAdjustments {
   adjustments: Adjustments;
 }
 
-export default function Controls({
-  showWaveform = true,
-  readOnly,
-}: {
-  showWaveform?: boolean;
-  readOnly?: ReadOnlyAdjustments;
-}) {
+export default function Controls({ readOnly }: { readOnly?: ReadOnlyAdjustments }) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
-  const { isResizingWaveform, onToggleWaveform, setActiveWaveformChannel, handleWaveformResize } =
-    useWaveformControls();
   const {
     setAdjustments: setLiveAdjustments,
     handleAutoAdjustments,
@@ -96,31 +79,17 @@ export default function Controls({
     })),
   );
 
-  const {
-    liveAdjustments,
-    copiedSectionAdjustments,
-    histogram,
-    selectedImage,
-    isWbPickerActive,
-    isWaveformVisible,
-    waveform,
-    activeWaveformChannel,
-    waveformHeight,
-    setEditor,
-  } = useEditorStore(
-    useShallow((state) => ({
-      liveAdjustments: state.adjustments,
-      copiedSectionAdjustments: state.copiedSectionAdjustments,
-      histogram: state.histogram,
-      selectedImage: state.selectedImage,
-      isWbPickerActive: state.isWbPickerActive,
-      isWaveformVisible: state.isWaveformVisible,
-      waveform: state.waveform,
-      activeWaveformChannel: state.activeWaveformChannel,
-      waveformHeight: state.waveformHeight,
-      setEditor: state.setEditor,
-    })),
-  );
+  const { liveAdjustments, copiedSectionAdjustments, histogram, selectedImage, isWbPickerActive, setEditor } =
+    useEditorStore(
+      useShallow((state) => ({
+        liveAdjustments: state.adjustments,
+        copiedSectionAdjustments: state.copiedSectionAdjustments,
+        histogram: state.histogram,
+        selectedImage: state.selectedImage,
+        isWbPickerActive: state.isWbPickerActive,
+        setEditor: state.setEditor,
+      })),
+    );
 
   const adjustments = readOnly?.adjustments ?? liveAdjustments;
 
@@ -316,17 +285,6 @@ export default function Controls({
             <PencilSparkles size={18} />
           </button>
           <button
-            className={clsx(
-              'p-2 rounded-full transition-colors',
-              !showWaveform && 'hidden',
-              isWaveformVisible ? 'bg-surface hover:bg-card-active' : 'hover:bg-surface',
-            )}
-            onClick={onToggleWaveform}
-            data-tooltip={t('editor.adjustments.tooltips.toggleAnalytics')}
-          >
-            <ChartArea size={18} />
-          </button>
-          <button
             className="p-2 rounded-full hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             disabled={!selectedImage}
             onClick={handleResetAdjustments}
@@ -344,36 +302,6 @@ export default function Controls({
           </button>
         </div>
       </div>
-
-      <AnimatePresence initial={false}>
-        {showWaveform && isWaveformVisible && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: waveformHeight || 256, opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: isResizingWaveform ? 0 : 0.2, ease: 'easeOut' }}
-            className="shrink-0 flex flex-col relative border-b border-surface overflow-hidden"
-          >
-            <div className="grow w-full h-full p-3 pb-2 min-h-0">
-              <Waveform
-                waveformData={waveform || null}
-                histogram={histogram}
-                displayMode={activeWaveformChannel || 'luma'}
-                setDisplayMode={setActiveWaveformChannel}
-                showClipping={adjustments.showClipping || false}
-                onToggleClipping={() => {
-                  setAdjustments((prev: Adjustments) => ({
-                    ...prev,
-                    showClipping: ((Number(prev.showClipping) || 0) + 1) % 5, // Argentum: cycles off / all / R / G / B
-                  }));
-                }}
-                theme={theme}
-              />
-            </div>
-            <Resizer direction={Orientation.Horizontal} onMouseDown={handleWaveformResize} />
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       <div
         className={clsx('grow overflow-y-scroll p-3 flex flex-col gap-2', readOnly && 'agm-readonly')}

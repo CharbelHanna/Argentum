@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ArrowLeft,
   Cpu,
   Unplug,
   ExternalLink as ExternalLinkIcon,
@@ -11,10 +10,7 @@ import {
   WifiOff,
   Plus,
   X,
-  SlidersHorizontal,
-  Keyboard,
   Bookmark,
-  Aperture,
   Scaling,
   Image as ImageIcon,
   Mouse,
@@ -32,7 +28,6 @@ import Dropdown, { OptionItem } from '../ui/Dropdown';
 import Switch from '../ui/Switch';
 import Input from '../ui/Input';
 import Slider from '../ui/Slider';
-import { ThemeProps, THEMES, DEFAULT_THEME_ID } from '../../utils/themes';
 import { useTranslation } from 'react-i18next';
 import { Invokes } from '../ui/AppProperties';
 import {
@@ -90,15 +85,13 @@ interface SettingItemProps {
 
 interface SettingsPanelProps {
   appSettings: any;
-  onBack(): void;
   onLibraryRefresh(): void;
   onSettingsChange(settings: any): Promise<void>;
   rootPaths: string[];
   /**
    * Argentum: the Modern window's section (general, ai, gear, processing,
-   * shortcuts, about). It draws the list itself, so the page leaves out its own
-   * header and shows that section; AI and models is the General page's AI card
-   * with the AI Models list under it. Unset, the page is as it always was.
+   * shortcuts, about). It draws the list itself; AI and models is the General
+   * page's AI card with the AI Models list under it.
    */
   modernCategory?: string;
 }
@@ -415,7 +408,6 @@ const PreviewModeSwitch = ({ mode, onModeChange }: PreviewModeSwitchProps) => {
 
 export default function SettingsPanel({
   appSettings,
-  onBack,
   onLibraryRefresh,
   onSettingsChange,
   rootPaths,
@@ -474,24 +466,12 @@ export default function SettingsPanel({
     useAppleRaw9: appSettings?.useAppleRaw9 ?? false,
   });
   const [restartRequired, setRestartRequired] = useState(false);
-  const [activeCategory, setActiveCategory] = useState('general');
   const modern = modernCategory !== undefined;
-  const cat = modernCategory ?? activeCategory;
+  const cat = modernCategory ?? 'general';
   const [logPath, setLogPath] = useState<string | null>(null);
   const [logPathLoading, setLogPathLoading] = useState(true);
   const [logPathError, setLogPathError] = useState(false);
   const [dpr, setDpr] = useState(() => (typeof window !== 'undefined' ? window.devicePixelRatio : 1));
-
-  const settingCategories = useMemo(
-    () => [
-      { id: 'general', label: t('settings.categories.general'), icon: SlidersHorizontal },
-      { id: 'gear', label: 'My Gear', icon: Aperture },
-      { id: 'processing', label: t('settings.categories.processing'), icon: Cpu },
-      { id: 'shortcuts', label: t('settings.categories.shortcuts'), icon: Keyboard },
-      { id: 'about', label: 'About', icon: Info },
-    ],
-    [t],
-  );
 
   const livePreviewQualityOptions = useMemo<OptionItem<string>[]>(
     () => [
@@ -959,55 +939,6 @@ export default function SettingsPanel({
       <ConfirmModal {...confirmModalState} onClose={closeConfirmModal} />
       <LayoutGroup id="settings-panel">
         <div className="flex flex-col h-full w-full text-text-primary">
-          <header
-            className={clsx('shrink-0 flex flex-wrap items-center justify-between gap-y-4 mb-8 pt-4', modern && 'hidden')}
-          >
-            <div className="flex items-center shrink-0">
-              <Button
-                className="mr-4 hover:bg-surface text-text-primary rounded-full"
-                onClick={onBack}
-                size="icon"
-                variant="ghost"
-                data-tooltip={t('settings.tooltips.goHome')}
-              >
-                <ArrowLeft />
-              </Button>
-              <Text variant={TextVariants.display} color={TextColors.accent} className="whitespace-nowrap">
-                {t('settings.title')}
-              </Text>
-            </div>
-
-            <div className="relative flex w-full min-[1200px]:w-auto p-2 bg-surface rounded-md">
-              {settingCategories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setActiveCategory(category.id)}
-                  className={clsx(
-                    'relative flex-1 flex items-center justify-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
-                    {
-                      'text-text-primary hover:bg-surface': activeCategory !== category.id,
-                      'text-button-text': activeCategory === category.id,
-                    },
-                  )}
-                  style={{ WebkitTapHighlightColor: 'transparent' }}
-                >
-                  {activeCategory === category.id && (
-                    <motion.span
-                      layoutId="settings-category-switch-bubble"
-                      className="absolute inset-0 z-0 bg-accent"
-                      style={{ borderRadius: 6 }}
-                      transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
-                    />
-                  )}
-                  <span className="relative z-10 flex items-center">
-                    <category.icon size={16} className="mr-2 shrink-0" />
-                    <span className="truncate">{category.label}</span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </header>
-
           <div className="flex-1 overflow-y-auto overflow-x-hidden pr-2 -mr-2 custom-scrollbar">
             <AnimatePresence mode="wait">
               {(cat === 'general' || cat === 'ai') && (
@@ -1026,20 +957,8 @@ export default function SettingsPanel({
                     </Text>
                     <div className="space-y-8">
                       <SettingItem label={t('settings.general.theme')} description={t('settings.general.themeDesc')}>
-                        {modern ? (
-                          // Argentum: the Modern window's own palettes.
-                          <ModernThemeChoice />
-                        ) : (
-                          <Dropdown
-                            onChange={(value: any) => onSettingsChange({ ...appSettings, theme: value })}
-                            options={THEMES.map((theme: ThemeProps) => ({
-                              value: theme.id,
-                              label: t(theme.name as any),
-                            }))}
-                            value={appSettings?.theme || DEFAULT_THEME_ID}
-                            triggerClassName="bg-bg-primary"
-                          />
-                        )}
+                        {/* Argentum: the Modern window's own palettes. */}
+                        <ModernThemeChoice />
                       </SettingItem>
 
                       <SettingItem label={t('settings.language')} description={t('settings.languageDesc')}>
@@ -1114,21 +1033,6 @@ export default function SettingsPanel({
                           )}
                         </AnimatePresence>
                       </div>
-
-                      {/* Argentum: Modern always shows its folders' counts (modern/folderCounts.ts). */}
-                      {!modern && (
-                        <SettingItem
-                          label={t('settings.general.folderImageCounts')}
-                          description={t('settings.general.folderImageCountsDesc')}
-                        >
-                          <Switch
-                            checked={appSettings?.enableFolderImageCounts ?? false}
-                            id="folder-image-counts-toggle"
-                            label={t('settings.general.showImageCounts')}
-                            onChange={(checked) => onSettingsChange({ ...appSettings, enableFolderImageCounts: checked })}
-                          />
-                        </SettingItem>
-                      )}
 
                       <SettingItem
                         label={t('settings.general.neutralGreyCanvas')}
@@ -1222,7 +1126,7 @@ export default function SettingsPanel({
                   </div>
                   )}
 
-                  {(cat === 'ai' || (cat === 'general' && !modern)) && (
+                  {cat === 'ai' && (
                   <div className="p-6 bg-surface rounded-xl shadow-md">
                     <Text variant={TextVariants.title} color={TextColors.accent} className="mb-8">
                       {t('settings.processing.ai.title')}
