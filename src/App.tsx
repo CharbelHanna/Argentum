@@ -1,5 +1,6 @@
 import Argentum from './argentum/Argentum';
 import { ModernWindow, refreshModernTrees, startModernLibrary } from './argentum/modern';
+import { useLightPalette } from './argentum/layout/editorLayout';
 import { type PointerEvent as ReactPointerEvent, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
@@ -59,7 +60,6 @@ import {
   ImageFile,
   LibraryViewMode,
   Panel,
-  Theme,
   ThumbnailSize,
   ThumbnailAspectRatio,
 } from './components/ui/AppProperties';
@@ -130,10 +130,9 @@ function ImageDragOverlayNode({ activeItem }: { activeItem: { path: string; path
 function App() {
   const [activeImageDragItem, setActiveImageDragItem] = useState<{ path: string; paths: string[] } | null>(null);
 
-  const { appSettings, theme, osPlatform, handleSettingsChange } = useSettingsStore(
+  const { appSettings, osPlatform, handleSettingsChange } = useSettingsStore(
     useShallow((state) => ({
       appSettings: state.appSettings,
-      theme: state.theme,
       osPlatform: state.osPlatform,
       handleSettingsChange: state.handleSettingsChange,
     })),
@@ -382,7 +381,8 @@ function App() {
     return () => window.removeEventListener('contextmenu', handleGlobalContextMenu);
   }, []);
 
-  const isLightTheme = useMemo(() => [Theme.Light, Theme.Snow, Theme.Arctic].includes(theme as Theme), [theme]);
+  // Argentum: toasts follow the Modern palette, not the Classic theme Settings no longer sets.
+  const isLightTheme = useLightPalette();
 
   useEffect(() => {
     if (

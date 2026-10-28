@@ -131,3 +131,9 @@ export const useEditorLayout = create<EditorLayoutState>((set, get) => ({
  * 8), so the places that ask stay findable for that removal.
  */
 export const useModernLayout = () => true;
+
+/** Is this palette the light one? Toasts and the curve histogram follow it. */
+export const isLightPalette = (theme: ModernThemeName): boolean => theme === 'light';
+
+/** The chosen palette is Light (Settings > General > Theme). */
+export const useLightPalette = (): boolean => useEditorLayout((s) => isLightPalette(s.theme));
