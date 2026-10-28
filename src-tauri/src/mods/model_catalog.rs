@@ -17,10 +17,17 @@
 //! downloads exactly these files, and deleting only ever touches names that
 //! are here.
 //!
-//! The feature that uses a model still downloads it itself when it is missing.
-//! The settings page's download (`model_download`) fetches the same files from
-//! the same addresses and checks them against the same SHA-256, so the feature
-//! finds them there and fetches nothing.
+//! The feature that uses a model asks `model_download::ensure` for it, which
+//! fetches whatever of its files is missing or wrong, as the settings page's
+//! Download does: one list, one downloader. RapidRAW's features still fetch
+//! their own, the same files from the same addresses (see below).
+//!
+//! NEVER A NEW NAME FOR A FILE USERS HAVE
+//!
+//! Users already have gigabytes of these files. A file is kept only when its
+//! name and checksum match, so renaming one, or moving it to another folder,
+//! downloads it again for everyone. `files_users_already_have_keep_their_names_and_checksums`
+//! holds this list to every file an earlier version saved.
 //!
 //! UPSTREAM'S MODELS ARE COPIES
 //!
@@ -207,6 +214,37 @@ pub const TEXT_MASK_FILES: &[File] = &[
     CLIP_TOKENIZER,
 ];
 
+/// Super Resolution's and Restore's ids and files: `super_resolution` loads
+/// them under these names.
+pub const SUPER_RESOLUTION_2X: &str = "super-resolution-2x";
+pub const SUPER_RESOLUTION_4X: &str = "super-resolution-4x";
+pub const RESTORE: &str = "restore";
+
+/// The published Real-ESRGAN x2plus ONNX artifact.
+pub const REALESRGAN_X2: File = File {
+    name: "realesrgan_x2plus.onnx",
+    url: "https://huggingface.co/fernandotonon/QtMeshEditor-realesrgan-onnx/resolve/main/RealESRGAN_x2plus.onnx?download=true",
+    fallback: None,
+    sha256: "35d016524a6eb7e9a99f192cfa81b6cf1f80fdf8f1b51605d77f0763f5ccba7f",
+    bytes: 67_156_218,
+};
+/// The published Real-ESRGAN x4plus ONNX artifact.
+pub const REALESRGAN_X4: File = File {
+    name: "realesrgan_x4plus.onnx",
+    url: "https://huggingface.co/mhmtaufiq/realesrgan-onnx/resolve/main/RealESRGAN_x4plus.onnx?download=true",
+    fallback: None,
+    sha256: "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
+    bytes: 68_811_310,
+};
+/// Argentum's ONNX export of OmniLens's SwinIR_AODLib_EAOD.pth.
+pub const OMNILENS_RESTORE: File = File {
+    name: "omnilens_swinir_aodlib_256.onnx",
+    url: "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
+    fallback: None,
+    sha256: "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
+    bytes: 53_592_179,
+};
+
 pub const CATALOGUE: &[Model] = &[
     // --- RAWmakase's, through `selection_models`: the masks the Masks menu
     // makes since PRs #103 and #104.
@@ -367,44 +405,26 @@ pub const CATALOGUE: &[Model] = &[
     },
     // --- Argentum's.
     Model {
-        id: "super-resolution-2x",
+        id: SUPER_RESOLUTION_2X,
         label: "Super Resolution 2x",
         purpose: "Enlarges a photo to twice its size.",
-        stored: Stored::Files(&[File {
-            name: "realesrgan_x2plus.onnx",
-            url: "https://huggingface.co/fernandotonon/QtMeshEditor-realesrgan-onnx/resolve/main/RealESRGAN_x2plus.onnx?download=true",
-            fallback: None,
-            sha256: "35d016524a6eb7e9a99f192cfa81b6cf1f80fdf8f1b51605d77f0763f5ccba7f",
-            bytes: 67_156_218,
-        }]),
+        stored: Stored::Files(&[REALESRGAN_X2]),
         upstream: false,
         listed_when_missing: true,
     },
     Model {
-        id: "super-resolution-4x",
+        id: SUPER_RESOLUTION_4X,
         label: "Super Resolution 4x",
         purpose: "Enlarges a photo to four times its size.",
-        stored: Stored::Files(&[File {
-            name: "realesrgan_x4plus.onnx",
-            url: "https://huggingface.co/mhmtaufiq/realesrgan-onnx/resolve/main/RealESRGAN_x4plus.onnx?download=true",
-            fallback: None,
-            sha256: "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
-            bytes: 68_811_310,
-        }]),
+        stored: Stored::Files(&[REALESRGAN_X4]),
         upstream: false,
         listed_when_missing: true,
     },
     Model {
-        id: "restore",
+        id: RESTORE,
         label: "Restore",
         purpose: "Undoes lens softness, such as a lens used wide open, at the photo's own size. Used by Restore in the Super Resolution window.",
-        stored: Stored::Files(&[File {
-            name: "omnilens_swinir_aodlib_256.onnx",
-            url: "https://github.com/akhater/argentum-models/releases/download/omnilens-v1/omnilens_swinir_aodlib_256.onnx",
-            fallback: None,
-            sha256: "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
-            bytes: 53_592_179,
-        }]),
+        stored: Stored::Files(&[OMNILENS_RESTORE]),
         upstream: false,
         listed_when_missing: true,
     },
@@ -447,7 +467,6 @@ mod tests {
     use std::collections::HashSet;
 
     const THEIR_AI: &str = include_str!("../ai_processing.rs");
-    const OUR_SUPER_RESOLUTION: &str = include_str!("super_resolution.rs");
     const OUR_GPU_RUNTIME: &str = include_str!("gpu_runtime.rs");
 
     /// The value of every `const NAME<suffix>: &str = "...";` in their file.
@@ -618,20 +637,9 @@ mod tests {
         }
     }
 
-    /// Ours are copies too, of `super_resolution` and `gpu_runtime`.
+    /// The graphics card runtime's folder and address are copies of `gpu_runtime`'s.
     #[test]
-    fn our_names_addresses_and_checksums_match_the_features_that_download_them() {
-        for id in ["super-resolution-2x", "super-resolution-4x", "restore"] {
-            let model = find(id).expect("listed");
-            for file in model.stored.files() {
-                for value in [file.name, file.url, file.sha256] {
-                    assert!(
-                        OUR_SUPER_RESOLUTION.contains(&format!("\"{value}\"")),
-                        "{id}: {value}"
-                    );
-                }
-            }
-        }
+    fn the_gpu_runtime_entry_matches_the_code_that_installs_it() {
         let Stored::FoldersStartingWith { prefix, url, .. } =
             find(GPU_RUNTIME).expect("listed").stored
         else {
@@ -639,6 +647,109 @@ mod tests {
         };
         assert!(OUR_GPU_RUNTIME.contains(&format!("\"{prefix}")), "{prefix}");
         assert!(OUR_GPU_RUNTIME.contains(&format!("\"{url}\"")), "{url}");
+    }
+
+    /// Every file an earlier version saved straight into the models folder,
+    /// under the name and with the SHA-256 it was saved with. Users have
+    /// gigabytes of these, and the downloader keeps a file only when its name
+    /// and checksum match, so a list that renamed one or changed its checksum
+    /// would fetch it all again. Copied from the code that saved them, before
+    /// it asked this list: RapidRAW's `ai_processing.rs` constants (1.6.6),
+    /// `super_resolution.rs` (26.44.1), and the Text and Face masks (#215,
+    /// #216). Add to it; never change a line.
+    const SAVED_BY_EARLIER_VERSIONS: &[(&str, &str)] = &[
+        (
+            "sam_vit_b_01ec64_encoder.onnx",
+            "16ab73d9c824886f0de2938c19df22fb9ec3deebfd0de58e65177e479213d7d1",
+        ),
+        (
+            "sam_vit_b_01ec64_decoder.onnx",
+            "85d0d672cf5b7fe763edcde429e5533e62f674af4b15c7d688b7673b0ef00bf7",
+        ),
+        (
+            "u2net.onnx",
+            "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491",
+        ),
+        (
+            "skyseg_u2net.onnx",
+            "ab9c34c64c3d821220a2886a4a06da4642ffa14d5b30e8d5339056a089aa1d39",
+        ),
+        (
+            "clip_model.onnx",
+            "57879bb1c23cdeb350d23569dd251ed4b740a96d747c529e94a2bb8040ac5d00",
+        ),
+        (
+            "nind_denoise_utnet_684.onnx",
+            "ee3586279d514df557ff3f7dec6df37fafc51ba5d3a3435b2cc9ac2d9017e7fe",
+        ),
+        (
+            "lama_fp16.onnx",
+            "2d6be6277c400d6f1b91819737f7c3da935e5c63d1b521d393be1196a2bfa82c",
+        ),
+        (
+            "depth_anything_v2_vits.onnx",
+            "d2b11a11c1d4a12b47608fa65a17ee9a4c605b55ee1730c8e3b526304f2562be",
+        ),
+        (
+            "moge-2-vits-normal-onnx.onnx",
+            "24eacb5dc7a2c54c7bc98f7de085ffbed79ad006ea5b664c2c2cdc02ff3a52f0",
+        ),
+        (
+            "realesrgan_x2plus.onnx",
+            "35d016524a6eb7e9a99f192cfa81b6cf1f80fdf8f1b51605d77f0763f5ccba7f",
+        ),
+        (
+            "realesrgan_x4plus.onnx",
+            "3767c17388381cfca3d7196a4a517737fefc22b57c9fd98d3bae78e98e2bebc9",
+        ),
+        (
+            "omnilens_swinir_aodlib_256.onnx",
+            "c28ec5478a6db236e9151961ad1afe29ea23b80fecc8612a436f329e9a0e9630",
+        ),
+        (
+            "efficientsam3_ev_m_image_encoder.onnx",
+            "2ed08306579138120dbf9f1110fd31784d1c20fe1b67fa2187a0a2a6d7c82729",
+        ),
+        (
+            "efficientsam3_ev_m_decoder.onnx",
+            "16accc22a07ee99c73ef8a14e286ec567f94c116e0d8efa1a3a6c0bc9a2596a8",
+        ),
+        (
+            "efficientsam3_ev_m_text_encoder.onnx",
+            "3065ea6116f21f6e22bc70a0c041e5da9ae05fdec7b48df953394f5657609590",
+        ),
+        (
+            "efficientsam3_face_prompt.bin",
+            "8fdbe63ef853756b1da9cdc642c277a6e422452f3feaf35f4297e6aea3a1ffb9",
+        ),
+        (
+            "mediapipe_face_landmarks.onnx",
+            "6524d596b4d9151b0d8d590844566261f21de5186ac38125bdcd1de6974b0bb4",
+        ),
+        (
+            "mediapipe_selfie_multiclass.onnx",
+            "a198470a4edec350a33b8182c149e417effc5e61c0506b947f226e7a81b9a08e",
+        ),
+    ];
+
+    #[test]
+    fn files_users_already_have_keep_their_names_and_checksums() {
+        let listed: Vec<File> = CATALOGUE
+            .iter()
+            .filter(|m| m.stored.folder().is_none())
+            .flat_map(|m| m.stored.files())
+            .collect();
+        for (name, sha256) in SAVED_BY_EARLIER_VERSIONS {
+            assert!(
+                listed
+                    .iter()
+                    .any(|f| f.name == *name && f.sha256 == *sha256),
+                "{name} with its checksum is no longer in the catalogue: users would download it again"
+            );
+        }
+        // RapidRAW's code saved the sky model under a hyphen before 1.6.6;
+        // that file is still renamed rather than fetched again.
+        assert!(RENAMED.contains(&("skyseg-u2net.onnx", "skyseg_u2net.onnx")));
     }
 
     /// The selection entry is the selection feature's own list, in its folder.
@@ -669,10 +780,9 @@ mod tests {
         // Each, with the test above that holds the catalogue to it.
         const WRITERS: &[&str] = &[
             "ai_processing.rs", // upstream_names_addresses_and_checksums_match_their_constants
-            "mods/super_resolution.rs", // our_names_addresses_and_checksums_match_the_features_that_download_them
-            "mods/gpu_runtime.rs",      // the same
+            "mods/gpu_runtime.rs", // the_gpu_runtime_entry_matches_the_code_that_installs_it
             "mods/selection_models.rs", // the_selection_entry_is_what_selection_models_reads
-            "mods/model_manager.rs",    // the folder itself, for listing and deleting
+            "mods/model_manager.rs", // the folder itself, for listing and deleting
         ];
         let needle = concat!("join(", "\"models\")");
         let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
