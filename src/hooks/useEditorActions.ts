@@ -146,9 +146,7 @@ export function useEditorActions() {
     const selectedImage = useEditorStore.getState().selectedImage;
     if (!selectedImage?.isReady) return;
     try {
-      const autoAdjustments: Adjustments = await invoke(Invokes.CalculateAutoAdjustments, {
-        jsAdjustments: useEditorStore.getState().adjustments,
-      });
+      const autoAdjustments: Adjustments = await invoke(Invokes.CalculateAutoAdjustments);
       setAdjustments((prev: Adjustments) => ({
         ...prev,
         ...autoAdjustments,

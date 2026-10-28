@@ -1,14 +1,13 @@
 use crate::Cursor;
 use crate::app_settings::{AppSettings, load_settings};
 use crate::app_state::{AppState, LoadedImage};
-use crate::baseline_exposure::BaselineOptions;
 use crate::cache_utils::DecodeFingerprint;
 use crate::exif_processing;
 use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::formats::is_raw_file;
 use crate::image_processing::ImageMetadata;
 use crate::image_processing::{
-    apply_orientation, apply_srgb_to_linear, effective_baseline_exposure,
+    apply_orientation, apply_srgb_to_linear,
     remove_raw_artifacts_and_enhance,
 };
 use crate::mask_generation::{MaskDefinition, SubMask, generate_mask_bitmap};
@@ -929,7 +928,6 @@ pub async fn load_image(
     let metadata: ImageMetadata = crate::exif_processing::load_sidecar(&sidecar_path);
 
     let settings = load_settings(app_handle.clone()).unwrap_or_default();
-    let baseline_options = BaselineOptions::from_settings(&settings);
 
     let path_clone = source_path_str.clone();
 
@@ -1036,9 +1034,8 @@ pub async fn load_image(
     let as_shot = crate::as_shot::as_shot(&source_path_str);
     if is_raw {
         log::info!(
-            "Baseline exposure for '{}': {:+.2} EV (DNG baseline {:+.2} EV, highlight preservation {:+.2} EV)",
+            "Baseline exposure for '{}': DNG baseline {:+.2} EV, highlight preservation {:+.2} EV",
             source_path_str,
-            effective_baseline_exposure(&metadata.adjustments, as_shot, baseline_options),
             as_shot.exposure.dng_baseline,
             as_shot.exposure.highlight_preservation
         );

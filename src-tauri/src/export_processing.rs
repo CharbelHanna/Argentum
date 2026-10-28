@@ -22,7 +22,6 @@ use tauri::Emitter;
 use tauri::Manager;
 
 use crate::AppState;
-use crate::baseline_exposure::BaselineOptions;
 use crate::exif_processing;
 use crate::file_management::{
     generate_filename_from_template, parse_virtual_path, read_file_mapped,
@@ -1317,7 +1316,6 @@ fn export_adjustments_as_lut(
     let identity_image = generate_identity_lut_image(lut_size);
 
     let render = RenderOptions {
-        baseline: BaselineOptions::default(),
         ..resolve_render_options_from_handle(app_handle, false)
     };
     let mut all_adjustments =

@@ -35,10 +35,8 @@ interface ProcessState {
   setExportState: (updater: Partial<ExportState> | ((state: ExportState) => Partial<ExportState>)) => void;
   setImportState: (updater: Partial<ImportState> | ((state: ImportState) => Partial<ImportState>)) => void;
   setPreview: (path: string, url: string, thumbKey: string) => void;
-  clearPreviews: () => void;
   registerAiTask: (id: string, type: string) => void;
   unregisterAiTask: (id: string) => void;
-  isAiTaskRunning: (id: string) => boolean;
 }
 
 let exportTimeout: ReturnType<typeof setTimeout>;
@@ -161,13 +159,6 @@ export const useProcessStore = create<ProcessState>((set, get) => ({
     });
   },
 
-  clearPreviews: () => {
-    set((state) => {
-      Object.values(state.previews).forEach((p) => URL.revokeObjectURL(p.url));
-      return { previews: {} };
-    });
-  },
-
   registerAiTask: (id, type) =>
     set((state) => ({
       activeAiTasks: { ...state.activeAiTasks, [id]: { id, type } },
@@ -179,6 +170,4 @@ export const useProcessStore = create<ProcessState>((set, get) => ({
       delete next[id];
       return { activeAiTasks: next };
     }),
-
-  isAiTaskRunning: (id) => !!get().activeAiTasks[id],
 }));

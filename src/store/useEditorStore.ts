@@ -74,8 +74,6 @@ interface EditorState {
   activeAiPatchContainerId: string | null;
   activeAiSubMaskId: string | null;
   isMaskControlHovered: boolean;
-  isGeneratingAiMask: boolean;
-  isGeneratingAi: boolean;
   aiDenoiseProgress: Record<string, number>;
   isAIConnectorConnected: boolean;
   hasRenderedFirstFrame: boolean;
@@ -141,9 +139,7 @@ export const useEditorStore = create<EditorState>((set) => ({
   brushSettings: { size: 50, feather: 50, tool: ToolType.Brush },
   copiedAdjustments: null,
 
-  isGeneratingAiMask: false,
   isAIConnectorConnected: false,
-  isGeneratingAi: false,
   aiDenoiseProgress: {},
   isMaskControlHovered: false,
   hasRenderedFirstFrame: false,

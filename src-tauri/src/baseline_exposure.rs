@@ -1,4 +1,3 @@
-use crate::app_settings::AppSettings;
 use rawler::bits::Endian;
 use rawler::decoders::{Decoder, FormatHint, WellKnownIFD};
 use rawler::formats::bmff::Bmff;
@@ -30,38 +29,6 @@ pub struct RawExposure {
     pub scene_referred: bool,
     pub dng_baseline: f32,
     pub highlight_preservation: f32,
-}
-
-impl RawExposure {
-    pub fn compensation(&self, options: BaselineOptions) -> f32 {
-        let baseline = options.baseline_exposure.map_or(0.0, |amount| {
-            let scene_referred = if self.scene_referred { amount } else { 0.0 };
-            scene_referred + self.dng_baseline
-        });
-        let highlight_preservation = if options.compensate_highlight_preservation {
-            self.highlight_preservation
-        } else {
-            0.0
-        };
-        baseline + highlight_preservation
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub struct BaselineOptions {
-    pub baseline_exposure: Option<f32>,
-    pub compensate_highlight_preservation: bool,
-}
-
-impl BaselineOptions {
-    pub fn from_settings(settings: &AppSettings) -> Self {
-        Self {
-            baseline_exposure: settings
-                .enable_baseline_exposure
-                .then_some(settings.baseline_exposure),
-            compensate_highlight_preservation: settings.compensate_highlight_preservation,
-        }
-    }
 }
 
 pub fn read(decoder: &dyn Decoder, file_bytes: &[u8], is_monochrome: bool) -> RawExposure {
@@ -271,19 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn highlight_tone_priority_gives_back_its_stop() {
-        let exposure = RawExposure {
-            scene_referred: true,
-            dng_baseline: 0.0,
-            highlight_preservation: canon(&canon_makernote(ALO_OFF, HTP_ON)),
-        };
-        let given_back = |compensate_highlight_preservation| {
-            exposure.compensation(BaselineOptions {
-                baseline_exposure: None,
-                compensate_highlight_preservation,
-            })
-        };
-        assert_eq!(given_back(true), 1.0);
-        assert_eq!(given_back(false), 0.0);
+    fn highlight_tone_priority_holds_back_a_stop() {
+        assert_eq!(canon(&canon_makernote(ALO_OFF, HTP_ON)), 1.0);
     }
 }
