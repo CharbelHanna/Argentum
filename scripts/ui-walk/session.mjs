@@ -116,8 +116,21 @@ export async function openSession({ page, url, keys, verbose = false }) {
     if (verbose) console.log(`  ${String(Date.now() - start).padStart(5)} ms${quiet ? '' : ' (never quiet)'}  ${step}`);
   }
 
+  /** The stub's lists of calls it left unanswered and fetches it refused, kept across loads: each load starts them anew. */
+  const unanswered = new Set();
+  const offline = new Set();
+  async function gatherCalls() {
+    // A page too broken to answer has nothing more to give; the load after it is what recovers.
+    const lists = await evaluate(
+      'window.__uiWalk ? { unanswered: Object.keys(window.__uiWalk.unanswered), offline: Object.keys(window.__uiWalk.offline) } : null',
+    ).catch(() => null);
+    for (const name of lists?.unanswered ?? []) unanswered.add(name);
+    for (const origin of lists?.offline ?? []) offline.add(origin);
+  }
+
   /** Load the app at `query` and wait for `ready`; resolves with the milliseconds from navigation to ready. */
   async function load(query, ready) {
+    await gatherCalls();
     step = `loading ${query || '/'}`;
     let timer;
     const parsed = new Promise((resolve, reject) => {
@@ -258,9 +271,10 @@ export async function openSession({ page, url, keys, verbose = false }) {
     /** Record an entry the page cannot list: what a shortcut did. */
     note: (entry) => reached.add(entry),
     at: (where) => (step = where),
-    calls: () =>
-      evaluate(
-        'window.__uiWalk ? { unanswered: Object.keys(window.__uiWalk.unanswered), offline: Object.keys(window.__uiWalk.offline) } : null',
-      ),
+    /** The calls the stub left unanswered and the fetches it refused, on every page loaded so far. */
+    calls: async () => {
+      await gatherCalls();
+      return { unanswered: [...unanswered].sort(), offline: [...offline].sort() };
+    },
   };
 }
