@@ -1,11 +1,11 @@
 {
   "uncalledCommands": [],
-  "uncalledAg": ["list_camera_profiles"],
+  "uncalledAg": [],
   "cargoPackages": 825,
   "npmPackages": 409,
   "dist": {
     "assets/App.css": 32780,
-    "assets/App.js": 1803321,
+    "assets/App.js": 1782436,
     "assets/AppProperties.js": 12373,
     "assets/Shell.css": 8548,
     "assets/Shell.js": 30248,
@@ -23,7 +23,7 @@
     "assets/fakePaint.js": 1262,
     "assets/fakePaint.worker.js": 2112,
     "assets/fr.js": 82857,
-    "assets/index.css": 93870,
+    "assets/index.css": 93080,
     "assets/index.js": 180237,
     "assets/it.js": 78790,
     "assets/ja.js": 85282,

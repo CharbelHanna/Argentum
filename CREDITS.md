@@ -37,11 +37,6 @@ against. What has actually been taken:
 | Automatic white balance | `src/iop/channelmixerrgb.c`, `_auto_detect_WB()` @ `98a9ade9` | Yes |
 | The unsharp mask in Sharpening | `src/iop/sharpen.c` @ `39df8424` (`mods/sharpen.rs`) | Yes |
 | Raw-level behaviour, such as highlight recovery before demosaic | method from darktable's highlight reconstruction, noted where it applies in `mods/highlights.rs` and the CHANGELOG | Yes |
-| Sigmoid tone curve | `src/iop/sigmoid.c`, `_generalized_loglogistic_sigmoid` | Ported, then reverted — the code is in the tree at `mods/sigmoid.rs` but nothing calls it |
-
-The sigmoid row is listed because the code is distributed, not because it runs.
-Leaving it uncredited because it is currently disconnected would be the wrong
-way round.
 
 Beyond those, darktable's *behaviour* is the yardstick — the comparison
 harness in `mods/colour_compare.rs` measures Argentum against darktable renders
