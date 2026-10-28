@@ -11,7 +11,8 @@ import {
   ParametricCurveSettings,
   getDefaultCurves,
 } from '../../utils/adjustments';
-import { Theme, OPTION_SEPARATOR } from '../ui/AppProperties';
+import { OPTION_SEPARATOR } from '../ui/AppProperties';
+import { useLightPalette } from '../../argentum/layout/editorLayout';
 import { useContextMenu } from '../../context/ContextMenuContext';
 import Text from '../ui/Text';
 import Slider from '../ui/Slider';
@@ -38,7 +39,6 @@ interface CurveGraphProps {
   histogram: ChannelConfig | null;
   isForMask?: boolean;
   setAdjustments(updater: (prev: any) => any): void;
-  theme: string;
   onDragStateChange?: (isDragging: boolean) => void;
 }
 
@@ -241,13 +241,7 @@ const MIN_POINT_GAP_X = 1;
 const hasFineAdjustmentModifier = (event: MouseEvent | TouchEvent | React.MouseEvent | React.TouchEvent) =>
   'shiftKey' in event && (event.shiftKey || event.altKey);
 
-export default function CurveGraph({
-  adjustments,
-  setAdjustments,
-  histogram,
-  theme,
-  onDragStateChange,
-}: CurveGraphProps) {
+export default function CurveGraph({ adjustments, setAdjustments, histogram, onDragStateChange }: CurveGraphProps) {
   const { t } = useTranslation();
   const { showContextMenu } = useContextMenu();
   const [curveMode, setCurveMode] = useState<'point' | 'parametric'>(adjustments.curveMode || 'point');
@@ -474,7 +468,8 @@ export default function CurveGraph({
     };
   }, [draggingPointIndex, draggingSplitKey, isParametricMode]);
 
-  const isLightTheme = theme === Theme.Light || theme === Theme.Arctic;
+  // Argentum: the Modern palette, not the Classic theme Settings no longer sets.
+  const isLightTheme = useLightPalette();
   const histogramOpacity = isLightTheme ? 0.6 : 0.15;
 
   const channelConfig: ChannelConfig = useMemo(
