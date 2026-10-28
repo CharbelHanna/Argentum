@@ -72,6 +72,7 @@ import TaggingSubMenu from '../context/TaggingSubMenu';
 import { reloadAdjustmentsForPaths, useEditorActions } from './useEditorActions';
 import { useLibraryActions } from './useLibraryActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
+import { VIRTUAL_COPY, isVirtualCopyPath } from '../argentum/paths';
 
 export interface UseAppContextMenusProps {
   handleImageSelect: (path: string) => void;
@@ -414,8 +415,8 @@ export function useAppContextMenus(props: UseAppContextMenusProps) {
 
       const selectionHasVirtualCopies =
         isSingleSelection &&
-        !finalSelection[0].includes('?vc=') &&
-        imageList.some((image) => image.path.startsWith(`${finalSelection[0]}?vc=`));
+        !isVirtualCopyPath(finalSelection[0]) &&
+        imageList.some((image) => image.path.startsWith(`${finalSelection[0]}${VIRTUAL_COPY}`));
 
       const hasAssociatedFiles = finalSelection.some((selectedPath) => {
         const image = imageList.find((img) => img.path === selectedPath);

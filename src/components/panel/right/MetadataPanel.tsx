@@ -17,6 +17,7 @@ import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useProcessStore } from '../../../store/useProcessStore';
 import { useLibraryActions } from '../../../hooks/useLibraryActions';
 import { expandGroupedPaths } from '../../../utils/imageGrouping';
+import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../../argentum/paths';
 
 interface CameraSetting {
   format?(value: number): string | number;
@@ -353,9 +354,8 @@ export default function MetadataPanel({ photo }: { photo?: ShownPhoto | null } =
 
   const hasGps = gpsData.lat !== null && gpsData.lon !== null;
   const fullPath = selectedImage?.path || '';
-  const isVirtualCopy = fullPath.includes('?vc=');
-  const basePath = fullPath.split('?vc=')[0];
-  const fileName = basePath.split(/[\\/]/).pop() || '';
+  const isVirtualCopy = isVirtualCopyPath(fullPath);
+  const fileName = fileNameOf(physicalPathOf(fullPath));
   const fileExtension = fileName.split('.').pop()?.toUpperCase() || 'FILE';
   const megapixels =
     selectedImage?.width && selectedImage?.height

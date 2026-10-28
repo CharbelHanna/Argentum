@@ -1,4 +1,5 @@
 import type { Adjustments } from './adjustments';
+import { VIRTUAL_COPY } from '../argentum/paths';
 
 interface ImageCacheEntry {
   adjustments: Adjustments;
@@ -69,7 +70,7 @@ class ImageLRUCache {
 
   deleteByPrefix(prefix: string): void {
     for (const key of [...this.cache.keys()]) {
-      if (key === prefix || key.startsWith(prefix + '?vc=')) {
+      if (key === prefix || key.startsWith(prefix + VIRTUAL_COPY)) {
         this.delete(key);
       }
     }

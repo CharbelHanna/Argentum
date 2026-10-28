@@ -176,7 +176,7 @@ mod tests {
     fn history_is_kept_beside_the_edit() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("DSC0001.ARW");
-        let sidecar = crate::exif_processing::get_primary_sidecar_path(&source);
+        let sidecar = crate::file_management::sidecar_for(&source, None);
         std::fs::write(
             &sidecar,
             r#"{ "version": 1, "rating": 4, "adjustments": { "exposure": 0.5 }, "tags": ["kept"] }"#,
@@ -206,7 +206,7 @@ mod tests {
     fn history_is_only_good_for_the_edit_it_was_written_with() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("DSC0005.ARW");
-        let sidecar = crate::exif_processing::get_primary_sidecar_path(&source);
+        let sidecar = crate::file_management::sidecar_for(&source, None);
         let rewrite = |change: &dyn Fn(&mut crate::image_processing::ImageMetadata)| {
             let mut metadata = crate::exif_processing::load_sidecar(&sidecar);
             change(&mut metadata);
@@ -244,7 +244,7 @@ mod tests {
     fn history_alone_gives_an_unedited_photo_no_sidecar() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("DSC0002.ARW");
-        let sidecar = crate::exif_processing::get_primary_sidecar_path(&source);
+        let sidecar = crate::file_management::sidecar_for(&source, None);
 
         // Steps made and all undone: the edit is the photo's defaults again.
         write(&source, &sidecar, Some(record())).unwrap();
@@ -263,8 +263,7 @@ mod tests {
     #[test]
     fn a_record_this_version_cannot_read_leaves_the_edit_readable() {
         let dir = tempfile::tempdir().unwrap();
-        let sidecar =
-            crate::exif_processing::get_primary_sidecar_path(&dir.path().join("DSC0003.ARW"));
+        let sidecar = crate::file_management::sidecar_for(&dir.path().join("DSC0003.ARW"), None);
         for broken in [
             json!("not a record"),
             json!({ "end": 3, "steps": [{ "name": "Initial State" }] }),
@@ -283,7 +282,7 @@ mod tests {
     fn an_end_past_the_last_step_is_refused() {
         let dir = tempfile::tempdir().unwrap();
         let source = dir.path().join("DSC0004.ARW");
-        let sidecar = crate::exif_processing::get_primary_sidecar_path(&source);
+        let sidecar = crate::file_management::sidecar_for(&source, None);
         let mut wrong = record();
         wrong.end = wrong.steps.len();
         assert!(write(&source, &sidecar, Some(wrong)).is_err());

@@ -27,7 +27,9 @@ use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::file_management::{parse_sidecar_name, parse_virtual_path};
+use crate::file_management::{
+    VIRTUAL_COPY, parse_sidecar_name, parse_virtual_path, split_virtual_path,
+};
 use crate::formats::is_supported_image_file;
 
 /// Why a file operation stopped before writing anything.
@@ -343,12 +345,12 @@ pub fn paths_after_rename(inputs: &[String], renames: &HashMap<String, String>) 
     inputs
         .iter()
         .map(|input| {
-            let (photo, copy_id) = match input.rsplit_once("?vc=") {
-                Some((photo, id)) => (photo, format!("?vc={id}")),
-                None => (input.as_str(), String::new()),
-            };
+            let (photo, copy_id) = split_virtual_path(input);
             let renamed = renames.get(photo).map_or(photo, String::as_str);
-            format!("{renamed}{copy_id}")
+            match copy_id {
+                Some(id) => format!("{renamed}{VIRTUAL_COPY}{id}"),
+                None => renamed.to_string(),
+            }
         })
         .collect()
 }
@@ -401,7 +403,8 @@ mod tests {
     use crate::image_processing::ImageMetadata;
 
     fn is_sidecar(path: &Path) -> bool {
-        path.extension().is_some_and(|e| e == "agdata")
+        path.extension()
+            .is_some_and(|e| e == crate::file_management::SIDECAR_EXTENSION)
     }
 
     /// A sidecar is written as a real one, carrying `text` as its tag, because a

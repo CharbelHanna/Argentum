@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { FILENAME_VARIABLES, isUniqueFilenameTemplate } from '../ui/ExportImportProperties';
 import Text from '../ui/Text';
 import { TextVariants } from '../../types/typography';
+import { fileNameOf } from '../../argentum/paths';
 
 interface RenameFileModalProps {
   filesToRename: Array<string>;
@@ -24,7 +25,7 @@ export default function RenameFileModal({ filesToRename, isOpen, onClose, onSave
   useEffect(() => {
     if (isOpen) {
       if (isSingleFile && filesToRename[0]) {
-        const fileName = filesToRename[0].split(/[\\/]/).pop();
+        const fileName = fileNameOf(filesToRename[0]);
         const nameWithoutExt = fileName?.substring(0, fileName.lastIndexOf('.'));
         if (nameWithoutExt) {
           setNameTemplate(nameWithoutExt);

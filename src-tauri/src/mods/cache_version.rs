@@ -72,7 +72,7 @@ const STAMP: &str = "argentum-pipeline";
 
 /// Clear the thumbnail cache if it was written by a different decode.
 ///
-/// Takes the app cache directory, which is where `resolve_thumbnail_cache_dir`
+/// Takes the app cache directory, which is where `get_thumb_cache_dir`
 /// puts `thumbnails/`. Silent and best-effort: a cache that cannot be read or
 /// cleared is not a reason to stop the app starting, it just means some
 /// thumbnails stay stale until the user regenerates them.
@@ -84,7 +84,7 @@ pub fn clear_thumbnails_if_pipeline_changed(cache_dir: &Path) {
         return;
     }
 
-    let thumbnails = cache_dir.join("thumbnails");
+    let thumbnails = cache_dir.join(crate::file_management::THUMBNAIL_DIR);
     let removed = remove_cached_images(&thumbnails);
     if removed > 0 {
         log::info!("decode pipeline is now v{PIPELINE}; dropped {removed} stale thumbnails");

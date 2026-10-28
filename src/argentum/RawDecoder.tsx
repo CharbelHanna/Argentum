@@ -23,6 +23,7 @@ import type { Adjustments } from '../utils/adjustments';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
 import { redecodeOpenPhoto } from './redecode';
+import { isVirtualCopyPath } from './paths';
 
 /** `RawDecoder` in src-tauri/src/mods/raw_decoder.rs. */
 type RawDecoderName = 'rawler' | 'flashraw';
@@ -84,7 +85,7 @@ export default function RawDecoder() {
   const [appDecoder, setAppDecoder] = useState<RawDecoderName | null>(null);
   const [handled, setHandled] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
-  const shown = !!path && isRaw && !path.includes('?vc=');
+  const shown = !!path && isRaw && !isVirtualCopyPath(path);
 
   useEffect(() => {
     if (!shown) {

@@ -1,3 +1,4 @@
+import { physicalPathOf } from './paths';
 /**
  * What the library shows after a delete or a rename. Ours.
  *
@@ -5,13 +6,9 @@
  * they follow RapidRAW 1.6.7's fixes to that file (3c0a0082).
  */
 
-const VIRTUAL_COPY = '?vc=';
-
-const photoOf = (path: string) => path.split(VIRTUAL_COPY)[0];
-
 /** Whether `path` goes when `deleted` are deleted: deleting a photo deletes its virtual copies too. */
 export const isDeletedWith = (path: string, deleted: readonly string[]): boolean =>
-  deleted.includes(path) || deleted.includes(photoOf(path));
+  deleted.includes(path) || deleted.includes(physicalPathOf(path));
 
 /**
  * The photo to make active once `deleted` are deleted, with `order` the library as shown. The active

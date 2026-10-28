@@ -34,6 +34,7 @@ import { useUIStore } from '../../../store/useUIStore';
 import { useLooks } from '../../../argentum/looks/looksStore';
 import { useAgTranslation } from '../../../argentum/locales';
 import { cropFrame } from '../../../argentum/linearEdges';
+import { fileNameOf } from '../../../argentum/paths';
 
 interface ExportPanelProps {
   exportState: ExportState;
@@ -768,7 +769,7 @@ export default function ExportPanel({
       if (isOriginalFolder) {
         outputFolderOrFile = 'originalFolderDummy';
       } else if (shouldChooseOutputFile) {
-        const originalFilename = pathsToExport[0].split(/[\\/]/).pop() || '';
+        const originalFilename = fileNameOf(pathsToExport[0]);
         const stem = originalFilename.substring(0, originalFilename.lastIndexOf('.')) || originalFilename;
         const suggestedName = (filenameTemplate || '').replace('{original_filename}', stem);
         const outputFileName = `${suggestedName}.${selectedFormat.extensions[0]}`;
@@ -1158,7 +1159,7 @@ export default function ExportPanel({
                       <div className={isExporting ? 'opacity-50 pointer-events-none' : ''}>
                         <ImagePicker
                           label={t('export.watermark.watermarkImage')}
-                          imageName={watermarkPath ? watermarkPath.split(/[\\/]/).pop() || null : null}
+                          imageName={watermarkPath ? fileNameOf(watermarkPath) || null : null}
                           onImageSelect={setWatermarkPath}
                           onClear={() => setWatermarkPath(null)}
                         />
