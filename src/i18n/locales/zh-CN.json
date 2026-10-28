@@ -1167,7 +1167,6 @@
       "brand": "Argentum",
       "continueSession": "继续会话",
       "contribute": "在 GitHub 上贡献",
-      "descriptionAndroid": "一款极速、GPU 加速的 RAW 图像编辑器。打开图库以开始。",
       "descriptionDesktop": "一款极速、GPU 加速的 RAW 图像编辑器。打开文件夹以开始。",
       "donate": "在 Ko-Fi 上捐赠",
       "downloadVersion": "点击下载版本 {{version}}",
@@ -1202,8 +1201,7 @@
     },
     "tooltips": {
       "communityPresets": "社区预设",
-      "goHome": "返回首页",
-      "importImages": "导入图像"
+      "goHome": "返回首页"
     }
   },
   "masks": {
@@ -1916,7 +1914,6 @@
       "thumbnailResDesc": "确定生成的图库缩略图的分辨率。较高的值可在加载时产生更清晰的图像。",
       "title": "处理引擎",
       "wgpu": "WGPU 直接渲染",
-      "wgpuDescAndroid": "绕过浏览器编码，实现即时响应的实时预览。（在 Android 上已禁用：原生 WGPU 表面创建目前不支持与移动端 Webview 同时运行。）",
       "wgpuDescLinux": "绕过浏览器编码，实现即时响应的实时预览。（在 Linux 上已禁用：Tauri 使用 GTK 作为 Webview，与同一 X11 表面上的 WGPU 冲突并导致闪烁。）",
       "wgpuDescRecommended": "绕过浏览器编码，实现即时响应的实时预览。强烈推荐以获得最佳性能。",
       "wgpuLabel": "启用直接 WGPU 渲染",
