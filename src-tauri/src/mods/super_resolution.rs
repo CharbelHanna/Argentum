@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, OnceLock};
 
 use anyhow::{Context, Result, anyhow};
+use argentum_engine::colour::srgb_encode;
 use base64::{Engine as _, engine::general_purpose};
 use glam::DVec3;
 use image::imageops::FilterType;
@@ -633,15 +634,6 @@ fn encode_for_reopening(image: &mut DynamicImage) {
         }
     });
     *image = DynamicImage::ImageRgb32F(rgb);
-}
-
-fn srgb_encode(linear: f32) -> f32 {
-    let c = linear.clamp(0.0, 1.0);
-    if c <= 0.003_130_8 {
-        c * 12.92
-    } else {
-        1.055 * c.powf(1.0 / 2.4) - 0.055
-    }
 }
 
 /// The models a recipe needs, loaded (and downloaded, once) before any work.
@@ -1944,20 +1936,11 @@ mod tests {
         assert_eq!(colour["tolerance"], 20);
     }
 
-    /// The editor's decode for an ordinary image (`srgb_to_linear`, shader.wgsl).
-    fn editor_srgb_to_linear(c: f32) -> f32 {
-        if c <= 0.04045 {
-            c / 12.92
-        } else {
-            ((c + 0.055) / 1.055).powf(2.4)
-        }
-    }
-
     #[test]
     fn the_editor_decodes_an_enlarged_raw_back_to_its_light() {
         for i in 0..=1000 {
             let linear = i as f32 / 1000.0;
-            let decoded = editor_srgb_to_linear(srgb_encode(linear));
+            let decoded = argentum_engine::colour::srgb_decode(srgb_encode(linear));
             assert!(
                 (decoded - linear).abs() < 1e-5,
                 "{linear} came back as {decoded}"

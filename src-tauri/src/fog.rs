@@ -1,3 +1,4 @@
+use argentum_engine::colour::luma;
 use image::{DynamicImage, GenericImageView};
 use rayon::prelude::*;
 use std::borrow::Cow;
@@ -194,7 +195,6 @@ pub fn apply_fog<'a>(
     } else {
         mean_rgb
     };
-    let luma = |c: [f32; 3]| 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
     let far_luma = luma(far_rgb).max(1e-4);
     let atmosphere = far_luma.max(luma(mean_rgb));
     let tint_luma = luma(tint).max(1e-3);

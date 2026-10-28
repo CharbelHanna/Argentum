@@ -222,17 +222,14 @@ brightness  darktable {dl:.1}   argentum {al:.1}   ours is {:.0}% of theirs",
 /// Matrix experiments, kept out of the test body so it stays readable.
 #[cfg(test)]
 mod matrix_sim {
+    use crate::mods::profile_matrix::{invert, multiply};
+    use argentum_engine::colour::SRGB_TO_XYZ_D65;
+
     /// Canon EOS 5D Mark II, from darktable's cameras.xml and rawler's log.
     pub const CANON_5D2: [[f32; 3]; 3] = [
         [0.4716, 0.0603, -0.0830],
         [-0.7798, 1.5474, 0.2480],
         [-0.1496, 0.1937, 0.6651],
-    ];
-
-    pub const SRGB_TO_XYZ: [[f32; 3]; 3] = [
-        [0.412_456_4, 0.357_576_1, 0.180_437_5],
-        [0.212_672_9, 0.715_152_2, 0.072_175_0],
-        [0.019_333_9, 0.119_192, 0.950_304_1],
     ];
 
     pub const XYZ_TO_SRGB: [[f32; 3]; 3] = [
@@ -248,40 +245,6 @@ mod matrix_sim {
         [0.012_314_2, -0.020_507_7, 1.330_889_5],
     ];
 
-    pub fn mul(a: &[[f32; 3]; 3], b: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
-        let mut o = [[0.0f32; 3]; 3];
-        for (i, row) in o.iter_mut().enumerate() {
-            for (j, c) in row.iter_mut().enumerate() {
-                *c = (0..3).map(|k| a[i][k] * b[k][j]).sum();
-            }
-        }
-        o
-    }
-
-    pub fn invert(m: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
-        let det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1])
-            - m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0])
-            + m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
-        let d = 1.0 / det;
-        [
-            [
-                (m[1][1] * m[2][2] - m[1][2] * m[2][1]) * d,
-                (m[0][2] * m[2][1] - m[0][1] * m[2][2]) * d,
-                (m[0][1] * m[1][2] - m[0][2] * m[1][1]) * d,
-            ],
-            [
-                (m[1][2] * m[2][0] - m[1][0] * m[2][2]) * d,
-                (m[0][0] * m[2][2] - m[0][2] * m[2][0]) * d,
-                (m[0][2] * m[1][0] - m[0][0] * m[1][2]) * d,
-            ],
-            [
-                (m[1][0] * m[2][1] - m[1][1] * m[2][0]) * d,
-                (m[0][1] * m[2][0] - m[0][0] * m[2][1]) * d,
-                (m[0][0] * m[1][1] - m[0][1] * m[1][0]) * d,
-            ],
-        ]
-    }
-
     pub fn row_normalise(m: &[[f32; 3]; 3]) -> [[f32; 3]; 3] {
         let mut o = *m;
         for row in o.iter_mut() {
@@ -295,13 +258,13 @@ mod matrix_sim {
 
     /// What rawler computes: camera -> sRGB, from a row-normalised matrix.
     pub fn rawler_cam2rgb() -> [[f32; 3]; 3] {
-        invert(&row_normalise(&mul(&CANON_5D2, &SRGB_TO_XYZ)))
+        invert(&row_normalise(&multiply(&CANON_5D2, &SRGB_TO_XYZ_D65))).expect("invertible")
     }
 
     /// The colorimetrically correct route: camera -> XYZ(D50) -> XYZ(D65) -> sRGB.
     pub fn correct_cam2rgb() -> [[f32; 3]; 3] {
-        let cam_to_xyz_d50 = invert(&CANON_5D2);
-        mul(&XYZ_TO_SRGB, &mul(&D50_TO_D65, &cam_to_xyz_d50))
+        let cam_to_xyz_d50 = invert(&CANON_5D2).expect("invertible");
+        multiply(&XYZ_TO_SRGB, &multiply(&D50_TO_D65, &cam_to_xyz_d50))
     }
 
     /// Turn rawler's output into the correct one, without re-decoding.
@@ -310,7 +273,10 @@ mod matrix_sim {
     /// already renders greys correctly and a fix that disturbs them is wrong,
     /// which is how the first attempt at this was caught.
     pub fn correction() -> [[f32; 3]; 3] {
-        let c = mul(&correct_cam2rgb(), &invert(&rawler_cam2rgb()));
+        let c = multiply(
+            &correct_cam2rgb(),
+            &invert(&rawler_cam2rgb()).expect("invertible"),
+        );
         row_normalise(&c)
     }
 }

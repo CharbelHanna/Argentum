@@ -142,7 +142,7 @@ pub fn gray_grid(mix: [f32; BANDS]) -> Vec<f32> {
 /// The grey `rgb` (linear sRGB) becomes under `grid`, as linear luminance.
 pub fn gray(grid: &[f32], rgb: [f32; 3]) -> f32 {
     let rgb = rgb.map(|v| v.max(0.0));
-    let luminance = 0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2];
+    let luminance = crate::colour::luma(rgb);
     let q =
         SRGB_TO_PROPHOTO.map(|row| (row[0] * rgb[0] + row[1] * rgb[1] + row[2] * rgb[2]).max(0.0));
     let max_v = q[0].max(q[1]).max(q[2]);
@@ -335,10 +335,6 @@ const AUTO_MIX_OFFSET: [f64; BANDS] = [3.48, -8.34, -17.09, -27.00, -24.55, -3.2
 mod tests {
     use super::*;
 
-    fn luminance(rgb: [f32; 3]) -> f32 {
-        0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]
-    }
-
     #[test]
     fn the_chart_reads_whole() {
         let chart = parse_chart(include_str!("rm_black_white_chart.tsv")).expect("the chart reads");
@@ -355,7 +351,7 @@ mod tests {
         // Neutrals keep their luminance; a zero mix stays near the colour's own.
         assert!((gray(&zero, [0.2; 3]) - 0.2).abs() < 0.01);
         let orange = [0.6, 0.3, 0.1];
-        assert!((gray(&zero, orange) / luminance(orange) - 1.0).abs() < 0.25);
+        assert!((gray(&zero, orange) / crate::colour::luma(orange) - 1.0).abs() < 0.25);
         // Camera Raw's -100 on a band takes its saturated colours to near
         // black, its +100 brightens them; positions between are between.
         let band = |v: f32| {

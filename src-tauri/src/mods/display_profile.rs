@@ -40,27 +40,9 @@
 //! wrong. Anything that restored it — saturation, a different matrix — would be
 //! inventing colour to match a bug.
 
+use argentum_engine::colour::{BRADFORD_D65_TO_D50, SRGB_TO_XYZ_D65};
+
 use crate::mods::profile_matrix::{invert, multiply};
-
-/// sRGB primaries to XYZ, D65. The same constant rawler and the correction use.
-const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
-    [0.412_456_4, 0.357_576_1, 0.180_437_5],
-    [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192, 0.950_304_1],
-];
-
-/// Bradford, D65 to D50.
-///
-/// An ICC profile's colourants are stored against D50 — that is the connection
-/// space the format is defined in — so sRGB has to be adapted to D50 before the
-/// two can be compared. Getting this wrong tilts the whole conversion towards
-/// blue or yellow, which is exactly the kind of error that looks like a
-/// white-balance problem and is not one.
-const BRADFORD_D65_TO_D50: [[f32; 3]; 3] = [
-    [1.047_811_2, 0.022_886_6, -0.050_127_0],
-    [0.029_542_4, 0.990_484_4, -0.017_049_1],
-    [-0.009_234_5, 0.015_043_6, 0.752_131_6],
-];
 
 /// No conversion, as a plain 3x3.
 ///
@@ -158,6 +140,11 @@ pub fn srgb_to_display(c: &Colourants) -> Option<[[f32; 3]; 3]> {
         [c.red[2], c.green[2], c.blue[2]],
     ];
     let xyz_to_display = invert(&display_to_xyz)?;
+    // An ICC profile's colourants are stored against D50 — that is the
+    // connection space the format is defined in — so sRGB has to be adapted to
+    // D50 before the two can be compared. Getting this wrong tilts the whole
+    // conversion towards blue or yellow, which is exactly the kind of error
+    // that looks like a white-balance problem and is not one.
     let srgb_to_xyz_d50 = multiply(&BRADFORD_D65_TO_D50, &SRGB_TO_XYZ_D65);
     Some(multiply(&xyz_to_display, &srgb_to_xyz_d50))
 }

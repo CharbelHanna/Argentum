@@ -206,7 +206,7 @@ fn luminance_samples(image: &DynamicImage, linear: bool) -> Vec<f32> {
             (*x as usize).is_multiple_of(stride) && (*y as usize).is_multiple_of(stride)
         })
         .map(|(_, _, p)| {
-            let luma = (0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]).max(0.0);
+            let luma = argentum_engine::colour::luma(p.0).max(0.0);
             let encoded = if linear { linear_to_srgb(luma) } else { luma };
             encoded.clamp(0.0, 1.0)
         })

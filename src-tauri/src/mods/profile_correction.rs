@@ -37,14 +37,9 @@
 
 use std::sync::{Mutex, OnceLock};
 
-use super::profile_matrix::{invert, multiply};
+use argentum_engine::colour::SRGB_TO_XYZ_D65;
 
-/// sRGB primaries to XYZ D65, matching rawler's own constant.
-const SRGB_TO_XYZ_D65: [[f32; 3]; 3] = [
-    [0.412_456_4, 0.357_576_1, 0.180_437_5],
-    [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192, 0.950_304_1],
-];
+use super::profile_matrix::{as_rows, invert, multiply};
 
 pub const IDENTITY: [[f32; 3]; 3] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
 
@@ -236,14 +231,6 @@ fn colour_for_this_render(photo: Option<&str>) -> Option<([f32; 9], super::dng_c
     touch(known, at);
     let entry = &known[known.len() - 1];
     Some((entry.matrix, entry.colour.clone()?))
-}
-
-fn as_rows(flat: &[f32; 9]) -> [[f32; 3]; 3] {
-    [
-        [flat[0], flat[1], flat[2]],
-        [flat[3], flat[4], flat[5]],
-        [flat[6], flat[7], flat[8]],
-    ]
 }
 
 /// Camera RGB to sRGB, the way rawler derives it from an `xyz2cam`.

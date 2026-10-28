@@ -224,7 +224,7 @@ pub fn colours(rgb: &[[f32; 3]]) -> Colours {
     }
     let luma: Vec<f32> = rgb
         .iter()
-        .map(|p| 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2])
+        .map(|p| argentum_engine::colour::luma(*p))
         .collect();
     let mut sorted = luma.clone();
     sorted.sort_by(f32::total_cmp);

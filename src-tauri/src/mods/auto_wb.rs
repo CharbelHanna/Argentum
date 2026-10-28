@@ -24,6 +24,7 @@
 //!     that image derivatives average to neutral. Holds up better when one
 //!     colour dominates the frame and grey-world falls apart.
 
+use argentum_engine::colour::SRGB_TO_XYZ_D65;
 use glam::DVec3;
 use image::DynamicImage;
 use serde::{Deserialize, Serialize};
@@ -43,15 +44,6 @@ const NORM_MIN: f32 = 1.525_878_9e-5; // 2^-16
 /// balanced image should be adapted *to* here.
 pub const D65_X: f32 = 0.312_726_9;
 pub const D65_Y: f32 = 0.329_023_2;
-
-/// Linear sRGB (D65) to CIE XYZ. RapidRAW's pipeline works in linear sRGB,
-/// so this is the matrix that gets us to a space where chromaticity means
-/// something.
-const SRGB_TO_XYZ: [[f32; 3]; 3] = [
-    [0.412_456_4, 0.357_576_1, 0.180_437_5],
-    [0.212_672_9, 0.715_152_2, 0.072_175_0],
-    [0.019_333_9, 0.119_192, 0.950_304_1],
-];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -157,9 +149,9 @@ fn to_chromaticity(image: &DynamicImage, linearise: bool) -> Chromaticity {
             (pixel[0].max(0.0), pixel[1].max(0.0), pixel[2].max(0.0))
         };
 
-        let x_ = SRGB_TO_XYZ[0][0] * r + SRGB_TO_XYZ[0][1] * g + SRGB_TO_XYZ[0][2] * b;
-        let y_ = SRGB_TO_XYZ[1][0] * r + SRGB_TO_XYZ[1][1] * g + SRGB_TO_XYZ[1][2] * b;
-        let z_ = SRGB_TO_XYZ[2][0] * r + SRGB_TO_XYZ[2][1] * g + SRGB_TO_XYZ[2][2] * b;
+        let x_ = SRGB_TO_XYZ_D65[0][0] * r + SRGB_TO_XYZ_D65[0][1] * g + SRGB_TO_XYZ_D65[0][2] * b;
+        let y_ = SRGB_TO_XYZ_D65[1][0] * r + SRGB_TO_XYZ_D65[1][1] * g + SRGB_TO_XYZ_D65[1][2] * b;
+        let z_ = SRGB_TO_XYZ_D65[2][0] * r + SRGB_TO_XYZ_D65[2][1] * g + SRGB_TO_XYZ_D65[2][2] * b;
 
         let sum = (x_ + y_ + z_).max(NORM_MIN);
         data.push([(x_ / sum - D65_X) / norm, (y_ / sum - D65_Y) / norm, y_]);

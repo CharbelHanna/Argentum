@@ -462,14 +462,11 @@ fn kelvin_to_xy(kelvin: f64) -> (f64, f64) {
 mod tests {
     use super::*;
     use crate::white_balance;
-    use glam::{DMat3, DVec3};
-
-    const BRADFORD: [f64; 9] = [
-        0.8951, -0.7502, 0.0389, 0.2664, 1.7135, -0.0685, -0.1614, 0.0367, 1.0296,
-    ];
+    use argentum_engine::colour::BRADFORD;
+    use glam::DVec3;
 
     fn lms(x: f64, y: f64) -> DVec3 {
-        DMat3::from_cols_array(&BRADFORD) * DVec3::new(x / y, 1.0, (1.0 - x - y) / y)
+        BRADFORD * DVec3::new(x / y, 1.0, (1.0 - x - y) / y)
     }
 
     /// The log cone gains the retired shader applied for these sliders,
