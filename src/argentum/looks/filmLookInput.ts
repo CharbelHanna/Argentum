@@ -15,6 +15,7 @@
  */
 
 import { ADJUSTMENT_GROUPS, COPYABLE_ADJUSTMENT_KEYS } from '../../utils/adjustments';
+import { fileNameOf } from '../paths';
 
 /** As `KEY` in mods/film_lut.rs. */
 const DECLARED_INPUT_KEY = 'agLutDeclaredInput';
@@ -25,7 +26,7 @@ const DECLARED_INPUT_KEY = 'agLutDeclaredInput';
  */
 export const lutKeys = (path: string, isBuiltIn: boolean) => ({
   lutPath: path,
-  lutName: path.split(/[\\/]/).pop() || 'LUT',
+  lutName: fileNameOf(path) || 'LUT',
   lutIsSceneReferred: isBuiltIn,
   [DECLARED_INPUT_KEY]: true,
 });

@@ -13,6 +13,7 @@ import { useLibraryStore } from '../store/useLibraryStore';
 import { useUIStore } from '../store/useUIStore';
 import { Invokes, ImageFile, ImageFlag } from '../components/ui/AppProperties';
 import FilterExitToast from './FilterExitToast';
+import { fileNameOf, physicalPathOf } from './paths';
 
 // RapidRAW 4eb6b2da: src/hooks/useLibraryActions.ts
 export interface MetadataSnapshot {
@@ -107,7 +108,7 @@ export const showFilterExitToast = (
   };
 
   const content = createElement(FilterExitToast, {
-    fileName: activePath.split('?vc=')[0].split(/[\\/]/).pop() || '',
+    fileName: fileNameOf(physicalPathOf(activePath)),
     count: hiddenCount,
     onUndo: undo,
   });

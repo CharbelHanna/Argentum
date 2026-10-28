@@ -31,6 +31,7 @@ import HistogramSection from '../layout/HistogramSection';
 import { useAgTranslation, type AgKey } from '../locales';
 import LooksPanel from '../looks/LooksPanel';
 import { useGridAdjustments } from './gridAdjustments';
+import { fileNameOf } from '../paths';
 
 const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] = [
   { panel: Panel.Adjustments, label: 'mwTabEdit', key: 'D' },
@@ -143,7 +144,7 @@ function TabBody({
   const selectedCount = useLibraryStore((s) => s.multiSelectedPaths.length);
   const gridAdjustments = useGridAdjustments(editing ? null : libraryActivePath);
   const libraryExif = useLibraryStore((s) => s.imageList.find((image) => image.path === s.libraryActivePath)?.exif);
-  const name = libraryActivePath?.split(/[\\/]/).pop();
+  const name = libraryActivePath ? fileNameOf(libraryActivePath) : undefined;
 
   if (tab === Panel.Adjustments) {
     if (editing) return <Controls />;

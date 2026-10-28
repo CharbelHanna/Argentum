@@ -346,7 +346,7 @@ fn has_virtual_copy_sidecars(source_path: &Path) -> bool {
 }
 
 fn is_default_sidecar(sidecar_path: &Path, source_path: &Path, metadata: &ImageMetadata) -> bool {
-    if sidecar_path != get_primary_sidecar_path(source_path) {
+    if sidecar_path != crate::file_management::sidecar_for(source_path, None) {
         return false;
     }
     if metadata.rating != 0
@@ -1974,12 +1974,6 @@ fn update_riff_size(image_bytes: &mut [u8]) {
     image_bytes[4..8].copy_from_slice(&riff_size.to_le_bytes());
 }
 
-pub fn get_primary_sidecar_path(image_path: &Path) -> PathBuf {
-    let mut filename = image_path.file_name().unwrap_or_default().to_os_string();
-    filename.push(".agdata");
-    image_path.with_file_name(filename)
-}
-
 pub fn get_rrexif_path(image_path: &Path) -> PathBuf {
     let mut filename = image_path.file_name().unwrap_or_default().to_os_string();
     filename.push(".agexif");
@@ -1987,18 +1981,18 @@ pub fn get_rrexif_path(image_path: &Path) -> PathBuf {
 }
 
 fn load_primary_metadata(image_path: &Path) -> ImageMetadata {
-    let primary = get_primary_sidecar_path(image_path);
+    let primary = crate::file_management::sidecar_for(image_path, None);
     load_sidecar(&primary)
 }
 
 fn save_primary_metadata(image_path: &Path, metadata: &ImageMetadata) -> std::io::Result<()> {
-    let primary = get_primary_sidecar_path(image_path);
+    let primary = crate::file_management::sidecar_for(image_path, None);
     let json = serde_json::to_string_pretty(metadata).map_err(std::io::Error::other)?;
     crate::mods::atomic_write::write_atomic(&primary, json)
 }
 
 pub fn read_rrexif_sidecar(image_path: &Path) -> Option<HashMap<String, String>> {
-    let primary = get_primary_sidecar_path(image_path);
+    let primary = crate::file_management::sidecar_for(image_path, None);
 
     if primary.exists() {
         let metadata = load_primary_metadata(image_path);
@@ -2062,7 +2056,7 @@ pub fn read_exif_data(path: &str, file_bytes: &[u8]) -> HashMap<String, String> 
 
     let exif_map = crate::mods::lens_name::with_lens(read_exif_data_from_bytes(path, file_bytes), file_bytes);
     if !exif_map.is_empty() {
-        let primary = get_primary_sidecar_path(source_path);
+        let primary = crate::file_management::sidecar_for(source_path, None);
         if primary.exists() {
             let mut metadata = load_primary_metadata(source_path);
             metadata.exif = Some(exif_map.clone());
@@ -2085,7 +2079,7 @@ pub fn persist_exif_if_missing(source_path: &Path, source_path_str: &str, file_b
         return;
     }
 
-    let primary = get_primary_sidecar_path(source_path);
+    let primary = crate::file_management::sidecar_for(source_path, None);
 
     if primary.exists() {
         let mut metadata = load_primary_metadata(source_path);

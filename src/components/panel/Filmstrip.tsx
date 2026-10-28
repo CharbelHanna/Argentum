@@ -12,6 +12,7 @@ import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useDraggable } from '@dnd-kit/core';
+import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../argentum/paths';
 
 const HORIZONTAL_PADDING = 4;
 const ITEM_GAP = 8;
@@ -90,7 +91,7 @@ const FilmstripThumbnail = memo(
     const rating = imageRatings?.[path] || 0;
     const colorTag = tags?.find((t: string) => t.startsWith('color:'))?.substring(6);
     const colorLabel = COLOR_LABELS.find((c: Color) => c.name === colorTag);
-    const isVirtualCopy = path.includes('?vc=');
+    const isVirtualCopy = isVirtualCopyPath(path);
     const displayEditIcon = useSettingsStore((s) => s.appSettings?.displayEditIcon ?? true);
     const showEditIcon = isEdited && displayEditIcon;
 
@@ -100,8 +101,7 @@ const FilmstripThumbnail = memo(
     const hasRating = rating > 0 && !isRejected;
     const hasAnyOverlay = hasEditIcon || hasColorLabel || hasRating || !!flag;
 
-    const cleanPath = path.split('?')[0];
-    const filename = cleanPath.split(/[\\/]/).pop() || '';
+    const filename = fileNameOf(physicalPathOf(path));
 
     const truncatedTitle =
       filename.length > 40 ? filename.substring(0, 20) + '...' + filename.substring(filename.length - 17) : filename;
@@ -698,7 +698,7 @@ export default function Filmstrip({
   const filmstripActivePath = useMemo(() => {
     const path = selectedImage?.path;
     if (!path || groupingMode === 'off') return path;
-    if (path.includes('?vc=')) return path;
+    if (isVirtualCopyPath(path)) return path;
     if (imageList.some((img) => img.path === path)) return path;
     const selected = fullImageList.find((img) => img.path === path);
     if (!selected?.group_id) return path;

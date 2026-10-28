@@ -21,6 +21,7 @@ import CullingModal from './CullingModal';
 import CollageModal from './CollageModal';
 import { AppSettings, Invokes, ImageFlag, AlbumItem, Album, AlbumGroup } from '../ui/AppProperties';
 import { CopyPasteSettings } from '../../utils/adjustments';
+import { fileNameOf } from '../../argentum/paths';
 
 export interface AppModalsProps {
   handleImageSelect: (path: string) => void;
@@ -281,7 +282,7 @@ export default function AppModals(props: AppModalsProps) {
         onSave={props.handleCreateFolder}
       />
       <RenameFolderModal
-        currentName={folderActionTarget ? folderActionTarget.split(/[\\/]/).pop() || '' : ''}
+        currentName={folderActionTarget ? fileNameOf(folderActionTarget) : ''}
         isOpen={isRenameFolderModalOpen}
         onClose={() => setUI({ isRenameFolderModalOpen: false })}
         onSave={props.handleRenameFolder}

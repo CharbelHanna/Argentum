@@ -23,6 +23,7 @@ import { useProcessStore } from '../../../store/useProcessStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import { IconAperture, IconFocalLength, IconIso, IconShutter } from '../editor/ExifIcons';
+import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../../argentum/paths';
 
 interface ImageLayer {
   id: string;
@@ -79,11 +80,9 @@ const ThumbnailComponent = ({
   });
 
   const { baseName, isVirtualCopy } = useMemo(() => {
-    const fullFileName = path.split(/[\\/]/).pop() || '';
-    const parts = fullFileName.split('?vc=');
     return {
-      baseName: parts[0],
-      isVirtualCopy: parts.length > 1,
+      baseName: fileNameOf(physicalPathOf(path)),
+      isVirtualCopy: isVirtualCopyPath(path),
     };
   }, [path]);
 
@@ -235,7 +234,7 @@ const ThumbnailComponent = ({
                 onTransitionEnd={() => handleTransitionEnd(layer.id)}
               >
                 <img
-                  alt={path.split(/[\\/]/).pop()}
+                  alt={fileNameOf(path)}
                   className={clsx(
                     'w-full h-full transition-transform duration-300 will-change-transform relative',
                     thumbnailAspectRatio === ThumbnailAspectRatio.Contain ? 'object-contain' : 'object-cover',
@@ -554,11 +553,9 @@ const ListItemComponent = ({
   });
 
   const { baseName, isVirtualCopy } = useMemo(() => {
-    const fullFileName = path.split(/[\\/]/).pop() || '';
-    const parts = fullFileName.split('?vc=');
     return {
-      baseName: parts[0],
-      isVirtualCopy: parts.length > 1,
+      baseName: fileNameOf(physicalPathOf(path)),
+      isVirtualCopy: isVirtualCopyPath(path),
     };
   }, [path]);
 

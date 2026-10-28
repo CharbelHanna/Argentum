@@ -13,6 +13,7 @@ import { Status } from '../components/ui/ExportImportProperties';
 import { activePathAfterDelete, isInFolder, pathAfterFolderRename, shownAfterRename } from '../argentum/fileOps';
 import { ag } from '../argentum/ag';
 import { useModernFolders } from '../argentum/modern/folders';
+import { VIRTUAL_COPY, isVirtualCopyPath, physicalPathOf } from '../argentum/paths';
 
 export function useFileOperations(
   refreshImageList: () => Promise<void>,
@@ -55,7 +56,7 @@ export function useFileOperations(
         await refreshAllFolderTrees();
 
         if (selectedImage && activeView === 'editor') {
-          const physicalPath = selectedImage.path.split('?vc=')[0];
+          const physicalPath = physicalPathOf(selectedImage.path);
           const isFileBeingEditedDeleted = pathsToDelete.some((p) => p === selectedImage.path || p === physicalPath);
 
           if (isFileBeingEditedDeleted) {
@@ -73,7 +74,7 @@ export function useFileOperations(
           }
 
           if (selectedImage) {
-            const physicalPath = selectedImage.path.split('?vc=')[0];
+            const physicalPath = physicalPathOf(selectedImage.path);
             if (pathsToDelete.some((p) => p === selectedImage.path || p === physicalPath)) {
               useEditorStore.getState().setEditor({ selectedImage: null });
             }
@@ -100,8 +101,8 @@ export function useFileOperations(
 
     const selectionHasVirtualCopies =
       isSingle &&
-      !pathsToDelete[0].includes('?vc=') &&
-      imageList.some((image) => image.path.startsWith(`${pathsToDelete[0]}?vc=`));
+      !isVirtualCopyPath(pathsToDelete[0]) &&
+      imageList.some((image) => image.path.startsWith(`${pathsToDelete[0]}${VIRTUAL_COPY}`));
 
     let modalTitle = 'Confirm Delete';
     let modalMessage = '';
@@ -143,7 +144,7 @@ export function useFileOperations(
     const rejectedSet = new Set(rejectedPaths);
     const affectedCopyCount = imageList.filter(
       (image) =>
-        image.path.includes('?vc=') && !rejectedSet.has(image.path) && rejectedSet.has(image.path.split('?vc=')[0]),
+        isVirtualCopyPath(image.path) && !rejectedSet.has(image.path) && rejectedSet.has(physicalPathOf(image.path)),
     ).length;
     const deleteMessage = t('library.reject.deleteMessage', { count: rejectedPaths.length });
 

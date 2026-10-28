@@ -10,9 +10,10 @@ import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
 import { useLibraryActions } from './useLibraryActions';
 import { rowNeighbour } from '../argentum/modern/gridRows';
+import { physicalPathOf } from '../argentum/paths';
 
 const getParentFolder = (path: string) => {
-  const physicalPath = path.split('?vc=')[0];
+  const physicalPath = physicalPathOf(path);
   const separator = physicalPath.includes('/') ? '/' : '\\';
   const lastSep = physicalPath.lastIndexOf(separator);
   return lastSep === -1 ? physicalPath : physicalPath.slice(0, lastSep);
@@ -49,7 +50,7 @@ export const useKeyboardShortcuts = ({
   }, [sortedImageList]);
 
   const handleCopyImagePaths = useCallback(async (paths: Array<string>) => {
-    const physicalPaths = [...new Set(paths.map((path) => path.split('?vc=')[0]))];
+    const physicalPaths = [...new Set(paths.map((path) => physicalPathOf(path)))];
     if (physicalPaths.length === 0) {
       return;
     }

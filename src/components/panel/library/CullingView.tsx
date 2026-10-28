@@ -32,6 +32,7 @@ import { useLibraryActions } from '../../../hooks/useLibraryActions';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
 import { expandGroupedPaths } from '../../../utils/imageGrouping';
 import { IconAperture, IconFocalLength, IconIso, IconShutter } from '../editor/ExifIcons';
+import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../../argentum/paths';
 
 interface SyncViewport {
   isActive: boolean;
@@ -208,10 +209,8 @@ function CullingPreview({
     panRef.current = pan;
   }, [zoom, pan]);
 
-  const fullFileName = image.path.split(/[\\/]/).pop() || '';
-  const parts = fullFileName.split('?vc=');
-  const baseName = parts[0];
-  const isVirtualCopy = parts.length > 1;
+  const baseName = fileNameOf(physicalPathOf(image.path));
+  const isVirtualCopy = isVirtualCopyPath(image.path);
 
   const updateFitScale = useCallback(() => {
     if (!containerRef.current || !imageRef.current) return;

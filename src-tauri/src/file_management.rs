@@ -45,18 +45,6 @@ use crate::mods::file_ops::{self, Destinations};
 use crate::preset_converter;
 use crate::tagging::COLOR_TAG_PREFIX;
 
-fn resolve_thumbnail_cache_dir(app_handle: &AppHandle) -> std::result::Result<PathBuf, String> {
-    let cache_dir = app_handle
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?;
-    let thumb_cache_dir = cache_dir.join("thumbnails");
-    if !thumb_cache_dir.exists() {
-        fs::create_dir_all(&thumb_cache_dir).map_err(|e| e.to_string())?;
-    }
-    Ok(thumb_cache_dir)
-}
-
 fn emit_thumbnail_cache_setup_error(app_handle: &AppHandle, path: &str, reason: &str) {
     let _ = app_handle.emit(
         "thumbnail-generation-error",
@@ -350,8 +338,38 @@ pub struct ImportSettings {
     pub preset_adjustments: Option<Value>,
 }
 
+/// The extension of a photo's edit file: `IMG.CR2.agdata`.
+pub const SIDECAR_EXTENSION: &str = "agdata";
+
+/// What follows a photo's path in a virtual copy's: `IMG.CR2?vc=a1b2c3`.
+pub const VIRTUAL_COPY: &str = "?vc=";
+
+/// The edit file of `photo`, or of its virtual copy `copy_id`:
+/// `IMG.CR2.agdata`, `IMG.CR2.a1b2c3.agdata`.
+pub fn sidecar_for(photo: &Path, copy_id: Option<&str>) -> PathBuf {
+    let mut name = photo.file_name().unwrap_or_default().to_os_string();
+    if let Some(id) = copy_id {
+        name.push(".");
+        name.push(id);
+    }
+    name.push(".");
+    name.push(SIDECAR_EXTENSION);
+    photo.with_file_name(name)
+}
+
+/// A virtual path's photo and copy id: `IMG.CR2?vc=a1b2c3` is
+/// (`IMG.CR2`, `a1b2c3`), a photo's own path has no copy.
+pub fn split_virtual_path(virtual_path: &str) -> (&str, Option<&str>) {
+    match virtual_path.rsplit_once(VIRTUAL_COPY) {
+        Some((photo, id)) => (photo, Some(id)),
+        None => (virtual_path, None),
+    }
+}
+
 pub fn parse_sidecar_name(file_name: &str) -> Option<(&str, Option<&str>)> {
-    let base = file_name.strip_suffix(".agdata")?;
+    let base = file_name
+        .strip_suffix(SIDECAR_EXTENSION)?
+        .strip_suffix('.')?;
     if base.len() >= 7 && base.as_bytes()[base.len() - 7] == b'.' {
         let id = &base[base.len() - 6..];
         if id.chars().all(|c| matches!(c, '0'..='9' | 'a'..='f')) {
@@ -362,34 +380,9 @@ pub fn parse_sidecar_name(file_name: &str) -> Option<(&str, Option<&str>)> {
 }
 
 pub fn parse_virtual_path(virtual_path: &str) -> (PathBuf, PathBuf) {
-    let (source_path_str, copy_id) = if let Some((base, id)) = virtual_path.rsplit_once("?vc=") {
-        (base.to_string(), Some(id.to_string()))
-    } else {
-        (virtual_path.to_string(), None)
-    };
-
-    let source_path = PathBuf::from(source_path_str);
-
-    let sidecar_filename = if let Some(id) = copy_id {
-        format!(
-            "{}.{}.agdata",
-            source_path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy(),
-            id
-        )
-    } else {
-        format!(
-            "{}.agdata",
-            source_path
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-        )
-    };
-
-    let sidecar_path = source_path.with_file_name(sidecar_filename);
+    let (photo, copy_id) = split_virtual_path(virtual_path);
+    let source_path = PathBuf::from(photo);
+    let sidecar_path = sidecar_for(&source_path, copy_id);
     (source_path, sidecar_path)
 }
 
@@ -449,7 +442,7 @@ pub async fn update_exif_fields(
     tauri::async_runtime::spawn_blocking(move || {
         paths.par_iter().for_each(|path| {
             let original_path = Path::new(&path);
-            let primary_path = crate::exif_processing::get_primary_sidecar_path(original_path);
+            let primary_path = crate::file_management::sidecar_for(original_path, None);
             let temp_metadata = crate::exif_processing::load_sidecar(&primary_path);
 
             let mut exif_data = temp_metadata.exif.unwrap_or_else(|| {
@@ -575,13 +568,13 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                 .remove(&file_name)
                 .unwrap_or_else(|| vec![None]);
             let path_str = path_buf.to_string_lossy().into_owned();
-            (path_str, file_name, path_buf, sidecars)
+            (path_str, path_buf, sidecars)
         })
         .collect();
 
     let mut result_list: Vec<ImageFile> = tasks
         .into_par_iter()
-        .flat_map(|(path_str, file_name, path_buf, sidecars)| {
+        .flat_map(|(path_str, path_buf, sidecars)| {
             let modified = fs::metadata(&path_buf)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -594,16 +587,11 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
             let mut file_results = Vec::with_capacity(sidecars.len());
 
             for copy_id_opt in sidecars {
-                let (virtual_path, is_virtual_copy, sidecar_filename) = match copy_id_opt {
-                    Some(id) => (
-                        format!("{}?vc={}", path_str, id),
-                        true,
-                        format!("{}.{}.agdata", file_name, id),
-                    ),
-                    None => (path_str.clone(), false, format!("{}.agdata", file_name)),
+                let sidecar_path = sidecar_for(&path_buf, copy_id_opt.as_deref());
+                let (virtual_path, is_virtual_copy) = match copy_id_opt {
+                    Some(id) => (format!("{path_str}{VIRTUAL_COPY}{id}"), true),
+                    None => (path_str.clone(), false),
                 };
-
-                let sidecar_path = path_buf.with_file_name(sidecar_filename);
 
                 let xmp_is_placeholder = enable_xmp_sync
                     && resolve_xmp_path(&path_buf)
@@ -693,18 +681,13 @@ pub fn list_images_recursive(
                 .remove(&path_buf)
                 .unwrap_or_else(|| vec![None]);
             let path_str = path_buf.to_string_lossy().into_owned();
-            let file_name = path_buf
-                .file_name()
-                .unwrap_or_default()
-                .to_string_lossy()
-                .into_owned();
-            (path_str, file_name, path_buf, sidecars)
+            (path_str, path_buf, sidecars)
         })
         .collect();
 
     let mut result_list: Vec<ImageFile> = tasks
         .into_par_iter()
-        .flat_map(|(path_str, file_name, path_buf, sidecars)| {
+        .flat_map(|(path_str, path_buf, sidecars)| {
             let modified = fs::metadata(&path_buf)
                 .ok()
                 .and_then(|m| m.modified().ok())
@@ -717,16 +700,11 @@ pub fn list_images_recursive(
             let mut file_results = Vec::with_capacity(sidecars.len());
 
             for copy_id_opt in sidecars {
-                let (virtual_path, is_virtual_copy, sidecar_filename) = match copy_id_opt {
-                    Some(id) => (
-                        format!("{}?vc={}", path_str, id),
-                        true,
-                        format!("{}.{}.agdata", file_name, id),
-                    ),
-                    None => (path_str.clone(), false, format!("{}.agdata", file_name)),
+                let sidecar_path = sidecar_for(&path_buf, copy_id_opt.as_deref());
+                let (virtual_path, is_virtual_copy) = match copy_id_opt {
+                    Some(id) => (format!("{path_str}{VIRTUAL_COPY}{id}"), true),
+                    None => (path_str.clone(), false),
                 };
-
-                let sidecar_path = path_buf.with_file_name(sidecar_filename);
 
                 let xmp_is_placeholder = enable_xmp_sync
                     && resolve_xmp_path(&path_buf)
@@ -919,11 +897,11 @@ fn sync_album_path_changes(
                                 if let Some(new_path) = r.get(&current_img) {
                                     current_img = new_path.clone();
                                     *changed = true;
-                                } else if let Some((base_path, vc_id)) =
-                                    current_img.rsplit_once("?vc=")
+                                } else if let (base_path, Some(vc_id)) =
+                                    split_virtual_path(&current_img)
                                     && let Some(new_base) = r.get(base_path)
                                 {
-                                    current_img = format!("{}?vc={}", new_base, vc_id);
+                                    current_img = format!("{new_base}{VIRTUAL_COPY}{vc_id}");
                                     *changed = true;
                                 }
                             }
@@ -941,8 +919,8 @@ fn sync_album_path_changes(
                                             break;
                                         }
 
-                                        if let Some((base_path, _)) =
-                                            current_img.rsplit_once("?vc=")
+                                        if let (base_path, Some(_)) =
+                                            split_virtual_path(&current_img)
                                             && base_path == del_path_str
                                         {
                                             is_deleted = true;
@@ -998,7 +976,7 @@ pub fn get_album_images(
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
 
-            let is_virtual_copy = virtual_path.contains("?vc=");
+            let is_virtual_copy = virtual_path.contains(VIRTUAL_COPY);
             let is_cloud_placeholder = is_cloud_placeholder(&source_path);
 
             let xmp_is_placeholder = enable_xmp_sync
@@ -2542,7 +2520,7 @@ pub fn save_metadata_and_update_thumbnail(
         let state = app_handle_clone.state::<AppState>();
         let settings = load_settings(app_handle_clone.clone()).unwrap_or_default();
 
-        let thumb_cache_dir = match resolve_thumbnail_cache_dir(&app_handle_clone) {
+        let thumb_cache_dir = match get_thumb_cache_dir(&app_handle_clone) {
             Ok(dir) => dir,
             Err(e) => {
                 log::warn!(
@@ -2708,7 +2686,7 @@ pub(crate) fn regenerate_thumbnails(
     force_regenerate: bool,
 ) {
     let state = app_handle.state::<AppState>();
-    let thumb_cache_dir = match resolve_thumbnail_cache_dir(app_handle) {
+    let thumb_cache_dir = match get_thumb_cache_dir(app_handle) {
         Ok(dir) => dir,
         Err(e) => {
             log::warn!("Unable to initialize thumbnail cache directory: {}", e);
@@ -2938,7 +2916,7 @@ async fn update_sidecars_from_images(
         let create_xmp_if_missing = settings.create_xmp_if_missing.unwrap_or(false);
 
         let state = app_handle.state::<AppState>();
-        let thumb_cache_dir = match resolve_thumbnail_cache_dir(&app_handle) {
+        let thumb_cache_dir = match get_thumb_cache_dir(&app_handle) {
             Ok(dir) => dir,
             Err(e) => {
                 log::warn!("Unable to initialize thumbnail cache directory: {}", e);
@@ -3419,7 +3397,7 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
         let path = entry.path();
         if path.is_file()
             && let Some(extension) = path.extension()
-            && (extension == "agdata" || extension == "agexif")
+            && (extension == SIDECAR_EXTENSION || extension == "agexif")
         {
             if fs::remove_file(path).is_ok() {
                 deleted_count += 1;
@@ -3434,16 +3412,9 @@ pub fn clear_all_sidecars(root_path: String) -> Result<usize, String> {
 
 #[tauri::command]
 pub fn clear_thumbnail_cache(app_handle: AppHandle) -> Result<(), String> {
-    let cache_dir = app_handle
-        .path()
-        .app_cache_dir()
-        .map_err(|e| e.to_string())?;
-    let thumb_cache_dir = cache_dir.join("thumbnails");
-
-    if thumb_cache_dir.exists() {
-        fs::remove_dir_all(&thumb_cache_dir)
-            .map_err(|e| format!("Failed to remove thumbnail cache: {}", e))?;
-    }
+    let thumb_cache_dir = get_thumb_cache_dir(&app_handle)?;
+    fs::remove_dir_all(&thumb_cache_dir)
+        .map_err(|e| format!("Failed to remove thumbnail cache: {}", e))?;
 
     fs::create_dir_all(&thumb_cache_dir)
         .map_err(|e| format!("Failed to recreate thumbnail cache directory: {}", e))?;
@@ -3498,7 +3469,7 @@ pub(crate) fn files_to_delete_from_disk(paths: &[String]) -> Vec<PathBuf> {
     for path_str in paths {
         let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
-        if path_str.contains("?vc=") {
+        if path_str.contains(VIRTUAL_COPY) {
             if sidecar_path.exists() {
                 files_to_trash.insert(sidecar_path);
             }
@@ -3595,12 +3566,17 @@ pub fn delete_files_with_associated(
     Ok(())
 }
 
+/// The thumbnails' folder in the app's cache folder. `tauri.conf.json`'s
+/// asset scope (`$APPCACHE/thumbnails/*`) names it too.
+pub const THUMBNAIL_DIR: &str = "thumbnails";
+
+/// The thumbnails' folder, made if it is missing.
 pub fn get_thumb_cache_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     let cache_dir = app_handle
         .path()
         .app_cache_dir()
         .map_err(|e| e.to_string())?;
-    let thumb_cache_dir = cache_dir.join("thumbnails");
+    let thumb_cache_dir = cache_dir.join(THUMBNAIL_DIR);
     if !thumb_cache_dir.exists() {
         fs::create_dir_all(&thumb_cache_dir).map_err(|e| e.to_string())?;
     }
@@ -4144,7 +4120,11 @@ pub fn create_virtual_copy(
     let (source_path, source_sidecar_path) = parse_virtual_path(&source_virtual_path);
 
     let new_copy_id = Uuid::new_v4().to_string()[..6].to_string();
-    let new_virtual_path = format!("{}?vc={}", source_path.to_string_lossy(), new_copy_id);
+    let new_virtual_path = format!(
+        "{}{VIRTUAL_COPY}{}",
+        source_path.to_string_lossy(),
+        new_copy_id
+    );
     let (_, new_sidecar_path) = parse_virtual_path(&new_virtual_path);
 
     let default_json =
@@ -4162,7 +4142,7 @@ pub fn create_virtual_copy(
         }
 
         // The library hides the original when only virtual copy sidecars exist.
-        let primary_sidecar_path = crate::exif_processing::get_primary_sidecar_path(&source_path);
+        let primary_sidecar_path = crate::file_management::sidecar_for(&source_path, None);
         match fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -4519,6 +4499,46 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         if let Err(e) = crate::mods::atomic_write::write_atomic(&xmp_file, content) {
             log::warn!("Could not update {}: {}", xmp_file.display(), e);
         }
+    }
+}
+
+#[cfg(test)]
+mod sidecar_name_tests {
+    use super::*;
+
+    #[test]
+    fn a_photo_and_its_virtual_copies_name_their_sidecars() {
+        let photo = Path::new("/p/IMG.CR2");
+        assert_eq!(sidecar_for(photo, None), Path::new("/p/IMG.CR2.agdata"));
+        assert_eq!(
+            sidecar_for(photo, Some("a1b2c3")),
+            Path::new("/p/IMG.CR2.a1b2c3.agdata")
+        );
+    }
+
+    #[test]
+    fn a_sidecar_name_reads_back_as_its_photo_and_copy() {
+        for copy in [None, Some("a1b2c3")] {
+            let sidecar = sidecar_for(Path::new("/p/IMG.CR2"), copy);
+            let name = sidecar.file_name().unwrap().to_str().unwrap();
+            assert_eq!(parse_sidecar_name(name), Some(("IMG.CR2", copy)));
+        }
+    }
+
+    #[test]
+    fn a_virtual_path_splits_into_the_photo_and_its_copy() {
+        assert_eq!(
+            split_virtual_path("/p/IMG.CR2?vc=a1b2c3"),
+            ("/p/IMG.CR2", Some("a1b2c3"))
+        );
+        assert_eq!(split_virtual_path("/p/IMG.CR2"), ("/p/IMG.CR2", None));
+        assert_eq!(
+            parse_virtual_path(&format!("/p/IMG.CR2{VIRTUAL_COPY}a1b2c3")),
+            (
+                PathBuf::from("/p/IMG.CR2"),
+                PathBuf::from("/p/IMG.CR2.a1b2c3.agdata")
+            )
+        );
     }
 }
 

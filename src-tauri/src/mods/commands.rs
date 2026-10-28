@@ -190,9 +190,7 @@ pub fn refresh_image_metadata(
     let image = std::path::Path::new(&path);
 
     // 1. The sidecar's embedded copy, if there is one.
-    let mut sidecar_name = image.file_name().unwrap_or_default().to_os_string();
-    sidecar_name.push(".agdata");
-    let sidecar = image.with_file_name(sidecar_name);
+    let sidecar = crate::file_management::sidecar_for(image, None);
 
     if sidecar.exists()
         && let Ok(text) = std::fs::read_to_string(&sidecar)

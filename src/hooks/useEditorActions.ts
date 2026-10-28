@@ -23,6 +23,7 @@ import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cr
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { builtinKeys } from '../argentum/lensBuiltin';
+import { fileNameOf } from '../argentum/paths';
 
 export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
   useEditorStore.getState().pushHistory(newAdj);
@@ -231,7 +232,7 @@ export function useEditorActions() {
     async (path: string, isBuiltIn: boolean = false) => {
       try {
         const result: { size: number } = await invoke('load_and_parse_lut', { path });
-        const name = path.split(/[\\/]/).pop() || 'LUT';
+        const name = fileNameOf(path) || 'LUT';
         setAdjustments((prev: Adjustments) => ({
           ...prev,
           lutPath: path,
@@ -252,7 +253,7 @@ export function useEditorActions() {
     (path: string | null, isBuiltIn: boolean = false) => {
       setEditor((state) => {
         if (!path) return { previewOverride: null };
-        const name = path.split(/[\\/]/).pop() || 'LUT';
+        const name = fileNameOf(path) || 'LUT';
         return {
           previewOverride: {
             ...state.adjustments,

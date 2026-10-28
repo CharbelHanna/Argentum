@@ -36,6 +36,7 @@ import VersionNote from './VersionNote';
 import { crumbs } from './folders';
 import { Menu, MenuHead, MenuItem, MenuSep } from './Menu';
 import WindowControls, { MacLights, usePlatform } from './WindowControls';
+import { fileNameOf } from '../paths';
 
 const PanelLeft = () => (
   <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}>
@@ -138,7 +139,7 @@ export default function TopBar(props: TopBarProps) {
     }
   };
 
-  const fileName = selectedPath?.split(/[\\/]/).pop();
+  const fileName = selectedPath ? fileNameOf(selectedPath) : undefined;
   const folderCrumbs = currentFolderPath && !currentFolderPath.startsWith('Album: ') ? crumbs(currentFolderPath) : [];
   const toggle = (key: 'leftPanel' | 'filmstrip' | 'rightPanel') =>
     setUI((s) => ({ uiVisibility: { ...s.uiVisibility, [key]: !s.uiVisibility[key] } }));

@@ -1041,7 +1041,7 @@ fn write_super_resolution_sidecar(
     strip_non_transferable_adjustments(&mut metadata.adjustments);
     mark_restored(&mut metadata.adjustments, enlarged.capture_radius);
 
-    let output_sidecar = crate::exif_processing::get_primary_sidecar_path(output_path);
+    let output_sidecar = crate::file_management::sidecar_for(output_path, None);
     let json = serde_json::to_string_pretty(&metadata)
         .context("Could not serialize the filtered super-resolution sidecar")?;
     fs::write(&output_sidecar, json).with_context(|| {
@@ -1684,7 +1684,7 @@ mod tests {
 
         // What an enlargement starts from: the restored photo with the RAW's
         // own capture sharpening, through the editor's engine.
-        let sidecar = crate::exif_processing::get_primary_sidecar_path(Path::new(&raw));
+        let sidecar = crate::file_management::sidecar_for(Path::new(&raw), None);
         let adjustments = crate::exif_processing::load_sidecar(&sidecar).adjustments;
         let context = crate::mods::capture_bake::test_device().expect("a graphics device");
         let started = std::time::Instant::now();

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 
 import Button from './Button';
 import { ExternalEditSession } from '../../store/useProcessStore';
+import { fileNameOf } from '../../argentum/paths';
 
 interface ExternalEditBarProps {
   session: ExternalEditSession;
@@ -13,7 +14,7 @@ interface ExternalEditBarProps {
 
 export default function ExternalEditBar({ session, isFinishing, errorMessage, onDone }: ExternalEditBarProps) {
   const { t } = useTranslation();
-  const outputName = session.output.split(/[\\/]/).pop() || session.output;
+  const outputName = fileNameOf(session.output) || session.output;
 
   return (
     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-3 bg-bg-secondary border border-surface rounded-lg shadow-lg px-4 py-2">

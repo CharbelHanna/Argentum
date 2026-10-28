@@ -3,7 +3,7 @@
 // has no thumbnails yet.
 
 import { text } from '../i18n';
-import { fileName } from '../paths';
+import { fileNameOf } from '../../argentum/paths';
 import { useShell, useShellStore } from '../ShellContext';
 import { PhotoPicture } from './PhotoPicture';
 
@@ -13,7 +13,7 @@ export function StatusLine({ fake }: { fake: boolean }) {
   const error = useShell((s) => s.error);
   return (
     <div className="ags-status">
-      <span>{path ? `${fileName(path)}  ·  ${photo?.width} × ${photo?.height}` : text('shell.noPhoto')}</span>
+      <span>{path ? `${fileNameOf(path)}  ·  ${photo?.width} × ${photo?.height}` : text('shell.noPhoto')}</span>
       <span className="ags-toolbar-spacer" />
       {error ? (
         <span className="ags-error" role="alert">
@@ -42,7 +42,7 @@ export function Filmstrip() {
           onClick={() => path !== current && void store.getState().openPhoto(path)}
         >
           {path === current && <PhotoPicture frame={frame} className="ags-film-picture" />}
-          <span className="ags-film-name">{fileName(path)}</span>
+          <span className="ags-film-name">{fileNameOf(path)}</span>
         </button>
       ))}
     </div>

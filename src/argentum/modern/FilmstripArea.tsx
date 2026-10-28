@@ -20,6 +20,7 @@ import { DEFAULT_BOTTOM_PANEL_HEIGHT, useUIStore } from '../../store/useUIStore'
 import RenderStatus from '../RenderStatus';
 import { useAgTranslation } from '../locales';
 import { folderName } from './folders';
+import { fileNameOf } from '../paths';
 
 /** The header's height; the strip under it is the resizable part. */
 const HEADER_PX = 24;
@@ -75,7 +76,7 @@ export default function FilmstripArea(props: FilmstripAreaProps) {
                   .replace('{total}', String(total))}
               </span>
             )}
-            {current && <span>{current.split(/[\\/]/).pop()}</span>}
+            {current && <span>{fileNameOf(current)}</span>}
             {multiSelectedPaths.length > 1 && (
               <span>{t('mwSelected').replace('{count}', String(multiSelectedPaths.length))}</span>
             )}

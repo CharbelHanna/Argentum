@@ -8,7 +8,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla';
 import type { EngineError, Event, Opened, SectionDescriptor, Section, ToolDescriptor } from './contract';
 import type { EngineClient, FramePixels } from './engine/client';
 import { createHistorySlice, type HistoryActions, type HistoryState } from './historySlice';
-import { fileName } from './paths';
+import { fileNameOf } from '../argentum/paths';
 import { createViewSlice, type ViewActions, type ViewState } from './viewSlice';
 
 export type SideTab = 'presets' | 'snapshots' | 'history';
@@ -136,7 +136,7 @@ export function createShellStore(client: EngineClient, options: StoreOptions = {
         get().fail(e);
       }
       // The folder's own spelling of the path, so the filmstrip marks it.
-      const same = photos.find((p) => fileName(p) === fileName(path)) ?? path;
+      const same = photos.find((p) => fileNameOf(p) === fileNameOf(path)) ?? path;
       set({ photos: photos.includes(same) ? photos : [same, ...photos] });
       await get().openPhoto(same);
     },

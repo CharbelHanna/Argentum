@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { AppBar } from './engine/AppBar';
 import { connectEngine, type AppConnection, type Connection } from './engine/client';
 import { text } from './i18n';
-import { fileName } from './paths';
+import { fileNameOf } from '../argentum/paths';
 import { Filmstrip, StatusLine } from './layout/Filmstrip';
 import { Histogram } from './layout/Histogram';
 import { Navigator } from './layout/Navigator';
@@ -41,7 +41,7 @@ function shortcuts(store: ShellStore) {
 }
 
 export function ShellView({ store, fake, app }: { store: ShellStore; fake: boolean; app?: AppConnection }) {
-  const name = useShell((s) => (s.path ? fileName(s.path) : ''));
+  const name = useShell((s) => (s.path ? fileNameOf(s.path) : ''));
   useEffect(() => {
     void store.getState().init();
     const onKey = shortcuts(store);
