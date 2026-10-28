@@ -9,21 +9,34 @@ import assert from 'node:assert/strict';
 import { findBrowser } from './browser.mjs';
 import { calledBetween, outcome } from './chapters.mjs';
 import { compareReachable, slowStart, sortErrors, startupGated } from './check-ui.mjs';
-import { comboName, consoleText, keyOf } from './session.mjs';
+import { comboName, consoleText, keyOf, openSession } from './session.mjs';
 
-let ran = 0;
-let failed = 0;
-const test = (name, fn) => {
-  ran += 1;
-  try {
-    fn();
-    console.log(`  ok    ${name}`);
-  } catch (error) {
-    failed += 1;
-    console.log(`  FAIL  ${name}`);
-    for (const line of String(error.message ?? error).split('\n')) console.log(`          ${line}`);
-  }
-};
+const tests = [];
+const test = (name, fn) => tests.push({ name, fn });
+
+/** A page for openSession without a browser: each navigation starts a fresh window, as a load does. */
+function fakePage() {
+  const handlers = {};
+  const fresh = () => ({
+    __uiWalk: { calls: {}, unanswered: {}, offline: {} },
+    __walker: { waitFor: () => 1, settle: () => true },
+  });
+  const page = {
+    window: fresh(),
+    on: (event, handler) => (handlers[event] = handler),
+    send: async (method, params) => {
+      if (method === 'Page.navigate') {
+        page.window = fresh();
+        setTimeout(() => handlers['Page.domContentEventFired']?.());
+      }
+      if (method === 'Runtime.evaluate') {
+        return { result: { value: new Function('window', `return ${params.expression}`)(page.window) } };
+      }
+      return {};
+    },
+  };
+  return page;
+}
 
 console.log('ui-walk');
 
@@ -113,5 +126,32 @@ test('the browser named in the environment wins over the installed ones', () => 
   assert.throws(() => findBrowser({}, 'plan9'), /UI_WALK_BROWSER/);
 });
 
+test('a command the stub did not answer is still reported after the page reloads', async () => {
+  const page = fakePage();
+  const w = await openSession({ page, url: 'http://walk/', keys: {} });
+  const ready = { selector: '#root', what: 'the app' };
+  await w.load('', ready);
+  page.window.__uiWalk.unanswered.calculate_auto_adjustments = true;
+  page.window.__uiWalk.offline['https://api.github.com'] = true;
+  await w.load('', ready);
+  assert.deepEqual(await w.calls(), {
+    unanswered: ['calculate_auto_adjustments'],
+    offline: ['https://api.github.com'],
+  });
+});
+
+let failed = 0;
+for (const { name, fn } of tests) {
+  try {
+    await fn();
+    console.log(`  ok    ${name}`);
+  } catch (error) {
+    failed += 1;
+    console.log(`  FAIL  ${name}`);
+    for (const line of String(error.message ?? error).split('\n')) console.log(`          ${line}`);
+  }
+}
+
+const ran = tests.length;
 console.log(`\n${ran - failed}/${ran} passed`);
 if (failed > 0) process.exitCode = 1;

@@ -109,8 +109,6 @@ async function walk() {
     await w.load('?open', EDITOR_READY);
     const fastest = async (query, ready) => Math.min(await w.load(query, ready), await w.load(query, ready));
     const startup = { libraryMs: await fastest('', LIBRARY_READY), editorMs: await fastest('?open', EDITOR_READY) };
-    const unanswered = new Set();
-    const offline = new Set();
     const stopped = [];
     for (const chapter of CHAPTERS) {
       try {
@@ -119,11 +117,8 @@ async function walk() {
         // The next chapter starts from a fresh load, so one broken screen does not hide the others.
         stopped.push(`${chapter.name}: ${error.message}`);
       }
-      const calls = await w.calls().catch(() => null);
-      for (const name of calls?.unanswered ?? []) unanswered.add(name);
-      for (const origin of calls?.offline ?? []) offline.add(origin);
     }
-    return { w, startup, stopped, unanswered: [...unanswered].sort(), offline: [...offline].sort() };
+    return { w, startup, stopped, ...(await w.calls()) };
   } finally {
     lap('walked');
     await browser?.close();
