@@ -53,8 +53,7 @@ use super::model_download::{self, Progress};
 const PENDING: &str = "argentum-remove-at-start.txt";
 
 /// The folder every AI feature downloads into. `model_download::ensure_in_app`
-/// asks here; RapidRAW's `get_models_dir`, `gpu_runtime` and
-/// `selection_models::dir` name this same one.
+/// asks here; `gpu_runtime` and `selection_models::dir` name this same one.
 ///
 /// Not created here: looking at the settings page should not make a folder.
 pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
