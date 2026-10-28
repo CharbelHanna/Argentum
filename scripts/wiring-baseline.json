@@ -1,7 +1,7 @@
 {
   "uncalledCommands": [],
   "uncalledAg": ["list_camera_profiles"],
-  "cargoPackages": 827,
+  "cargoPackages": 825,
   "npmPackages": 409,
   "dist": {
     "assets/App.css": 32780,
