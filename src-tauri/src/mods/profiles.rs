@@ -172,6 +172,12 @@ pub fn library() -> Option<&'static Path> {
     LIBRARY.get().map(|p| p.as_path())
 }
 
+/// The library path, or an error the user can act on: what the `ag`
+/// commands that keep a preference beside the profiles start from.
+pub fn library_ready() -> Result<&'static Path, String> {
+    library().ok_or_else(|| "the profile library is not ready yet".to_string())
+}
+
 /// The library directory, created if it is not there yet.
 pub fn library_dir(app_data: &Path) -> std::io::Result<PathBuf> {
     let dir = app_data.join("camera-profiles");

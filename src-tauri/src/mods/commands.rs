@@ -235,24 +235,9 @@ pub fn refresh_image_metadata(
 // list them, remove one.
 // ---------------------------------------------------------------------------
 
-/// The library path, or an error the user can act on.
-fn profile_library() -> Result<&'static std::path::Path, String> {
-    crate::mods::profiles::library()
-        .ok_or_else(|| "the profile library is not ready yet".to_string())
-}
-
-/// Which camera this photo is from, and whether a profile matches it.
-pub fn camera_profile_status(path: String) -> Result<crate::mods::profiles::Status, String> {
-    let library = profile_library()?;
-    Ok(crate::mods::profiles::status_for(
-        library,
-        std::path::Path::new(&path),
-    ))
-}
-
 /// Copy a `.dcp` the user picked into the library.
 pub fn import_camera_profile(path: String) -> Result<crate::mods::profiles::Installed, String> {
-    let library = profile_library()?;
+    let library = crate::mods::profiles::library_ready()?;
     let installed = crate::mods::profiles::import(library, std::path::Path::new(&path))?;
     // The profile names the whole camera, so it also supplies the maker for a
     // gear entry that has none.
@@ -272,42 +257,12 @@ pub fn import_camera_profile(path: String) -> Result<crate::mods::profiles::Inst
     Ok(installed)
 }
 
-/// Delete a profile file from the library.
-pub fn remove_camera_profile(file: String) -> Result<(), String> {
-    crate::mods::profiles::remove(profile_library()?, &file)
-}
-
-/// Every camera a photo has been opened from, with the profile it would use.
-pub fn list_cameras() -> Result<Vec<crate::mods::profiles::Camera>, String> {
-    Ok(crate::mods::profiles::cameras(profile_library()?))
-}
-
-/// Drop a camera from the gear list.
-pub fn forget_camera(model: String) -> Result<(), String> {
-    crate::mods::profiles::forget_camera(profile_library()?, &model);
-    Ok(())
-}
-
-/// Choose the profile new photos from a camera open with (My Cameras).
-pub fn set_camera_default_profile(model: String, file: Option<String>) -> Result<(), String> {
-    crate::mods::profiles::set_default_profile(profile_library()?, &model, file);
-    Ok(())
-}
-
-/// The profile a new photo with this EXIF model opens with, if one is chosen.
-pub fn camera_default_profile(model: String) -> Result<Option<String>, String> {
-    Ok(crate::mods::profiles::default_profile(
-        profile_library()?,
-        &model,
-    ))
-}
-
 /// Look for a published profile for this camera and install it.
 ///
 /// One step on purpose: "is there one" and "get it" are not a decision the user
 /// needs to make twice. Returns whether anything was found.
 pub async fn get_profile_online(make: String, model: String) -> Result<Option<String>, String> {
-    let library = profile_library()?;
+    let library = crate::mods::profiles::library_ready()?;
     let Some(found) = crate::mods::profiles_online::search(&make, &model).await? else {
         return Ok(None);
     };
@@ -334,81 +289,11 @@ pub struct CameraProfiles {
 
 /// Every profile in the library that fits this camera.
 pub fn profiles_for_camera(make: String, model: String) -> Result<CameraProfiles, String> {
-    let library = profile_library()?;
+    let library = crate::mods::profiles::library_ready()?;
     Ok(CameraProfiles {
         profiles: crate::mods::profiles::matching(library, &make, &model),
         published_installed: crate::mods::profiles::published_is_installed(library, &make, &model),
     })
-}
-
-/// Is highlight recovery on, and where does the switch live?
-pub fn highlight_recovery() -> Result<bool, String> {
-    Ok(crate::mods::highlights::enabled())
-}
-
-/// Turn it on or off. Applies to the next photo decoded.
-pub fn set_highlight_recovery(on: bool) -> Result<(), String> {
-    crate::mods::highlights::save(profile_library()?, on)
-}
-
-/// The app's RAW decoder, for photos that name none.
-pub fn raw_decoder() -> crate::mods::raw_decoder::RawDecoder {
-    crate::mods::raw_decoder::default_decoder()
-}
-
-/// Choose the app's RAW decoder. Applies to the next photo decoded.
-pub fn set_raw_decoder(decoder: crate::mods::raw_decoder::RawDecoder) -> Result<(), String> {
-    crate::mods::raw_decoder::save(profile_library()?, decoder)
-}
-
-/// What depth a TIFF export writes at, as the number the interface shows.
-pub fn tiff_bit_depth() -> u8 {
-    crate::mods::export_precision::tiff_depth().as_u8()
-}
-
-/// Choose the depth. Applies to the next export, not to anything already queued.
-pub fn set_tiff_bit_depth(depth: u8) -> Result<(), String> {
-    crate::mods::export_precision::save(
-        profile_library()?,
-        crate::mods::export_precision::TiffDepth::from_u8(depth),
-    )
-}
-
-/// Space under each compact slider row, in pixels (mods/editor_layout.rs).
-pub fn compact_slider_gap() -> Result<u8, String> {
-    Ok(crate::mods::editor_layout::compact_slider_gap(
-        profile_library()?,
-    ))
-}
-
-/// Choose it.
-pub fn set_compact_slider_gap(gap: u8) -> Result<(), String> {
-    crate::mods::editor_layout::save_compact_slider_gap(profile_library()?, gap)
-}
-
-/// What the Modern arrangement's own parts were left as, if ever saved.
-pub fn editor_layout_panels() -> Result<Option<crate::mods::editor_layout::LayoutPanels>, String> {
-    Ok(crate::mods::editor_layout::panels(profile_library()?))
-}
-
-/// Remember them.
-pub fn set_editor_layout_panels(
-    panels: &crate::mods::editor_layout::LayoutPanels,
-) -> Result<(), String> {
-    crate::mods::editor_layout::save_panels(profile_library()?, panels)
-}
-
-/// The Modern window's palette. Grey until chosen.
-pub fn modern_theme() -> Result<crate::mods::editor_layout::ModernTheme, String> {
-    Ok(crate::mods::editor_layout::theme(profile_library()?))
-}
-
-/// Choose it by name. A name this build does not know is stored as Grey.
-pub fn set_modern_theme(theme: &str) -> Result<(), String> {
-    crate::mods::editor_layout::save_theme(
-        profile_library()?,
-        crate::mods::editor_layout::ModernTheme::from_name(theme),
-    )
 }
 
 /// The presets that come with the app, by group (mods/looks.rs).
@@ -424,16 +309,6 @@ pub fn builtin_presets(app_handle: &tauri::AppHandle) -> Vec<crate::mods::looks:
         .unwrap_or_default()
 }
 
-/// The starred looks' ids.
-pub fn looks_favourites() -> Result<Vec<String>, String> {
-    Ok(crate::mods::looks::favourites(profile_library()?))
-}
-
-/// Keep these as the starred looks.
-pub fn set_looks_favourites(ids: &[String]) -> Result<(), String> {
-    crate::mods::looks::save_favourites(profile_library()?, ids)
-}
-
 /// The LUTs the open photo is likely to get (mods/look_picks.rs); `photo` is
 /// its name in the editor.
 pub fn look_suggestions(
@@ -441,7 +316,7 @@ pub fn look_suggestions(
     loaded: &LoadedImage,
 ) -> Result<look_picks::Suggested, String> {
     let here = look_picks::fingerprint(loaded);
-    Ok(look_picks::load(profile_library()?).suggested(photo, &here))
+    Ok(look_picks::load(crate::mods::profiles::library_ready()?).suggested(photo, &here))
 }
 
 /// A LUT was put on the open photo: remember it, and say what is shown now.
@@ -451,7 +326,7 @@ pub fn look_pick(
     loaded: &LoadedImage,
 ) -> Result<look_picks::Suggested, String> {
     let here = look_picks::fingerprint(loaded);
-    look_picks::change(profile_library()?, |book| {
+    look_picks::change(crate::mods::profiles::library_ready()?, |book| {
         book.record(photo, lut, here);
         book.suggested(photo, &here)
     })
@@ -460,63 +335,10 @@ pub fn look_pick(
 /// The open photo's LUT was taken off: forget its pick.
 pub fn look_unpick(photo: &str, loaded: &LoadedImage) -> Result<look_picks::Suggested, String> {
     let here = look_picks::fingerprint(loaded);
-    look_picks::change(profile_library()?, |book| {
+    look_picks::change(crate::mods::profiles::library_ready()?, |book| {
         book.forget(photo);
         book.suggested(photo, &here)
     })
-}
-
-/// Learn from the LUTs put on photos, or stop.
-pub fn set_look_learning(on: bool) -> Result<(), String> {
-    look_picks::change(profile_library()?, |book| book.learning = on)
-}
-
-/// Forget every pick.
-pub fn forget_look_picks() -> Result<(), String> {
-    look_picks::change(profile_library()?, |book| book.picks.clear())
-}
-
-/// A photo's snapshots (mods/snapshots.rs), from its sidecar.
-pub fn snapshots(path: &str) -> Vec<crate::mods::snapshots::Snapshot> {
-    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
-    crate::mods::snapshots::read(&sidecar)
-}
-
-/// Keep these as the photo's snapshots.
-pub fn set_snapshots(
-    path: &str,
-    list: Vec<crate::mods::snapshots::Snapshot>,
-) -> Result<(), String> {
-    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
-    crate::mods::snapshots::write(&sidecar, list)
-}
-
-/// A photo's History (mods/history.rs), from its sidecar.
-pub fn history(path: &str) -> Option<crate::mods::history::HistoryRecord> {
-    let (_, sidecar) = crate::file_management::parse_virtual_path(path);
-    crate::mods::history::read(&sidecar)
-}
-
-/// Keep this as the photo's History; none takes it out.
-pub fn set_history(
-    path: &str,
-    record: Option<crate::mods::history::HistoryRecord>,
-) -> Result<(), String> {
-    let (source, sidecar) = crate::file_management::parse_virtual_path(path);
-    crate::mods::history::write(&source, &sidecar, record)
-}
-
-/// How large the panels' text is drawn. Normal until chosen.
-pub fn text_size() -> Result<crate::mods::editor_layout::TextSize, String> {
-    Ok(crate::mods::editor_layout::text_size(profile_library()?))
-}
-
-/// Choose it by name. A name this build does not know is stored as Normal.
-pub fn set_text_size(size: &str) -> Result<(), String> {
-    crate::mods::editor_layout::save_text_size(
-        profile_library()?,
-        crate::mods::editor_layout::TextSize::from_name(size),
-    )
 }
 
 /// Where the Modern layout opens: the disks, the recent folders, and the
@@ -528,7 +350,7 @@ pub fn modern_start(
 ) -> Result<crate::mods::modern_start::ModernStart, String> {
     Ok(crate::mods::modern_start::plan(
         crate::mods::drives::list(),
-        crate::mods::recent_folders::stored(profile_library()?),
+        crate::mods::recent_folders::stored(crate::mods::profiles::library_ready()?),
         last_folder,
         expanded,
         |folder| std::path::Path::new(folder).is_dir(),
@@ -538,7 +360,8 @@ pub fn modern_start(
 /// Put a folder at the top of the Recent list. Returns the list, without the
 /// folders that are not there now.
 pub fn add_recent_folder(folder: &str) -> Result<Vec<String>, String> {
-    let mut list = crate::mods::recent_folders::add(profile_library()?, folder)?;
+    let mut list =
+        crate::mods::recent_folders::add(crate::mods::profiles::library_ready()?, folder)?;
     list.retain(|f| std::path::Path::new(f).is_dir());
     Ok(list)
 }
@@ -546,7 +369,8 @@ pub fn add_recent_folder(folder: &str) -> Result<Vec<String>, String> {
 /// The Recent list after the folder `old` was renamed to `new`. Returns the
 /// list, without the folders that are not there now.
 pub fn rename_recent_folder(old: &str, new: &str) -> Result<Vec<String>, String> {
-    let mut list = crate::mods::recent_folders::renamed(profile_library()?, old, new)?;
+    let mut list =
+        crate::mods::recent_folders::renamed(crate::mods::profiles::library_ready()?, old, new)?;
     list.retain(|f| std::path::Path::new(f).is_dir());
     Ok(list)
 }
