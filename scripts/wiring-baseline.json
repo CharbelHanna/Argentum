@@ -1,6 +1,6 @@
 {
   "uncalledCommands": [],
-  "uncalledAg": ["list_camera_profiles"],
+  "uncalledAg": [],
   "cargoPackages": 827,
   "npmPackages": 409,
   "dist": {

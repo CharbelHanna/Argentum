@@ -29,16 +29,10 @@
 //!
 //! Camera profiles were built on the reasoning that they would close the gap
 //! against darktable. They could not, and one measurement afterwards said so.
-//! So this module starts with the measurement and not the fix: how much of a
-//! real photo is clipped, and how much of that is *recoverable* — one or two
-//! channels gone, not all three. That number is the ceiling on what any
-//! recovery can be worth, and it is knowable before writing the recovery.
-
-// The survey below is a measuring instrument, run by hand, and nothing in the
-// app calls it. It stays because the numbers it produces are the reason
-// highlight recovery is built the way it is, and a measurement you cannot rerun
-// is a claim rather than a measurement.
-#![allow(dead_code)]
+//! So recovery was built only after measuring how much of a real photo is
+//! clipped, and how much of that is *recoverable* — one or two channels gone,
+//! not all three. That number is the ceiling on what any recovery can be
+//! worth. The survey that measured it is in git history (before 26.44).
 
 use rawler::rawimage::{RawImage, RawImageData};
 
@@ -51,41 +45,6 @@ use rawler::rawimage::{RawImage, RawImageData};
 /// is as dead as one that reached it. darktable uses a comparable margin for
 /// the same reason.
 const CLIP_MARGIN: f32 = 0.99;
-
-/// What one photo's highlights look like.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub struct Clipping {
-    /// 2x2 CFA blocks examined.
-    pub blocks: u64,
-    /// Blocks with at least one channel at its ceiling.
-    pub clipped: u64,
-    /// Blocks with at least one clipped channel *and* at least one good one.
-    /// This is the part recovery can do anything about.
-    pub recoverable: u64,
-    /// Blocks with every channel at its ceiling. Gone for good.
-    pub blown: u64,
-}
-
-impl Clipping {
-    pub fn percent_clipped(&self) -> f64 {
-        self.fraction(self.clipped)
-    }
-
-    pub fn percent_recoverable(&self) -> f64 {
-        self.fraction(self.recoverable)
-    }
-
-    pub fn percent_blown(&self) -> f64 {
-        self.fraction(self.blown)
-    }
-
-    fn fraction(&self, n: u64) -> f64 {
-        if self.blocks == 0 {
-            return 0.0;
-        }
-        n as f64 / self.blocks as f64 * 100.0
-    }
-}
 
 /// The value at which each of the four CFA colours stops being data.
 ///
@@ -145,6 +104,7 @@ fn stated_levels(raw: &RawImage) -> Option<(f32, [f32; 4])> {
 
 /// The white `ceilings` judges this mosaic by when the file proves one below
 /// its stated white (`proven_white`), for the look check (look_check.rs).
+#[cfg(test)]
 pub fn proven_white_of(raw: &RawImage) -> Option<f32> {
     let (black, whites) = stated_levels(raw)?;
     proven_white(raw, black, whites.iter().copied().fold(0.0, f32::max))
@@ -251,95 +211,6 @@ fn hard_clip(histogram: &[u32]) -> Option<usize> {
     (pair >= PROVEN_WHITE_MIN && pair >= PROVEN_WHITE_RATIO * below.max(1)).then_some(top)
 }
 
-/// Count what is clipped in one decoded RAW.
-///
-/// Works on 2x2 CFA blocks rather than single photosites, because "this pixel
-/// clipped" is only meaningful alongside the neighbours that carry the other
-/// colours — one photosite holds one channel and cannot be recoverable or
-/// blown on its own.
-///
-/// sRAW is measured differently and more directly — see `measure_three_colour`.
-///
-/// `None` when the image is neither: a floating point DNG, or anything else
-/// this does not know how to read. Not wrong, just not this measurement.
-pub fn measure(raw: &RawImage) -> Option<Clipping> {
-    match raw.cpp {
-        1 => measure_mosaic(raw),
-        3 => measure_three_colour(raw),
-        _ => None,
-    }
-}
-
-/// Canon sRAW and mRAW, where every pixel already carries all three channels.
-///
-/// No block arithmetic and no guessing which colour a photosite is: "one
-/// channel gone, two good" is a fact about the pixel itself. The test set has a
-/// lot of sRAW, so leaving this out would have measured the wrong half of the
-/// library.
-fn measure_three_colour(raw: &RawImage) -> Option<Clipping> {
-    let RawImageData::Integer(pixels) = &raw.data else {
-        return None;
-    };
-    let ceilings = ceilings(raw)?;
-
-    let mut out = Clipping::default();
-    for pixel in pixels.as_chunks::<3>().0 {
-        let clipped = (0..3).filter(|&c| pixel[c] as f32 >= ceilings[c]).count();
-        out.blocks += 1;
-        if clipped > 0 {
-            out.clipped += 1;
-            if clipped == 3 {
-                out.blown += 1;
-            } else {
-                out.recoverable += 1;
-            }
-        }
-    }
-    Some(out)
-}
-
-fn measure_mosaic(raw: &RawImage) -> Option<Clipping> {
-    let RawImageData::Integer(pixels) = &raw.data else {
-        return None;
-    };
-    let ceilings = ceilings(raw)?;
-
-    let (w, h) = (raw.width, raw.height);
-    if w < 2 || h < 2 {
-        return None;
-    }
-
-    let mut out = Clipping::default();
-    for row in (0..h - 1).step_by(2) {
-        for col in (0..w - 1).step_by(2) {
-            let mut any_clipped = false;
-            let mut all_clipped = true;
-
-            for (dr, dc) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
-                let (r, c) = (row + dr, col + dc);
-                let value = pixels[r * w + c] as f32;
-                let colour = raw.camera.cfa.color_at(r, c).min(3);
-                if value >= ceilings[colour] {
-                    any_clipped = true;
-                } else {
-                    all_clipped = false;
-                }
-            }
-
-            out.blocks += 1;
-            if any_clipped {
-                out.clipped += 1;
-                if all_clipped {
-                    out.blown += 1;
-                } else {
-                    out.recoverable += 1;
-                }
-            }
-        }
-    }
-    Some(out)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -402,109 +273,6 @@ mod tests {
         let mut h = natural_top(400, 40);
         h[200] = 50_000;
         assert_eq!(hard_clip(&h), None);
-    }
-
-    #[test]
-    fn a_photo_with_no_blocks_reports_nothing() {
-        let empty = Clipping::default();
-        assert_eq!(empty.percent_clipped(), 0.0);
-        assert_eq!(empty.percent_recoverable(), 0.0);
-        assert_eq!(empty.percent_blown(), 0.0);
-    }
-
-    /// The three counts have to partition the clipped blocks, or the numbers
-    /// this whole decision rests on are not comparable.
-    #[test]
-    fn recoverable_and_blown_account_for_every_clipped_block() {
-        let c = Clipping {
-            blocks: 100,
-            clipped: 30,
-            recoverable: 18,
-            blown: 12,
-        };
-        assert_eq!(c.recoverable + c.blown, c.clipped);
-        assert!((c.percent_clipped() - 30.0).abs() < 1e-9);
-        assert!((c.percent_recoverable() - 18.0).abs() < 1e-9);
-    }
-}
-
-/// What real photos actually look like, before any recovery exists.
-///
-/// Run by hand against local files. The point is a number, not a pass: if the
-/// recoverable share of a bright photo is a fraction of a percent then highlight
-/// recovery is not the big rock it was put on the roadmap as, and that is worth
-/// knowing before it is built rather than after.
-#[cfg(test)]
-mod survey {
-    use super::*;
-
-    fn clipping_of(path: &std::path::Path) -> Option<Clipping> {
-        let bytes = std::fs::read(path).ok()?;
-        let source = rawler::rawsource::RawSource::new_from_slice(&bytes);
-        let decoder = rawler::get_decoder(&source).ok()?;
-        let mut raw = decoder
-            .raw_image(
-                &source,
-                &rawler::decoders::RawDecodeParams::default(),
-                false,
-            )
-            .ok()?;
-        // The same levels the app decodes with, or sRAW would be measured
-        // against a ceiling that is not its own.
-        crate::mods::sraw_levels::fix(&mut raw, &bytes);
-        measure(&raw)
-    }
-
-    #[test]
-    #[ignore = "reads local photos; run by hand"]
-    fn how_much_of_a_real_photo_is_clipped() {
-        let dir = std::env::var("AG_DIR").expect("set AG_DIR to a folder of RAWs");
-        let mut rows = Vec::new();
-
-        for entry in std::fs::read_dir(&dir).expect("folder").flatten() {
-            let path = entry.path();
-            if !path
-                .extension()
-                .is_some_and(|e| e.eq_ignore_ascii_case("cr2") || e.eq_ignore_ascii_case("dng"))
-            {
-                continue;
-            }
-            let Some(c) = clipping_of(&path) else {
-                println!("skipped (not a Bayer mosaic): {}", path.display());
-                continue;
-            };
-            rows.push((path.file_stem().unwrap().to_string_lossy().to_string(), c));
-        }
-
-        rows.sort_by(|a, b| {
-            b.1.percent_recoverable()
-                .partial_cmp(&a.1.percent_recoverable())
-                .unwrap()
-        });
-
-        println!(
-            "\n{:<46} {:>10} {:>13} {:>9}",
-            "photo", "clipped", "recoverable", "blown"
-        );
-        for (name, c) in &rows {
-            println!(
-                "{:<46} {:>9.2}% {:>12.2}% {:>8.2}%",
-                name.get(..46).unwrap_or(name),
-                c.percent_clipped(),
-                c.percent_recoverable(),
-                c.percent_blown()
-            );
-        }
-
-        let n = rows.len().max(1) as f64;
-        let mean = |f: fn(&Clipping) -> f64| rows.iter().map(|r| f(&r.1)).sum::<f64>() / n;
-        println!(
-            "\n{} photos   mean clipped {:.2}%   recoverable {:.2}%   blown {:.2}%\n",
-            rows.len(),
-            mean(Clipping::percent_clipped),
-            mean(Clipping::percent_recoverable),
-            mean(Clipping::percent_blown),
-        );
     }
 }
 
