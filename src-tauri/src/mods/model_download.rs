@@ -1,7 +1,8 @@
 //! Downloading an AI model's missing files, one download at a time. Ours.
 //!
-//! Used by Settings > General > AI Models' Download button (`download`) and by
-//! the selection masks the first time they are used (`selection_models`).
+//! Used by Settings > General > AI Models' Download button (`download`), by
+//! the selection masks the first time they are used (`selection_models`), and
+//! by the other AI features before they load a model (`ensure`).
 //!
 //! The steps are Shoebox's (src-tauri/src/models.rs @ 3c82753, `download` and
 //! `fetch`, with paths.rs `model_file`), which selection_models.rs already
@@ -27,7 +28,7 @@
 //!
 //! A folder that is a link (a junction on Windows) points at files kept
 //! somewhere else, such as a copy of the selection models kept outside the app.
-//! Nothing is written through one.
+//! Nothing is written through one; files already there are used.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -111,6 +112,10 @@ pub async fn fetch_missing(
 ) -> Result<u64, String> {
     let _running = RUNNING.lock().await;
     STOP.store(false, Ordering::Relaxed);
+    let wanted = not_in_place(dir, files).await?;
+    if wanted.is_empty() {
+        return Ok(0);
+    }
     if std::fs::symlink_metadata(dir).is_ok_and(|m| m.file_type().is_symlink()) {
         return Err(format!(
             "{} is a link to another folder, so Argentum does not download into it",
@@ -118,15 +123,6 @@ pub async fn fetch_missing(
         ));
     }
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-
-    let wanted: Vec<File> = {
-        let (dir, files) = (dir.to_path_buf(), files.to_vec());
-        tokio::task::spawn_blocking(move || {
-            files.into_iter().filter(|f| !in_place(&dir, f)).collect()
-        })
-        .await
-        .map_err(|e| e.to_string())?
-    };
 
     let report = Reporter::new(id, wanted.iter().map(|f| f.bytes).sum(), progress);
     let mut done = 0u64;
@@ -150,6 +146,62 @@ pub async fn fetch_missing(
         report.at(done);
     }
     Ok(done)
+}
+
+/// What an AI feature calls before it loads its model: `files` of catalogue
+/// entry `id` in `dir`, fetched first when any is missing or wrong. Returns
+/// the bytes fetched.
+///
+/// Files already in place are used as they are, without waiting for a
+/// download of something else to finish, the way the features' own checks
+/// did before they asked here.
+pub async fn ensure(
+    dir: &Path,
+    id: &str,
+    files: &[File],
+    progress: impl Fn(&Progress),
+) -> Result<u64, String> {
+    if not_in_place(dir, files).await?.is_empty() {
+        return Ok(0);
+    }
+    fetch_missing(dir, id, files, progress).await
+}
+
+/// `ensure` for catalogue entry `id` in the app's models folder, telling the
+/// editor's download notice `notice` while it fetches, and the settings page
+/// its progress. Returns the folder its files are in.
+pub async fn ensure_in_app(
+    app: &tauri::AppHandle,
+    id: &str,
+    notice: &str,
+) -> Result<PathBuf, String> {
+    use tauri::Emitter;
+    let model = model_catalog::find(id).ok_or_else(|| format!("No AI model called {id}"))?;
+    let models = super::model_manager::models_dir(app)?;
+    let dir = match model.stored.folder() {
+        Some(folder) => models.join(folder),
+        None => models,
+    };
+    let announced = AtomicBool::new(false);
+    let fetched = ensure(&dir, id, &model.stored.files(), |progress| {
+        if progress.total > 0 && !announced.swap(true, Ordering::Relaxed) {
+            let _ = app.emit("ai-model-download-start", notice);
+        }
+        let _ = app.emit(EVENT, progress);
+    })
+    .await;
+    if announced.load(Ordering::Relaxed) {
+        let _ = app.emit("ai-model-download-finish", notice);
+    }
+    fetched.map(|_| dir)
+}
+
+/// Those of `files` that are not in place in `dir`.
+async fn not_in_place(dir: &Path, files: &[File]) -> Result<Vec<File>, String> {
+    let (dir, files) = (dir.to_path_buf(), files.to_vec());
+    tokio::task::spawn_blocking(move || files.into_iter().filter(|f| !in_place(&dir, f)).collect())
+        .await
+        .map_err(|e| e.to_string())
 }
 
 /// Here, at its size, with its checksum.
@@ -474,6 +526,73 @@ mod tests {
         assert_eq!(requests.load(Ordering::SeqCst), 1);
     }
 
+    /// A models folder as an earlier version left it: each file under the name
+    /// it was saved as, nothing else. It is used as it is: nothing is asked of
+    /// the network (the address cannot be reached), nothing is rewritten.
+    #[tokio::test]
+    async fn a_folder_laid_out_the_old_way_is_used_as_it_is() {
+        let tmp = tempfile::tempdir().unwrap();
+        let (a, b) = (vec![3u8; 2 << 20], b"model b".to_vec());
+        std::fs::write(tmp.path().join("a.onnx"), &a).unwrap();
+        std::fs::write(tmp.path().join("b.onnx"), &b).unwrap();
+        let modified = |name: &str| {
+            std::fs::metadata(tmp.path().join(name))
+                .unwrap()
+                .modified()
+                .unwrap()
+        };
+        let before = (modified("a.onnx"), modified("b.onnx"));
+        let files = [
+            file("a.onnx", "http://127.0.0.1:9/a".into(), &a),
+            file("b.onnx", "http://127.0.0.1:9/b".into(), &b),
+        ];
+
+        let heard = Mutex::new(0);
+        let fetched = ensure(tmp.path(), "old-layout", &files, |_| {
+            *heard.lock().unwrap() += 1
+        })
+        .await;
+        assert_eq!(fetched, Ok(0));
+        assert_eq!(*heard.lock().unwrap(), 0, "nothing to report");
+        assert_eq!(names_in(tmp.path()), ["a.onnx", "b.onnx"]);
+        assert_eq!((modified("a.onnx"), modified("b.onnx")), before);
+        assert_eq!(
+            fetch_missing(tmp.path(), "old-layout", &files, |_| {}).await,
+            Ok(0)
+        );
+    }
+
+    /// A feature whose files are all here does not wait for a download of
+    /// something else, as its own check never did.
+    #[tokio::test]
+    async fn a_complete_folder_does_not_wait_for_another_download() {
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(tmp.path().join("a"), b"a").unwrap();
+        let files = [file("a", "http://127.0.0.1:9/a".into(), b"a")];
+
+        let _another = RUNNING.lock().await;
+        let fetched = tokio::time::timeout(
+            std::time::Duration::from_secs(10),
+            ensure(tmp.path(), "test", &files, |_| {}),
+        )
+        .await;
+        assert_eq!(fetched, Ok(Ok(0)));
+    }
+
+    #[tokio::test]
+    async fn ensure_fetches_what_is_missing() {
+        let body = b"the model".to_vec();
+        let (base, _) = serve(vec![("a", body.clone())]);
+        let tmp = tempfile::tempdir().unwrap();
+        let files = [file("a.onnx", format!("{base}/a"), &body)];
+
+        assert_eq!(
+            ensure(tmp.path(), "test", &files, |_| {}).await,
+            Ok(body.len() as u64)
+        );
+        assert_eq!(std::fs::read(tmp.path().join("a.onnx")).unwrap(), body);
+    }
+
     #[tokio::test]
     async fn the_fallback_is_tried_when_the_first_address_fails() {
         let body = b"mirrored".to_vec();
@@ -539,5 +658,11 @@ mod tests {
             .unwrap_err();
         assert!(err.contains("link"), "{err}");
         assert!(names_in(&kept).is_empty());
+
+        // What is already there through the link is used.
+        std::fs::write(kept.join("a"), b"a").unwrap();
+        assert_eq!(fetch_missing(&link, "test", &files, |_| {}).await, Ok(0));
+        assert_eq!(ensure(&link, "test", &files, |_| {}).await, Ok(0));
+        assert_eq!(names_in(&kept), ["a"]);
     }
 }
