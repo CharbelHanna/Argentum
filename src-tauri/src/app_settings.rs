@@ -452,14 +452,6 @@ pub fn default_linear_raw_mode() -> String {
     "auto".to_string()
 }
 
-pub fn default_baseline_exposure() -> f32 {
-    0.7
-}
-
-pub fn default_compensate_highlight_preservation() -> bool {
-    true
-}
-
 pub fn default_tagging_shortcuts_option() -> Option<Vec<String>> {
     Some(vec![
         "portrait".to_string(),
@@ -575,12 +567,6 @@ pub struct AppSettings {
     #[serde(default)]
     pub image_cache_size: Option<u32>,
     #[serde(default)]
-    pub enable_baseline_exposure: bool,
-    #[serde(default = "default_baseline_exposure")]
-    pub baseline_exposure: f32,
-    #[serde(default = "default_compensate_highlight_preservation")]
-    pub compensate_highlight_preservation: bool,
-    #[serde(default)]
     pub tonemapper_override_enabled: Option<bool>,
     #[serde(default)]
     pub default_raw_tonemapper: Option<String>,
@@ -610,10 +596,6 @@ pub struct AppSettings {
     pub library_display_mode: Option<String>,
     #[serde(default)]
     pub grouping: Option<String>,
-    #[serde(default)]
-    pub require_matching_exif: Option<bool>,
-    #[serde(default)]
-    pub group_edited_files: Option<bool>,
     #[serde(default, skip_serializing)] // legacy
     #[allow(dead_code)]
     pub group_associated_files: Option<bool>,
@@ -690,9 +672,6 @@ impl Default for AppSettings {
             keybinds: HashMap::new(),
             thumbnail_worker_threads: Some(4),
             image_cache_size: Some(5),
-            enable_baseline_exposure: false,
-            baseline_exposure: default_baseline_exposure(),
-            compensate_highlight_preservation: default_compensate_highlight_preservation(),
             tonemapper_override_enabled: Some(false),
             default_raw_tonemapper: Some("agx".to_string()),
             default_non_raw_tonemapper: Some("basic".to_string()),
@@ -708,8 +687,6 @@ impl Default for AppSettings {
             folder_tree_sort: Some(FolderTreeSort::default()),
             library_display_mode: Some("grid".to_string()),
             grouping: Some("off".to_string()),
-            require_matching_exif: Some(false),
-            group_edited_files: Some(true),
             group_associated_files: Some(false),
             group_preferred_type: Some("raw".to_string()),
             always_decode_raw_thumbnails: Some(false),

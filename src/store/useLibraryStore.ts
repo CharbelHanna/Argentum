@@ -64,9 +64,7 @@ interface LibraryState {
 
   // Actions
   setLibrary: (updater: Partial<LibraryState> | ((state: LibraryState) => Partial<LibraryState>)) => void;
-  clearSelection: () => void;
   setFilterCriteria: (criteria: Partial<FilterCriteria> | ((prev: FilterCriteria) => FilterCriteria)) => void;
-  setSearchCriteria: (criteria: Partial<SearchCriteria> | ((prev: SearchCriteria) => SearchCriteria)) => void;
   setSortCriteria: (criteria: Partial<SortCriteria> | ((prev: SortCriteria) => SortCriteria)) => void;
   pushNavHistory: (item: NavHistoryItem) => void;
 }
@@ -114,18 +112,10 @@ export const useLibraryStore = create<LibraryState>((set) => ({
 
   setLibrary: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
 
-  clearSelection: () => set({ multiSelectedPaths: [], libraryActivePath: null }),
-
   setFilterCriteria: (criteria) =>
     set((state) => ({
       filterCriteria:
         typeof criteria === 'function' ? criteria(state.filterCriteria) : { ...state.filterCriteria, ...criteria },
-    })),
-
-  setSearchCriteria: (criteria) =>
-    set((state) => ({
-      searchCriteria:
-        typeof criteria === 'function' ? criteria(state.searchCriteria) : { ...state.searchCriteria, ...criteria },
     })),
 
   setSortCriteria: (criteria) =>

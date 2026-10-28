@@ -201,17 +201,14 @@ pub mod image_loader {
     }
 }
 
-/// `crate::app_settings`, as `sharpen::retire_presharpening_once`,
-/// `raw_tone`'s JPEG matching and `baseline_exposure`'s options name it. All
-/// three need the running app and are never called here.
+/// `crate::app_settings`, as `sharpen::retire_presharpening_once` and
+/// `raw_tone`'s JPEG matching name it. Both need the running app and are never
+/// called here.
 pub mod app_settings {
     pub struct AppSettings {
         pub raw_preprocessing_sharpening: Option<f32>,
         pub raw_highlight_compression: Option<f32>,
         pub linear_raw_mode: String,
-        pub enable_baseline_exposure: bool,
-        pub baseline_exposure: f32,
-        pub compensate_highlight_preservation: bool,
     }
 
     pub fn load_settings(_app: tauri::AppHandle) -> Result<AppSettings, String> {

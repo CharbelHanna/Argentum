@@ -36,8 +36,8 @@ use crate::image_loader;
 use crate::image_processing::GpuContext;
 use crate::image_processing::{
     Crop, ImageFlag, ImageMetadata, apply_coarse_rotation, apply_cpu_default_raw_processing,
-    apply_crop, apply_exposure, apply_flip, apply_geometry_warp, apply_rotation,
-    auto_results_to_json, default_adjustments, effective_baseline_exposure,
+    apply_crop, apply_flip, apply_geometry_warp, apply_rotation,
+    auto_results_to_json, default_adjustments,
     get_all_adjustments_from_json, perform_auto_analysis, resolve_render_options,
 };
 use crate::mask_generation::MaskDefinition;
@@ -302,29 +302,21 @@ fn make_group_key(source_path: &Path) -> String {
     format!("{}/{}", parent.to_string_lossy(), stem.to_string_lossy())
 }
 
-fn assign_group_ids(files: &mut [ImageFile], settings: &crate::app_settings::AppSettings) {
-    let require_matching_exif = settings.require_matching_exif.unwrap_or(false);
-    let group_edited_files = settings.group_edited_files.unwrap_or(true);
-
+fn assign_group_ids(files: &mut [ImageFile]) {
     #[derive(Clone)]
     struct Candidate {
         index: usize,
-        source_path: PathBuf,
         key: String,
     }
 
     let candidates: Vec<Candidate> = files
         .iter()
         .enumerate()
-        .filter(|(_, file)| !file.is_virtual_copy && (group_edited_files || !file.is_edited))
+        .filter(|(_, file)| !file.is_virtual_copy)
         .map(|(index, file)| {
             let (source_path, _) = parse_virtual_path(&file.path);
             let key = make_group_key(&source_path);
-            Candidate {
-                index,
-                source_path,
-                key,
-            }
+            Candidate { index, key }
         })
         .collect();
 
@@ -336,41 +328,7 @@ fn assign_group_ids(files: &mut [ImageFile], settings: &crate::app_settings::App
             .push(candidate);
     }
 
-    if require_matching_exif {
-        let groupable_paths: Vec<PathBuf> = stem_groups
-            .values()
-            .filter(|candidates| candidates.len() >= 2)
-            .flat_map(|candidates| candidates.iter().map(|c| c.source_path.clone()))
-            .collect();
-        let exif_dates: HashMap<PathBuf, Option<chrono::DateTime<chrono::Utc>>> = groupable_paths
-            .par_iter()
-            .map(|p| {
-                (
-                    p.clone(),
-                    crate::exif_processing::try_get_exif_creation_date(p),
-                )
-            })
-            .collect();
-
-        stem_groups.retain(|_, candidates| {
-            if candidates.len() < 2 {
-                return false;
-            }
-            let first = exif_dates
-                .get(&candidates[0].source_path)
-                .copied()
-                .flatten();
-            if first.is_none() {
-                return false;
-            }
-            candidates
-                .iter()
-                .skip(1)
-                .all(|c| exif_dates.get(&c.source_path).copied().flatten() == first)
-        });
-    } else {
-        stem_groups.retain(|_, candidates| candidates.len() >= 2);
-    }
+    stem_groups.retain(|_, candidates| candidates.len() >= 2);
 
     for (key, candidates) in stem_groups {
         for candidate in candidates {
@@ -690,7 +648,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
         })
         .collect();
 
-    assign_group_ids(&mut result_list, &settings);
+    assign_group_ids(&mut result_list);
     Ok(result_list)
 }
 
@@ -813,7 +771,7 @@ pub fn list_images_recursive(
         })
         .collect();
 
-    assign_group_ids(&mut result_list, &settings);
+    assign_group_ids(&mut result_list);
     Ok(result_list)
 }
 
@@ -1083,7 +1041,7 @@ pub fn get_album_images(
         })
         .collect();
 
-    assign_group_ids(&mut result_list, &settings);
+    assign_group_ids(&mut result_list);
     Ok(result_list)
 }
 
@@ -1768,10 +1726,6 @@ pub fn generate_thumbnail_data(
 
     if adjustments.is_null() {
         let render = resolve_render_options(&settings, is_raw);
-        final_image = apply_exposure(
-            final_image,
-            effective_baseline_exposure(&adjustments, as_shot(&source_path_str), render.baseline),
-        );
         let use_agx = render.tonemapper_override == Some(1);
 
         if use_agx {
@@ -2913,7 +2867,6 @@ pub fn apply_import_edits_to_sidecar(
         auto_from,
         source_path,
         preset_adjustments,
-        settings,
         lens_db,
         exif.as_ref(),
     );
@@ -2938,14 +2891,11 @@ fn fold_import_edits(
     auto_from: Option<&DynamicImage>,
     source_path: &Path,
     preset_adjustments: Option<&Value>,
-    settings: &AppSettings,
     lens_db: Option<&crate::lens_correction::LensDatabase>,
     fallback_exif: Option<&HashMap<String, String>>,
 ) {
     if let Some(image) = auto_from {
-        let shot = as_shot(&source_path.to_string_lossy());
-        let baseline = effective_baseline_exposure(adjustments, shot, resolve_render_options(settings, true).baseline);
-        let auto_json = auto_results_to_json(&perform_auto_analysis(image, baseline));
+        let auto_json = auto_results_to_json(&perform_auto_analysis(image));
         if let (Some(target), Some(incoming)) = (adjustments.as_object_mut(), auto_json.as_object()) {
             merge_adjustment_values(target, incoming);
         }
@@ -2977,7 +2927,7 @@ async fn update_sidecars_from_images(
     app_handle: AppHandle,
     operation: &'static str,
     fast_decode: bool,
-    update: impl Fn(&DynamicImage, &str, &AppSettings, &mut Value) + Send + Sync + 'static,
+    update: impl Fn(&DynamicImage, &str, &mut Value) + Send + Sync + 'static,
 ) -> Result<(), String> {
     let state = app_handle.state::<AppState>();
     add_to_thumbnail_queue(&state, paths.len(), &app_handle);
@@ -3025,12 +2975,7 @@ async fn update_sidecars_from_images(
                     existing_metadata.adjustments = default_adjustments();
                 }
 
-                update(
-                    &image,
-                    &source_path_str,
-                    &settings,
-                    &mut existing_metadata.adjustments,
-                );
+                update(&image, &source_path_str, &mut existing_metadata.adjustments);
 
                 let _ = crate::exif_processing::write_sidecar(
                     &sidecar_path,
@@ -3096,8 +3041,8 @@ pub async fn apply_auto_adjustments_to_paths(
         app_handle,
         "auto adjustments",
         true,
-        move |image, source_path, settings, adjustments| {
-            fold_import_edits(adjustments, Some(image), Path::new(source_path), None, settings, lens_db.as_deref(), None)
+        move |image, source_path, adjustments| {
+            fold_import_edits(adjustments, Some(image), Path::new(source_path), None, lens_db.as_deref(), None)
         },
     )
     .await
@@ -3113,7 +3058,7 @@ pub async fn apply_auto_straighten_to_paths(
         app_handle,
         "auto straighten",
         false,
-        |image, source_path, _, adjustments| {
+        |image, source_path, adjustments| {
             crate::auto_straighten::straighten_adjustments(image, source_path, adjustments)
         },
     )
