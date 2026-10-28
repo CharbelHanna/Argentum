@@ -323,6 +323,7 @@ pub async fn get_profile_online(make: String, model: String) -> Result<Option<St
 
 /// What My Gear needs to draw one camera's row.
 #[derive(serde::Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct CameraProfiles {
     pub profiles: Vec<crate::mods::profiles::Installed>,

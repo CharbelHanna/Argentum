@@ -50,6 +50,7 @@ const ROBERTSON_ISOTHERMS: [[f64; 4]; 31] = [
 ];
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct WhiteBalance {
     pub temperature: f64,
     pub tint: f64,

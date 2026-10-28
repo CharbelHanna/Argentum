@@ -121,6 +121,13 @@ sha2 = "0.11"
 reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls"] }
 hex = "0.4"
 
+# Argentum: the interface's types for the `ag` commands, written by a test
+# (mods/ag_contract.rs) as the engine's are (engine/tests/contract.rs): the
+# same ts-rs, in tests only, so nothing shipped compiles it.
+[dev-dependencies]
+ts-rs = "10.1"
+argentum-engine = { path = "engine", features = ["ts"] }
+
 [profile.dev]
 opt-level = 2
 debug = 1

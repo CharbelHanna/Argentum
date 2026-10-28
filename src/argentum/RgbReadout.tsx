@@ -118,7 +118,7 @@ export default function RgbReadout() {
       const x = localX / rect.width;
       const y = localY / rect.height;
 
-      ag<[number, number, number]>('sample_processed_pixel', {
+      ag('sample_processed_pixel', {
         x,
         y,
         jsAdjustments: useEditorStore.getState().adjustments,

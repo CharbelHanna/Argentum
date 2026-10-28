@@ -14,24 +14,8 @@
  */
 
 import { normalizeLoadedAdjustments, type Adjustments } from '../../utils/adjustments';
-
-/** Mirrors mods::history::HistoryStep. Hand-written: the app does not generate its types yet. */
-export interface HistoryStep {
-  name: string;
-  /** Each value the step set, under its place in the edit. */
-  set?: Record<string, unknown>;
-  /** The places it took out. */
-  unset?: string[];
-}
-
-/** Mirrors mods::history::HistoryRecord. */
-export interface HistoryRecord {
-  /** The step the edit is at; those after it were undone. */
-  end: number;
-  steps: HistoryStep[];
-  /** The saved edit's fingerprint: the Rust side sets it and checks it, never this one. */
-  edit?: string;
-}
+import type { HistoryRecord, HistoryStep } from '../ag.generated';
+export type { HistoryStep, HistoryRecord } from '../ag.generated';
 
 /** A History as the editor holds it: every state, the one shown, and each one's name. */
 export interface History {

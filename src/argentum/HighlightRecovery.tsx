@@ -36,7 +36,7 @@ export default function HighlightRecovery() {
 
   const refresh = useCallback(async () => {
     try {
-      setOn(await ag<boolean>('highlight_recovery'));
+      setOn(await ag('highlight_recovery'));
     } catch {
       setOn(null);
     }
@@ -86,13 +86,7 @@ export default function HighlightRecovery() {
         explanation lives on hover instead of as a paragraph in a panel this
         narrow.
       */}
-      <Switch
-        checked={on}
-        disabled={busy}
-        label={t('recoveryLabel')}
-        onChange={toggle}
-        tooltip={t('recoveryHelp')}
-      />
+      <Switch checked={on} disabled={busy} label={t('recoveryLabel')} onChange={toggle} tooltip={t('recoveryHelp')} />
     </div>
   );
 }

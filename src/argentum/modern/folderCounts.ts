@@ -36,7 +36,7 @@ function countNext() {
     const path = waiting.shift() as string;
     const round = useFolderCounts.getState().round;
     running += 1;
-    ag<number>('folder_photo_count', { path })
+    ag('folder_photo_count', { path })
       .catch(() => 0)
       .then((count) => {
         if (useFolderCounts.getState().round !== round) return;

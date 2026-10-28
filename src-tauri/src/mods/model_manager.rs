@@ -64,6 +64,7 @@ pub fn models_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 }
 
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum OnDisk {
     Downloaded,
@@ -74,6 +75,7 @@ pub enum OnDisk {
 }
 
 #[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModelStatus {
     pub id: &'static str,
@@ -90,6 +92,7 @@ pub struct ModelStatus {
 
 /// Something in the models folder no catalogue entry claims.
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Leftover {
     /// Where it is inside the models folder, `/` between folder and name.
@@ -98,6 +101,7 @@ pub struct Leftover {
 }
 
 #[derive(Serialize, Debug)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Listing {
     pub models: Vec<ModelStatus>,
@@ -112,6 +116,7 @@ pub struct Listing {
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub enum Outcome {
     Deleted,
@@ -121,6 +126,7 @@ pub enum Outcome {
 }
 
 #[derive(Serialize, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Cleared {
     pub freed_bytes: u64,

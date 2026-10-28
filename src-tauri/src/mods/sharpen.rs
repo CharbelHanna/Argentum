@@ -973,15 +973,25 @@ pub fn remember_shown_contrast(photo: &str, threshold: f32) {
 /// the contrast threshold its last measurement found. Either is null until
 /// there is one - the radius until the photo is decoded, the contrast until
 /// a render at 100% (or the mask view) has needed it.
-pub fn auto_values(photo: &str) -> serde_json::Value {
+///
+/// `f64`, widened from the `f32` each is kept as, so they read in the
+/// interface exactly as they always have.
+#[derive(serde::Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct AutoValues {
+    pub radius: Option<f64>,
+    pub contrast: Option<f64>,
+}
+
+pub fn auto_values(photo: &str) -> AutoValues {
     let contrast = SHOWN_CONTRAST
         .lock()
         .ok()
         .and_then(|slot| slot.as_ref()?.get(photo).copied());
-    serde_json::json!({
-        "radius": auto_radius(photo),
-        "contrast": contrast,
-    })
+    AutoValues {
+        radius: auto_radius(photo).map(f64::from),
+        contrast: contrast.map(f64::from),
+    }
 }
 
 // ---------------------------------------------------------------------------

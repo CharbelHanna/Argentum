@@ -46,7 +46,7 @@ export const useCompactSliders = create<CompactSlidersState>((set) => ({
   load: async () => {
     document.documentElement.setAttribute(ATTRIBUTE, 'compact');
     // Unreadable is the default spacing.
-    const gap = await ag<number>('compact_slider_gap').catch(() => DEFAULT_GAP);
+    const gap = await ag('compact_slider_gap').catch(() => DEFAULT_GAP);
     set({ gap });
     showGap(gap);
   },

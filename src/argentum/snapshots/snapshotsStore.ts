@@ -7,18 +7,9 @@
  */
 
 import { create } from 'zustand';
-import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
-
-/** Mirrors mods::snapshots::Snapshot. Hand-written: the app does not generate its types yet. */
-export interface Snapshot {
-  id: string;
-  name: string;
-  /** When it was made or last updated, in milliseconds since 1970. */
-  at: number;
-  /** The whole edit as it was. */
-  adjustments: Adjustments;
-}
+import type { Snapshot } from '../ag.generated';
+export type { Snapshot } from '../ag.generated';
 
 interface SnapshotsState {
   byPath: Record<string, Snapshot[]>;
@@ -33,7 +24,7 @@ export const useSnapshots = create<SnapshotsState>((set, get) => ({
 
   load: async (path) => {
     try {
-      const list = await ag<Snapshot[]>('snapshots', { path });
+      const list = await ag('snapshots', { path });
       set((s) => ({ byPath: { ...s.byPath, [path]: list } }));
     } catch (err) {
       console.error('Snapshots: could not read them:', err);

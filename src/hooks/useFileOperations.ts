@@ -199,7 +199,7 @@ export function useFileOperations(
           // Argentum: the Recent list follows the folder (mods/recent_folders.rs), before
           // the folder on show changes and is added to it under its new name.
           try {
-            useModernFolders.setState({ recent: await ag<string[]>('rename_recent_folder', { oldPath, newPath }) });
+            useModernFolders.setState({ recent: await ag('rename_recent_folder', { oldPath, newPath }) });
           } catch (err) {
             console.warn('Recent folders not renamed:', err);
           }

@@ -17,6 +17,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { create } from 'zustand';
 import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
+import type { PresetGroup as BuiltinGroup } from '../ag.generated';
+export type { BuiltinPreset, PresetGroup as BuiltinGroup } from '../ag.generated';
 
 export interface LutEntry {
   name: string;
@@ -28,17 +30,6 @@ export interface LutEntry {
 export interface LutLibrary {
   id: string;
   name: string;
-}
-
-export interface BuiltinPreset {
-  id: string;
-  name: string;
-  adjustments: Partial<Adjustments>;
-}
-
-export interface BuiltinGroup {
-  name: string;
-  presets: BuiltinPreset[];
 }
 
 /** A preset put on the open photo from the Looks tab. */
@@ -84,8 +75,8 @@ export const useLooks = create<LooksState>((set, get) => ({
     if (get().loaded) return;
     set({ loaded: true });
     const [builtin, favourites] = await Promise.all([
-      ag<BuiltinGroup[]>('builtin_presets').catch(() => []),
-      ag<string[]>('looks_favourites').catch((err) => {
+      ag('builtin_presets').catch(() => []),
+      ag('looks_favourites').catch((err) => {
         console.error('Looks: could not read the starred looks:', err);
         return null;
       }),

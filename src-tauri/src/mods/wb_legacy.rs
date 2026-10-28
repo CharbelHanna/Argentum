@@ -97,12 +97,16 @@ pub fn upgraded(path: &str, mut adjustments: Value) -> Value {
 
 /// An old edit found on disk, and what it becomes.
 #[derive(Debug, Clone, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(rename = "OldWhiteBalanceEdit"))]
 pub struct Found {
     pub path: String,
     /// The whole edit, converted.
+    #[cfg_attr(test, ts(type = "unknown"))]
     pub adjustments: Value,
     /// The old white balance numbers, globally and per mask in order: how the
     /// frontend recognises the edit still open in the editor unconverted.
+    #[cfg_attr(test, ts(type = "unknown"))]
     pub was: Value,
 }
 

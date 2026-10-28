@@ -33,6 +33,7 @@
 import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { ag } from './ag';
+import type { OldWhiteBalanceEdit } from './ag.generated';
 import { useEditorStore } from '../store/useEditorStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { Invokes } from '../components/ui/AppProperties';
@@ -43,11 +44,8 @@ interface Numbers {
   tint: number;
 }
 
-interface Found {
-  path: string;
-  adjustments: Adjustments;
-  was: Numbers & { masks: Numbers[] };
-}
+/** An old edit found, as the editor reads it: the edit, and the old numbers, globally and per mask. */
+type Found = OldWhiteBalanceEdit & { adjustments: Adjustments; was: Numbers & { masks: Numbers[] } };
 
 const same = (a: number | undefined, b: number) => (a ?? 0) === b;
 
@@ -58,7 +56,8 @@ const stillOld = (adjustments: Adjustments, was: Found['was']) =>
   same(adjustments.tint, was.tint) &&
   (adjustments.masks?.length ?? 0) === was.masks.length &&
   (adjustments.masks ?? []).every(
-    (mask, i) => same(mask.adjustments?.temperature, was.masks[i].temperature) && same(mask.adjustments?.tint, was.masks[i].tint),
+    (mask, i) =>
+      same(mask.adjustments?.temperature, was.masks[i].temperature) && same(mask.adjustments?.tint, was.masks[i].tint),
   );
 
 /** The open edit with only its white balance numbers taken from the converted one. */
@@ -116,18 +115,17 @@ export default function WhiteBalanceUpgrade() {
     paths.forEach((path) => looked.current.add(path));
     // Rust saves what it converts, one at a time, and leaves the open photo to
     // the editor.
-    ag<Found[]>('upgrade_white_balance', { paths }).catch((err) =>
-      console.error('White balance conversion failed:', err),
-    );
+    ag('upgrade_white_balance', { paths }).catch((err) => console.error('White balance conversion failed:', err));
   }, [imageList]);
 
   useEffect(() => {
     if (!openPath) return;
     let cancel = () => {};
     let stopped = false;
-    ag<Found[]>('upgrade_white_balance', { paths: [openPath] })
+    ag('upgrade_white_balance', { paths: [openPath] })
       .then(([found]) => {
-        if (found && !stopped) cancel = fixOpen(found);
+        // The edit is untyped on the Rust side: `unknown` until read as ours.
+        if (found && !stopped) cancel = fixOpen(found as Found);
       })
       .catch((err) => console.error('White balance conversion failed:', err));
     return () => {

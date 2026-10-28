@@ -196,6 +196,7 @@ struct Enlargement {
 }
 
 #[derive(Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct PreviewPayload {
     pub result: String,
     pub original: String,

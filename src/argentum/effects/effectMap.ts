@@ -22,13 +22,6 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { useUIStore } from '../../store/useUIStore';
 import { ag } from '../ag';
 
-/** One row of `list_ai_models` (AiModels.tsx reads the same listing), as much as this needs. */
-interface ModelRow {
-  id: string;
-  onDisk: 'downloaded' | 'partial' | 'missing';
-  downloadBytes: number | null;
-}
-
 /** What one effect needs: the models its command fetches (ids in mods/model_catalog.rs) and the command. */
 export interface MapSource {
   models: readonly string[];
@@ -48,7 +41,7 @@ export const DEPTH_MAP: MapSource = {
 
 /** Bytes the command would download first: 0 when every model is on disk. */
 async function bytesToFetch(models: readonly string[]): Promise<number> {
-  const listing = await ag<{ models: ModelRow[] }>('list_ai_models');
+  const listing = await ag('list_ai_models');
   return listing.models
     .filter((m) => models.includes(m.id) && m.onDisk !== 'downloaded')
     .reduce((sum, m) => sum + (m.downloadBytes ?? 0), 0);

@@ -32,6 +32,7 @@ use super::dcp::{self, Profile};
 
 /// A profile in the library, with where it came from.
 #[derive(Debug, Clone, serde::Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Installed {
     /// File name in the library, which is also its id.
     pub file: String,
@@ -626,6 +627,8 @@ mod tests {
 /// What the UI needs to show for one photo: which camera, and whether the
 /// library has a profile for it.
 #[derive(Debug, Clone, serde::Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(rename = "CameraProfileStatus"))]
 #[serde(rename_all = "camelCase")]
 pub struct Status {
     /// The body, as the file reports it. `None` if the file cannot be read.
@@ -696,6 +699,7 @@ pub fn status_for(library: &Path, path: &Path) -> Status {
 
 /// A camera the user has actually opened a photo from.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct Camera {
     /// The maker, shown the way My Lenses shows a lens maker.
     #[serde(default)]
@@ -709,6 +713,9 @@ pub struct Camera {
         rename = "defaultProfile",
         skip_serializing_if = "Option::is_none"
     )]
+    // ts-rs skips a serde attribute holding a key it does not know
+    // (`skip_serializing_if`), so the rename is said again here.
+    #[cfg_attr(test, ts(optional, rename = "defaultProfile"))]
     pub default_profile: Option<String>,
 }
 

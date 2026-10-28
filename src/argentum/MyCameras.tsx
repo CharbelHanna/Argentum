@@ -22,24 +22,7 @@ import { open } from '@tauri-apps/plugin-dialog';
 import { Trash2 } from 'lucide-react';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
-
-interface Camera {
-  make: string;
-  model: string;
-  /** The profile new photos from it open with; absent, built-in (mods/profiles.rs). */
-  defaultProfile?: string;
-}
-
-interface Installed {
-  file: string;
-  name: string | null;
-}
-
-interface ForCamera {
-  profiles: Installed[];
-  /** RawTherapee's own file for this body is already here. */
-  publishedInstalled: boolean;
-}
+import type { Camera, CameraProfiles as ForCamera } from './ag.generated';
 
 export default function MyCameras() {
   const t = useAgTranslation();
@@ -51,7 +34,7 @@ export default function MyCameras() {
   const refresh = useCallback(async () => {
     let listed: Camera[] = [];
     try {
-      listed = await ag<Camera[]>('list_cameras');
+      listed = await ag('list_cameras');
     } catch {
       setCameras([]);
       return;
@@ -62,7 +45,7 @@ export default function MyCameras() {
     await Promise.all(
       listed.map(async (c) => {
         try {
-          found[c.model] = await ag<ForCamera>('profiles_for_camera', {
+          found[c.model] = await ag('profiles_for_camera', {
             make: c.make,
             model: c.model,
           });
@@ -82,7 +65,7 @@ export default function MyCameras() {
     setNote(null);
     setBusy(c.model);
     try {
-      const file = await ag<string | null>('get_profile_online', {
+      const file = await ag('get_profile_online', {
         make: c.make,
         model: c.model,
       });
@@ -108,7 +91,7 @@ export default function MyCameras() {
     }
     setBusy(c.model);
     try {
-      const added = await ag<{ camera: string | null }>('import_camera_profile', { path: picked });
+      const added = await ag('import_camera_profile', { path: picked });
       await refresh();
       if (!added.camera) {
         setNote({ model: c.model, text: t('profileNoCamera') });
@@ -121,18 +104,18 @@ export default function MyCameras() {
   };
 
   /** A change that fails says so under its camera instead of looking like nothing happened. */
-  const change = async (model: string, name: string, args: Record<string, unknown>) => {
+  const change = async (model: string, call: () => Promise<unknown>) => {
     setNote(null);
-    await ag(name, args).catch((e) => setNote({ model, text: String(e) }));
+    await call().catch((e) => setNote({ model, text: String(e) }));
     refresh();
   };
 
-  const removeProfile = (model: string, file: string) => change(model, 'remove_camera_profile', { file });
+  const removeProfile = (model: string, file: string) => change(model, () => ag('remove_camera_profile', { file }));
 
   const setDefaultProfile = (model: string, file: string) =>
-    change(model, 'set_camera_default_profile', { model, file: file || null });
+    change(model, () => ag('set_camera_default_profile', { model, file: file || null }));
 
-  const forgetCamera = (model: string) => change(model, 'forget_camera', { model });
+  const forgetCamera = (model: string) => change(model, () => ag('forget_camera', { model }));
 
   return (
     <div className="p-6 bg-surface rounded-xl shadow-md">

@@ -37,19 +37,7 @@ import { useEditorStore } from '../store/useEditorStore';
 import { useEditorActions } from '../hooks/useEditorActions';
 import { ag } from './ag';
 import { useAgTranslation } from './locales';
-
-interface Installed {
-  file: string;
-  name: string | null;
-}
-
-interface Status {
-  camera: string | null;
-  make: string | null;
-  available: Installed[];
-  /** RawTherapee's own file for this body is already here. */
-  publishedInstalled: boolean;
-}
+import type { CameraProfileStatus as Status } from './ag.generated';
 
 /** The entry that means "go and look". `?` cannot be in a Windows file name. */
 const FIND = '?find';
@@ -71,7 +59,7 @@ export default function CameraProfile() {
     let next: Status | null = null;
     if (path) {
       try {
-        next = await ag<Status>('camera_profile_status', { path });
+        next = await ag('camera_profile_status', { path });
       } catch {
         next = null;
       }
@@ -111,7 +99,7 @@ export default function CameraProfile() {
     setNote(null);
     setLooking(true);
     try {
-      const file = await ag<string | null>('get_profile_online', {
+      const file = await ag('get_profile_online', {
         make: status?.make ?? '',
         model: camera,
       });

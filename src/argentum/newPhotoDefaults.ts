@@ -81,7 +81,7 @@ async function profileOnOpen(path: string, exif: Record<string, string>, isRaw: 
   if (!found.fresh || !isRaw || !model) {
     return;
   }
-  const file = await ag<string | null>('camera_default_profile', { model }).catch(unanswered);
+  const file = await ag('camera_default_profile', { model }).catch(unanswered);
   const open = file ? stillOpen(path) : null;
   open?.setEditor({ adjustments: { ...open.adjustments, cameraProfile: file } as Adjustments });
 }
@@ -92,8 +92,7 @@ async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boo
     return;
   }
   // An EXIF cached before CR3 lenses were read has none: ask the file, as Auto does.
-  const lensName =
-    exif.LensModel?.trim() || (await ag<string | null>('recover_lens_name', { path }).catch(unanswered)) || '';
+  const lensName = exif.LensModel?.trim() || (await ag('recover_lens_name', { path }).catch(unanswered)) || '';
   const detected = await invoke<[string, string] | null>('autodetect_lens', {
     maker: make,
     model: lensName,

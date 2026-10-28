@@ -1,9 +1,6 @@
 import type { AppSettings } from '../components/ui/AppProperties';
-
-export interface WhiteBalance {
-  temperature: number;
-  tint: number;
-}
+import type { WhiteBalance } from '../argentum/ag.generated';
+export type { WhiteBalance } from '../argentum/ag.generated';
 
 export enum WhiteBalanceMode {
   Kelvin = 'kelvin',

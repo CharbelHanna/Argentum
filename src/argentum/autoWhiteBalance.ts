@@ -71,11 +71,6 @@ export function autoChanges(asShot: WhiteBalance, found: WhiteBalance, photo: st
 export const measuredElsewhere = (marker: AutoMarker | undefined, path: string) =>
   !!marker?.photo && marker.photo !== path;
 
-interface Measured {
-  asShot: WhiteBalance;
-  whiteBalance: WhiteBalance;
-}
-
 /**
  * Measure each photo and write its own Auto, one at a time, each as it is
  * done. `from` is the photo the pasted Auto was measured on: a photo is
@@ -90,7 +85,7 @@ export async function settleAutoWhiteBalance(paths: string[], from: string) {
   let done = 0;
   for (const path of paths) {
     try {
-      const measured = await ag<Measured>('measure_auto_white_balance', { path, from });
+      const measured = await ag('measure_auto_white_balance', { path, from });
       await invoke(Invokes.ApplyAdjustmentsToPaths, {
         paths: [path],
         adjustments: autoChanges(measured.asShot, measured.whiteBalance, path),
@@ -144,7 +139,7 @@ ${marker?.photo}`;
       if (measuring === photo.path || failed.has(attempt)) return;
       measuring = photo.path;
       try {
-        const result = await ag<{ whiteBalance: WhiteBalance }>('detect_auto_white_balance', {
+        const result = await ag('detect_auto_white_balance', {
           jsAdjustments: state.adjustments,
           mode: 'surfaces',
         });

@@ -26,7 +26,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import type { Adjustments } from '../../utils/adjustments';
 import { ag } from '../ag';
 import { historyNames, keepNames } from '../layout/historyNames';
-import { compact, expand, type HistoryRecord } from './historyRecord';
+import { compact, expand } from './historyRecord';
 
 /** After their save of the edit (300 ms) and their step (500 ms). */
 export const WRITE_AFTER_MS = 600;
@@ -66,7 +66,7 @@ const writeSoon = debounce((shown: Shown) => {
 const restore = (path: string, fresh: Adjustments[]) => {
   const current = fresh[0];
   inOrder(async () => {
-    const record = await ag<HistoryRecord | null>('history', { path });
+    const record = await ag('history', { path });
     const now = useEditorStore.getState();
     // Anything since (an edit, another photo, another fresh start) and theirs stays.
     if (now.selectedImage?.path !== path || now.history !== fresh || now.adjustments !== current) return;

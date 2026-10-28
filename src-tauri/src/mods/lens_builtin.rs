@@ -148,6 +148,8 @@ pub fn with_lensfun(
 
 /// What the editor needs when a photo opens.
 #[derive(Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[cfg_attr(test, ts(rename = "BuiltinLens"))]
 #[serde(rename_all = "camelCase")]
 pub struct Found {
     /// The photo's own tables; `None` when it carries none.

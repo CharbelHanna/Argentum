@@ -13,6 +13,7 @@ use super::drives::Drive;
 
 /// What the interface needs to draw the folder column the moment it opens.
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ModernStart {
     pub drives: Vec<Drive>,

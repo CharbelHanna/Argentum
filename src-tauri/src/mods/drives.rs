@@ -13,6 +13,7 @@ use serde::Serialize;
 
 /// A disk as the folder column lists it.
 #[derive(Serialize, Clone, Debug, PartialEq, Eq)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct Drive {
     /// Where it is mounted, as the folder tree writes paths: `E:\` on

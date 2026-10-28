@@ -28,36 +28,8 @@ import { useEffect } from 'react';
 import { ag } from './ag';
 import { useEditorStore } from '../store/useEditorStore';
 import type { Adjustments } from '../utils/adjustments';
-
-interface Radial {
-  knots: number[];
-  values: number[];
-}
-
-/**
- * HAND-WRITTEN STUB of `rm_lens_builtin::LensCorrection`
- * (src-tauri/engine/src/rm_lens_builtin.rs), until today's interface has
- * generated types. Only `source` and which parts are present are read here.
- */
-export interface LensCorrection {
-  source: string;
-  default_on: boolean;
-  vignetting: Radial | null;
-  distortion: Radial | null;
-  chromatic: [Radial, Radial] | null;
-  /** The parts the camera always corrects; absent: all three. */
-  always?: { distortion: boolean; chromatic: boolean; vignetting: boolean };
-  /** The optical centre, in fractions of the image; absent: stored before it was read. */
-  centre?: [number, number];
-}
-
-/** What `lens_builtin` answers. */
-export interface Found {
-  correction: LensCorrection | null;
-  defaultOn: boolean;
-  /** The photo has no saved edit (argentum/newPhotoDefaults.ts). */
-  fresh: boolean;
-}
+import type { BuiltinLens as Found, LensCorrection } from './ag.generated';
+export type { LensCorrection, BuiltinLens as Found } from './ag.generated';
 
 /** The edit's keys for it (mods/lens_builtin.rs). */
 interface BuiltinEdit {
@@ -99,7 +71,7 @@ const asked = new Map<string, Promise<Found>>();
 export const ask = (path: string): Promise<Found> => {
   let answer = asked.get(path);
   if (!answer) {
-    answer = ag<Found>('lens_builtin', { path });
+    answer = ag('lens_builtin', { path });
     asked.set(path, answer);
     answer.catch(() => asked.delete(path));
   }
