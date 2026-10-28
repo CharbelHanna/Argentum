@@ -1,8 +1,7 @@
 import { useMemo } from 'react';
-import { FolderInput, Loader2, Search, SlidersHorizontal } from 'lucide-react';
+import { Loader2, Search, SlidersHorizontal } from 'lucide-react';
 import CullingView from './library/CullingView';
 import { useTranslation } from 'react-i18next';
-import Button from '../ui/Button';
 import {
   AppSettings,
   ImageFile,
@@ -44,7 +43,6 @@ interface MainLibraryProps {
   importState: ImportState;
   indexingProgress: Progress;
   isIndexing: boolean;
-  isAndroid: boolean;
   libraryViewMode: LibraryViewMode;
   multiSelectedPaths: Array<string>;
   onClearSelection(): void;
@@ -52,7 +50,6 @@ interface MainLibraryProps {
   onEmptyAreaContextMenu(event: any): void;
   onImageClick(path: string, event: any): void;
   onImageDoubleClick(path: string): void;
-  onImportClick(): void;
   onThumbnailSizeChange(size: ThumbnailSize): void;
   onRequestThumbnails?(paths: string[]): void;
   rootPaths: string[];
@@ -138,18 +135,6 @@ export default function MainLibrary(props: MainLibraryProps) {
           <SlidersHorizontal className="h-12 w-12 mb-4 text-text-secondary" />
           <Text>{t('library.filters.noMatch')}</Text>
         </div>
-      )}
-      {props.isAndroid && (
-        <Button
-          className="absolute bottom-18 right-8 h-12 w-12 bg-accent text-button-text shadow-lg p-0 flex items-center justify-center z-50 border border-border-color/50"
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onImportClick();
-          }}
-          data-tooltip={t('library.tooltips.importImages')}
-        >
-          <FolderInput className="w-6 h-6" />
-        </Button>
       )}
     </div>
   );

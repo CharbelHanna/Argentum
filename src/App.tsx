@@ -55,7 +55,6 @@ import { useLibraryActions } from './hooks/useLibraryActions';
 import { useProductivityActions } from './hooks/useProductivityActions';
 
 import { useAppInitialization } from './hooks/useAppInitialization';
-import { useAndroidBackHandler } from './hooks/useAndroidBackHandler';
 import './i18n';
 
 import {
@@ -182,9 +181,6 @@ function App() {
     })),
   );
 
-  const defaultThumbnailSize = osPlatform === 'android' ? ThumbnailSize.Small : ThumbnailSize.Medium;
-  const defaultLibraryViewMode = osPlatform === 'android' ? LibraryViewMode.Recursive : LibraryViewMode.Flat;
-
   const selectedImagePathRef = useRef<string | null>(null);
   useEffect(() => {
     selectedImagePathRef.current = selectedImage?.path ?? null;
@@ -198,9 +194,9 @@ function App() {
   const currentResRef = useRef<number>(1280);
   const cachedEditStateRef = useRef<any | null>(null);
 
-  const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(defaultLibraryViewMode);
+  const [libraryViewMode, setLibraryViewMode] = useState<LibraryViewMode>(LibraryViewMode.Flat);
   const [isResizing, setIsResizing] = useState(false);
-  const [thumbnailSize, setThumbnailSize] = useState(defaultThumbnailSize);
+  const [thumbnailSize, setThumbnailSize] = useState(ThumbnailSize.Medium);
   const [thumbnailAspectRatio, setThumbnailAspectRatio] = useState(ThumbnailAspectRatio.Contain);
 
   const { requestThumbnails, clearThumbnailQueue, markGenerated } = useThumbnails();
@@ -222,8 +218,6 @@ function App() {
     libraryViewMode,
     setLibraryViewMode,
   });
-
-  const isAndroid = osPlatform === 'android';
 
   const { handleZoomChange } = useEditorActions();
 
@@ -371,8 +365,6 @@ function App() {
     refreshImageList: handleLibraryRefresh,
     markGenerated,
   });
-
-  useAndroidBackHandler();
 
   useKeyboardShortcuts({
     sortedImageList,
@@ -658,7 +650,6 @@ function App() {
     thumbnailSize,
     thumbnailAspectRatio,
     libraryViewMode,
-    isAndroid,
     setThumbnailSize,
     setThumbnailAspectRatio,
     setLibraryViewMode,
@@ -667,7 +658,6 @@ function App() {
     handleImageSelect,
     handleThumbnailContextMenu,
     handleMainLibraryContextMenu,
-    handleImportClick,
     requestThumbnails,
   };
 

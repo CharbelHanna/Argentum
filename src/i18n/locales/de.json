@@ -1170,7 +1170,6 @@
       "brand": "Argentum",
       "continueSession": "Sitzung fortsetzen",
       "contribute": "Auf GitHub beitragen",
-      "descriptionAndroid": "Ein blitzschneller, GPU-beschleunigter RAW-Bildeditor. Öffnen Sie die Bibliothek, um zu beginnen.",
       "descriptionDesktop": "Ein blitzschneller, GPU-beschleunigter RAW-Bildeditor. Öffnen Sie einen Ordner, um zu beginnen.",
       "donate": "Spenden auf Ko-Fi",
       "downloadVersion": "Klicken, um Version {{version}} herunterzuladen",
@@ -1205,8 +1204,7 @@
     },
     "tooltips": {
       "communityPresets": "Community-Vorgaben",
-      "goHome": "Zur Startseite",
-      "importImages": "Bilder importieren"
+      "goHome": "Zur Startseite"
     }
   },
   "masks": {
@@ -1919,7 +1917,6 @@
       "thumbnailResDesc": "Bestimmt die Auflösung der generierten Bibliothek-Miniaturbilder. Höhere Werte erzeugen schärfere Bilder.",
       "title": "Verarbeitungs-Engine",
       "wgpu": "WGPU Direkt-Rendering",
-      "wgpuDescAndroid": "Umgeht die Browser-Kodierung für sofort reagierende Live-Vorschauen. (Auf Android deaktiviert: Native WGPU-Erstellung wird neben dem mobilen Webview nicht unterstützt.)",
       "wgpuDescLinux": "Umgeht die Browser-Kodierung für sofort reagierende Live-Vorschauen. (Auf Linux deaktiviert: Tauri nutzt GTK, was mit WGPU kollidiert.)",
       "wgpuDescRecommended": "Umgeht die Browser-Kodierung für sofort reagierende Live-Vorschauen. Sehr empfehlenswert für die Leistung.",
       "wgpuLabel": "Direktes WGPU-Rendern aktivieren",
