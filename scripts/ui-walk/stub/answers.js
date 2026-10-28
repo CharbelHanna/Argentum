@@ -140,6 +140,22 @@ const COMMANDS = {
   list_luts: empty,
   list_lut_libraries: empty,
   fetch_community_presets: empty,
+  // What changes photos on disk returns nothing (Rust's Ok(())), which reaches the page as null.
+  set_rating_for_paths: none,
+  set_flag_for_paths: none,
+  set_color_label_for_paths: none,
+  apply_adjustments_to_paths: none,
+  reset_adjustments_for_paths: none,
+  apply_auto_adjustments_to_paths: none,
+  apply_auto_lens_correction_to_paths: none,
+  apply_auto_straighten_to_paths: none,
+  copy_files: none,
+  delete_files_from_disk: none,
+  delete_folder: none,
+  show_in_finder: none,
+  // The copy's path: VIRTUAL_COPY and a six-character id; the file copied to "<name>_copy" beside it.
+  create_virtual_copy: ({ sourceVirtualPath }) => `${sourceVirtualPath}?vc=a1b2c3`,
+  duplicate_file: ({ path }) => path.replace(/(\.[^.\\]+)$/, '_copy$1'),
 
   // The editor.
   clear_session_caches: none,
@@ -178,8 +194,18 @@ const COMMANDS = {
     whites: 5,
     blacks: -5,
   }),
+  save_metadata_and_update_thumbnail: none,
+  update_wgpu_transform: none,
+  // The demo lens is in no lens database, and the demo photos have no lines to level from: both answer None.
+  autodetect_lens: none,
+  calculate_auto_straighten: none,
 
-  // Settings.
+  // Export: the estimated size in bytes of the photos named.
+  estimate_export_sizes: ({ paths }) => 2_500_000 * (paths?.length ?? 1),
+
+  // Settings. The connector's status comes as an event, never here; there is no connector to report on.
+  check_ai_connector_status: none,
+  get_log_file_path: () => 'C:\\Users\\Walk\\AppData\\Local\\co.argentum.editor\\logs\\app.log',
   get_lensfun_makers: empty,
   get_lensfun_lenses_for_maker: empty,
 
