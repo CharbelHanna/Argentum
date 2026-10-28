@@ -6,7 +6,8 @@
  * Because there are fifteen of them and upstream edits them every release. A
  * changed word there is a line in each, in the files most likely to conflict,
  * and a rename is exactly the change that should cost nothing. So the word is
- * replaced in i18next at startup: their key, our value. Their files keep
+ * replaced in i18next as each language loads (English at start, the others
+ * when picked, languages.ts): their key, our value. Their files keep
  * saying what they said, and every place that reads the key shows ours.
  *
  * If a key here is ever renamed upstream, the override lands on a key nobody
@@ -133,7 +134,7 @@ function lookup(bundle: unknown, key: string): string | undefined {
   return typeof node === 'string' ? node : undefined;
 }
 
-/** Put our wording over theirs. Called once i18next has their bundles. */
+/** Put our wording over theirs, in every language loaded so far. Called again after each load. */
 export function applyRenames() {
   if (typeof i18n.addResource !== 'function') return;
 

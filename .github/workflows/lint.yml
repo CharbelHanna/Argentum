@@ -6,6 +6,11 @@ on:
       - main
   pull_request:
 
+# A new push to a pull request cancels the run it replaces; runs on main always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   frontend-lint:
     name: Frontend Lint & Format
@@ -13,9 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The release builds' Node (build.yml); i18next-cli needs 22.
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -38,9 +44,10 @@ jobs:
       - name: Types, lint and formatting
         run: npm run check:frontend
 
+      # Every key the code uses in every locale, with each language's plural forms and the
+      # English placeholders, against scripts/i18n-baseline.json: nothing may get worse.
       - name: Check Translation Sync
         run: npm run i18n:check
-        continue-on-error: true
 
       # Today's interface in headless Chrome over a stub of the app: every
       # menu, tab, Settings section, context menu and default shortcut. Fails

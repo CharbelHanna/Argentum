@@ -15,14 +15,7 @@ const tsRecommended = tseslint.configs.recommended.map((config) =>
 
 module.exports = [
   {
-    ignores: [
-      'dist/**',
-      'node_modules/**',
-      'src-tauri/target/**',
-      'src-tauri/gen/**',
-      'src-tauri/rawler/**',
-      'data/**',
-    ],
+    ignores: ['dist/**', 'node_modules/**', 'src-tauri/target/**', 'src-tauri/gen/**', 'data/**'],
   },
   jsRecommendedForTs,
   ...tsRecommended,
@@ -40,14 +33,16 @@ module.exports = [
         },
       },
     },
+    // Every rule is an error: scripts/check-frontend.mjs counts errors against its baseline and
+    // ignores warnings, so a warning is a rule nothing enforces.
     rules: {
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
       'i18next/no-literal-string': [
-        'warn',
+        'error',
         {
           markupOnly: true,
           ignoreAttribute: [

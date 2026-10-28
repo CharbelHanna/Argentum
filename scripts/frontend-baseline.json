@@ -74,6 +74,9 @@
     "src/App.tsx": {
       "@typescript-eslint/no-explicit-any": 20
     },
+    "src/argentum/AboutPanel.tsx": {
+      "i18next/no-literal-string": 5
+    },
     "src/argentum/CameraProfile.tsx": {
       "@typescript-eslint/no-explicit-any": 3
     },
@@ -87,7 +90,8 @@
       "@typescript-eslint/no-explicit-any": 1
     },
     "src/argentum/RawToneRendering.tsx": {
-      "@typescript-eslint/no-explicit-any": 4
+      "@typescript-eslint/no-explicit-any": 4,
+      "i18next/no-literal-string": 1
     },
     "src/argentum/RefreshMetadataButton.tsx": {
       "@typescript-eslint/no-explicit-any": 2
@@ -107,6 +111,9 @@
     "src/argentum/layout/historyNames.ts": {
       "@typescript-eslint/no-explicit-any": 4
     },
+    "src/argentum/modern/ModernEmpty.tsx": {
+      "i18next/no-literal-string": 1
+    },
     "src/argentum/sharpenSettings.ts": {
       "@typescript-eslint/no-explicit-any": 7
     },
@@ -115,6 +122,7 @@
     },
     "src/argentum/useThresholdPreview.ts": {
       "@typescript-eslint/no-explicit-any": 5,
+      "@typescript-eslint/no-unused-vars": 1,
       "react-hooks/exhaustive-deps": 1
     },
     "src/components/adjustments/Basic.tsx": {
@@ -139,7 +147,8 @@
       "@typescript-eslint/no-explicit-any": 2
     },
     "src/components/modals/AppModals.tsx": {
-      "@typescript-eslint/no-explicit-any": 2
+      "@typescript-eslint/no-explicit-any": 2,
+      "@typescript-eslint/no-unused-vars": 2
     },
     "src/components/modals/CollageModal.tsx": {
       "@typescript-eslint/no-explicit-any": 3
@@ -166,6 +175,9 @@
     "src/components/modals/NegativeConversionModal.tsx": {
       "@typescript-eslint/no-explicit-any": 2
     },
+    "src/components/modals/PanoramaModal.tsx": {
+      "@typescript-eslint/no-unused-vars": 1
+    },
     "src/components/modals/RenameFileModal.tsx": {
       "@typescript-eslint/no-explicit-any": 3
     },
@@ -173,10 +185,12 @@
       "@typescript-eslint/no-explicit-any": 2
     },
     "src/components/panel/CommunityPage.tsx": {
-      "@typescript-eslint/no-explicit-any": 2
+      "@typescript-eslint/no-explicit-any": 2,
+      "@typescript-eslint/no-unused-vars": 4
     },
     "src/components/panel/Editor.tsx": {
       "@typescript-eslint/no-explicit-any": 16,
+      "@typescript-eslint/no-unused-vars": 1,
       "prefer-const": 9,
       "react-hooks/exhaustive-deps": 1
     },
@@ -187,7 +201,9 @@
       "@typescript-eslint/no-explicit-any": 3
     },
     "src/components/panel/SettingsPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 36
+      "@typescript-eslint/no-explicit-any": 36,
+      "@typescript-eslint/no-unused-vars": 5,
+      "i18next/no-literal-string": 2
     },
     "src/components/panel/editor/ImageCanvas.tsx": {
       "@typescript-eslint/no-explicit-any": 72,
@@ -197,7 +213,8 @@
       "@typescript-eslint/no-explicit-any": 2
     },
     "src/components/panel/library/CullingView.tsx": {
-      "@typescript-eslint/no-explicit-any": 7
+      "@typescript-eslint/no-explicit-any": 7,
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/components/panel/library/LibraryGrid.tsx": {
       "@typescript-eslint/no-explicit-any": 21,
@@ -208,16 +225,21 @@
     },
     "src/components/panel/right/AIPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 26,
+      "@typescript-eslint/no-unused-vars": 1,
       "no-useless-assignment": 4
     },
     "src/components/panel/right/ControlsPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 8
+      "@typescript-eslint/no-explicit-any": 8,
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/components/panel/right/CropPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 9
+      "@typescript-eslint/no-explicit-any": 8,
+      "@typescript-eslint/no-unused-vars": 1,
+      "i18next/no-literal-string": 2
     },
     "src/components/panel/right/ExportPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 5
+      "@typescript-eslint/no-explicit-any": 5,
+      "@typescript-eslint/no-unused-vars": 2
     },
     "src/components/panel/right/FolderTree.tsx": {
       "@typescript-eslint/no-explicit-any": 22
@@ -226,20 +248,24 @@
       "@typescript-eslint/no-explicit-any": 3
     },
     "src/components/panel/right/MasksPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 45
+      "@typescript-eslint/no-explicit-any": 45,
+      "@typescript-eslint/no-unused-vars": 3
     },
     "src/components/panel/right/MetadataPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 2
     },
     "src/components/panel/right/PresetsPanel.tsx": {
       "@typescript-eslint/no-explicit-any": 41,
+      "@typescript-eslint/no-unused-vars": 4,
       "no-useless-assignment": 1
     },
     "src/components/panel/right/TetheringPanel.tsx": {
-      "@typescript-eslint/no-explicit-any": 5
+      "@typescript-eslint/no-explicit-any": 5,
+      "@typescript-eslint/no-unused-vars": 4
     },
     "src/components/ui/AppProperties.tsx": {
-      "@typescript-eslint/no-explicit-any": 9
+      "@typescript-eslint/no-explicit-any": 9,
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/components/ui/Input.tsx": {
       "@typescript-eslint/no-explicit-any": 4
@@ -291,7 +317,8 @@
       "@typescript-eslint/no-explicit-any": 125
     },
     "src/hooks/useLibraryActions.ts": {
-      "@typescript-eslint/no-explicit-any": 4
+      "@typescript-eslint/no-explicit-any": 4,
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/hooks/usePresets.ts": {
       "@typescript-eslint/no-explicit-any": 21
@@ -308,7 +335,8 @@
       "no-useless-assignment": 1
     },
     "src/store/useEditorStore.ts": {
-      "@typescript-eslint/no-explicit-any": 1
+      "@typescript-eslint/no-explicit-any": 1,
+      "@typescript-eslint/no-unused-vars": 1
     },
     "src/store/useLibraryStore.ts": {
       "@typescript-eslint/no-explicit-any": 2
@@ -352,7 +380,6 @@
     "docs/MENU.md",
     "docs/RELEASING.md",
     "docs/ROADMAP.md",
-    "index.html",
     "packaging/cargo-sources.json",
     "packaging/node-sources.json",
     "scripts/check-identity.mjs",
