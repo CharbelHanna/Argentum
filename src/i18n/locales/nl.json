@@ -1147,7 +1147,6 @@
       "brand": "Argentum",
       "continueSession": "Sessie voortzetten",
       "contribute": "Bijdragen op GitHub",
-      "descriptionAndroid": "Een razendsnelle, GPU-versnelde RAW-beeldeditor. Open de bibliotheek om te beginnen.",
       "descriptionDesktop": "Een razendsnelle, GPU-versnelde RAW-beeldeditor. Open een map om te beginnen.",
       "donate": "Doneren op Ko-Fi",
       "downloadVersion": "Klik om versie {{version}} te downloaden",
@@ -1182,8 +1181,7 @@
     },
     "tooltips": {
       "communityPresets": "Community-voorinstellingen",
-      "goHome": "Naar startpagina",
-      "importImages": "Afbeeldingen importeren"
+      "goHome": "Naar startpagina"
     }
   },
   "masks": {
@@ -1892,7 +1890,6 @@
       "thumbnailResDesc": "Bepaalt de resolutie van gegenereerde bibliotheekminiaturen. Hogere waarden produceren scherpere afbeeldingen tijdens het laden.",
       "title": "Verwerkingsmotor",
       "wgpu": "WGPU directe rendering",
-      "wgpuDescAndroid": "Omzeilt browsercodering voor direct responsieve live voorbeelden. (Uitgeschakeld op Android: native WGPU-surface creatie wordt momenteel niet ondersteund naast de mobiele webweergave.)",
       "wgpuDescLinux": "Omzeilt browsercodering voor direct responsieve live voorbeelden. (Uitgeschakeld op Linux: Tauri gebruikt GTK voor webweergaven, wat conflicteert met WGPU op hetzelfde X11-surface en flikkering veroorzaakt.)",
       "wgpuDescRecommended": "Omzeilt browsercodering voor direct responsieve live voorbeelden. Sterk aanbevolen voor prestaties.",
       "wgpuLabel": "Directe WGPU-rendering inschakelen",

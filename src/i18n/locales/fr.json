@@ -1198,7 +1198,6 @@
       "brand": "Argentum",
       "continueSession": "Poursuivre la session",
       "contribute": "Contribuer sur GitHub",
-      "descriptionAndroid": "Un éditeur d'images RAW ultra-rapide, accéléré par GPU. Ouvrez la bibliothèque pour commencer.",
       "descriptionDesktop": "Un éditeur d'images RAW ultra-rapide, accéléré par GPU. Ouvrez un dossier pour commencer.",
       "donate": "Faire un don sur Ko-Fi",
       "downloadVersion": "Cliquez pour télécharger la version {{version}}",
@@ -1233,8 +1232,7 @@
     },
     "tooltips": {
       "communityPresets": "Paramètres prédéfinis de la communauté",
-      "goHome": "Aller à l'accueil",
-      "importImages": "Importer des images"
+      "goHome": "Aller à l'accueil"
     }
   },
   "masks": {
@@ -1956,7 +1954,6 @@
       "thumbnailResDesc": "Détermine la résolution des miniatures générées dans la bibliothèque. Des valeurs plus élevées produisent des images plus nettes pendant le chargement.",
       "title": "Moteur de traitement",
       "wgpu": "Rendu Direct WGPU",
-      "wgpuDescAndroid": "Contourne l'encodage du navigateur pour des aperçus en direct instantanément réactifs. (Désactivé sur Android : La création native de surface WGPU n'est actuellement pas prise en charge avec le webview mobile.)",
       "wgpuDescLinux": "Contourne l'encodage du navigateur pour des aperçus en direct instantanément réactifs. (Désactivé sur Linux : Tauri utilise GTK pour les webviews, ce qui entre en conflit avec WGPU sur la même surface X11 et provoque des clignotements.)",
       "wgpuDescRecommended": "Contourne l'encodage du navigateur pour des aperçus en direct instantanément réactifs. Fortement recommandé pour les performances.",
       "wgpuLabel": "Activer le rendu direct WGPU",
