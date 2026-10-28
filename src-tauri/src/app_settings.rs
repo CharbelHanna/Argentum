@@ -639,9 +639,6 @@ impl Default for AppSettings {
             pinned_folders: Vec::new(),
             small_thumbnail_resolution: Some(480),
             medium_thumbnail_resolution: Some(1280),
-            #[cfg(target_os = "android")]
-            editor_preview_resolution: Some(1280),
-            #[cfg(not(target_os = "android"))]
             editor_preview_resolution: Some(1920),
             enable_zoom_hifi: Some(true),
             use_full_dpi_rendering: Some(false),
@@ -660,9 +657,6 @@ impl Default for AppSettings {
             tagging_shortcuts: default_tagging_shortcuts_option(),
             custom_ai_tags: Some(Vec::new()),
             ai_tag_count: Some(10),
-            #[cfg(target_os = "android")]
-            thumbnail_size: Some("small".to_string()),
-            #[cfg(not(target_os = "android"))]
             thumbnail_size: Some("medium".to_string()),
             thumbnail_aspect_ratio: Some("contain".to_string()),
             ai_provider: Some("cpu".to_string()),
@@ -675,9 +669,6 @@ impl Default for AppSettings {
             library_view_mode: Some("flat".to_string()),
             export_presets: default_export_presets(),
             my_lenses: Some(Vec::new()),
-            #[cfg(target_os = "android")]
-            high_res_zoom_multiplier: Some(0.75),
-            #[cfg(not(target_os = "android"))]
             high_res_zoom_multiplier: Some(1.0),
             enable_folder_image_counts: Some(false),
             display_edit_icon: Some(true),
@@ -687,9 +678,9 @@ impl Default for AppSettings {
             is_waveform_visible: Some(false),
             waveform_height: Some(220),
             active_waveform_channel: Some("luma".to_string()),
-            #[cfg(any(target_os = "linux", target_os = "android"))]
+            #[cfg(target_os = "linux")]
             use_wgpu_renderer: Some(false),
-            #[cfg(not(any(target_os = "linux", target_os = "android")))]
+            #[cfg(not(target_os = "linux"))]
             use_wgpu_renderer: Some(true),
             editor_neutral_grey_bg: Some(false),
             canvas_input_mode: Some("mouse".to_string()),
@@ -697,13 +688,7 @@ impl Default for AppSettings {
             zoom_speed_multiplier: Some(1.0),
             zoom_photo_to_pixel_click: Some(false),
             keybinds: HashMap::new(),
-            #[cfg(target_os = "android")]
-            thumbnail_worker_threads: Some(2),
-            #[cfg(not(target_os = "android"))]
             thumbnail_worker_threads: Some(4),
-            #[cfg(target_os = "android")]
-            image_cache_size: Some(2),
-            #[cfg(not(target_os = "android"))]
             image_cache_size: Some(5),
             enable_baseline_exposure: false,
             baseline_exposure: default_baseline_exposure(),

@@ -31,7 +31,6 @@ mod ai_connector;
 #[allow(dead_code)]
 mod ai_denoise;
 mod ai_processing;
-mod android_integration;
 mod app_settings;
 mod app_state;
 mod apple_raw;
@@ -121,7 +120,6 @@ use crate::mask_generation::{
 };
 use crate::window_customizer::PinchZoomDisablePlugin;
 pub use adjustment_utils::*;
-pub use android_integration::*;
 pub use app_settings::*;
 pub use app_state::*;
 pub use launch_request::*;
@@ -542,9 +540,9 @@ fn process_preview_job(
 
     let default_preview_dim = settings.editor_preview_resolution.unwrap_or(1920);
     let preview_dim = target_resolution.unwrap_or(default_preview_dim);
-    #[cfg(not(any(target_os = "linux", target_os = "android")))]
+    #[cfg(not(target_os = "linux"))]
     let use_wgpu_renderer = settings.use_wgpu_renderer.unwrap_or(true);
-    #[cfg(any(target_os = "linux", target_os = "android"))]
+    #[cfg(target_os = "linux")]
     let use_wgpu_renderer = false;
 
     let has_roi = roi.is_some();
@@ -1752,7 +1750,6 @@ struct MonitorBounds {
     height: u32,
 }
 
-#[cfg(not(target_os = "android"))]
 fn available_monitor_bounds(window: &tauri::WebviewWindow) -> Vec<MonitorBounds> {
     window
         .available_monitors()
@@ -1772,11 +1769,6 @@ fn available_monitor_bounds(window: &tauri::WebviewWindow) -> Vec<MonitorBounds>
                 .collect()
         })
         .unwrap_or_default()
-}
-
-#[cfg(target_os = "android")]
-fn available_monitor_bounds(_window: &tauri::WebviewWindow) -> Vec<MonitorBounds> {
-    Vec::new()
 }
 
 fn saved_window_state_is_usable(
@@ -1822,10 +1814,7 @@ fn frontend_ready(
     let is_first_run = !state
         .window_setup_complete
         .swap(true, std::sync::atomic::Ordering::Relaxed);
-    #[cfg(target_os = "android")]
-    let _ = (is_first_run, &window, &app_handle);
 
-    #[cfg(not(target_os = "android"))]
     {
         #[cfg(any(windows, target_os = "linux"))]
         let mut should_maximize = false;
@@ -1880,7 +1869,6 @@ fn frontend_ready(
     })
 }
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let _ = rayon::ThreadPoolBuilder::new()
         .stack_size(8 * 1024 * 1024)
@@ -1903,7 +1891,6 @@ pub fn run() {
         }
     }
 
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         if !is_headless {
             builder = builder.plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
@@ -2033,7 +2020,6 @@ pub fn run() {
                     }
                 }
 
-                #[cfg(not(target_os = "android"))]
                 {
                     let resource_path = app_handle
                         .path()
@@ -2104,8 +2090,6 @@ pub fn run() {
 
             let window_cfg = app.config().app.windows.first().unwrap().clone();
             let decorations = settings.decorations.unwrap_or(window_cfg.decorations);
-            #[cfg(target_os = "android")]
-            let _ = decorations;
 
             let main_window_cfg = app
                 .config()
@@ -2120,17 +2104,10 @@ pub fn run() {
                 tauri::WebviewWindowBuilder::from_config(app.handle(), &main_window_cfg)
                     .unwrap();
 
-            #[cfg(not(target_os = "android"))]
-            {
-                window_builder = window_builder.decorations(decorations).visible(false);
-            }
+            window_builder = window_builder.decorations(decorations).visible(false);
 
             let window = window_builder.build().expect("Failed to build window");
 
-            #[cfg(target_os = "android")]
-            android_integration::initialize_android(&window);
-
-            #[cfg(not(target_os = "android"))]
             {
                 let app_state = app.state::<AppState>();
                 if let Err(error) = get_or_init_gpu_context(&app_state, app.handle()) {
@@ -2372,7 +2349,6 @@ pub fn run() {
             frontend_ready,
             cancel_thumbnail_generation,
             update_wgpu_transform,
-            android_integration::resolve_android_content_uri_name,
             cache_utils::clear_session_caches,
             cache_utils::clear_image_caches,
             app_settings::load_settings,
@@ -2435,7 +2411,6 @@ pub fn run() {
             file_management::load_metadata,
             file_management::load_presets,
             file_management::save_presets,
-            file_management::get_or_create_internal_library_root,
             file_management::reset_adjustments_for_paths,
             file_management::apply_auto_lens_correction_to_paths,
             file_management::apply_auto_adjustments_to_paths,
