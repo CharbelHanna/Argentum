@@ -194,8 +194,7 @@ function computeGroupedLibrary(libraryState: any, settingsState: any): GroupedLi
   let searchMatchingGroupIds: Set<string> | null = null;
 
   if (isGroupingActive) {
-    const groupEditedFiles = appSettings?.groupEditedFiles ?? true;
-    const groupingResult = buildImageGroups(processedList, groupingMode, groupEditedFiles);
+    const groupingResult = buildImageGroups(processedList, groupingMode);
     processedList = groupingResult.displayList;
 
     if (isSearchActive) {
@@ -277,9 +276,7 @@ function computeGroupedLibrary(libraryState: any, settingsState: any): GroupedLi
     return order === SortDirection.Ascending ? comparison : -comparison;
   });
 
-  const badges = isGroupingActive
-    ? buildImageGroups(imageList, groupingMode, appSettings?.groupEditedFiles ?? true).badges
-    : null;
+  const badges = isGroupingActive ? buildImageGroups(imageList, groupingMode).badges : null;
 
   return { displayList: list, badges };
 }

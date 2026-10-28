@@ -1,5 +1,4 @@
 use crate::as_shot::AsShot;
-use crate::baseline_exposure::BaselineOptions;
 use crate::gpu_processing::WgpuDisplay;
 use crate::guided_perspective::{GuideLine, compute_guided_homography, count_valid_lines};
 use crate::white_balance::{self, WhiteBalance};
@@ -207,20 +206,6 @@ pub fn is_default_adjustments(adjustments: &Value) -> bool {
             .get(key)
             .is_some_and(|default| json_values_equal(value, default)),
     })
-}
-
-/// The stops RapidRAW 1.6.6 adds to the Exposure slider (image_processing.rs @
-/// bc7791a4): a RAW's baseline exposure and what its camera held back to
-/// protect highlights. Argentum adds none here. DNG Standard puts both in its
-/// own curve, through its highlight knee (mods/dng_standard.rs,
-/// mods/highlight_protection.rs), and the other renderings take a RAW as they
-/// did before. Kept because their auto-adjust and thumbnail code ask it.
-pub fn effective_baseline_exposure(
-    _adjustments: &Value,
-    _as_shot: AsShot,
-    _options: BaselineOptions,
-) -> f32 {
-    0.0
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -1429,14 +1414,6 @@ fn map_color_channels(
     image
 }
 
-pub fn apply_exposure(image: DynamicImage, exposure: f32) -> DynamicImage {
-    if exposure == 0.0 {
-        return image;
-    }
-    let gain = exposure.exp2();
-    map_color_channels(image, |x| x * gain)
-}
-
 pub fn apply_srgb_to_linear(image: DynamicImage) -> DynamicImage {
     map_color_channels(image, |x| srgb_channel_to_linear(x.max(0.0)))
 }
@@ -2177,15 +2154,14 @@ pub fn resolve_tonemapper_override(settings: &crate::AppSettings, is_raw: bool) 
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RenderOptions {
     pub tonemapper_override: Option<u32>,
-    pub baseline: BaselineOptions,
 }
 
-/// RapidRAW's (image_processing.rs @ bc7791a4). Its baseline options are left
-/// at their defaults: see `effective_baseline_exposure`.
+/// RapidRAW's (image_processing.rs @ bc7791a4), without its baseline exposure
+/// options: Argentum adds no stops to the Exposure slider for a RAW's baseline
+/// (DNG Standard puts it in its own curve, mods/dng_standard.rs).
 pub fn resolve_render_options(settings: &crate::AppSettings, is_raw: bool) -> RenderOptions {
     RenderOptions {
         tonemapper_override: resolve_tonemapper_override(settings, is_raw),
-        baseline: BaselineOptions::default(),
     }
 }
 
@@ -2382,10 +2358,7 @@ pub fn is_image_edited(
     }
 
     let reference = AsShot::reference();
-    let render = RenderOptions {
-        tonemapper_override,
-        baseline: BaselineOptions::default(),
-    };
+    let render = RenderOptions { tonemapper_override };
     let current_adj = get_all_adjustments_from_json(adj, is_raw, reference, render, None);
     let default_adj =
         get_all_adjustments_from_json(&serde_json::json!({}), is_raw, reference, render, None);
@@ -2417,7 +2390,6 @@ fn get_global_adjustments_from_json(
     js_adjustments: &serde_json::Value,
     is_raw: bool,
     white_balance_gains: [f32; 3],
-    baseline_exposure: f32,
     tonemapper_override: Option<u32>,
     photo: Option<&str>,
 ) -> GlobalAdjustments {
@@ -2554,7 +2526,7 @@ fn get_global_adjustments_from_json(
     let raw_tone_points = raw_tone::points_of(js_adjustments, raw_tone_mode, photo);
 
     let mut global = GlobalAdjustments {
-        exposure: get_val("basic", "exposure", SCALES.exposure, None) + baseline_exposure,
+        exposure: get_val("basic", "exposure", SCALES.exposure, None),
         brightness: get_val("basic", "brightness", SCALES.brightness, None),
         contrast: get_val("basic", "contrast", SCALES.contrast, None),
         highlights: get_val("basic", "highlights", SCALES.highlights, None),
@@ -2906,7 +2878,6 @@ pub fn get_all_adjustments_from_json(
         js_adjustments,
         is_raw,
         white_balance::adaptation_log_gains(as_shot.white_balance, target_white_balance),
-        effective_baseline_exposure(js_adjustments, as_shot, render.baseline),
         render.tonemapper_override,
         photo,
     );
@@ -3668,7 +3639,7 @@ pub fn calculate_waveform(
     })
 }
 
-pub fn perform_auto_analysis(image: &DynamicImage, exposure: f32) -> AutoAdjustmentResults {
+pub fn perform_auto_analysis(image: &DynamicImage) -> AutoAdjustmentResults {
     const ANALYSIS_MAX_DIM: u32 = 1024;
 
     const LUMA_R: f32 = 0.2126;
@@ -3718,10 +3689,7 @@ pub fn perform_auto_analysis(image: &DynamicImage, exposure: f32) -> AutoAdjustm
     const EXPOSURE_OUTPUT_SCALE: f64 = 20.0;
     const BRIGHTNESS_SCALE: f64 = 0.007;
 
-    let analysis_preview = apply_exposure(
-        downscale_f32_image(image, ANALYSIS_MAX_DIM, ANALYSIS_MAX_DIM),
-        exposure,
-    );
+    let analysis_preview = downscale_f32_image(image, ANALYSIS_MAX_DIM, ANALYSIS_MAX_DIM);
     let rgb_image = analysis_preview.to_rgb8();
     let total_pixels = (rgb_image.width() * rgb_image.height()) as f64;
 
@@ -3919,9 +3887,7 @@ pub fn auto_results_to_json(results: &AutoAdjustmentResults) -> serde_json::Valu
 
 #[tauri::command]
 pub fn calculate_auto_adjustments(
-    js_adjustments: Option<serde_json::Value>,
     state: tauri::State<AppState>,
-    app_handle: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     let loaded_image = state
         .original_image
@@ -3931,13 +3897,7 @@ pub fn calculate_auto_adjustments(
         .ok_or("No image loaded for auto adjustments")?;
     let image_path = loaded_image.path.clone();
 
-    let render = resolve_render_options_from_handle(&app_handle, loaded_image.is_raw);
-    let exposure = effective_baseline_exposure(
-        &js_adjustments.unwrap_or(Value::Null),
-        loaded_image.as_shot,
-        render.baseline,
-    );
-    let results = perform_auto_analysis(&loaded_image.image, exposure);
+    let results = perform_auto_analysis(&loaded_image.image);
     let mut adjustments = auto_results_to_json(&results);
 
     // Fold automatic lens correction into the auto-edit workflow. When the lens cannot be
@@ -4046,7 +4006,7 @@ mod tests {
                 "hue": 25, "sharpness": 35, "chromaticAberrationRedCyan": 20,
                 "sectionVisibility": visibility,
             });
-            get_global_adjustments_from_json(&js, false, [0.0; 3], 0.0, None, None)
+            get_global_adjustments_from_json(&js, false, [0.0; 3], None, None)
         };
         let basic_off = edit(json!({ "basic": false }));
         for (name, value) in [

@@ -244,9 +244,6 @@ export interface AppSettings {
   zoomSpeedMultiplier?: number;
   zoomPhotoToPixelClick?: boolean;
   keybinds?: { [action: string]: string[] };
-  enableBaselineExposure?: boolean;
-  baselineExposure?: number;
-  compensateHighlightPreservation?: boolean;
   tonemapperOverrideEnabled?: boolean;
   defaultRawTonemapper?: string;
   defaultNonRawTonemapper?: string;
@@ -262,8 +259,6 @@ export interface AppSettings {
   taggingShortcuts?: string[];
   libraryDisplayMode?: LibraryDisplayMode;
   grouping?: GroupingMode;
-  requireMatchingExif?: boolean;
-  groupEditedFiles?: boolean;
   groupPreferredType?: GroupPreference; // legacy
   alwaysDecodeRawThumbnails?: boolean;
   lastImportSettings?: ImportSettings;

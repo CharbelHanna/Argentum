@@ -765,9 +765,6 @@ const SETTINGS_JSON: &str = r##"{
   "keybinds": { "open_image": ["ctrl", "Enter"], "copy_files": ["ctrl", "alt", "KeyC"] },
   "thumbnailWorkerThreads": 6,
   "imageCacheSize": 8,
-  "enableBaselineExposure": true,
-  "baselineExposure": 0.5,
-  "compensateHighlightPreservation": false,
   "tonemapperOverrideEnabled": true,
   "defaultRawTonemapper": "basic",
   "defaultNonRawTonemapper": "agx",
@@ -783,8 +780,6 @@ const SETTINGS_JSON: &str = r##"{
   "folderTreeSort": { "key": "modified", "order": "desc" },
   "libraryDisplayMode": "list",
   "grouping": "raw",
-  "requireMatchingExif": true,
-  "groupEditedFiles": false,
   "alwaysDecodeRawThumbnails": true,
   "lastImportSettings": {
     "filenameTemplate": "{original_filename}_{date}", "organizeByDate": true,

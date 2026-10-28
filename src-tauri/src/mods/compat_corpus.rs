@@ -82,8 +82,38 @@ pub struct Dropped {
     pub pr: &'static str,
 }
 
-/// Nothing yet.
-pub const DROPPED: &[Dropped] = &[];
+pub const DROPPED: &[Dropped] = &[
+    Dropped {
+        file: SETTINGS,
+        path: "/enableBaselineExposure",
+        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
+        pr: "#258",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/baselineExposure",
+        reason: "no control ever wrote it; Argentum adds no baseline stops to Exposure (its reader returned 0)",
+        pr: "#258",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/compensateHighlightPreservation",
+        reason: "no control ever wrote it; DNG Standard handles held-back highlights in its own curve",
+        pr: "#258",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/requireMatchingExif",
+        reason: "no control ever wrote it; grouping no longer reads it (always off)",
+        pr: "#258",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/groupEditedFiles",
+        reason: "no control ever wrote it; grouping no longer reads it (edited files always group)",
+        pr: "#258",
+    },
+];
 
 /// Lists held in a `HashSet`, written in no fixed order: compared as sets.
 pub const UNORDERED: &[(&str, &str)] = &[

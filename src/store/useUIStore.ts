@@ -12,11 +12,6 @@ import { useEditorStore } from './useEditorStore';
 
 export type SwitcherPlacement = 'bottom' | 'right' | 'left' | 'top';
 
-export interface CropSectionsState {
-  transform: boolean;
-  lens: boolean;
-}
-
 interface ConfirmModalState {
   confirmText?: string;
   confirmVariant?: string;
@@ -214,7 +209,6 @@ export interface UIState {
   isFullScreen: boolean;
   isWindowFullScreen: boolean;
   isInstantTransition: boolean;
-  isLayoutReady: boolean;
   uiVisibility: UiVisibility;
   isLibraryExportPanelVisible: boolean;
   isSettingsOpen: boolean;
@@ -237,7 +231,6 @@ export interface UIState {
   renderedPanel: Panel | null;
   slideDirection: number;
   collapsibleSectionsState: CollapsibleSectionsState;
-  cropSectionsState: CropSectionsState;
 
   isCreateFolderModalOpen: boolean;
   isRenameFolderModalOpen: boolean;
@@ -280,7 +273,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFullScreen: false,
   isWindowFullScreen: false,
   isInstantTransition: false,
-  isLayoutReady: false,
   uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true, quickFilter: false },
   isLibraryExportPanelVisible: false,
   isSettingsOpen: false,
@@ -317,7 +309,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   renderedPanel: Panel.Adjustments,
   slideDirection: 1,
   collapsibleSectionsState: { basic: true, color: false, curves: true, details: false, effects: false },
-  cropSectionsState: { transform: false, lens: false },
 
   isCreateFolderModalOpen: false,
   isRenameFolderModalOpen: false,

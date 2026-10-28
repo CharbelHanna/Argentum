@@ -12,16 +12,11 @@ export interface GroupingResult {
   badges: Map<GroupId, GroupBadgeInfo>;
 }
 
-export function buildImageGroups(
-  images: ImageFile[],
-  preference: GroupPreference,
-  groupEditedFiles = true,
-): GroupingResult {
+export function buildImageGroups(images: ImageFile[], preference: GroupPreference): GroupingResult {
   const buckets = new Map<GroupId, ImageFile[]>();
 
   for (const image of images) {
     if (!image.group_id || image.is_virtual_copy) continue;
-    if (!groupEditedFiles && image.is_edited) continue;
 
     let bucket = buckets.get(image.group_id);
     if (!bucket) {
