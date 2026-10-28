@@ -28,9 +28,6 @@ dependencies = [
  "image_hasher",
  "imageproc",
  "imgref",
- "include_dir",
- "jni 0.21.1",
- "jni 0.22.4",
  "jxl-encoder",
  "jxl-oxide",
  "kamadak-exif",
@@ -44,7 +41,6 @@ dependencies = [
  "mozjpeg-rs",
  "nalgebra",
  "ndarray",
- "ndk-context",
  "objc",
  "objc2",
  "objc2-core-foundation",
@@ -62,7 +58,6 @@ dependencies = [
  "reqwest",
  "rgb",
  "rm-selection",
- "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sha2 0.11.0",
@@ -2952,25 +2947,6 @@ name = "imgref"
 version = "1.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89194689a993ab15268672e99e7b0e19da2da3268ac682e8f02d29d4d1434cd7"
-
-[[package]]
-name = "include_dir"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "923d117408f1e49d914f1a379a309cffe4f18c05cf4e3d12e613a15fc81bd0dd"
-dependencies = [
- "include_dir_macros",
-]
-
-[[package]]
-name = "include_dir_macros"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cab85a7ed0bd5f0e76d93846e0147172bed2e2d3f859bcc33a8d9699cad1a75"
-dependencies = [
- "proc-macro2",
- "quote",
-]
 
 [[package]]
 name = "indexmap"
