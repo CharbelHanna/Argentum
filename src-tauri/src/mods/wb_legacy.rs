@@ -221,7 +221,8 @@ fn upgrade_preset(adjustments: &mut Value) -> bool {
 }
 
 /// Recorded in our own preferences once the presets have been converted.
-const PRESETS_MIGRATED: &str = "whiteBalancePresetsMigrated";
+const PRESETS_MIGRATED: super::ag_settings::Setting<bool> =
+    super::ag_settings::Setting::new("whiteBalancePresetsMigrated");
 
 /// Convert the saved presets once, on the first start after the update.
 ///
@@ -231,7 +232,7 @@ const PRESETS_MIGRATED: &str = "whiteBalancePresetsMigrated";
 /// the update would look old and be converted a second time. Once, recorded
 /// beside our other preferences, with the original kept beside the file.
 pub fn migrate_presets_once(app_data: &Path, library: &Path) {
-    if super::ag_settings::get(library, PRESETS_MIGRATED) == Some(Value::Bool(true)) {
+    if PRESETS_MIGRATED.load(library) == Some(true) {
         return;
     }
     let presets = app_data.join("presets").join("presets.json");
@@ -240,7 +241,7 @@ pub fn migrate_presets_once(app_data: &Path, library: &Path) {
             if converted > 0 {
                 log::info!("[wb_legacy] converted white balance in {converted} presets");
             }
-            if let Err(e) = super::ag_settings::set(library, PRESETS_MIGRATED, Value::Bool(true)) {
+            if let Err(e) = PRESETS_MIGRATED.save(library, &true) {
                 log::warn!("[wb_legacy] could not record the preset conversion: {e}");
             }
         }

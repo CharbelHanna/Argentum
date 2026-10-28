@@ -7,20 +7,16 @@
 
 use std::path::Path;
 
-use serde_json::Value;
+use super::ag_settings::Setting;
 
-use super::ag_settings;
-
-const KEY: &str = "recentFolders";
+const RECENT: Setting<Vec<String>> = Setting::new("recentFolders");
 
 /// How many the list keeps.
 pub const MAX_RECENT: usize = 6;
 
 /// The list as saved, newest first, whether or not each folder is there now.
 pub fn stored(library: &Path) -> Vec<String> {
-    ag_settings::get(library, KEY)
-        .and_then(|value| serde_json::from_value(value).ok())
-        .unwrap_or_default()
+    RECENT.load(library).unwrap_or_default()
 }
 
 /// Put `folder` at the top, dropping any older entry for the same folder and
@@ -30,7 +26,7 @@ pub fn add(library: &Path, folder: &str) -> Result<Vec<String>, String> {
     list.retain(|f| !same_folder(f, folder));
     list.insert(0, folder.to_string());
     list.truncate(MAX_RECENT);
-    ag_settings::set(library, KEY, Value::from(list.clone()))?;
+    RECENT.save(library, &list)?;
     Ok(list)
 }
 
@@ -54,7 +50,7 @@ pub fn renamed(library: &Path, old: &str, new: &str) -> Result<Vec<String>, Stri
         }
     }
     if after != list {
-        ag_settings::set(library, KEY, Value::from(after.clone()))?;
+        RECENT.save(library, &after)?;
     }
     Ok(after)
 }
@@ -155,11 +151,14 @@ mod tests {
     #[test]
     fn saving_leaves_the_other_preferences_alone() {
         let dir = scratch("neighbours");
-        ag_settings::set(&dir, "editorLayout", Value::from("modern")).expect("set");
+        let neighbour = Setting::<serde_json::Value>::new("editorLayout");
+        neighbour
+            .save(&dir, &serde_json::Value::from("modern"))
+            .expect("set");
         add(&dir, "/photos/a").expect("add");
         assert_eq!(
-            ag_settings::get(&dir, "editorLayout"),
-            Some(Value::from("modern"))
+            neighbour.load(&dir),
+            Some(serde_json::Value::from("modern"))
         );
     }
 }
