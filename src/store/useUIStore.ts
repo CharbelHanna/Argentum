@@ -9,6 +9,7 @@ import {
   CollapsibleSectionsState,
 } from '../components/ui/AppProperties';
 import { useEditorStore } from './useEditorStore';
+import { columnOf } from '../argentum/modern/panels';
 
 export type SwitcherPlacement = 'bottom' | 'right' | 'left' | 'top';
 
@@ -215,7 +216,6 @@ export interface UIState {
   /** Argentum: whether this machine can tether a camera, asked once at start-up (useAppInitialization.ts). */
   isTetheringSupported: boolean;
   activePanels: Record<PanelRegion, Panel | null>;
-  setActivePanel: (region: PanelRegion, panel: Panel | null) => void;
 
   panelSwitcherPlacement: Record<PanelRegion, SwitcherPlacement>;
 
@@ -351,47 +351,21 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setUI: (updater) => set((state) => (typeof updater === 'function' ? updater(state) : updater)),
 
-  setActivePanel: (region, panel) =>
+  // Argentum: a panel opens the column the Modern window shows it in (argentum/modern/panels.ts);
+  // a right panel tab is also chosen there.
+  setPanel: (panel) =>
     set((state) => {
       if (!panel) return state;
-      const updates: Partial<UIState> = {
-        activePanels: { ...state.activePanels, [region]: panel },
-        activePanel: panel,
-      };
-
-      const isLeft = region === 'leftTop' || region === 'leftBottom';
-      const isRight = region === 'rightTop' || region === 'rightBottom';
-
-      if (isLeft && !state.uiVisibility.leftPanel) {
-        updates.uiVisibility = { ...state.uiVisibility, leftPanel: true };
-        if (state.leftPanelWidth < DEFAULT_PANEL_WIDTH) {
-          updates.leftPanelWidth = DEFAULT_PANEL_WIDTH;
-        }
+      const column = columnOf(panel);
+      const shown = column === 'left' ? 'leftPanel' : 'rightPanel';
+      const width = column === 'left' ? 'leftPanelWidth' : 'rightPanelWidth';
+      const updates: Partial<UIState> = column === 'right' ? { activePanel: panel } : {};
+      if (!state.uiVisibility[shown]) {
+        updates.uiVisibility = { ...state.uiVisibility, [shown]: true };
+        if (state[width] < DEFAULT_PANEL_WIDTH) updates[width] = DEFAULT_PANEL_WIDTH;
       }
-
-      if (isRight && !state.uiVisibility.rightPanel) {
-        updates.uiVisibility = { ...state.uiVisibility, rightPanel: true };
-        if (state.rightPanelWidth < DEFAULT_PANEL_WIDTH) {
-          updates.rightPanelWidth = DEFAULT_PANEL_WIDTH;
-        }
-      }
-
       return updates;
     }),
-
-  setPanel: (panelId) => {
-    const state = get();
-    if (!panelId) return;
-
-    let targetRegion: PanelRegion | null = null;
-    for (const region of Object.keys(state.panelLayout) as PanelRegion[]) {
-      if (state.panelLayout[region].includes(panelId)) {
-        targetRegion = region;
-        break;
-      }
-    }
-    if (targetRegion) state.setActivePanel(targetRegion, panelId);
-  },
 
   toggleFullScreen: () => {
     const { isFullScreen } = get();

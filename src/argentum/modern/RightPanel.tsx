@@ -28,22 +28,11 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useUIStore } from '../../store/useUIStore';
 import HistogramSection from '../layout/HistogramSection';
-import { useAgTranslation, type AgKey } from '../locales';
+import { useAgTranslation } from '../locales';
+import { INFO_TAB, RIGHT_TABS, type RightTab } from './panels';
 import LooksPanel from '../looks/LooksPanel';
 import { useGridAdjustments } from './gridAdjustments';
 import { fileNameOf } from '../paths';
-
-const TABS: { panel: Panel; label: AgKey; key: string; needsPhoto?: boolean }[] = [
-  { panel: Panel.Adjustments, label: 'mwTabEdit', key: 'D' },
-  { panel: Panel.Crop, label: 'mwTabCrop', key: 'R', needsPhoto: true },
-  { panel: Panel.Presets, label: 'mwTabLooks', key: 'P' },
-  { panel: Panel.Masks, label: 'mwTabMasks', key: 'M', needsPhoto: true },
-  { panel: Panel.Ai, label: 'mwTabRetouch', key: 'K', needsPhoto: true },
-  { panel: Panel.Export, label: 'mwTabExport', key: 'E' },
-];
-
-/** The Info line's tab: today's metadata panel. */
-const INFO = { panel: Panel.Metadata, label: 'mwInfo' as AgKey, key: 'I' };
 
 /**
  * The Info line: ISO, aperture, shutter and focal length, each written the way
@@ -82,11 +71,14 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
   // In the grid, the selected photo's, as the library read it.
   const libraryExif = useLibraryStore((s) => s.imageList.find((image) => image.path === s.libraryActivePath)?.exif);
   const editing = activeView === 'editor' && !!selected;
-  const tab = activePanel === INFO.panel ? INFO : (TABS.find((entry) => entry.panel === activePanel) ?? TABS[0]);
+  const tab =
+    activePanel === INFO_TAB.panel
+      ? INFO_TAB
+      : (RIGHT_TABS.find((entry) => entry.panel === activePanel) ?? RIGHT_TABS[0]);
 
-  const choose = (entry: (typeof TABS)[number] | typeof INFO) => {
+  const choose = (entry: RightTab) => {
     setUI({ activePanel: entry.panel });
-    if ('needsPhoto' in entry && entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
+    if (entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
   };
 
   const summary = infoLine(editing ? (selected?.exif as Record<string, string> | undefined) : libraryExif);
@@ -99,8 +91,8 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
       </div>
       <div className="flex-none">
         <div
-          className={clsx('agm-sec-head agm-info-head', tab === INFO && 'agm-on')}
-          onClick={() => choose(INFO)}
+          className={clsx('agm-sec-head agm-info-head', tab === INFO_TAB && 'agm-on')}
+          onClick={() => choose(INFO_TAB)}
           data-tooltip={t('mwInfoTip')}
         >
           {t('mwInfo')}
@@ -108,7 +100,7 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
         </div>
       </div>
       <div className="agm-tabs" role="tablist">
-        {TABS.map((entry) => (
+        {RIGHT_TABS.map((entry) => (
           <button
             key={entry.panel}
             role="tab"
