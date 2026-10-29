@@ -135,8 +135,12 @@ async function walkMenu(w, home, path, open, trail = []) {
 async function walkRightPanel(w, path) {
   const tabs = (await w.look(TAB_STRIP)).map((tab) => tab.label);
   const visit = async (control, tabPath) => {
+    // What a tab calls when it opens (the Export tab's size estimate) shows only there.
+    const callsBefore = await w.evaluate('({ ...window.__uiWalk.calls })');
     await w.click(control, tabPath);
     await w.record(tabPath, { scope: TAB_BODY });
+    const called = calledBetween(callsBefore, await w.evaluate('({ ...window.__uiWalk.calls })'));
+    if (called.length > 0) w.note(`${tabPath} > calls ${called.join(', ')}`);
     const inner = (await w.look(`${TAB_BODY} [role="tab"]`)).map((tab) => tab.label);
     for (const label of inner) {
       await w.click(byLabel(await w.look(TAB_BODY), label, 'tab'), `${tabPath} > ${label}`);
