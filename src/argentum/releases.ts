@@ -32,6 +32,24 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.44.2',
+    date: '2026-10-29',
+    notes: [
+      'An eye on Crop > Lens Correction shows the photo with no lens correction at all, and brings ' +
+        'your settings back when it opens again.',
+      'The Export tab shows the estimated file size again, and the watermark preview takes the photo’s shape.',
+      'Your edits are safer: a crash while saving can no longer cut a file short, a failed read no ' +
+        'longer wipes starred looks or snapshots, and importing with “delete after import” keeps an ' +
+        'XMP it could not copy.',
+      'A thumbnail no longer shows an edited photo as unedited.',
+      'E (Export) and I (Info) open the right panel again when it is hidden.',
+      'The Light palette has light notifications and a light Curves histogram.',
+      'Settings > My Gear says when a camera change fails, and focus stacking and panoramas no ' +
+        'longer crash on an odd frame.',
+      'The app no longer calls Google at start, and loads only the interface language you use.',
+    ],
+  },
+  {
     version: '26.44.1',
     date: '2026-10-27',
     notes: [
