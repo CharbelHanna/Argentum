@@ -1,6 +1,7 @@
 import { useAutoDetectOnLoad } from '../../../argentum/useAutoDetectOnLoad';
 import LensBuiltinSwitch from '../../../argentum/LensBuiltinSwitch'; // Argentum: the camera's own lens correction
 import { LENS_BUILTIN_RESET, LENSFUN_UNUSED, builtinInUse } from '../../../argentum/lensBuiltin';
+import { isLensShown, withLensShown } from '../../../argentum/lensEye'; // Argentum: the Lens Correction eye
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FlipHorizontal,
@@ -38,6 +39,7 @@ import FoldingPane from '../../../argentum/FoldingPane'; // Argentum: the panes 
 import { useAgTranslation } from '../../../argentum/locales';
 import Slider from '../../ui/Slider';
 import Switch from '../../ui/Switch';
+import VisibilityToggle, { HIDDEN_CONTENT_CLASS } from '../../ui/VisibilityToggle';
 import Dropdown from '../../ui/Dropdown';
 import Button from '../../ui/Button';
 import { TEXT_COLOR_KEYS, TextColors, TextVariants, TextWeights } from '../../../types/typography';
@@ -501,7 +503,7 @@ export default function CropPanel() {
     setOverlay('thirds');
 
     setAdjustments((prev: Adjustments) => ({
-      ...prev,
+      ...withLensShown(prev, true),
       aspectRatio: INITIAL_ADJUSTMENTS.aspectRatio,
       crop: INITIAL_ADJUSTMENTS.crop,
       flipHorizontal: INITIAL_ADJUSTMENTS.flipHorizontal ?? false,
@@ -838,7 +840,7 @@ export default function CropPanel() {
       setDetectionStatus('idle');
       setLenses([]);
       setAdjustments((prev: Adjustments) => ({
-        ...prev,
+        ...withLensShown(prev, true),
         lensMaker: INITIAL_ADJUSTMENTS.lensMaker,
         lensModel: INITIAL_ADJUSTMENTS.lensModel,
         lensDistortionAmount: INITIAL_ADJUSTMENTS.lensDistortionAmount,
@@ -1407,7 +1409,16 @@ export default function CropPanel() {
               </div>
             </FoldingPane>
 
-            <FoldingPane id="crop.lens" title={t('modals.lensCorrection.title')}>
+            <FoldingPane
+              id="crop.lens"
+              title={t('modals.lensCorrection.title')}
+              actions={
+                <VisibilityToggle
+                  isVisible={isLensShown(adjustments)}
+                  onToggle={() => setAdjustments((prev: Adjustments) => withLensShown(prev, !isLensShown(prev)))}
+                />
+              }
+            >
               <div className="bg-surface rounded-xl overflow-hidden mb-6" onContextMenu={handleLensContextMenu}>
                 <AnimatePresence initial={false}>
                   {isLensExpanded && (
@@ -1418,7 +1429,12 @@ export default function CropPanel() {
                       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
                       className="overflow-hidden"
                     >
-                      <div className="px-4 pb-4 pt-4 flex flex-col gap-4">
+                      <div
+                        className={clsx(
+                          'px-4 pb-4 pt-4 flex flex-col gap-4',
+                          !isLensShown(adjustments) && HIDDEN_CONTENT_CLASS,
+                        )}
+                      >
                         <LensBuiltinSwitch adjustments={adjustments} setAdjustments={setAdjustments} />
                         <div className={clsx('w-full p-1 bg-card-active rounded-md', builtin && LENSFUN_UNUSED)}>
                           <div className="relative flex w-full">

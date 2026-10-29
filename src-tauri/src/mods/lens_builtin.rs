@@ -43,10 +43,12 @@ pub struct Builtin {
 }
 
 impl Builtin {
-    /// The correction the edit turns on, or `None` when it is off, the photo
-    /// has none, or its tables do not read back.
+    /// The correction the edit turns on, or `None` when it is off, the Lens
+    /// Correction eye is closed, the photo has none, or its tables do not read back.
     pub fn from_adjustments(adjustments: &serde_json::Value) -> Option<Builtin> {
-        if adjustments.get(KEYS[0])?.as_bool() != Some(true) {
+        if adjustments.get(KEYS[0])?.as_bool() != Some(true)
+            || !crate::image_processing::is_lens_correction_shown(adjustments)
+        {
             return None;
         }
         let correction: LensCorrection =
@@ -211,6 +213,16 @@ mod tests {
         assert!(Builtin::from_adjustments(&json!({})).is_none());
         let garbage = json!({ "lensBuiltin": true, "lensBuiltinParams": { "knots": 3 } });
         assert!(Builtin::from_adjustments(&garbage).is_none());
+    }
+
+    #[test]
+    fn the_lens_correction_eye_closed_applies_none() {
+        let hidden = json!({
+            "lensBuiltin": true,
+            "lensBuiltinParams": correction(),
+            "sectionVisibility": { "lens": false },
+        });
+        assert!(Builtin::from_adjustments(&hidden).is_none());
     }
 
     #[test]

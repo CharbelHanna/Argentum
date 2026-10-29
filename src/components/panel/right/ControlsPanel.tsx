@@ -134,7 +134,8 @@ export default function Controls({ readOnly }: { readOnly?: ReadOnlyAdjustments 
     setAdjustments((prev: Adjustments) => ({
       ...prev,
       ...initialValues([...Object.values(EDIT_SECTION_KEYS).flat(), ...PROFILE_KEYS]),
-      sectionVisibility: { ...SECTION_EYES_OPEN },
+      // The Edit panel's eyes; the Crop tab's Lens Correction eye stays as it is.
+      sectionVisibility: { ...prev.sectionVisibility, ...SECTION_EYES_OPEN },
     }));
   };
 

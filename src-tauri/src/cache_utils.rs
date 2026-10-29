@@ -42,6 +42,10 @@ pub fn hash_geometry(adjustments: &serde_json::Value, hasher: &mut impl Hasher) 
             val.to_string().hash(hasher);
         }
     }
+    // Argentum: the Lens Correction eye closed undoes the warp; open, the hash is as before.
+    if !crate::image_processing::is_lens_correction_shown(adjustments) {
+        "lens eye closed".hash(hasher);
+    }
 }
 
 fn hash_ai_patches(adjustments: &serde_json::Value, hasher: &mut DefaultHasher) {
@@ -773,6 +777,25 @@ mod tests {
         assert_ne!(
             calculate_transform_hash(&params(0.1)),
             calculate_transform_hash(&params(0.2))
+        );
+    }
+
+    /// The Lens Correction eye closed undoes the warp, so the transform hash
+    /// moves with it; an open eye, said or not, leaves the hash as it was.
+    #[test]
+    fn the_lens_correction_eye_moves_the_transform_hash() {
+        let plain = serde_json::json!({ "lensBuiltin": true });
+        let open =
+            serde_json::json!({ "lensBuiltin": true, "sectionVisibility": { "lens": true } });
+        let closed =
+            serde_json::json!({ "lensBuiltin": true, "sectionVisibility": { "lens": false } });
+        assert_eq!(
+            calculate_transform_hash(&plain),
+            calculate_transform_hash(&open)
+        );
+        assert_ne!(
+            calculate_transform_hash(&plain),
+            calculate_transform_hash(&closed)
         );
     }
 
