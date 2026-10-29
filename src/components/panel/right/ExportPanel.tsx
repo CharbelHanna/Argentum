@@ -24,13 +24,12 @@ import {
   MAX_EXPORT_DPI,
   WatermarkAnchor,
 } from '../../ui/ExportImportProperties';
-import { Invokes, SelectedImage, AppSettings, Panel } from '../../ui/AppProperties';
+import { Invokes, SelectedImage, AppSettings } from '../../ui/AppProperties';
 import ExportPresetsList from '../../ui/ExportPresetsList';
 import { useExportSettings } from '../../../hooks/useExportSettings';
 import Text from '../../ui/Text';
 import { TextColors, TextVariants, TextWeights } from '../../../types/typography';
 import { useEditorStore } from '../../../store/useEditorStore';
-import { useUIStore } from '../../../store/useUIStore';
 import { useLooks } from '../../../argentum/looks/looksStore';
 import { useAgTranslation } from '../../../argentum/locales';
 import { cropFrame } from '../../../argentum/linearEdges';
@@ -514,8 +513,6 @@ export default function ExportPanel({
   const [watermarkImageAspectRatio, setWatermarkImageAspectRatio] = useState(1);
   const [imageAspectRatio, setImageAspectRatio] = useState(16 / 9);
   const filenameInputRef = useRef<HTMLInputElement>(null);
-  const activePanels = useUIStore((state) => state.activePanels);
-  const isPanelReallyActive = Object.values(activePanels).includes(Panel.Export);
 
   const { status, progress, errorMessage } = exportState;
   const isExporting = [Status.Exporting, Status.Cancelling].includes(status);
@@ -558,7 +555,7 @@ export default function ExportPanel({
 
   useEffect(() => {
     const fetchDims = async () => {
-      if (!enableWatermark || numImages === 0 || !isVisible || !isPanelReallyActive) return;
+      if (!enableWatermark || numImages === 0 || !isVisible) return;
       if (!isLibraryContext && selectedImage && selectedImage.width && selectedImage.height) {
         setImageAspectRatio(selectedImage.width / selectedImage.height);
         return;
@@ -633,8 +630,6 @@ export default function ExportPanel({
   );
 
   useEffect(() => {
-    if (!isPanelReallyActive) return;
-
     const exportSettings: ExportSettings = {
       filenameTemplate,
       jpegQuality,
@@ -679,7 +674,6 @@ export default function ExportPanel({
       debouncedEstimateSize.cancel();
     };
   }, [
-    isPanelReallyActive,
     pathsToExport,
     selectedImage?.path,
     fileFormat,
