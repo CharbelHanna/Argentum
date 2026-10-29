@@ -4,7 +4,22 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
-## 26.44.2 — 2026-10-27
+## 26.44.2 — 2026-10-29
+
+### Added
+
+- **A release checks its installers' size.** North star 7 calls installer size the smoke alarm:
+  a release that grows it noticeably says why. Nothing checked it. Once every installer is
+  attached, the release workflow compares each one (`.exe`, `.msi`, `.dmg`, `.deb`, `.rpm`,
+  `.AppImage`) with the same file of the previous release and fails when one grew by more than
+  3%, unless the release's notes have a line starting `Installer size:` saying why
+  (`scripts/installer-size.mjs`). On real releases, 26.44.1 is within it (+2.4% at most) and
+  26.43.1 would have been stopped (+3.8%).
+- **An eye on Crop > Lens Correction.** Closed, the photo shows with no lens correction at
+  all, the camera's own or a lens profile's: no distortion, colour fringe or vignetting fix.
+  The pane's settings stay as they were, greyed out, and come back when the eye opens. It is
+  saved with the photo like the Edit panel's eyes, so export and masks follow it; resetting
+  the pane opens it again, and resetting the Edit panel leaves it as it is.
 
 ### Changed
 
@@ -20,6 +35,152 @@ Newest first.
   macOS and `_tethering` lines (`scripts/release-downloads.mjs`, `.github/workflows/release.yml`).
   A missing installer stops it rather than linking nothing. Its test writes 26.43.4's table, as
   written by hand, from 26.43.4's files.
+- **The `ag` commands are typed end to end.** `mods/dispatch.rs` lists every JSON command once,
+  in a `commands!` table: its name, its argument struct, its answer type and its body. The table
+  makes the match that routes each call, and a test (`mods/ag_contract.rs`) writes
+  `src/argentum/ag.generated.ts` from the same table with ts-rs, as the engine's contract is
+  written, so `ag('name', args)` in the interface is checked by name, argument and answer. A
+  command renamed, an argument changed or an answer read as the wrong type no longer compiles.
+  The 40 TypeScript types that restated Rust structs by hand are gone, along with 58 explicit
+  `ag<T>` type arguments and the per-command JSON conversion in `dispatch.rs`. ts-rs is a
+  development dependency only; nothing shipped compiles it, and no command's behaviour changed.
+- **An `ag` command calls its module directly.** 28 functions in `mods/commands.rs` only passed
+  their arguments on to another module (`highlights::save`, `editor_layout::theme`,
+  `profiles::cameras`, ...); each `commands!` table line in `mods/dispatch.rs` now makes that call
+  itself, and the forwarders are gone. `commands.rs` keeps the 14 commands with logic of their
+  own. The profile library's "not ready yet" check moved beside the library, as
+  `profiles::library_ready`. No command's behaviour changed.
+- **Release builds: a matrix key nothing read is gone.** The Windows rows of `ci.yml`, `pr-ci.yml`
+  and `release.yml` set `builds-args: '--bundles nsis'`, but the build passes `matrix.args`, so
+  Windows has always built both installers, `.exe` and `.msi`, as the README lists. The rows now
+  say what happens.
+- **A pull request no longer re-runs CI because another one merged.** Changelog entries are now
+  one file per change in `changelog.d/`, folded into `CHANGELOG.md` at release by
+  `scripts/changelog.mjs` (towncrier's shape: the section in the file name), so open PRs stop
+  conflicting with each other at the top of `CHANGELOG.md`. And a new push to a PR now cancels
+  the run it replaces (`concurrency` in `app.yml`, `engine.yml`, `lint.yml`, `upstream.yml`,
+  `dx12.yml`); runs on `main` always finish.
+- **Release builds install the interface's packages from the lock file.** `build.yml` ran
+  `npm install`, which may pick newer versions than `package-lock.json` and rewrite it, so a
+  release could ship packages no check had seen. It now runs `npm ci`, as the lint job already
+  does: exactly the locked versions, or the build stops.
+- **Release builds check out one commit, not the whole history.** `build.yml` fetched every commit
+  (`fetch-depth: 0`) for each of its twelve builds, and nothing in a build reads git: `build.rs`
+  does not, and the one dependency that can (`built`, through `rav1e`) is built without git.
+- **Colour constants are defined once.** The sRGB curve, the Rec. 709 luminance weights, the
+  sRGB-to-XYZ (D65) matrix and both Bradford matrices now live only in the engine's `colour`
+  module, and the app imports them; the 3x3 matrix helpers live only in `mods/profile_matrix.rs`.
+  Twenty-odd pasted copies are gone. Every copy removed held the same numbers, clamping and linear
+  segment as the definition it now uses, so no pixel changes. Two sRGB encoders that are not
+  copies stay: `apply_linear_to_srgb` keeps light above white for HDR merges, and the raw tone
+  analysis encodes without clipping first.
+- **The engine's GPU tests run in CI.** `engine.yml` installed its software GPU (lavapipe) after
+  `cargo test`, so every GPU test there, the parity tests that hold the engine's copies of the
+  app's shaders to the app's among them, said it skipped and passed. The software GPU now comes
+  first, and with `AG_REQUIRE_GPU` set a test that finds no GPU fails instead of skipping
+  (`src-tauri/engine/tests/common/mod.rs`). The memory budget, which had a step of its own for
+  this, runs with the rest.
+- **Unused variables and untranslated text in the interface now fail the frontend check.** Two
+  ESLint rules, `@typescript-eslint/no-unused-vars` and `i18next/no-literal-string`, were set to
+  warn, and `scripts/check-frontend.mjs` counts errors only, so 35 unused locals and 11 literal
+  strings got through unseen. Both are errors now, and `scripts/frontend-baseline.json` holds
+  today's count per file: a new one fails, a removed one asks for `--update`.
+- **The geometry part of every cache key is built in one place.** `hash_geometry`
+  (`cache_utils.rs`) hashes the warp keys and the camera's built-in lens correction; the seven
+  pasted copies of that loop and the nine places that folded the lens keys in afterwards are
+  gone. The geometry and transform hashes now include the built-in lens correction themselves,
+  so a mask that reads the warped picture is no longer reused from the other setting when the
+  built-in correction is switched, and the export size
+  estimate can reuse the preview's transformed picture again (it compared a hash without the
+  lens keys against one with them, so it never matched). These keys live only in memory:
+  nothing stored on disk changes.
+- **The golden photos can fail a pull request.** The ten CC0 RAWs CI renders and holds to their
+  references (`src-tauri/src/mods/look_check.rs`) ran with `continue-on-error`, so a photo whose look
+  changed was reported and nothing stopped. Since the references were re-blessed on
+  2026-10-26 they passed 26 runs in a row on CI's software GPU, 14 of them on main, so the step
+  is now part of the required `App unit tests` check. A change meant to move a photo blesses it
+  in the same pull request (`AG_LOOK_BLESS`, a row in `src-tauri/tests/look/LEDGER.tsv`). A sample
+  that cannot be downloaded still skips the step rather than failing it.
+- **The translation check can fail.** CI's `i18n:check` was advisory (`continue-on-error`), and
+  on CI it never got as far as checking: i18next-cli needs Node 22 and the lint job ran Node 20.
+  Run by hand, it failed on main for two reasons. Its extractor read every
+  `t = useAgTranslation()` call as a key missing from these files (279 of them, Argentum's own
+  strings, which TypeScript already checks against `src/argentum/locales/en.json`); it now leaves
+  the `ag` namespace out. What remains is real: 330 missing keys or plural forms (Catalan, French,
+  Spanish, Italian and Portuguese lack `_many`, Czech, Polish and Russian `_few` and `_many` on a
+  few keys, every language but English `adjustments.basic.toneGroup`) and 207 plural resolutions
+  that fall back to English. They are held in `scripts/i18n-baseline.json` by
+  `scripts/check-i18n.mjs`: a new gap fails, and so does a fix until the baseline is rewritten
+  (`--update`), the same rule as `scripts/frontend-baseline.json`. The lint job moves to Node 22,
+  the release builds' version. `i18next.config.ts` becomes `.mjs` so the check can import it on
+  any Node.
+- **Only the interface language in use is loaded.** All fifteen translations were built into the
+  main script, so every start parsed about 1.1 MB of text for the one language shown. English
+  stays built in; each other language is its own file of the build, read when it is the language
+  in Settings (`src/argentum/locales/languages.ts`, Vite's `import.meta.glob`, the dynamic-import
+  pattern i18next documents). The main script goes from 2.92 MB to 1.80 MB. Argentum's renames
+  (Subject shown as Object, `renames.ts`) are applied to each language as it loads, and a first
+  start still picks the system's language from every translation, not only the loaded ones.
+- **The lens makers are asked for once.** Every time Settings opened, its panel asked Rust for the
+  lensfun maker list into a list nothing read; My Gear asked again when its section showed, and the
+  Crop tab on every visit. The list never changes while the app runs. My Gear and the Crop tab now
+  share the first answer (`src/argentum/lensfunMakers.ts`; a failed ask, the database still
+  loading, is asked again), and the Settings panel's unread copy is gone.
+- **No call to Google at start.** `index.html` linked Poppins from Google Fonts, so every launch
+  asked fonts.googleapis.com for a stylesheet, and offline it failed. Nothing drew in Poppins: the
+  Modern look sets the interface font to Segoe UI or the system font (`modern.css`), and a walk of
+  the whole interface with every Poppins face declared requested none. The links are gone, so the
+  window looks exactly as before. The UI walk no longer strips them (`scripts/ui-walk/server.mjs`).
+- **The twelve desktop builds are defined once.** `ci.yml` and `pr-ci.yml` were the same
+  manual-only workflow, and `release.yml` held a third copy of their 12-row matrix, so a new
+  platform had to be added three times. The two manual copies are gone; `release.yml` also runs
+  by hand from the Actions tab, which builds every installer without a release and keeps each
+  build's files as an artifact for 7 days. The Download table job runs only for a release.
+- **RapidRAW's AI models download through the shared model downloader.** Subject selection,
+  Foreground, Sky, Depth, Relight, Inpainting, AI noise reduction and Photo tagging no longer keep
+  their own copy of the model addresses and checksums, their own models-folder lookup, downloader
+  and SHA-256 check (`ai_processing.rs`, about 280 lines): each asks `mods/model_catalog.rs` and
+  `mods/model_download.rs`. Same folder, same file names, same checksums, so nothing already
+  downloaded is fetched again; the sky model saved under its old name (`skyseg-u2net.onnx`) is
+  still renamed rather than fetched, now also by Settings > AI models' Download. A download is
+  streamed to a `.part` file and kept only once its checksum matches, instead of being held in
+  memory, and its progress shows in Settings > AI models. The test that read `ai_processing.rs`
+  to catch drifting copies is gone with the copies.
+- **Super Resolution and Restore download through the shared model downloader.** Their models
+  (`realesrgan_x2plus.onnx`, `realesrgan_x4plus.onnx`, `omnilens_swinir_aodlib_256.onnx`) are now
+  defined once, in `mods/model_catalog.rs`, and fetched by `mods/model_download.rs` like the Text,
+  Face and selection masks: streamed to a `.part` file and moved into place once its SHA-256
+  matches. Same folder, same file names, same checksums, so nothing already downloaded is fetched
+  again; a test now holds the catalogue to every file an earlier version saved. Their own copy of
+  the addresses, the folder lookup and the checksum code is gone. A download started this way now
+  also shows its progress in Settings > AI models.
+- **One place names the models folder.** The selection masks and the graphics card runtime found
+  `models` inside the app's data folder each in their own way; they now ask
+  `mods/model_manager.rs` like every other AI feature (same folder as before). The catalogue's
+  unused copy of the graphics card runtime's download address is gone, and the test that read
+  `gpu_runtime.rs` to compare it is replaced by one that fails if any other file names the
+  models folder itself.
+- **A photo's sidecar name, virtual-copy path and file name are each defined once.** In Rust,
+  `file_management.rs` holds `sidecar_for` (`IMG.CR2.agdata`, `IMG.CR2.a1b2c3.agdata`),
+  `split_virtual_path` and the `VIRTUAL_COPY` and `SIDECAR_EXTENSION` constants; every place
+  that built a sidecar name or split `?vc=` by hand uses them, `get_primary_sidecar_path` is gone,
+  and the thumbnail folder has one resolver instead of two. In the interface, `argentum/paths.ts`
+  holds `fileNameOf`, `physicalPathOf`, `isVirtualCopyPath` and `VIRTUAL_COPY`, which replace 24
+  hand-written `?vc=` splits and 18 copies of "the text after the last slash" across 22 files.
+  The filmstrip now shows the name of a photo whose file name contains `?` in full; it cut the
+  name at the first `?`.
+- **Argentum's own preferences share one shape.** Each one in `argentum-processing.json` is now a
+  `Setting<T>` (`mods/ag_settings.rs`): its key and stored type, declared once by the module that
+  owns it, read with `load` and written with `save`. The nine modules that paired a key string
+  with their own JSON conversion (highlight recovery, raw decoder, TIFF depth, the Modern
+  layout's panels, palette and text size, starred looks, recent folders, and two one-time
+  markers) use it, and the compact slider gap moved from `commands.rs` beside the other layout
+  preferences in `editor_layout.rs`. The file and every stored value read as before.
+- **The engine's slider-tick budget no longer passes without timing anything.** Without a RAW it
+  returned early and reported `ok`, which is what it did on every CI run. It is now `#[ignore]`d,
+  so CI reports it as not run, and run by hand it fails when no RAW is set. It joins the app's
+  speed check in the release steps (`docs/RELEASING.md`): CI's software GPU cannot hold a budget
+  set on a real one.
 
 ### Fixed
 
@@ -42,6 +203,124 @@ Newest first.
   dependency). A file a virus scanner or viewer holds for a moment is retried for about a second.
   Saves that failed silently (an XMP rewrite, a sidecar after an XMP sync or a heal, the settings
   migration) now log a warning.
+- **The Export tab shows the estimated file size again, and the watermark preview takes the
+  photo's shape.** Both waited for the Export panel to be open in the Classic layout's panel
+  slots, which the Modern window never fills, so the estimate never appeared and the watermark
+  preview kept a default 16:9 frame.
+- **The Light palette now has light notifications and a light curve histogram.** Both still
+  followed the old Classic theme, which Settings can no longer change, so on Light the
+  notifications' close button and timer bar stayed dark and the histogram behind Curves stayed
+  as faint as on a dark background. They now follow the palette chosen in Settings > General >
+  Theme.
+- **Starred looks and a photo's snapshots are no longer wiped after a failed read.** When the
+  starred looks could not be read they showed as none, and the next star wrote that one star over
+  the whole list; a photo's snapshots that could not be read (or had not been read yet) were
+  replaced by the next snapshot taken. Both now write only after a successful read
+  (`src/argentum/looks/looksStore.ts`, `src/argentum/snapshots/snapshotsStore.ts`, with tests).
+- **Focus stacking and panoramas no longer crash the app on an odd frame.** A frame with a NaN
+  pixel (blank or broken) made focus stacking panic while sorting (`focus_stacking.rs`, two
+  sorts now use `total_cmp`), and two panorama photos whose match could not be inverted
+  (degenerate points) panicked instead of saying so: the panorama now stops with "Photos 1 and 2
+  could not be placed against each other." (`panorama_stitching.rs`). Same pixels otherwise.
+- **E (Export) and I (Info) open the right panel again when it is hidden.** They opened the left
+  column instead, by the Classic layout's panel places, and left the tab they chose out of
+  sight; Export from a thumbnail's menu did the same. The folders key no longer switches the
+  right panel back to Edit. Where each panel shows is now one list
+  (`src/argentum/modern/panels.ts`), which the tab strip and every key and menu read.
+- **A thumbnail no longer shows an edited photo as unedited.** The grid read a photo's sidecar on
+  its own: if one key did not read (snapshots in an older shape, say), it took the whole photo as
+  unedited with no rating, while the editor kept the edit. Thumbnails and their cache key now read
+  the sidecar the way the editor does, key by key, and only look: nothing is copied or rewritten
+  while browsing (`peek_sidecar` in `src-tauri/src/exif_processing.rs`, on `salvage::readable`).
+  Affected photos redraw their thumbnail once.
+- **Settings > Reset Layout no longer hides the Camera section.** It reset the layout as if the
+  machine could not tether a camera, so the left column's Camera section went until the next
+  start. The left column now shows it wherever tethering is supported, whatever an older saved
+  layout says.
+- **The UI walk's stub answers Auto Adjust as the app's backend does.** It answered null, a value
+  the real command never returns, so pressing Auto Adjust Image in the walk showed an error
+  message that users never see.
+- **The UI walk (`npm run check:ui`) gives the same verdict on a busy machine as on an idle one.**
+  A step now waits for the work the app puts off a moment (the History written 600 ms after a
+  change, a photo's EXIF read 500 ms after it shows) before the next begins, so each backend call
+  is listed under the shortcut that made it rather than one or more steps later. The app's
+  messages are recorded and closed where they show; the walk looked for a class the app's toasts
+  no longer carry and never saw one. A slow start fails the walk in CI only, where the machine runs
+  nothing else; elsewhere it is printed with the limit CI holds it to.
+- **The UI walk reports every command its stub does not answer.** Each page load started the list
+  anew and the walk read it once per chapter, so 14 of 21 such commands went unreported. The stub
+  now answers all 21 as the app's backend does: null for the 17 that return nothing or None, and a
+  path, a size or a log file's location for the other four.
+
+### Removed
+
+- **The interface's Android branches.** The Android back-button handler, the library's floating
+  import button, the Android defaults (small thumbnails, recursive library), the Android file
+  pickers (no type filter, content-URI names) and export (no save dialog), the internal library
+  root, and the "Disabled on Android" renderer note are gone, with three strings that only Android
+  showed. Windows, macOS and Linux behave as before.
+- **The Android project inherited from RapidRAW.** No Argentum build has ever targeted Android,
+  and nothing compiled it since the fork. `src-tauri/gen/android` (42 files), the Android-only
+  crates in `src-tauri/Cargo.toml` (`ndk-context`, `jni`, `rustls-platform-verifier`,
+  `include_dir`) and `build.rs`'s download of ONNX Runtime for Android are gone. Desktop builds are
+  unchanged. The tag `android-last` marks the last commit that still has all of it.
+- **The app's Android code.** `src-tauri/src/android_integration.rs` (644 lines of JNI for content
+  URIs, MediaStore and the Android context) and every `cfg(target_os = "android")` branch it fed:
+  Android settings defaults, gallery and Downloads export, embedded lens database, content-URI
+  import of photos and LUTs and their LUT cache, the internal library root, and the mobile entry
+  point. Two commands only Android called are gone with it: `resolve_android_content_uri_name` and
+  `get_or_create_internal_library_root`. Windows, macOS and Linux run the same code as before.
+- **The Android steps of the release build.** No row of the build matrix sets `mobile`, so
+  `build.yml`'s Android steps (JDK, SDK, NDK, signing, the APK build and its uploads, about 100
+  lines) never ran. They are gone, with the `mobile` input. The Android app itself
+  (`src-tauri/gen/android`, `android_integration.rs`) is untouched until its own decision.
+- Window state the Classic layout used and nothing reads any more: the panel drag flag and the
+  folder tree's handling of it, `renderedPanel`, `slideDirection`, the library export panel's
+  visibility, the compact editor height override, `isPanelVisible`, and an unused copy of
+  `formatBytes`. The Export panel's "library" mode is now an explicit prop instead of being
+  inferred from a close callback. Nothing changes on screen.
+- **RapidRAW's old Presets panel and LUT picker** (`PresetsPanel.tsx`, 1,395 lines;
+  `LUTControl.tsx`, 512 lines). Nothing could open either: the Looks tab shows Looks, and the LUT
+  block left Effects when Looks arrived. Presets, LUTs and their files are untouched; Looks reads
+  them as before. The interface bundle is 21.7 KB smaller.
+- **Four unused pieces of code.** darktable's sigmoid tone curve (`mods/sigmoid.rs`), ported
+  and then reverted, which nothing called; the hand-run survey of clipped highlights in
+  `mods/highlights.rs`, which measured photos before highlight recovery was built and has no
+  other use; the internal command `list_camera_profiles`, which the interface never called; and
+  `src/i18n/update_translations.py`, a script for strings of the removed cloud features that
+  nothing runs. No change in the app.
+- **Interface code nothing could show.** The Classic Settings page's own header, category tabs,
+  theme list and folder-count switch (the Settings window lists its own sections and palettes);
+  the hidden chart button and waveform copy inside the Adjustments and Masks panels (the
+  Histogram above them is the one copy); two `renderPanel` cases the right column answers
+  first; and the per-tool show/hide eye, whose context nothing ever provided. No change in the
+  app.
+- **RapidRAW's live AI denoise base (`ai_denoise.rs`, 516 lines).** It was not taken at the 1.6.6
+  release review: nothing generated its denoised base or set its cache folder, so it had nothing
+  to blend and every photo loaded as it was, even an edit carrying its `aiDenoiseEnabled` flag
+  (from a RapidRAW 1.6.6 preset). The image loader, export and thumbnails no longer ask it; their
+  `prepare_base_image` was only `composite_patches_on_image` and is gone too. Denoise Image (the
+  dialog) and its model are unchanged.
+- **Two leftovers of RapidRAW's tree.** ESLint and Prettier no longer skip `src-tauri/rawler`, a
+  folder that has not existed since rawler became a Cargo dependency. The Linux `.rpm` no longer
+  declares `Provides: rapid-raw`, RapidRAW's own package name, so a package manager cannot take
+  Argentum for RapidRAW (`src-tauri/tauri.linux.conf.json`).
+- **`simple-icons` (23 MB installed) for one glyph.** The Community page's GitHub link drew the
+  package's GitHub mark; that one path is now inline in `CommunityPage.tsx`, with its source (CC0),
+  and drawn the same way. One npm package fewer.
+- **Five settings no control could change, and the code that read them.** "Require matching EXIF"
+  and "Group edited files" for RAW+JPEG grouping (grouping now always works as their defaults did:
+  same name, edited files included), and RapidRAW's three baseline exposure settings, whose only
+  reader always answered 0 EV, so its whole chain (the auto-adjust and thumbnail calls included)
+  did nothing. A `settings.json` that still holds any of the five keeps working; the keys are
+  dropped at the next save. Also nine store fields and actions nothing used. No change in the app.
+- **2.4 MB of images nothing showed.** The three theme splash photos (`public/splash-*.jpg`, 2.36
+  MB in every installer) and the `splashImage` field nothing read since the start screen went;
+  `public/tauri.svg`; `public/vite.svg`, the template favicon (the icon link is now an empty
+  `data:` URL, so the window asks for no file); `src/assets/react.svg`; and in `src-tauri/icons`,
+  the Android and iOS icon sets (the Android project keeps its own in `gen/android`) and three
+  unused preview PNGs. 44 files, 3.37 MB of the repository; the built frontend goes from 7.31 MB
+  to 4.95 MB.
 
 ## 26.44.1 — 2026-10-27
 
