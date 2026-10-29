@@ -197,20 +197,12 @@ export function reconcileWorkspace(
   };
 }
 
-export const isPanelVisible = (state: UIState, panel: Panel) =>
-  (Object.keys(state.activePanels) as PanelRegion[]).some(
-    (region) =>
-      state.activePanels[region] === panel &&
-      state.uiVisibility[region.startsWith('left') ? 'leftPanel' : 'rightPanel'],
-  );
-
 export interface UIState {
   activeView: string;
   isFullScreen: boolean;
   isWindowFullScreen: boolean;
   isInstantTransition: boolean;
   uiVisibility: UiVisibility;
-  isLibraryExportPanelVisible: boolean;
   isSettingsOpen: boolean;
 
   leftPanelWidth: number;
@@ -218,18 +210,14 @@ export interface UIState {
   bottomPanelHeight: number;
   leftTopHeight: number;
   rightTopHeight: number;
-  compactEditorPanelHeightOverride: number | null;
 
   panelLayout: Record<PanelRegion, Panel[]>;
   activePanels: Record<PanelRegion, Panel | null>;
-  activeLayoutDragItem: Panel | null;
   setActivePanel: (region: PanelRegion, panel: Panel | null) => void;
 
   panelSwitcherPlacement: Record<PanelRegion, SwitcherPlacement>;
 
   activePanel: Panel | null;
-  renderedPanel: Panel | null;
-  slideDirection: number;
   collapsibleSectionsState: CollapsibleSectionsState;
 
   isCreateFolderModalOpen: boolean;
@@ -274,7 +262,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   isWindowFullScreen: false,
   isInstantTransition: false,
   uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true, quickFilter: false },
-  isLibraryExportPanelVisible: false,
   isSettingsOpen: false,
 
   leftPanelWidth: DEFAULT_PANEL_WIDTH,
@@ -282,7 +269,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
   leftTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
   rightTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
-  compactEditorPanelHeightOverride: null,
 
   panelLayout: {
     leftTop: [Panel.Metadata, Panel.FolderTree, Panel.Export],
@@ -296,7 +282,6 @@ export const useUIStore = create<UIState>((set, get) => ({
     rightTop: Panel.Adjustments,
     rightBottom: null,
   },
-  activeLayoutDragItem: null,
 
   panelSwitcherPlacement: {
     leftTop: 'bottom',
@@ -306,8 +291,6 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   activePanel: Panel.Adjustments,
-  renderedPanel: Panel.Adjustments,
-  slideDirection: 1,
   collapsibleSectionsState: { basic: true, color: false, curves: true, details: false, effects: false },
 
   isCreateFolderModalOpen: false,
@@ -371,7 +354,6 @@ export const useUIStore = create<UIState>((set, get) => ({
       const updates: Partial<UIState> = {
         activePanels: { ...state.activePanels, [region]: panel },
         activePanel: panel,
-        renderedPanel: panel,
       };
 
       const isLeft = region === 'leftTop' || region === 'leftBottom';
@@ -439,7 +421,6 @@ export const useUIStore = create<UIState>((set, get) => ({
       panelSwitcherPlacement: defaultWorkspace.panelSwitcherPlacement,
       uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true, quickFilter: false },
       activePanel: defaultWorkspace.activePanels.rightTop || null,
-      renderedPanel: defaultWorkspace.activePanels.rightTop || null,
     });
     return defaultWorkspace;
   },

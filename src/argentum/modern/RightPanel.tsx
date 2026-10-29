@@ -85,7 +85,7 @@ export default function RightPanel({ width, renderPanel, onOpenPhoto, onResize, 
   const tab = activePanel === INFO.panel ? INFO : (TABS.find((entry) => entry.panel === activePanel) ?? TABS[0]);
 
   const choose = (entry: (typeof TABS)[number] | typeof INFO) => {
-    setUI({ activePanel: entry.panel, renderedPanel: entry.panel });
+    setUI({ activePanel: entry.panel });
     if ('needsPhoto' in entry && entry.needsPhoto && !editing && libraryActivePath) onOpenPhoto(libraryActivePath);
   };
 

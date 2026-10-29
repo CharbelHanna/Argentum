@@ -345,9 +345,6 @@
       "no-useless-assignment": 1,
       "prefer-const": 2
     },
-    "src/utils/formatBytes.ts": {
-      "@typescript-eslint/no-explicit-any": 1
-    },
     "src/utils/frontendLogBridge.ts": {
       "@typescript-eslint/no-unsafe-function-type": 1
     },
@@ -389,7 +386,6 @@
     "src/components/panel/SettingsPanel.tsx",
     "src/components/panel/editor/Waveform.tsx",
     "src/components/panel/editor/overlays/CompositionOverlays.tsx",
-    "src/components/panel/right/FolderTree.tsx",
     "src/components/views/LibraryView.tsx",
     "src/utils/CollageVariants.tsx",
     "src/utils/frontendLogBridge.ts",

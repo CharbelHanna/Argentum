@@ -44,7 +44,8 @@ interface ExportPanelProps {
   onSettingsChange: (settings: AppSettings) => void;
   rootPaths: string[];
   isVisible?: boolean;
-  onClose?: () => void;
+  /** Export the grid's selection (the Modern window's one use), not the open photo. */
+  libraryContext?: boolean;
 }
 
 const MAX_PAD_RATIO = 1000;
@@ -346,7 +347,7 @@ export default function ExportPanel({
   onSettingsChange,
   rootPaths,
   isVisible = true,
-  onClose,
+  libraryContext,
 }: ExportPanelProps) {
   const { t } = useTranslation();
   const agT = useAgTranslation();
@@ -517,7 +518,7 @@ export default function ExportPanel({
   const { status, progress, errorMessage } = exportState;
   const isExporting = [Status.Exporting, Status.Cancelling].includes(status);
   const isCancelling = status === Status.Cancelling;
-  const isLibraryContext = !!onClose;
+  const isLibraryContext = !!libraryContext;
 
   const pathsToExport = useMemo(() => {
     return isLibraryContext
@@ -841,7 +842,7 @@ export default function ExportPanel({
   const itemLabelPlural = isLut ? t('export.labels.lut_plural') : t('export.labels.image_plural');
 
   return (
-    <div className={onClose ? 'h-full bg-bg-secondary rounded-lg flex flex-col' : 'flex flex-col h-full'}>
+    <div className={libraryContext ? 'h-full bg-bg-secondary rounded-lg flex flex-col' : 'flex flex-col h-full'}>
       <div className="p-3 flex justify-between items-center shrink-0 border-b border-surface">
         <Text variant={TextVariants.title}>{t('export.title')}</Text>
       </div>

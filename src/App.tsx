@@ -591,7 +591,7 @@ function App() {
               onSettingsChange={handleSettingsChange}
               rootPaths={rootPaths}
               isVisible={true}
-              onClose={() => setUI({ isLibraryExportPanelVisible: false })}
+              libraryContext
             />
           );
         case Panel.Metadata:
