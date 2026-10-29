@@ -289,6 +289,7 @@ pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> Geometr
     // part, so nothing is corrected twice (mods/lens_builtin.rs).
     let (lens_builtin, lens_params) = crate::mods::lens_builtin::with_lensfun(adjustments);
     let lens_params = lens_params.as_ref();
+    let lens_shown = is_lens_correction_shown(adjustments);
 
     let guided = adjustments.get("guidedPerspective");
     let guided_perspective_enabled = guided
@@ -317,11 +318,13 @@ pub fn get_geometry_params_from_json(adjustments: &serde_json::Value) -> Geometr
         lens_vignette_amount: adjustments["lensVignetteAmount"].as_f64().unwrap_or(100.0) as f32
             / 100.0,
         lens_tca_amount: adjustments["lensTcaAmount"].as_f64().unwrap_or(100.0) as f32 / 100.0,
-        lens_distortion_enabled: adjustments["lensDistortionEnabled"]
-            .as_bool()
-            .unwrap_or(true),
-        lens_tca_enabled: adjustments["lensTcaEnabled"].as_bool().unwrap_or(true),
-        lens_vignette_enabled: adjustments["lensVignetteEnabled"].as_bool().unwrap_or(true),
+        lens_distortion_enabled: lens_shown
+            && adjustments["lensDistortionEnabled"]
+                .as_bool()
+                .unwrap_or(true),
+        lens_tca_enabled: lens_shown && adjustments["lensTcaEnabled"].as_bool().unwrap_or(true),
+        lens_vignette_enabled: lens_shown
+            && adjustments["lensVignetteEnabled"].as_bool().unwrap_or(true),
 
         lens_dist_k1: lens_params
             .and_then(|p| p.get("k1").and_then(|k| k.as_f64()))
@@ -2369,6 +2372,12 @@ fn is_section_visible(adjustments: &serde_json::Value, section: &str) -> bool {
         .unwrap_or(true)
 }
 
+/// Argentum: is the Crop tab's Lens Correction eye open? Closed, no part of
+/// any lens correction applies, the camera's own or a lens profile's.
+pub fn is_lens_correction_shown(adjustments: &serde_json::Value) -> bool {
+    is_section_visible(adjustments, "lens")
+}
+
 /// Is an effect switched on, and the eye of the section that holds it open?
 /// RapidRAW asks per tool (image_processing.rs @ f941d8ee); Argentum has an eye
 /// per section, so the tool is answered by its section's eye: noise reduction
@@ -3927,6 +3936,22 @@ pub fn calculate_auto_adjustments(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Argentum: the Lens Correction eye closed switches every part off and
+    /// keeps the panel's own switches as they are, for when it opens again.
+    #[test]
+    fn the_lens_correction_eye_closed_switches_every_part_off() {
+        let open = get_geometry_params_from_json(&serde_json::json!({}));
+        assert!(
+            open.lens_distortion_enabled && open.lens_tca_enabled && open.lens_vignette_enabled
+        );
+        let closed = get_geometry_params_from_json(
+            &serde_json::json!({ "sectionVisibility": { "lens": false } }),
+        );
+        assert!(!closed.lens_distortion_enabled);
+        assert!(!closed.lens_tca_enabled);
+        assert!(!closed.lens_vignette_enabled);
+    }
 
     /// Argentum: the straight-line test their shader ran per pixel, now run once.
     #[test]
