@@ -75,8 +75,7 @@ export default function LeftColumn({
     line.addEventListener('pointerup', end);
     line.addEventListener('pointercancel', end);
   };
-  // Tethering is in today's workspace only where it is supported.
-  const tethering = useUIStore((s) => Object.values(s.panelLayout).some((panels) => panels.includes(Panel.Tethering)));
+  const tethering = useUIStore((s) => s.isTetheringSupported);
 
   return (
     <div className="agm-col agm-left" style={{ width }}>

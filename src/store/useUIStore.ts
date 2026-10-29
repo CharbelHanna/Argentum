@@ -212,6 +212,8 @@ export interface UIState {
   rightTopHeight: number;
 
   panelLayout: Record<PanelRegion, Panel[]>;
+  /** Argentum: whether this machine can tether a camera, asked once at start-up (useAppInitialization.ts). */
+  isTetheringSupported: boolean;
   activePanels: Record<PanelRegion, Panel | null>;
   setActivePanel: (region: PanelRegion, panel: Panel | null) => void;
 
@@ -253,7 +255,7 @@ export interface UIState {
   searchFocusRequest: number;
   requestSearchFocus: () => void;
   toggleFullScreen: () => void;
-  resetWorkspaceLayout: (isTetheringSupported?: boolean) => WorkspaceState;
+  resetWorkspaceLayout: () => WorkspaceState;
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -276,6 +278,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     rightTop: [Panel.Adjustments, Panel.Crop, Panel.Masks, Panel.Ai, Panel.Presets],
     rightBottom: [],
   },
+  isTetheringSupported: false,
   activePanels: {
     leftTop: Panel.FolderTree,
     leftBottom: null,
@@ -409,8 +412,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
   },
 
-  resetWorkspaceLayout: (isTetheringSupported = false) => {
-    const defaultWorkspace = reconcileWorkspace(undefined, isTetheringSupported);
+  resetWorkspaceLayout: () => {
+    const defaultWorkspace = reconcileWorkspace(undefined, get().isTetheringSupported);
     set({
       leftPanelWidth: defaultWorkspace.leftPanelWidth,
       rightPanelWidth: defaultWorkspace.rightPanelWidth,
