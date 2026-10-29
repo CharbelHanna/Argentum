@@ -805,7 +805,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
           // The Export tab, set to CUBE (ExportPanel.tsx reads this once), on the photo.
           useLooks.setState({ wantLutExport: true });
           if (overCommunity) leaveCommunity();
-          useUIStore.getState().setUI({ activePanel: Panel.Export, renderedPanel: Panel.Export });
+          useUIStore.getState().setUI({ activePanel: Panel.Export });
         },
       },
     ]);

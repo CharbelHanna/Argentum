@@ -47,7 +47,6 @@ import { useFolderCount } from '../../../argentum/modern/folderCounts';
 import { FOLD_CONTROL, treeRow, useTreeKeys } from '../../../argentum/modern/treeKeys';
 import { formatSize } from '../../../argentum/formatSize';
 import { useAgTranslation } from '../../../argentum/locales';
-import { useUIStore } from '../../../store/useUIStore';
 import { AlbumItem, AlbumGroup, Album, Invokes, FolderTreeSort, SortDirection } from '../../ui/AppProperties';
 import { useLibraryActions } from '../../../hooks/useLibraryActions';
 
@@ -89,7 +88,6 @@ interface TreeNodeProps {
   showImageCounts: boolean;
   isInstantTransition: boolean;
   folderIcons: Record<string, string>;
-  isLayoutDragging: boolean;
   /** Argentum: how deep the row sits, for the Modern tree's keys. */
   depth?: number;
 }
@@ -372,7 +370,6 @@ function AlbumTreeNode({
   onContextMenu,
   selectedAlbumId,
   showImageCounts,
-  isLayoutDragging,
 }: {
   sectionId: string;
   item: AlbumItem;
@@ -382,7 +379,6 @@ function AlbumTreeNode({
   onContextMenu: (e: any, item: AlbumItem) => void;
   selectedAlbumId: string | null;
   showImageCounts: boolean;
-  isLayoutDragging: boolean;
 }) {
   const isGroup = item.type === 'group';
   const isExpanded = expandedGroups.has(item.id);
@@ -392,7 +388,7 @@ function AlbumTreeNode({
   const { setNodeRef, isOver, active } = useDroppable({
     id: `album-${sectionId}-${item.id}`,
     data: { type: 'album', id: item.id },
-    disabled: isGroup || isLayoutDragging,
+    disabled: isGroup,
   });
 
   const isImageDrag = active?.data?.current?.type === 'library-image';
@@ -496,7 +492,6 @@ function AlbumTreeNode({
                       onContextMenu={onContextMenu}
                       selectedAlbumId={selectedAlbumId}
                       showImageCounts={showImageCounts}
-                      isLayoutDragging={isLayoutDragging}
                     />
                   </motion.div>
                 ))}
@@ -522,7 +517,6 @@ function TreeNode({
   showImageCounts,
   isInstantTransition,
   folderIcons,
-  isLayoutDragging,
   depth = 0,
 }: TreeNodeProps) {
   const hasChildren = node.hasSubdirs || (node.children && node.children.length > 0);
@@ -539,7 +533,6 @@ function TreeNode({
   const { setNodeRef, isOver, active } = useDroppable({
     id: `folder-${sectionId}-${node.path}`,
     data: { type: 'folder', path: node.path },
-    disabled: isLayoutDragging,
   });
 
   const isImageDrag = active?.data?.current?.type === 'library-image';
@@ -614,7 +607,9 @@ function TreeNode({
         })}
         onClick={handleNameClick}
         onContextMenu={(e: any) => onContextMenu(e, node.path, isPinned)}
-        {...(modern ? treeRow({ depth, opens: !!hasChildren, open: isExpanded, disk: !!drive, selected: isSelected }) : {})}
+        {...(modern
+          ? treeRow({ depth, opens: !!hasChildren, open: isExpanded, disk: !!drive, selected: isSelected })
+          : {})}
       >
         <div
           className={clsx(
@@ -728,7 +723,6 @@ function TreeNode({
                       showImageCounts={showImageCounts}
                       isInstantTransition={isInstantTransition}
                       folderIcons={folderIcons}
-                      isLayoutDragging={isLayoutDragging}
                       depth={depth + 1}
                     />
                   </motion.div>
@@ -769,8 +763,6 @@ export default function FolderTree({
       handleSettingsChange: state.handleSettingsChange,
     })),
   );
-
-  const isLayoutDragging = useUIStore((state) => !!state.activeLayoutDragItem);
 
   const {
     folderTrees,
@@ -1078,7 +1070,6 @@ export default function FolderTree({
                                 showImageCounts={showImageCounts && isHovering}
                                 isInstantTransition={isInstantTransition}
                                 folderIcons={folderIcons}
-                                isLayoutDragging={isLayoutDragging}
                               />
                             </motion.div>
                           ))}
@@ -1147,7 +1138,6 @@ export default function FolderTree({
                                 onContextMenu={onAlbumContextMenu}
                                 selectedAlbumId={activeAlbumId}
                                 showImageCounts={showImageCounts && isHovering}
-                                isLayoutDragging={isLayoutDragging}
                               />
                             </motion.div>
                           ))}
@@ -1217,7 +1207,6 @@ export default function FolderTree({
                                 showImageCounts={showImageCounts && isHovering}
                                 isInstantTransition={isInstantTransition}
                                 folderIcons={folderIcons}
-                                isLayoutDragging={isLayoutDragging}
                               />
                             </motion.div>
                           ))}

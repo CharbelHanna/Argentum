@@ -135,7 +135,6 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
       libraryActivePath: null,
       expandedFolders: new Set(),
     });
-    useUIStore.getState().setUI({ isLibraryExportPanelVisible: false });
   }, []);
 
   const handleBackToLibrary = useCallback(() => {
@@ -170,7 +169,7 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
     } else {
       clearLibrarySelection();
     }
-    setUI({ activeView: 'library', slideDirection: 1 });
+    setUI({ activeView: 'library' });
   }, [refs]);
 
   const handleImageSelect = useCallback(
@@ -238,11 +237,6 @@ export function useAppNavigation({ clearThumbnailQueue, refs }: AppNavigationPro
         activeRelightLightId: null,
         activeCenterMarker: null,
         previewOverride: null,
-      });
-
-      setUI({
-        isLibraryExportPanelVisible: false,
-        compactEditorPanelHeightOverride: null,
       });
 
       if (isFrontendCached) {
