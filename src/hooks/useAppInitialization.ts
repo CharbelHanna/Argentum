@@ -175,6 +175,7 @@ export const useAppInitialization = ({
         }
 
         setUI({
+          isTetheringSupported,
           leftPanelWidth: reconciledWorkspace.leftPanelWidth,
           rightPanelWidth: reconciledWorkspace.rightPanelWidth,
           leftTopHeight: reconciledWorkspace.leftTopHeight,
