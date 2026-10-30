@@ -10,9 +10,10 @@ use std::sync::{Mutex, OnceLock};
 pub struct AsShot {
     pub white_balance: WhiteBalance,
     pub exposure: RawExposure,
-    /// The white balance as the decoder gives it: R, G, B and a fourth colour,
-    /// with green at 1. The fourth is NaN on a three-colour sensor, and all are
-    /// NaN when the file holds none (mods/lut_provider.rs is what reads it).
+    /// The white balance as the decoder gives it: R, G, B and a fourth colour.
+    /// Most formats scale it to green at 1, but not all. The fourth is NaN on a
+    /// three-colour sensor, and all are NaN when the file holds none
+    /// (mods/lut_provider.rs is what reads it).
     pub wb_coeffs: [f32; 4],
 }
 

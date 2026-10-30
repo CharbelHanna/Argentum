@@ -457,8 +457,8 @@ pub struct Subject {
     make: String,
     model: String,
     iso: Option<f32>,
-    /// As-shot white balance as the program is sent it: R, G, G, B, with green
-    /// at 1.
+    /// As-shot white balance as the program is sent it: R, G, G, B, at the
+    /// decoder's scale, where green is 1 in most formats but not all.
     wb: [f32; 4],
     /// The exposure offset Linear gives this photo.
     offset_ev: f32,
