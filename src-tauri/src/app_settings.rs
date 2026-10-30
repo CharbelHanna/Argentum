@@ -389,61 +389,13 @@ pub struct AdjustmentLayout {
 pub struct WorkspaceState {
     pub left_panel_width: u32,
     pub right_panel_width: u32,
-    pub left_top_height: u32,
-    pub right_top_height: u32,
-    pub panel_layout: HashMap<String, Vec<String>>,
-    pub active_panels: HashMap<String, Option<String>>,
-    pub panel_switcher_placement: HashMap<String, String>,
 }
 
 impl Default for WorkspaceState {
     fn default() -> Self {
-        let mut panel_layout = HashMap::new();
-        #[allow(unused)]
-        let mut left_top = vec![
-            "metadata".to_string(),
-            "folderTree".to_string(),
-            "export".to_string(),
-        ];
-
-        #[cfg(feature = "tethering")]
-        left_top.push("tethering".to_string());
-
-        panel_layout.insert("leftTop".to_string(), left_top);
-        panel_layout.insert("leftBottom".to_string(), vec![]);
-
-        panel_layout.insert(
-            "rightTop".to_string(),
-            vec![
-                "adjustments".to_string(),
-                "crop".to_string(),
-                "masks".to_string(),
-                "ai".to_string(),
-                "presets".to_string(),
-            ],
-        );
-        panel_layout.insert("rightBottom".to_string(), vec![]);
-
-        let mut active_panels = HashMap::new();
-        active_panels.insert("leftTop".to_string(), Some("folderTree".to_string()));
-        active_panels.insert("leftBottom".to_string(), None);
-        active_panels.insert("rightTop".to_string(), Some("adjustments".to_string()));
-        active_panels.insert("rightBottom".to_string(), None);
-
-        let mut panel_switcher_placement = HashMap::new();
-        panel_switcher_placement.insert("leftTop".to_string(), "bottom".to_string());
-        panel_switcher_placement.insert("leftBottom".to_string(), "bottom".to_string());
-        panel_switcher_placement.insert("rightTop".to_string(), "right".to_string());
-        panel_switcher_placement.insert("rightBottom".to_string(), "right".to_string());
-
         Self {
             left_panel_width: 320,
             right_panel_width: 320,
-            left_top_height: 450,
-            right_top_height: 450,
-            panel_layout,
-            active_panels,
-            panel_switcher_placement,
         }
     }
 }

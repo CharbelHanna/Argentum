@@ -1,0 +1,1 @@
+- Old panel arrangement data left by the removed Classic layout is cleared from saved settings; the two column widths are kept.

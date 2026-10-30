@@ -141,8 +141,6 @@ export enum Panel {
   Tethering = 'tethering',
 }
 
-export type PanelRegion = 'leftTop' | 'leftBottom' | 'rightTop' | 'rightBottom';
-
 export enum RawStatus {
   All = 'all',
   NonRawOnly = 'nonRawOnly',
@@ -181,11 +179,6 @@ export enum ThumbnailAspectRatio {
 export interface WorkspaceState {
   leftPanelWidth: number;
   rightPanelWidth: number;
-  leftTopHeight: number;
-  rightTopHeight: number;
-  panelLayout: Record<PanelRegion, Panel[]>;
-  activePanels: Record<PanelRegion, Panel | null>;
-  panelSwitcherPlacement: Record<PanelRegion, 'left' | 'right' | 'top' | 'bottom'>;
 }
 
 export interface CustomAspectRatio {
@@ -443,7 +436,6 @@ export interface UiVisibility {
   filmstrip: boolean;
   leftPanel: boolean;
   rightPanel: boolean;
-  quickFilter?: boolean;
 }
 
 export interface CollapsibleSectionsState {

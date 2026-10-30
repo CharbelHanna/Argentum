@@ -719,7 +719,7 @@ const SETTINGS_JSON: &str = r##"{
     "currentFolderPath": "/photos/2026/october", "expandedFolders": ["/photos/2026"],
     "activeAlbumId": "album-1", "expandedAlbumGroups": ["group-1"]
   },
-  "uiVisibility": { "filmstrip": false, "leftPanel": true, "rightPanel": false, "quickFilter": true },
+  "uiVisibility": { "filmstrip": false, "leftPanel": true, "rightPanel": false },
   "enableAiTagging": true,
   "taggingThreadCount": 2,
   "taggingShortcuts": ["portrait", "street", "corpus"],
@@ -796,13 +796,7 @@ const SETTINGS_JSON: &str = r##"{
     "collapsedTools": ["grain"]
   },
   "workspace": {
-    "leftPanelWidth": 280, "rightPanelWidth": 360, "leftTopHeight": 400, "rightTopHeight": 500,
-    "panelLayout": {
-      "leftTop": ["folderTree", "metadata"], "leftBottom": ["export"],
-      "rightTop": ["adjustments", "masks", "crop"], "rightBottom": ["ai", "presets"]
-    },
-    "activePanels": { "leftTop": "metadata", "leftBottom": "export", "rightTop": "masks", "rightBottom": null },
-    "panelSwitcherPlacement": { "leftTop": "top", "leftBottom": "bottom", "rightTop": "left", "rightBottom": "right" }
+    "leftPanelWidth": 280, "rightPanelWidth": 360
   }
 }"##;
 
