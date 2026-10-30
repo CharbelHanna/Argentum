@@ -41,7 +41,7 @@ use crate::lut_processing::{self, Lut};
 use crate::mods::ag_settings::Setting;
 use crate::mods::atomic_write::write_atomic;
 use crate::mods::profiles::{self, same_model};
-use crate::mods::{dng_standard, file_ops};
+use crate::mods::{dng_standard, file_ops, provider_look};
 
 /// The event that reports each photo's result.
 pub const EVENT: &str = "provider-look-progress";
@@ -66,6 +66,8 @@ const RUNS_AT_ONCE: usize = 2;
 const CRASHES_TO_OFF: u32 = 2;
 /// How long a closing app waits for its runs to go.
 const STOP_WAIT: Duration = Duration::from_secs(2);
+/// How often an export waiting for a look looks at its cancellation token.
+const EXPORT_POLL: Duration = Duration::from_millis(100);
 
 /// How long the program gets.
 #[derive(Clone, Copy)]
@@ -665,8 +667,12 @@ impl State {
     }
 }
 
-/// Told when a look file is written: its LUT replaces any in memory.
-type Placed = Box<dyn Fn(&Path, Arc<Lut>) + Send + Sync>;
+/// Told when a photo's look file is written: its LUT replaces any in memory.
+type Placed = Box<dyn Fn(&str, &Path, Arc<Lut>) + Send + Sync>;
+
+fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 /// The work for one program.
 pub struct Queue {
@@ -692,7 +698,7 @@ impl Queue {
     }
 
     fn state(&self) -> MutexGuard<'_, State> {
-        self.state.lock().unwrap_or_else(|e| e.into_inner())
+        lock(&self.state)
     }
 
     /// Whether crashes turned the provider off until the app closes.
@@ -770,8 +776,6 @@ impl Queue {
             .items()
             .find(|item| item.key == key && !item.cancel.load(Ordering::SeqCst));
         if let Some(item) = joined {
-            // A second click on the same thing only takes the first one's place.
-            item.waiters.retain(|w| w.photo != waiter.photo);
             item.waiters.push(waiter);
         } else {
             let item = Item {
@@ -789,6 +793,42 @@ impl Queue {
             state.waiting.push_front(item);
         }
         self.start_more(&mut state);
+    }
+
+    /// Asks for a photo's look file and waits for the answer, or for `cancel`.
+    /// For an export, which has its own thread to wait on.
+    fn wait_for(
+        self: &Arc<Self>,
+        subject: Subject,
+        camera: String,
+        look: String,
+        cancel: &AtomicBool,
+    ) -> LookOutcome {
+        let job = NEXT_JOB.fetch_add(1, Ordering::SeqCst);
+        let (tell, told) = mpsc::channel();
+        let tell = Mutex::new(tell);
+        self.request(Request {
+            subject,
+            camera,
+            look,
+            remake: false,
+            front: false,
+            job,
+            report: Arc::new(move |progress| {
+                let _ = lock(&tell).send(progress.outcome);
+            }),
+        });
+        loop {
+            match told.recv_timeout(EXPORT_POLL) {
+                Ok(outcome) => return outcome,
+                Err(mpsc::RecvTimeoutError::Disconnected) => return LookOutcome::Failed,
+                Err(mpsc::RecvTimeoutError::Timeout) if cancel.load(Ordering::SeqCst) => {
+                    self.cancel(job);
+                    return LookOutcome::Cancelled;
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => {}
+            }
+        }
     }
 
     /// Takes every photo of `job` out of the queue.
@@ -886,7 +926,7 @@ impl Queue {
                 for waiter in waiters {
                     let outcome = match write_atomic(&waiter.file, &bytes) {
                         Ok(()) => {
-                            (self.placed)(&waiter.file, Arc::clone(&lut));
+                            (self.placed)(&waiter.photo, &waiter.file, Arc::clone(&lut));
                             LookOutcome::Done
                         }
                         Err(e) => {
@@ -949,22 +989,37 @@ fn provider(app: &AppHandle) -> Option<&'static Provider> {
     if let Some(provider) = READY.get() {
         return ready(provider);
     }
-    let _one = CHECKING.lock().unwrap_or_else(|e| e.into_inner());
+    let _one = lock(&CHECKING);
     if let Some(provider) = READY.get() {
         return ready(provider);
     }
     let (program, catalog) = offered(profiles::library()?, &LIMITS)?;
     let scratch = app.path().app_cache_dir().ok()?.join("lut_provider");
     let handle = app.clone();
-    let placed = Box::new(move |file: &Path, lut: Arc<Lut>| {
+    let placed = Box::new(move |photo: &str, file: &Path, lut: Arc<Lut>| {
         let state = handle.state::<AppState>();
-        let mut cache = state.lut_cache.lock().unwrap_or_else(|e| e.into_inner());
-        cache.insert(file.to_string_lossy().into_owned(), lut);
+        lock(&state.lut_cache).insert(file.to_string_lossy().into_owned(), lut);
+        refresh_thumbnail(&handle, photo, file);
     });
     Some(READY.get_or_init(|| Provider {
         catalog,
         queue: Queue::new(PathBuf::from(&program), scratch, LIMITS, placed),
     }))
+}
+
+/// A photo whose edit names this file has a thumbnail made without it, and
+/// its edit text has not changed, so the usual refresh would keep that one.
+fn refresh_thumbnail(app: &AppHandle, photo: &str, file: &Path) {
+    let sidecar = parse_virtual_path(photo).1;
+    let edit = crate::exif_processing::load_sidecar(&sidecar).adjustments;
+    if provider_look::look_file(&edit, photo).as_deref() != Some(file) {
+        return;
+    }
+    let state = app.state::<AppState>();
+    crate::file_management::add_to_thumbnail_queue(&state, 1, app);
+    let settings = crate::app_settings::load_settings(app.clone()).unwrap_or_default();
+    let photos = std::iter::once(photo.to_string());
+    crate::file_management::regenerate_thumbnails(photos, app, &settings, true);
 }
 
 /// One photo, read for a request; None for anything but a RAW with a white
@@ -996,6 +1051,7 @@ fn subject_of(photo: &str) -> Option<Subject> {
 pub struct LookFile {
     pub camera: String,
     pub look: String,
+    pub path: String,
 }
 
 /// What the open photo can have.
@@ -1039,6 +1095,14 @@ pub struct ProviderLookMakeArgs {
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
+pub struct ProviderLookFileArgs {
+    pub path: String,
+    pub camera: String,
+    pub look: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderLookCancelArgs {
     pub job_id: u64,
@@ -1057,17 +1121,17 @@ pub fn looks(app: &AppHandle, path: Option<&str>) -> Option<ProviderLooks> {
     let photo = path.and_then(subject_of).and_then(|subject| {
         let camera = camera_for(catalog, None, &subject.make, &subject.model)?.to_string();
         let source = parse_virtual_path(&subject.photo).0;
-        let is_there = |c: &OfferedCamera, l: &OfferedLook| {
-            file_ops::look_file_for(&source, &c.id, &l.id).is_some_and(|file| file.is_file())
-        };
         let files = catalog
             .cameras
             .iter()
             .flat_map(|c| catalog.looks.iter().map(move |l| (c, l)))
-            .filter(|(c, l)| is_there(c, l))
-            .map(|(c, l)| LookFile {
-                camera: c.id.clone(),
-                look: l.id.clone(),
+            .filter_map(|(c, l)| {
+                let file = file_ops::look_file_for(&source, &c.id, &l.id)?;
+                file.is_file().then(|| LookFile {
+                    camera: c.id.clone(),
+                    look: l.id.clone(),
+                    path: file.to_string_lossy().into_owned(),
+                })
             })
             .collect();
         Some(PhotoLooks { camera, files })
@@ -1118,6 +1182,43 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
         }
     });
     Ok(job)
+}
+
+/// Whether a photo has this look's file, with a provider or without one: the
+/// file is all a look needs to show.
+pub fn file_is_there(photo: &str, camera: &str, look: &str) -> bool {
+    file_ops::look_file_for(&parse_virtual_path(photo).0, camera, look)
+        .is_some_and(|file| file.is_file())
+}
+
+/// For an export: whether the look the edit names is there to render, made
+/// now if the provider can. False means it renders without its look, and
+/// `cancel` stops the wait. An edit with no provider look needs nothing.
+pub fn look_file_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &AtomicBool) -> bool {
+    if js["lutPath"].as_str() != Some(provider_look::MARKER) {
+        return true;
+    }
+    let Some(file) = provider_look::look_file(js, photo) else {
+        return false;
+    };
+    if file.is_file() {
+        return true;
+    }
+    let Ok(look) = provider_look::ProviderLook::deserialize(&js[provider_look::KEY]) else {
+        return false;
+    };
+    let Some(provider) = provider(app) else {
+        return false;
+    };
+    let listed = provider.catalog.cameras.iter().any(|c| c.id == look.camera)
+        && provider.catalog.looks.iter().any(|l| l.id == look.look);
+    let Some(subject) = subject_of(photo).filter(|_| listed) else {
+        return false;
+    };
+    let made = provider
+        .queue
+        .wait_for(subject, look.camera, look.look, cancel);
+    made == LookOutcome::Done
 }
 
 /// Takes a job's photos out of the queue.
@@ -1667,7 +1768,7 @@ fn main() {
                 exe.to_path_buf(),
                 exe.with_file_name("scratch"),
                 ROOMY,
-                Box::new(|_, _| {}),
+                Box::new(|_, _, _| {}),
             ),
             told,
             report: Arc::new(move |progress| {
@@ -1757,7 +1858,7 @@ fn main() {
             exe.to_path_buf(),
             exe.with_file_name("scratch"),
             ROOMY,
-            Box::new(move |file, lut| {
+            Box::new(move |_, file, lut| {
                 let _ = tell.lock().unwrap().send((file.to_path_buf(), lut.size));
             }),
         );
@@ -1985,6 +2086,97 @@ fn main() {
         heard.queue.stop_all();
         assert_eq!(heard.next().outcome, LookOutcome::Cancelled);
         wait_for("the run stopped", || !heard.queue.is_busy());
+    }
+
+    #[test]
+    fn an_export_waits_for_the_file() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let never = AtomicBool::new(false);
+        let got = heard.queue.wait_for(
+            subject(&photo.to_string_lossy()),
+            "cam1".to_string(),
+            "look1".to_string(),
+            &never,
+        );
+        assert_eq!(got, LookOutcome::Done);
+        assert!(look_file_of_photo(&photo).is_file());
+    }
+
+    #[test]
+    fn an_export_gets_on_when_the_look_fails() {
+        let exe = fake("crash");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let never = AtomicBool::new(false);
+        let got = heard.queue.wait_for(
+            subject(&photo.to_string_lossy()),
+            "cam1".to_string(),
+            "look1".to_string(),
+            &never,
+        );
+        assert_eq!(got, LookOutcome::Failed);
+    }
+
+    #[test]
+    fn a_cancelled_export_stops_waiting_and_kills_the_run() {
+        let exe = fake("slow");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let token = Arc::new(AtomicBool::new(false));
+        let waiting = {
+            let (queue, token) = (Arc::clone(&heard.queue), Arc::clone(&token));
+            let subject = subject(&photo.to_string_lossy());
+            std::thread::spawn(move || {
+                queue.wait_for(subject, "cam1".to_string(), "look1".to_string(), &token)
+            })
+        };
+        wait_for("the run started", || calls(&exe) == 1);
+        token.store(true, Ordering::SeqCst);
+        assert_eq!(waiting.join().expect("wait"), LookOutcome::Cancelled);
+        wait_for("the run stopped", || !heard.queue.is_busy());
+    }
+
+    /// The open photo and its export can wait for the same file.
+    #[test]
+    fn everyone_waiting_for_a_photo_hears() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.ask(&photo, 1);
+        let export = {
+            let queue = Arc::clone(&heard.queue);
+            let subject = subject(&photo.to_string_lossy());
+            std::thread::spawn(move || {
+                let never = AtomicBool::new(false);
+                queue.wait_for(subject, "cam1".to_string(), "look1".to_string(), &never)
+            })
+        };
+        wait_for("both wait", || {
+            heard
+                .queue
+                .state()
+                .items()
+                .any(|item| item.waiters.len() == 2)
+        });
+        release(&exe);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(export.join().expect("wait"), LookOutcome::Done);
+        assert_eq!(calls(&exe), 1);
+    }
+
+    #[test]
+    fn a_look_file_is_found_for_a_photo_and_its_virtual_copy() {
+        let exe = fake("good");
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let name = photo.to_string_lossy();
+        assert!(!file_is_there(&name, "cam1", "look1"));
+        write_png(&look_file_of_photo(&photo), 512);
+        assert!(file_is_there(&name, "cam1", "look1"));
+        assert!(file_is_there(&format!("{name}?vc=a1b2c3"), "cam1", "look1"));
+        assert!(!file_is_there(&name, "cam2", "look1"));
+        assert!(!file_is_there(&name, "../cam1", "look1"));
     }
 
     #[test]

@@ -7,6 +7,7 @@ import { useUIStore } from '../store/useUIStore';
 import { useSettingsStore } from '../store/useSettingsStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { Adjustments, COPYABLE_ADJUSTMENT_KEYS } from '../utils/adjustments';
+import { takeFromPaste } from '../argentum/looks/providerLooksStore';
 import { Invokes, Panel } from '../components/ui/AppProperties';
 import { debouncedSave } from './useEditorActions';
 import { globalImageCache } from '../utils/ImageLRUCache';
@@ -459,7 +460,8 @@ export function useImageProcessing(
             }
             if (Object.keys(delta).length > 0) {
               otherPaths.forEach((p) => globalImageCache.delete(p));
-              invoke(Invokes.ApplyAdjustmentsToPaths, { paths: otherPaths, adjustments: delta }).catch((err) => {
+              const synced = takeFromPaste(otherPaths, delta);
+              invoke(Invokes.ApplyAdjustmentsToPaths, { paths: otherPaths, adjustments: synced }).catch((err) => {
                 console.error('Failed to apply adjustments to multi-selection:', err);
               });
             }

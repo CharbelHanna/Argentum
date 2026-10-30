@@ -26,8 +26,26 @@ type Edit = Partial<Adjustments>;
 /** The rendering a look goes on with; the renderer fills in the photo's curve (mods/raw_tone.rs). */
 const LINEAR: RenderingBefore = { rawToneRendering: 'linear', rawToneCurve: null, rawToneCurveMode: null };
 
-const lookOf = (edit: Edit): ProviderLook | null =>
+/** The edit's provider look, or null. */
+export const lookOf = (edit: Edit): ProviderLook | null =>
   edit.lutPath === PROVIDER_LOOK_PATH ? (edit.agProviderLook ?? null) : null;
+
+/** The steps of a look's file: `GRID` in mods/lut_provider.rs. */
+const LOOK_STEPS = 64;
+
+/** What a provider look writes on a photo, through `lookOnto`, which fits it to the photo. */
+export const lookKeys = (camera: string, look: string, name: string): Edit => ({
+  lutPath: PROVIDER_LOOK_PATH,
+  lutName: name,
+  lutSize: LOOK_STEPS,
+  lutIntensity: 100,
+  lutIsSceneReferred: false,
+  agLutDeclaredInput: true,
+  agProviderLook: { camera, look, before: LINEAR },
+});
+
+/** Every key a provider look writes on a photo. */
+export const LOOK_KEYS = [...Object.keys(lookKeys('', '', '')), ...Object.keys(LINEAR), 'lutData'];
 
 const renderingOf = (edit: Edit): RenderingBefore => ({
   rawToneRendering: edit.rawToneRendering ?? null,

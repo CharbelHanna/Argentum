@@ -1,6 +1,9 @@
 /**
  * The Looks tab: presets, LUTs and film looks in one list. Ours.
  *
+ * With a provider set, its looks have a section above the lists, whose switch
+ * turns the lists off (ProviderLooks.tsx).
+ *
  * Search, Import, and chips for All, Favourites, Presets and LUTs; then the
  * LUTs suggested for the open photo, learned from the LUTs put on photos
  * before (suggestions.ts); then what
@@ -67,7 +70,9 @@ import { type AgKey, useAgTranslation } from '../locales';
 import { leaveCommunity, openCommunity, useCommunity, useCommunityOverPhoto } from './community';
 import { lutKeys } from './filmLookInput';
 import { presetAt } from './presetAmount';
-import { lookOnto, providerLookOff } from './providerLook';
+import { lookOf, lookOnto, PROVIDER_LOOK_PATH, providerLookOff } from './providerLook';
+import ProviderLooks, { OnPhotoLook } from './ProviderLooks';
+import { regularLooksAreOff, restoreLook, restoreLooks, useProviderLooks } from './providerLooksStore';
 import { type LutEntry, useLooks } from './looksStore';
 import { type Light, MIN_PICKS, SHOWN, type Suggested, type Suggestion, useSuggested } from './suggestions';
 
@@ -183,6 +188,8 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const photo = useEditorStore((s) => (editing || overCommunity ? s.selectedImage : null));
   const setEditor = useEditorStore((s) => s.setEditor);
   const { builtin, luts, libraries, favourites, applied, load, refreshLuts, toggleFavourite, setApplied } = useLooks();
+  const regularOff = useProviderLooks(regularLooksAreOff);
+  const cancelProviderLook = useProviderLooks((s) => s.cancel);
   const {
     presets: userItems,
     importPresetsFromFiles,
@@ -358,6 +365,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
 
   /** The LUT onto the open photo, at full strength. */
   const putOnLut = async (lut: LutEntry) => {
+    if (photo) cancelProviderLook(photo.path);
     try {
       const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: lut.path });
       setAdjustments((prev: Adjustments) => ({
@@ -375,6 +383,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   };
 
   const clearLut = () => {
+    if (photo) cancelProviderLook(photo.path);
     setAdjustments((prev: Adjustments) => ({
       ...prev,
       ...providerLookOff(prev),
@@ -437,6 +446,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         }),
       );
       paths.forEach((p) => globalImageCache.delete(p));
+      if (lookOf(changes)) restoreLooks(paths, changes);
       // In one call unless a photo's own values differ.
       const same = new Map<string, { paths: string[]; adjustments: Partial<Adjustments> }>();
       for (const { path, own } of before) {
@@ -496,6 +506,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     const preset = lookOnto(before, look.preset);
     setAdjustments(() => ({ ...before, ...presetAt(before, preset, 100) }));
     setApplied({ photo: photo.path, id: look.id, name: look.name, adjustments: preset, before, amount: 100 });
+    restoreLook(photo.path, preset);
   };
 
   const changeAmount = (amount: number) => {
@@ -1066,8 +1077,10 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         </div>
       </div>
 
+      <ProviderLooks photo={photo?.path ?? null} ready={!!photo?.isReady} onTakeOff={clearLut} />
+
       {showSuggested && suggested && (
-        <div className="agm-suggest" onMouseLeave={stopPreview}>
+        <div className={clsx('agm-suggest', regularOff && 'agm-looks-off')} onMouseLeave={stopPreview}>
           <div className="agm-sec-head" onClick={() => (suggested.learning ? toggle('suggested') : undefined)}>
             {suggested.learning && (open.has('suggested') ? <ChevronDown size={12} /> : <ChevronRight size={12} />)}
             <span className="min-w-0 truncate">{t(suggested.learning ? 'looksSuggested' : 'looksSuggestedOff')}</span>
@@ -1117,7 +1130,14 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       {photo && (lutOn || adjustments.lutPath || onPhoto) && (
         <div className="agm-onphoto">
           <div className="agm-sec-head">{t('looksOnPhoto')}</div>
-          {adjustments.lutPath && (
+          {adjustments.lutPath === PROVIDER_LOOK_PATH && (
+            <OnPhotoLook
+              photo={photo.path}
+              onStrength={(lutIntensity) => setAdjustments((prev: Adjustments) => ({ ...prev, lutIntensity }))}
+              onTakeOff={clearLut}
+            />
+          )}
+          {adjustments.lutPath && adjustments.lutPath !== PROVIDER_LOOK_PATH && (
             <div className="agm-onphoto-item">
               <div className="agm-look agm-on">
                 <span
@@ -1175,7 +1195,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
         </div>
       )}
 
-      <div className="agm-looks-list" onMouseLeave={stopPreview}>
+      <div className={clsx('agm-looks-list', regularOff && 'agm-looks-off')} onMouseLeave={stopPreview}>
         {flatList ? (
           shownFlat.length ? (
             shownFlat.map((look) => row(look, true))

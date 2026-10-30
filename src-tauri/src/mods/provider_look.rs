@@ -95,6 +95,24 @@ pub fn carry_to_enlargement(adjustments: &mut Value, photo: &Path, enlarged: &Pa
     });
 }
 
+/// Settings pasted onto a photo, which may be a photo the interface does not
+/// have open: a LUT in them replaces the look on the photo, which gives back
+/// the rendering it replaced. Call before the pasted keys go in, so a rendering
+/// among them still wins.
+pub fn give_way_to_paste(edit: &mut Value, pasted: &Value) {
+    let brings_a_lut = pasted
+        .get("lutPath")
+        .is_some_and(|path| path.as_str() != Some(MARKER));
+    if !brings_a_lut || edit["lutPath"].as_str() != Some(MARKER) {
+        return;
+    }
+    let before = edit[KEY]["before"].take();
+    for key in ["rawToneRendering", "rawToneCurve", "rawToneCurveMode"] {
+        edit[key] = before[key].clone();
+    }
+    edit[KEY] = Value::Null;
+}
+
 /// The LUT in `file`, through the cache; None once the file is gone, whatever
 /// the cache still holds.
 fn load_look_file(cache: &Mutex<LutCache>, file: &Path) -> Option<Arc<Lut>> {
@@ -242,6 +260,44 @@ mod tests {
         std::fs::write(&file, "not a picture").expect("file");
         let cache = Mutex::new(LutCache::default());
         assert!(load_look_file(&cache, &file).is_none());
+    }
+
+    fn with_look_on() -> Value {
+        let mut js = edit("cam1", "abc");
+        js[KEY]["before"] = json!({
+            "rawToneRendering": "baseCurve",
+            "rawToneCurve": [{ "x": 0.0, "y": 0.0 }, { "x": 255.0, "y": 255.0 }],
+            "rawToneCurveMode": "baseCurve",
+        });
+        js["rawToneRendering"] = json!("linear");
+        js
+    }
+
+    #[test]
+    fn a_pasted_lut_gives_the_photo_its_rendering_back() {
+        let mut js = with_look_on();
+        give_way_to_paste(&mut js, &json!({ "lutPath": "film.cube" }));
+        assert_eq!(js["rawToneRendering"], "baseCurve");
+        assert_eq!(js["rawToneCurveMode"], "baseCurve");
+        assert_eq!(js["rawToneCurve"].as_array().expect("curve").len(), 2);
+        assert_eq!(js[KEY], Value::Null);
+    }
+
+    #[test]
+    fn a_paste_with_no_lut_leaves_the_look_on() {
+        let mut js = with_look_on();
+        let before = js.clone();
+        give_way_to_paste(&mut js, &json!({ "exposure": 1.0 }));
+        give_way_to_paste(&mut js, &json!({ "lutPath": MARKER }));
+        assert_eq!(js, before);
+    }
+
+    #[test]
+    fn a_paste_onto_a_photo_with_no_look_changes_nothing() {
+        let mut js = json!({ "lutPath": "old.cube", "rawToneRendering": "default" });
+        let before = js.clone();
+        give_way_to_paste(&mut js, &json!({ "lutPath": "film.cube" }));
+        assert_eq!(js, before);
     }
 
     #[test]

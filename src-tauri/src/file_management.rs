@@ -2584,6 +2584,8 @@ pub async fn apply_adjustments_to_paths(
                 metadata.adjustments = default_adjustments();
             }
 
+            crate::mods::provider_look::give_way_to_paste(&mut metadata.adjustments, &adjustments);
+
             if let (Some(new_map), Some(pasted_map)) = (
                 metadata.adjustments.as_object_mut(),
                 adjustments.as_object(),
