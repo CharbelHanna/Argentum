@@ -3,9 +3,8 @@
 //! An optional setting, `lutProvider` in `argentum-processing.json`, names one
 //! local program. Argentum never ships or writes that field: only a hand edit
 //! adds it, and absent or empty means off, with nothing shown and nothing run.
-//! The protocol is in docs/LUT_PROVIDER.md: one run per request, one word on
-//! the command line, one JSON object on stdin and one on stdout. A run that
-//! never starts costs nothing.
+//! One run per request, one word on the command line, one JSON object on stdin
+//! and one on stdout. A run that never starts costs nothing.
 //!
 //! Only this module runs the program, and nothing here can write the field, so
 //! no command, edit or answer can choose what runs. An edit can only name a

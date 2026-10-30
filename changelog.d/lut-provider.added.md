@@ -1,1 +1,0 @@
-- Looks can come from a local program named by hand in `argentum-processing.json`, off unless added. Protocol: `docs/LUT_PROVIDER.md`.

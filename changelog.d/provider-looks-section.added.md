@@ -1,1 +1,0 @@
-- The Looks tab shows a Provider looks section when a local LUT provider is set; with none set nothing changes.
