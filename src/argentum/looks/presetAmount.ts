@@ -17,6 +17,8 @@
  *   mixes in a straight line like any number.
  */
 
+import { PROVIDER_LOOK_KEY, sameProviderLook } from './providerLook';
+
 type Values = Record<string, unknown>;
 type Point = { x: number; y: number };
 
@@ -57,6 +59,8 @@ function mixHue(from: number, to: number, fraction: number): number {
 const GRADING = 'colorGrading';
 
 function mixValue(path: string[], from: unknown, to: unknown, fraction: number): unknown {
+  // One look, never parts of two.
+  if (path[0] === PROVIDER_LOOK_KEY) return fraction > 0 ? to : from;
   if (typeof to === 'number') {
     if (typeof from !== 'number') return fraction > 0 ? to : from;
     const wheelHue = path[0] === GRADING && path[path.length - 1] === 'hue';
@@ -85,7 +89,7 @@ function mixValues(before: Values, preset: Values, fraction: number, path: strin
  * its own LUT, or to no LUT at all.
  */
 function bringsItsOwnLut(before: Values, preset: Values): boolean {
-  return typeof preset.lutPath === 'string' && preset.lutPath !== before.lutPath;
+  return typeof preset.lutPath === 'string' && (preset.lutPath !== before.lutPath || !sameProviderLook(before, preset));
 }
 
 /**

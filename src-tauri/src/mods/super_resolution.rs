@@ -1037,6 +1037,11 @@ fn write_super_resolution_sidecar(
             Some(&source_path.to_string_lossy()),
         );
     }
+    crate::mods::provider_look::carry_to_enlargement(
+        &mut metadata.adjustments,
+        source_path,
+        output_path,
+    );
     let frame = Frame::of(&metadata.adjustments, enlarged);
     carry_masks(&mut metadata.adjustments, &frame);
     strip_non_transferable_adjustments(&mut metadata.adjustments);

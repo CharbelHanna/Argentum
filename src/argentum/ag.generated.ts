@@ -560,6 +560,11 @@ export type Progress = {
 id: string, done: number, total: number, };
 
 /**
+ * A provider look as an edit holds it, under `agProviderLook`.
+ */
+export type ProviderLook = { camera: string, look: string, before: RenderingBefore, };
+
+/**
  * A radial function sampled at increasing radii. Radius 0 is the
  * correction's optical centre (`LensCorrection::centre`) and 1 is half of
  * the image diagonal, so an off-centre correction's farthest corner lies
@@ -571,6 +576,11 @@ export type Radial = { knots: Array<number>, values: Array<number>, };
 export type RawDecoder = "rawler" | "flashraw";
 
 export type RawToneArgs = { path: string, mode: string, };
+
+/**
+ * The rendering a provider look replaced on its photo.
+ */
+export type RenderingBefore = { rawToneRendering: string | null, rawToneCurve: Array<ToneCurvePoint> | null, rawToneCurveMode: string | null, };
 
 export type RestoreMaskArgs = { path: string, mask: number, };
 

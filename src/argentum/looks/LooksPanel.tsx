@@ -67,6 +67,7 @@ import { type AgKey, useAgTranslation } from '../locales';
 import { leaveCommunity, openCommunity, useCommunity, useCommunityOverPhoto } from './community';
 import { lutKeys } from './filmLookInput';
 import { presetAt } from './presetAmount';
+import { lookOnto, providerLookOff } from './providerLook';
 import { type LutEntry, useLooks } from './looksStore';
 import { type Light, MIN_PICKS, SHOWN, type Suggested, type Suggestion, useSuggested } from './suggestions';
 
@@ -346,9 +347,11 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     hover.current = window.setTimeout(() => {
       const now = useEditorStore.getState().adjustments;
       if (look.lut) {
-        setEditor({ previewOverride: { ...now, ...lutKeys(look.lut.path, look.lut.isBuiltIn) } });
+        setEditor({
+          previewOverride: { ...now, ...providerLookOff(now), ...lutKeys(look.lut.path, look.lut.isBuiltIn) },
+        });
       } else if (look.preset) {
-        setEditor({ previewOverride: { ...now, ...presetAt(now, look.preset, 100) } });
+        setEditor({ previewOverride: { ...now, ...presetAt(now, lookOnto(now, look.preset), 100) } });
       }
     }, PREVIEW_AFTER_MS);
   };
@@ -359,6 +362,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       const { size } = await invoke<{ size: number }>('load_and_parse_lut', { path: lut.path });
       setAdjustments((prev: Adjustments) => ({
         ...prev,
+        ...providerLookOff(prev),
         ...lutKeys(lut.path, lut.isBuiltIn),
         lutSize: size,
         lutIntensity: 100,
@@ -373,6 +377,7 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
   const clearLut = () => {
     setAdjustments((prev: Adjustments) => ({
       ...prev,
+      ...providerLookOff(prev),
       lutPath: null,
       lutName: null,
       lutData: null,
@@ -416,18 +421,31 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
       } else if (look.preset) {
         changes = look.preset;
       } else return;
-      const keys = Object.keys(changes) as (keyof Adjustments)[];
       const before = await Promise.all(
         paths.map(async (path) => {
           const meta = await invoke<{ adjustments?: Partial<Adjustments> | null }>('load_metadata', { path }).catch(
             () => null,
           );
           const was = meta?.adjustments ?? {};
-          return { path, values: Object.fromEntries(keys.map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null])) };
+          const own = lookOnto(was, changes);
+          const keys = Object.keys(own) as (keyof Adjustments)[];
+          return {
+            path,
+            own,
+            values: Object.fromEntries(keys.map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null])),
+          };
         }),
       );
       paths.forEach((p) => globalImageCache.delete(p));
-      await invoke(Invokes.ApplyAdjustmentsToPaths, { paths, adjustments: changes });
+      // In one call unless a photo's own values differ.
+      const same = new Map<string, { paths: string[]; adjustments: Partial<Adjustments> }>();
+      for (const { path, own } of before) {
+        const key = JSON.stringify(own);
+        const group = same.get(key);
+        if (group) group.paths.push(path);
+        else same.set(key, { paths: [path], adjustments: own });
+      }
+      await Promise.all([...same.values()].map((group) => invoke(Invokes.ApplyAdjustmentsToPaths, group)));
       // A preset kept with Auto white balance: each photo measured for its own light.
       const auto = (changes as { whiteBalanceAuto?: AutoMarker }).whiteBalanceAuto;
       if (auto?.photo)
@@ -475,8 +493,9 @@ export default function LooksPanel({ editing }: { editing: boolean }) {
     // One preset at a time: the one on comes off before the next goes on.
     const now = useEditorStore.getState().adjustments;
     const before = onPhoto ? { ...now, ...presetAt(onPhoto.before, onPhoto.adjustments, 0) } : now;
-    setAdjustments(() => ({ ...before, ...presetAt(before, look.preset as Partial<Adjustments>, 100) }));
-    setApplied({ photo: photo.path, id: look.id, name: look.name, adjustments: look.preset, before, amount: 100 });
+    const preset = lookOnto(before, look.preset);
+    setAdjustments(() => ({ ...before, ...presetAt(before, preset, 100) }));
+    setApplied({ photo: photo.path, id: look.id, name: look.name, adjustments: preset, before, amount: 100 });
   };
 
   const changeAmount = (amount: number) => {

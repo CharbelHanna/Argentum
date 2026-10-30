@@ -473,7 +473,7 @@ fn parse_3dl(reader: impl BufRead) -> anyhow::Result<Lut> {
     Ok(Lut { size, data })
 }
 
-fn parse_hald(image: DynamicImage) -> anyhow::Result<Lut> {
+pub fn parse_hald(image: DynamicImage) -> anyhow::Result<Lut> {
     let (width, height) = image.dimensions();
     if width != height {
         return Err(anyhow!(

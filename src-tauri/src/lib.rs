@@ -677,8 +677,7 @@ fn process_preview_job(
         render,
         Some(loaded_image.path.as_str()),
     );
-    let lut_path = adjustments_clone["lutPath"].as_str();
-    let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+    let lut = crate::mods::provider_look::lut_of_edit(&state, &adjustments_clone, &loaded_image.path);
 
     let wants_analytics = !(is_interactive && pixel_roi.is_some()) && request_analytics;
     let channel_filter = if is_interactive {
@@ -1033,8 +1032,7 @@ async fn generate_uncropped_preview(
             Some(path.as_str()),
         );
         uncropped_adjustments.global.show_clipping = 0;
-        let lut_path = adjustments_clone["lutPath"].as_str();
-        let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+        let lut = crate::mods::provider_look::lut_of_edit(&state, &adjustments_clone, &path);
 
         let full_hash = calculate_full_job_hash(&path, &adjustments_clone);
 
@@ -1142,8 +1140,7 @@ fn generate_preset_preview(
         Some(loaded_image.path.as_str()),
     );
     all_adjustments.global.show_clipping = 0;
-    let lut_path = js_adjustments["lutPath"].as_str();
-    let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+    let lut = crate::mods::provider_look::lut_of_edit(&state, &js_adjustments, &loaded_image.path);
 
     let processed_image = process_and_get_dynamic_image(
         &context,
@@ -1304,8 +1301,7 @@ async fn generate_all_community_previews(
                 render,
                 Some(tile_path.as_str()),
             );
-            let lut_path = js_adjustments["lutPath"].as_str();
-            let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+            let lut = crate::mods::provider_look::lut_of_edit(&state, js_adjustments, tile_path);
 
             let unique_hash = preset_hash.wrapping_add(i as u64);
 
@@ -1594,8 +1590,7 @@ async fn generate_preview_for_path(
             Some(source_path_str.as_str()),
         );
         all_adjustments.global.show_clipping = 0;
-        let lut_path = js_adjustments["lutPath"].as_str();
-        let lut = lut_path.and_then(|p| lut_processing::get_or_load_lut(&state, p).ok());
+        let lut = crate::mods::provider_look::lut_of_edit(&state, &js_adjustments, &source_path_str);
         let unique_hash = calculate_full_job_hash(&source_path_str, &js_adjustments);
 
         let final_image = process_and_get_dynamic_image(

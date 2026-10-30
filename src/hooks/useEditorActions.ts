@@ -23,6 +23,7 @@ import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cr
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { builtinKeys } from '../argentum/lensBuiltin';
+import { providerLookOff } from '../argentum/looks/providerLook';
 import { fileNameOf } from '../argentum/paths';
 
 export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
@@ -235,6 +236,7 @@ export function useEditorActions() {
         const name = fileNameOf(path) || 'LUT';
         setAdjustments((prev: Adjustments) => ({
           ...prev,
+          ...providerLookOff(prev),
           lutPath: path,
           lutName: name,
           lutSize: result.size,
@@ -257,6 +259,7 @@ export function useEditorActions() {
         return {
           previewOverride: {
             ...state.adjustments,
+            ...providerLookOff(state.adjustments),
             lutPath: path,
             lutName: name,
             lutIntensity: state.adjustments.lutIntensity,

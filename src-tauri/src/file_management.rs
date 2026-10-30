@@ -1637,8 +1637,7 @@ pub fn generate_thumbnail_data(
             resolve_render_options(&settings, is_raw),
             Some(source_path_str.as_str()),
         );
-        let lut_path = meta.adjustments["lutPath"].as_str();
-        let lut = lut_path.and_then(|p| crate::lut_processing::get_or_load_lut(&state, p).ok());
+        let lut = crate::mods::provider_look::lut_of_edit(&state, &meta.adjustments, &source_path_str);
 
         let mut hasher = DefaultHasher::new();
         path_str.hash(&mut hasher);

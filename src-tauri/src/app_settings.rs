@@ -175,7 +175,7 @@ pub fn all_available_adjustments() -> HashSet<String> {
         "cameraProfile", // Argentum: our keys that Copy settings carries, mods/copy_keys.rs
         "rawToneRendering",
         "agSharpen",
-        "whiteBalanceAuto", "agBlackWhite", "agLutDeclaredInput",
+        "whiteBalanceAuto", "agBlackWhite", "agLutDeclaredInput", "agProviderLook",
     ]
     .iter()
     .map(|s| s.to_string())

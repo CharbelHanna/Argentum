@@ -115,6 +115,8 @@ fn generated_path() -> PathBuf {
 fn typescript() -> String {
     let mut commands = Commands::default();
     crate::mods::dispatch::visit_commands(&mut commands);
+    // Kept in the edit, which no command types.
+    commands.reach::<crate::mods::provider_look::ProviderLook>();
 
     let mut out = String::from(
         "// Generated from the `commands!` table in src-tauri/src/mods/dispatch.rs\n\
