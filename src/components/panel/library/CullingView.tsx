@@ -14,7 +14,6 @@ import {
   X,
   Check,
   Plus,
-  SlidersHorizontal,
   Info,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -32,6 +31,7 @@ import { useLibraryActions } from '../../../hooks/useLibraryActions';
 import { COLOR_LABELS, Color } from '../../../utils/adjustments';
 import { expandGroupedPaths } from '../../../utils/imageGrouping';
 import { IconAperture, IconFocalLength, IconIso, IconShutter } from '../editor/ExifIcons';
+import EditMark from '../../../argentum/looks/EditMark';
 import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../../argentum/paths';
 
 interface SyncViewport {
@@ -826,7 +826,7 @@ function CullingPreview({
           <div className="rounded-full h-5 px-1.5 flex items-center justify-center gap-0 shadow-md bg-surface/30 pointer-events-auto shrink-0 ml-1">
             {showEditIcon && (
               <div className="text-white flex items-center shrink-0">
-                <SlidersHorizontal size={12} />
+                <EditMark hasProviderLook={image.has_provider_look} />
               </div>
             )}
 
@@ -992,6 +992,7 @@ const Row = React.memo(
             tags={image.tags}
             exif={image.exif}
             isEdited={image.is_edited}
+            hasProviderLook={image.has_provider_look}
             aspectRatio={thumbnailAspectRatio}
             isCloudPlaceholder={image.is_cloud_placeholder}
           />
