@@ -1,0 +1,1 @@
+- A photo whose LUT file is missing no longer renders black: it shows without the look. LUTs kept in memory are now limited to 32, about 100 MB.
