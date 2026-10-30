@@ -131,9 +131,7 @@ pub async fn sample_processed_pixel(
     // be read back as if it were the colour of the picture.
     all.global.show_clipping = 0;
 
-    let lut = adjustments["lutPath"]
-        .as_str()
-        .and_then(|p| crate::lut_processing::get_or_load_lut(&state, p).ok());
+    let lut = crate::mods::provider_look::lut_of_edit(&state, &adjustments, &loaded.path);
 
     // A distinct hash, so this never collides with the preview's own cache entry.
     let hash = crate::cache_utils::calculate_full_job_hash(&loaded.path, &adjustments)

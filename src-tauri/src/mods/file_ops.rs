@@ -8,9 +8,9 @@
 //! files those are and where they go, and do only the disk work themselves:
 //!
 //! - [`is_sidecar_of`]: which `.agdata` files hold a photo's edits.
-//! - [`is_look_file_of`] and [`look_file_copies`]: which `.lut.png` files are
-//!   a photo's, and where a copy's go. Such a file is never a photo, and it
-//!   being there applies nothing.
+//! - [`look_file_for`], [`is_look_file_of`] and [`look_file_copies`]: which
+//!   `.lut.png` files are a photo's, and where a copy's go. Such a file is never
+//!   a photo, and it being there applies nothing.
 //! - [`files_to_delete_with_associated`]: what "Delete with associated" trashes.
 //! - [`xmp_still_used`] and [`xmp_after_rename`]: the XMP a RAW and its JPEG
 //!   share stays with the one that stays (ours).
@@ -87,11 +87,20 @@ pub fn is_sidecar_of(file_name: &str, image_name: &str) -> bool {
 
 /// Whether `part` can be the camera or look in a look file's name:
 /// `^[a-z0-9][a-z0-9-]{0,15}$`.
-fn is_look_name_part(part: &str) -> bool {
+pub fn is_look_name_part(part: &str) -> bool {
     let alphanumeric = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit();
     part.len() <= 16
         && part.starts_with(alphanumeric)
         && part.chars().all(|c| alphanumeric(c) || c == '-')
+}
+
+/// The look file of `photo` for this camera and look, beside it, the only
+/// place that writes such a name. None when `camera` or `look` could not be
+/// part of one.
+pub fn look_file_for(photo: &Path, camera: &str, look: &str) -> Option<PathBuf> {
+    let photo_name = photo.file_name()?.to_str()?;
+    (is_look_name_part(camera) && is_look_name_part(look))
+        .then(|| photo.with_file_name(format!("{photo_name}.{camera}.{look}.lut.png")))
 }
 
 /// The photo `file_name` is a look file of, the only place that reads such a
@@ -498,6 +507,22 @@ mod tests {
 
     fn text(path: &Path) -> String {
         path.to_string_lossy().into_owned()
+    }
+
+    #[test]
+    fn a_look_files_name_is_read_back_as_its_photos() {
+        let file = look_file_for(Path::new("/photos/IMG.CR2"), "cam-1", "abc").expect("a name");
+        assert_eq!(file, Path::new("/photos/IMG.CR2.cam-1.abc.lut.png"));
+        let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(is_look_file_of(name, "IMG.CR2"));
+        assert_eq!(
+            look_file_for(Path::new("/photos/IMG.CR2"), "../x", "abc"),
+            None
+        );
+        assert_eq!(
+            look_file_for(Path::new("/photos/IMG.CR2"), "cam1", "A"),
+            None
+        );
     }
 
     #[test]

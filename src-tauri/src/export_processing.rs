@@ -33,9 +33,7 @@ use crate::image_processing::{
     get_all_adjustments_from_json, get_or_init_gpu_context, process_and_get_dynamic_image,
     resolve_render_options_from_handle,
 };
-use crate::lut_processing::{
-    convert_image_to_cube_lut, generate_identity_lut_image, get_or_load_lut,
-};
+use crate::lut_processing::{convert_image_to_cube_lut, generate_identity_lut_image};
 use crate::mask_generation::{MaskDefinition, build_warped_image_for_masks, generate_mask_bitmap};
 
 use crate::as_shot::as_shot;
@@ -47,6 +45,7 @@ use crate::mods::{
         render_for_export,
         set_runtime_depth,
     },
+    provider_look::lut_of_edit,
 };
 use crate::{
     apply_all_transformations, generate_transformed_preview, get_cached_or_generate_mask,
@@ -947,8 +946,7 @@ fn process_image_for_export_pipeline(
         get_all_adjustments_from_json(js_adjustments, is_raw, as_shot(path), render, Some(path));
     all_adjustments.global.show_clipping = 0;
 
-    let lut_path = js_adjustments["lutPath"].as_str();
-    let lut = lut_path.and_then(|p| get_or_load_lut(state, p).ok());
+    let lut = lut_of_edit(state, js_adjustments, path);
 
     let unique_hash = calculate_full_job_hash(path, js_adjustments);
 
@@ -1225,8 +1223,7 @@ fn export_masks_for_image(
         let render = resolve_render_options_from_handle(app_handle, is_raw);
         let all_adjustments =
             get_all_adjustments_from_json(js_adjustments, is_raw, as_shot(source_path_str), render, Some(source_path_str));
-        let lut_path = js_adjustments["lutPath"].as_str();
-        let lut = lut_path.and_then(|p| get_or_load_lut(state, p).ok());
+        let lut = lut_of_edit(state, js_adjustments, source_path_str);
         let unique_hash = calculate_full_job_hash(source_path_str, js_adjustments);
         let output_dir = output_path_obj.parent().unwrap_or(output_path_obj);
         let stem = output_path_obj
@@ -1337,8 +1334,7 @@ fn export_adjustments_as_lut(
     all_adjustments.global.chromatic_aberration_red_cyan = 0.0;
     all_adjustments.global.chromatic_aberration_blue_yellow = 0.0;
 
-    let lut_path = js_adjustments["lutPath"].as_str();
-    let lut = lut_path.and_then(|p| get_or_load_lut(state, p).ok());
+    let lut = lut_of_edit(state, js_adjustments, source_path_str);
     let unique_hash = calculate_full_job_hash(source_path_str, js_adjustments);
 
     let processed_lut = process_and_get_dynamic_image(
@@ -2068,9 +2064,7 @@ pub async fn estimate_export_sizes(
             get_all_adjustments_from_json(&adjustments_clone, is_raw, loaded_image.as_shot, render, Some(source_path_str.as_str()));
         all_adjustments.global.show_clipping = 0;
 
-        let lut = adjustments_clone["lutPath"]
-            .as_str()
-            .and_then(|p| get_or_load_lut(&state, p).ok());
+        let lut = lut_of_edit(&state, &adjustments_clone, &source_path_str);
         let unique_hash =
             calculate_full_job_hash(&loaded_image.path, &adjustments_clone).wrapping_add(1);
 
@@ -2207,9 +2201,7 @@ pub async fn estimate_export_sizes(
         );
         all_adjustments.global.show_clipping = 0;
 
-        let lut = js_adjustments["lutPath"]
-            .as_str()
-            .and_then(|p| get_or_load_lut(&state, p).ok());
+        let lut = lut_of_edit(&state, &js_adjustments, &source_path_str);
         let unique_hash =
             calculate_full_job_hash(&source_path_str, &js_adjustments).wrapping_add(1);
 

@@ -78,6 +78,7 @@ const LUT_KEYS = [
   'lutSize',
   'lutIsSceneReferred',
   'agLutDeclaredInput',
+  'agProviderLook',
 ];
 
 /**
