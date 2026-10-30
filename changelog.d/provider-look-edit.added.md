@@ -1,1 +1,0 @@
-- An edit can name a look file kept beside its photo instead of a LUT path; moving, copying and enlarging the photo keep the look.
