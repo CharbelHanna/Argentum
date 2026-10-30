@@ -63,6 +63,7 @@ mod look_check;
 pub mod look_picks;
 pub mod looks;
 pub mod lut_cache;
+pub mod lut_provider;
 pub mod makernote_lens;
 pub mod mask_falloff;
 pub mod memory;

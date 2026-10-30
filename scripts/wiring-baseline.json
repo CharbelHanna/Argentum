@@ -1,6 +1,6 @@
 {
   "uncalledCommands": [],
-  "uncalledAg": [],
+  "uncalledAg": ["provider_look_cancel", "provider_look_make", "provider_looks", "provider_looks_switch"],
   "cargoPackages": 827,
   "npmPackages": 409,
   "dist": {

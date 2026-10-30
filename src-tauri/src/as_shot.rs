@@ -10,6 +10,9 @@ use std::sync::{Mutex, OnceLock};
 pub struct AsShot {
     pub white_balance: WhiteBalance,
     pub exposure: RawExposure,
+    /// The white balance as the file holds it: R, G1, G2, B, with G1 at 1.
+    /// NaN when it holds none (mods/lut_provider.rs is what reads it).
+    pub wb_coeffs: [f32; 4],
 }
 
 impl AsShot {
@@ -17,6 +20,7 @@ impl AsShot {
         Self {
             white_balance: WhiteBalance::reference(),
             exposure: RawExposure::default(),
+            wb_coeffs: [1.0; 4],
         }
     }
 }

@@ -851,6 +851,26 @@ commands! {
     "set_looks_favourites" => (a: IdsArgs) -> () {
         crate::mods::looks::save_favourites(crate::mods::profiles::library_ready()?, &a.ids)?;
     }
+    "provider_looks" => (a: crate::mods::lut_provider::ProviderLooksArgs) -> Option<crate::mods::lut_provider::ProviderLooks> {
+        let app = app_handle.clone();
+        tauri::async_runtime::spawn_blocking(move || {
+            crate::mods::lut_provider::looks(&app, a.path.as_deref())
+        })
+        .await
+        .map_err(|e| e.to_string())?
+    }
+    "provider_look_make" => (a: crate::mods::lut_provider::ProviderLookMakeArgs) -> u64 {
+        let app = app_handle.clone();
+        tauri::async_runtime::spawn_blocking(move || crate::mods::lut_provider::make(&app, a))
+            .await
+            .map_err(|e| e.to_string())??
+    }
+    "provider_look_cancel" => (a: crate::mods::lut_provider::ProviderLookCancelArgs) -> () {
+        crate::mods::lut_provider::cancel(a.job_id);
+    }
+    "provider_looks_switch" => (a: crate::mods::lut_provider::ProviderLooksSwitchArgs) -> () {
+        crate::mods::lut_provider::switch(a.on)?;
+    }
     "look_suggestions" => (a: PathArgs) -> crate::mods::look_picks::Suggested {
         let loaded = the_open_photo(&state, &a.path)?;
         commands::look_suggestions(&a.path, &loaded)?

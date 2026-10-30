@@ -117,6 +117,8 @@ fn typescript() -> String {
     crate::mods::dispatch::visit_commands(&mut commands);
     // Kept in the edit, which no command types.
     commands.reach::<crate::mods::provider_look::ProviderLook>();
+    // An event's, which no command answers.
+    commands.reach::<crate::mods::lut_provider::LookProgress>();
 
     let mut out = String::from(
         "// Generated from the `commands!` table in src-tauri/src/mods/dispatch.rs\n\
