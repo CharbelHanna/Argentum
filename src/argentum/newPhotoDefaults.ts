@@ -25,7 +25,6 @@ import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useEditorStore } from '../store/useEditorStore';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { parseExifNumber } from '../components/panel/right/CropPanel';
 import { ag } from './ag';
 import { ask, type Found } from './lensBuiltin';
 import type { Adjustments } from '../utils/adjustments';
@@ -86,7 +85,7 @@ async function profileOnOpen(path: string, exif: Record<string, string>, isRaw: 
   open?.setEditor({ adjustments: { ...open.adjustments, cameraProfile: file } as Adjustments });
 }
 
-async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boolean, found: Found) {
+export async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boolean, found: Found) {
   const make = exif.Make?.trim();
   if (!make) {
     return;
@@ -110,9 +109,7 @@ async function lensOnOpen(path: string, exif: Record<string, string>, isRaw: boo
     ? await invoke('get_lens_distortion_params', {
         maker: detected[0],
         model: detected[1],
-        focalLength: parseExifNumber(exif.FocalLength),
-        aperture: parseExifNumber(exif.FNumber),
-        distance: parseExifNumber(exif.SubjectDistance),
+        exif,
       }).catch(unanswered)
     : null;
   const open = stillOpen(path);

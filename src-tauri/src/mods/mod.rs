@@ -59,6 +59,7 @@ pub mod input_stage;
 pub mod lens_builtin;
 pub mod lens_crop;
 pub mod lens_name;
+pub mod lens_shot;
 #[cfg(test)]
 mod look_check;
 pub mod look_picks;

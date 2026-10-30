@@ -1,8 +1,12 @@
 // How a new photo opens from My Lenses' "Correct new photos" (argentum/newPhotoDefaults.ts).
-import { describe, expect, it } from 'vitest';
-import { corrected, correctsOnOpen } from './newPhotoDefaults';
+import { describe, expect, it, vi } from 'vitest';
+import { invoke } from '@tauri-apps/api/core';
+import { corrected, correctsOnOpen, lensOnOpen } from './newPhotoDefaults';
+import { useSettingsStore } from '../store/useSettingsStore';
 import type { Found } from './lensBuiltin';
 import type { Adjustments } from '../utils/adjustments';
+
+vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }));
 
 const found = (fresh: boolean): Found => ({ correction: null, defaultOn: false, fresh });
 const lens = (correctNew?: boolean) => ({ maker: 'Canon', model: 'Canon RF 24-105mm F4L IS USM', correctNew });
@@ -15,6 +19,21 @@ describe('whether a photo opens corrected', () => {
     expect(correctsOnOpen(null, found(true), true)).toBe(false);
     expect(correctsOnOpen(lens(true), found(false), true)).toBe(false);
     expect(correctsOnOpen(lens(true), found(true), false)).toBe(false);
+  });
+});
+
+describe('the lens profile a new photo asks for', () => {
+  it('hands over the whole EXIF, so the app reads it as a save reads it', async () => {
+    const exif = { Make: 'Canon', Model: 'Canon EOS R6', LensModel: 'RF 50mm', FNumber: 'f/5.6', FocalLength: '50' };
+    const lens: [string, string] = ['Canon', 'Canon RF 50mm'];
+    vi.mocked(invoke).mockImplementation(async (command) => (command === 'autodetect_lens' ? lens : {}));
+    useSettingsStore.setState({
+      appSettings: { myLenses: [{ maker: lens[0], model: lens[1], correctNew: true }] },
+    } as never);
+
+    await lensOnOpen('photo.CR3', exif, true, found(true));
+
+    expect(invoke).toHaveBeenCalledWith('get_lens_distortion_params', { maker: lens[0], model: lens[1], exif });
   });
 });
 

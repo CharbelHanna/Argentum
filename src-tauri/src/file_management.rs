@@ -2055,38 +2055,11 @@ pub fn resolve_lens_params_in_adjustments(
                 map.get("lensModel").and_then(|v| v.as_str()),
             ) {
                 (Some(maker), Some(model)) if !maker.is_empty() && !model.is_empty() => {
-                    let mut focal_length = 50.0;
-                    let mut aperture = None;
-                    let mut distance = None;
-
-                    if let Some(exif) = exif_data {
-                        if let Some(fl_str) = exif
-                            .get("FocalLength")
-                            .or(exif.get("FocalLengthIn35mmFilm"))
-                            && let Ok(fl) = fl_str.replace(" mm", "").trim().parse::<f32>()
-                        {
-                            focal_length = fl;
-                        }
-                        if let Some(ap_str) = exif.get("ApertureValue").or(exif.get("FNumber"))
-                            && let Ok(ap) = ap_str.replace("f/", "").trim().parse::<f32>()
-                        {
-                            aperture = Some(ap);
-                        }
-                        if let Some(dist_str) = exif.get("SubjectDistance")
-                            && let Ok(dist) = dist_str.replace(" m", "").trim().parse::<f32>()
-                        {
-                            distance = Some(dist);
-                        }
-                    }
-
-                    if let Some(params) = crate::lens_correction::resolve_lens_params(
-                        db,
-                        maker,
-                        model,
-                        focal_length,
-                        aperture,
-                        distance,
-                    ) {
+                    let no_exif = HashMap::new();
+                    let exif = exif_data.as_ref().unwrap_or(&no_exif);
+                    if let Some(params) =
+                        crate::lens_correction::resolve_lens_params(db, maker, model, exif)
+                    {
                         map.insert(
                             "lensDistortionParams".to_string(),
                             serde_json::to_value(params).unwrap(),
