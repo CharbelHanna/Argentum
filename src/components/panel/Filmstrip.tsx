@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
-import { Image as ImageIcon, Star, SlidersHorizontal } from 'lucide-react';
+import { Image as ImageIcon, Star } from 'lucide-react';
 import clsx from 'clsx';
 import { Grid, useGridCallbackRef } from 'react-window';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +12,7 @@ import { useProcessStore } from '../../store/useProcessStore';
 import { useSettingsStore } from '../../store/useSettingsStore';
 import { useLibraryStore } from '../../store/useLibraryStore';
 import { useDraggable } from '@dnd-kit/core';
+import EditMark from '../../argentum/looks/EditMark';
 import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../argentum/paths';
 
 const HORIZONTAL_PADDING = 4;
@@ -81,7 +82,7 @@ const FilmstripThumbnail = memo(
 
     const isInitialLoad = useRef(true);
 
-    const { path, tags, is_edited: isEdited, flag } = imageFile;
+    const { path, tags, is_edited: isEdited, has_provider_look: hasProviderLook, flag } = imageFile;
 
     const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
       id: `filmstrip-image-${path}`,
@@ -256,7 +257,7 @@ const FilmstripThumbnail = memo(
                 hasEditIcon ? 'max-w-3 opacity-100 scale-100' : 'max-w-0 opacity-0 scale-75 pointer-events-none',
               )}
             >
-              <SlidersHorizontal size={12} />
+              <EditMark hasProviderLook={hasProviderLook} />
             </div>
 
             <div

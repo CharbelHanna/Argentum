@@ -56,13 +56,23 @@ pub struct RenderingBefore {
     pub raw_tone_curve_mode: Option<String>,
 }
 
-/// The file of the provider look `js` has on `photo`; None for an edit with
-/// none, or one whose ids could not be part of a file name.
-pub fn look_file(js: &Value, photo: &str) -> Option<PathBuf> {
+/// The provider look `js` has on, or None: `lookOf` in providerLook.ts.
+fn look_of(js: &Value) -> Option<ProviderLook> {
     if js["lutPath"].as_str() != Some(MARKER) {
         return None;
     }
-    let look = ProviderLook::deserialize(&js[KEY]).ok()?;
+    ProviderLook::deserialize(&js[KEY]).ok()
+}
+
+/// Whether `js` has a provider look on.
+pub fn has_look(js: &Value) -> bool {
+    look_of(js).is_some()
+}
+
+/// The file of the provider look `js` has on `photo`; None for an edit with
+/// none, or one whose ids could not be part of a file name.
+pub fn look_file(js: &Value, photo: &str) -> Option<PathBuf> {
+    let look = look_of(js)?;
     file_ops::look_file_for(&parse_virtual_path(photo).0, &look.camera, &look.look)
 }
 
