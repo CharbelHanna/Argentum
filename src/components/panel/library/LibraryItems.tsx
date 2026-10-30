@@ -1,15 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import {
-  Ban,
-  Flag,
-  Image as ImageIcon,
-  Folder,
-  FolderOpen,
-  Star as StarIcon,
-  SlidersHorizontal,
-  CloudOff,
-  Layers,
-} from 'lucide-react';
+import { Ban, Flag, Image as ImageIcon, Folder, FolderOpen, Star as StarIcon, CloudOff, Layers } from 'lucide-react';
 import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useDraggable } from '@dnd-kit/core';
@@ -23,6 +13,7 @@ import { useProcessStore } from '../../../store/useProcessStore';
 import { useSettingsStore } from '../../../store/useSettingsStore';
 import { useLibraryStore } from '../../../store/useLibraryStore';
 import { IconAperture, IconFocalLength, IconIso, IconShutter } from '../editor/ExifIcons';
+import EditMark from '../../../argentum/looks/EditMark';
 import { fileNameOf, isVirtualCopyPath, physicalPathOf } from '../../../argentum/paths';
 
 interface ImageLayer {
@@ -46,6 +37,7 @@ const ThumbnailComponent = ({
   tags,
   aspectRatio: thumbnailAspectRatio,
   isEdited,
+  hasProviderLook,
   exif,
   isCloudPlaceholder,
   groupBadgeLabel,
@@ -303,7 +295,7 @@ const ThumbnailComponent = ({
               hasEditIcon ? 'max-w-3 opacity-100 scale-100' : 'max-w-0 opacity-0 scale-75 pointer-events-none',
             )}
           >
-            <SlidersHorizontal size={12} />
+            <EditMark hasProviderLook={hasProviderLook} />
           </div>
 
           <div
@@ -1036,6 +1028,7 @@ const RowComponent = ({
                 tags={imageFile.tags}
                 exif={imageFile.exif}
                 isEdited={imageFile.is_edited}
+                hasProviderLook={imageFile.has_provider_look}
                 aspectRatio={thumbnailAspectRatio}
                 isCloudPlaceholder={imageFile.is_cloud_placeholder}
                 groupBadgeLabel={imageFile.group_id && groupBadgeInfo?.get(imageFile.group_id)?.label}
