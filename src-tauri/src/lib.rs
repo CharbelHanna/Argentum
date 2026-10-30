@@ -2480,6 +2480,7 @@ pub fn run() {
                 tauri::RunEvent::ExitRequested { api, code, .. } => {
                     api.prevent_exit();
                     let code = resolve_exit_code(code, process_exit_code());
+                    mods::lut_provider::stop_all();
 
                     #[cfg(target_os = "macos")]
                     unsafe { libc::_exit(code); }
@@ -2489,6 +2490,7 @@ pub fn run() {
                 }
                 tauri::RunEvent::Exit => {
                     let code = process_exit_code();
+                    mods::lut_provider::stop_all();
 
                     #[cfg(target_os = "macos")]
                     unsafe { libc::_exit(code); }

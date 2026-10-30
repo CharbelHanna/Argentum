@@ -103,7 +103,7 @@ pub fn linear_curve_for_photo(photo: Option<&str>) -> Vec<ToneCurvePoint> {
 /// The photo's exposure offset, read from the file's metadata once per photo
 /// and kept, since every render of the photo asks again. Without a readable
 /// photo, the table's median.
-fn offset_for_photo(photo: Option<&str>) -> f32 {
+pub(crate) fn offset_for_photo(photo: Option<&str>) -> f32 {
     use std::collections::HashMap;
     use std::sync::Mutex;
     static KEPT: OnceLock<Mutex<HashMap<String, f32>>> = OnceLock::new();

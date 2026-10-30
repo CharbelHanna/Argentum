@@ -405,9 +405,24 @@ other: Array<Leftover>,
 downloading: Progress | null, };
 
 /**
+ * A look's file that is already beside a photo.
+ */
+export type LookFile = { camera: string, look: string, };
+
+/**
+ * What became of one photo's request.
+ */
+export type LookOutcome = "done" | "cancelled" | "failed" | "unsupported" | "folder";
+
+/**
  * The open photo and the LUT just put on it (its path).
  */
 export type LookPickArgs = { path: string, lut: string, };
+
+/**
+ * One photo's result, as the interface hears it.
+ */
+export type LookProgress = { jobId: number, path: string, camera: string, look: string, outcome: LookOutcome, };
 
 /**
  * A photo to measure Auto white balance on, and the photo a pasted Auto came from.
@@ -493,6 +508,16 @@ export type ObjectArgs = {
 jsAdjustments: unknown, clicks: Array<Click>, bounds: Bounds | null, rotation: number, flipHorizontal: boolean, flipVertical: boolean, orientationSteps: number, };
 
 /**
+ * A camera the program offers.
+ */
+export type OfferedCamera = { id: string, name: string, make: string, model: string, };
+
+/**
+ * A look the program offers.
+ */
+export type OfferedLook = { id: string, name: string, group: string | null, };
+
+/**
  * An old edit found on disk, and what it becomes.
  */
 export type OldWhiteBalanceEdit = { path: string, 
@@ -536,6 +561,15 @@ export type PathsArgs = { paths: Array<string>, };
 export type PhotoDecoderArgs = { path: string, decoder: RawDecoder | null, };
 
 /**
+ * What the open photo can have.
+ */
+export type PhotoLooks = { 
+/**
+ * Its own camera on the list.
+ */
+camera: string, files: Array<LookFile>, };
+
+/**
  * The folder a file dialog opens in: the open photo's, when there is one.
  */
 export type PickArgs = { from: string | null, };
@@ -563,6 +597,32 @@ id: string, done: number, total: number, };
  * A provider look as an edit holds it, under `agProviderLook`.
  */
 export type ProviderLook = { camera: string, look: string, before: RenderingBefore, };
+
+export type ProviderLookCancelArgs = { jobId: number, };
+
+export type ProviderLookMakeArgs = { paths: Array<string>, 
+/**
+ * None for each photo's own camera.
+ */
+camera: string | null, look: string, remake: boolean, front: boolean, };
+
+/**
+ * What the provider offers.
+ */
+export type ProviderLooks = { cameras: Array<OfferedCamera>, looks: Array<OfferedLook>, 
+/**
+ * The switch.
+ */
+on: boolean, 
+/**
+ * None for no photo, a photo that is not a RAW, or one from no camera on
+ * the list: no provider looks show for it.
+ */
+photo: PhotoLooks | null, };
+
+export type ProviderLooksArgs = { path: string | null, };
+
+export type ProviderLooksSwitchArgs = { on: boolean, };
 
 /**
  * A radial function sampled at increasing radii. Radius 0 is the
@@ -735,6 +795,10 @@ export interface AgCommands {
   modern_start: { args: ModernStartArgs; answer: ModernStart };
   modern_theme: { args: Record<string, never>; answer: ModernTheme };
   profiles_for_camera: { args: ModelArgs; answer: CameraProfiles };
+  provider_look_cancel: { args: ProviderLookCancelArgs; answer: null };
+  provider_look_make: { args: ProviderLookMakeArgs; answer: number };
+  provider_looks: { args: ProviderLooksArgs; answer: ProviderLooks | null };
+  provider_looks_switch: { args: ProviderLooksSwitchArgs; answer: null };
   raw_decoder: { args: Record<string, never>; answer: RawDecoder };
   raw_tone_curve: { args: RawToneArgs; answer: Array<ToneCurvePoint> };
   recover_lens_name: { args: PathArgs; answer: string | null };

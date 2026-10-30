@@ -247,6 +247,10 @@ pub fn read_as_shot(file_bytes: &[u8]) -> Option<AsShot> {
             .flatten()
             .unwrap_or_else(WhiteBalance::reference),
         exposure: crate::baseline_exposure::read(decoder.as_ref(), file_bytes, is_monochrome),
+        wb_coeffs: crate::multi_exposure::neutralize_wb_if_multiexposure(
+            raw_image.wb_coeffs,
+            file_bytes,
+        ),
     })
 }
 
