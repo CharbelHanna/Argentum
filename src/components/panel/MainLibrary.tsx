@@ -19,6 +19,9 @@ import { useLibraryStore } from '../../store/useLibraryStore';
 
 import LibraryGrid from './library/LibraryGrid';
 import ModernEmpty from '../../argentum/modern/ModernEmpty';
+import NoPhotosMatch from '../../argentum/modern/NoPhotosMatch';
+import { activeFilterNames } from '../../argentum/modern/shownFilters';
+import { useAgTranslation } from '../../argentum/locales';
 
 export interface ColumnWidths {
   thumbnail: number;
@@ -68,6 +71,10 @@ export default function MainLibrary(props: MainLibraryProps) {
   const libraryDisplayMode = props.appSettings?.libraryDisplayMode || LibraryDisplayMode.Grid;
 
   const searchCriteria = useLibraryStore((state) => state.searchCriteria);
+  const activeFilters = activeFilterNames(
+    useLibraryStore((state) => state.filterCriteria),
+    useAgTranslation(),
+  );
 
   const translatedThumbnailSizeOptions = useMemo(
     () => [
@@ -130,6 +137,8 @@ export default function MainLibrary(props: MainLibraryProps) {
             {!props.appSettings?.enableAiTagging && t('library.search.noResultsAiHint')}
           </Text>
         </div>
+      ) : activeFilters ? (
+        <NoPhotosMatch filters={activeFilters} onContextMenu={props.onEmptyAreaContextMenu} />
       ) : (
         <div className="flex-1 flex flex-col items-center justify-center" onContextMenu={props.onEmptyAreaContextMenu}>
           <SlidersHorizontal className="h-12 w-12 mb-4 text-text-secondary" />

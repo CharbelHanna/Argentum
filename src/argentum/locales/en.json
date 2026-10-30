@@ -246,6 +246,8 @@
   "mwEmptyTitle": "Pick a folder on the left",
   "mwEmptyNote": "Every disk is under This computer. Nothing is imported or copied.",
   "mwEmptyPaste": "Or paste a path in the bar above",
+  "mwNoMatch": "No photos match: {filters}",
+  "mwClearFilters": "Show all",
   "mwNoDisks": "No disk could be listed. Paste a folder's path in the bar above to open it.",
   "mwSettingsClose": "Close (Esc)",
   "mwSettingsKeys": "Esc closes · Ctrl+, opens",

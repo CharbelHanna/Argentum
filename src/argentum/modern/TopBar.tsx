@@ -35,6 +35,7 @@ import { useAgTranslation, type AgKey } from '../locales';
 import VersionNote from './VersionNote';
 import { crumbs } from './folders';
 import { Menu, MenuHead, MenuItem, MenuSep } from './Menu';
+import { SHOW_CHOICES, TYPE_CHOICES, activeFilterNames } from './shownFilters';
 import WindowControls, { MacLights, usePlatform } from './WindowControls';
 import { fileNameOf } from '../paths';
 
@@ -260,6 +261,7 @@ function GridTools(p: TopBarProps) {
     })),
   );
   const sortLabel = SORTS.find((s) => s.key === sortCriteria.key)?.label ?? 'mwSortName';
+  const filters = activeFilterNames(filterCriteria, t);
   const grouping = appSettings?.grouping ?? 'off';
   const exif = appSettings?.exifOverlay ?? ExifOverlay.Off;
   const setting = (change: object) => appSettings && handleSettingsChange({ ...appSettings, ...change });
@@ -307,7 +309,7 @@ function GridTools(p: TopBarProps) {
         onChange={(e) => p.setThumbnailSize(SIZES[Number(e.target.value)])}
         data-tooltip={t('mwSize')}
       />
-      <Menu label={t('mwView')}>
+      <Menu label={filters ? `${t('mwView')}: ${filters}` : t('mwView')}>
         {() => (
           <>
             <MenuItem
@@ -366,13 +368,7 @@ function GridTools(p: TopBarProps) {
               </MenuItem>
             ))}
             <MenuHead>{t('mwShow')}</MenuHead>
-            {(
-              [
-                [EditedStatus.All, 'mwShowAll'],
-                [EditedStatus.EditedOnly, 'mwShowEdited'],
-                [EditedStatus.UneditedOnly, 'mwShowUnedited'],
-              ] as const
-            ).map(([value, label]) => (
+            {SHOW_CHOICES.map(([value, label]) => (
               <MenuItem
                 key={value}
                 checked={(filterCriteria.editedStatus ?? EditedStatus.All) === value}
@@ -382,13 +378,7 @@ function GridTools(p: TopBarProps) {
               </MenuItem>
             ))}
             <MenuHead>{t('mwTypes')}</MenuHead>
-            {(
-              [
-                [RawStatus.All, 'mwTypesAll'],
-                [RawStatus.RawOnly, 'mwTypesRaw'],
-                [RawStatus.NonRawOnly, 'mwTypesOther'],
-              ] as const
-            ).map(([value, label]) => (
+            {TYPE_CHOICES.map(([value, label]) => (
               <MenuItem
                 key={value}
                 checked={(filterCriteria.rawStatus ?? RawStatus.All) === value}
