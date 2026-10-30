@@ -1943,6 +1943,10 @@ impl GpuProcessor {
         let sharpen_writes = crate::mods::sharpen_gpu::writes();
 
         let mut adjustments = request.adjustments;
+        // Argentum: the edit can name a LUT that did not load; the dummy texture is black.
+        if request.lut.is_none() {
+            adjustments.global.has_lut = 0;
+        }
         // Argentum: Lightroom's grading for the blocks marked so, theirs for the rest.
         if let Some(curves) = crate::mods::color_grade::move_to_curves(&mut adjustments) {
             queue.write_buffer(&self.ag_grade_curves_buffer, 0, bytemuck::cast_slice(&curves));

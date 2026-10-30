@@ -590,7 +590,7 @@ pub fn convert_image_to_cube_lut(image: &DynamicImage, size: u32) -> Result<Vec<
 pub fn get_or_load_lut(state: &State<AppState>, path: &str) -> Result<Arc<Lut>, String> {
     let mut cache = state.lut_cache.lock().unwrap();
     if let Some(lut) = cache.get(path) {
-        return Ok(lut.clone());
+        return Ok(lut);
     }
 
     let lut = parse_lut_file(path).map_err(|e| e.to_string())?;
@@ -969,4 +969,52 @@ pub fn load_and_parse_lut(path: String, state: State<AppState>) -> Result<LutPar
     cache.insert(path, Arc::new(lut));
 
     Ok(LutParseResult { size: lut_size })
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::mods::dng_standard::gpu::{centre, device, image_of, render_with_lut};
+    use crate::mods::film_lut;
+    use crate::white_balance::WhiteBalance;
+    use serde_json::json;
+
+    /// A LUT whose file is gone reaches the render as none, while the edit
+    /// still names it: the photo shows as it does with no look on, at either
+    /// place a look goes on.
+    #[test]
+    #[ignore = "needs a GPU; run with --ignored"]
+    fn a_look_whose_file_is_gone_leaves_the_photo_as_it_is() {
+        const PATCHES: [[f32; 3]; 4] = [
+            [0.18, 0.18, 0.18],
+            [0.9, 0.9, 0.9],
+            [0.6, 0.05, 0.03],
+            [0.04, 0.12, 0.7],
+        ];
+        let ctx = device().expect("no wgpu adapter");
+        let render = |js| {
+            let out = render_with_lut(
+                &ctx,
+                &image_of(&PATCHES),
+                js,
+                WhiteBalance::reference(),
+                None,
+            );
+            (0..PATCHES.len())
+                .map(|i| centre(&out, i))
+                .collect::<Vec<_>>()
+        };
+        let no_look = json!({
+            "rawToneRendering": "default",
+            "agSharpen": { "capture": false, "amount": 0 },
+        });
+        let want = render(no_look.clone());
+        for scene_referred in [false, true] {
+            let mut js = no_look.clone();
+            js["lutPath"] = json!("gone.cube");
+            js["lutIntensity"] = json!(100);
+            js["lutIsSceneReferred"] = json!(scene_referred);
+            js[film_lut::KEY] = json!(true);
+            assert_eq!(render(js), want, "scene-referred: {scene_referred}");
+        }
+    }
 }

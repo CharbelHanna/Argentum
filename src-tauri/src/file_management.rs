@@ -1638,18 +1638,7 @@ pub fn generate_thumbnail_data(
             Some(source_path_str.as_str()),
         );
         let lut_path = meta.adjustments["lutPath"].as_str();
-        let lut = lut_path.and_then(|p| {
-            let mut cache = state.lut_cache.lock().unwrap();
-            if let Some(cached_lut) = cache.get(p) {
-                return Some(cached_lut.clone());
-            }
-            if let Ok(loaded_lut) = crate::lut_processing::parse_lut_file(p) {
-                let arc_lut = Arc::new(loaded_lut);
-                cache.insert(p.to_string(), arc_lut.clone());
-                return Some(arc_lut);
-            }
-            None
-        });
+        let lut = lut_path.and_then(|p| crate::lut_processing::get_or_load_lut(&state, p).ok());
 
         let mut hasher = DefaultHasher::new();
         path_str.hash(&mut hasher);
