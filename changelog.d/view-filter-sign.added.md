@@ -1,0 +1,1 @@
+- An active library filter now shows: the View button names it, and when it leaves the grid empty the grid says "No photos match" with a Show all action that clears it.
