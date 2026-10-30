@@ -23,7 +23,8 @@ import { calculateAutoCropForRotation, calculateCenteredCrop } from '../utils/cr
 import { Invokes, SelectedImage } from '../components/ui/AppProperties';
 import { globalImageCache } from '../utils/ImageLRUCache';
 import { builtinKeys } from '../argentum/lensBuiltin';
-import { providerLookOff } from '../argentum/looks/providerLook';
+import { lookOnto, providerLookOff } from '../argentum/looks/providerLook';
+import { takeFromPaste } from '../argentum/looks/providerLooksStore';
 import { fileNameOf } from '../argentum/paths';
 
 export const debouncedSetHistory = debounce((newAdj: Adjustments) => {
@@ -420,11 +421,13 @@ export function useEditorActions() {
 
       pathsToUpdate.forEach((p) => globalImageCache.delete(p));
 
+      const pasted = takeFromPaste(pathsToUpdate, adjustmentsToApply);
+
       if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
-        setAdjustments({ ...adjustments, ...adjustmentsToApply });
+        setAdjustments({ ...adjustments, ...lookOnto(adjustments, pasted) });
       }
 
-      invoke(Invokes.ApplyAdjustmentsToPaths, { paths: pathsToUpdate, adjustments: adjustmentsToApply })
+      invoke(Invokes.ApplyAdjustmentsToPaths, { paths: pathsToUpdate, adjustments: pasted })
         .then(() => {
           if (selectedImage && pathsToUpdate.includes(selectedImage.path)) {
             invoke('load_metadata', { path: selectedImage.path }).then((meta: any) => {

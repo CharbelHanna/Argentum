@@ -407,7 +407,7 @@ downloading: Progress | null, };
 /**
  * A look's file that is already beside a photo.
  */
-export type LookFile = { camera: string, look: string, };
+export type LookFile = { camera: string, look: string, path: string, };
 
 /**
  * What became of one photo's request.
@@ -599,6 +599,8 @@ id: string, done: number, total: number, };
 export type ProviderLook = { camera: string, look: string, before: RenderingBefore, };
 
 export type ProviderLookCancelArgs = { jobId: number, };
+
+export type ProviderLookFileArgs = { path: string, camera: string, look: string, };
 
 export type ProviderLookMakeArgs = { paths: Array<string>, 
 /**
@@ -796,6 +798,7 @@ export interface AgCommands {
   modern_theme: { args: Record<string, never>; answer: ModernTheme };
   profiles_for_camera: { args: ModelArgs; answer: CameraProfiles };
   provider_look_cancel: { args: ProviderLookCancelArgs; answer: null };
+  provider_look_file: { args: ProviderLookFileArgs; answer: boolean };
   provider_look_make: { args: ProviderLookMakeArgs; answer: number };
   provider_looks: { args: ProviderLooksArgs; answer: ProviderLooks | null };
   provider_looks_switch: { args: ProviderLooksSwitchArgs; answer: null };

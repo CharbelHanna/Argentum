@@ -246,6 +246,8 @@ const AG = {
   // The Looks tab: no presets of its own, nothing starred.
   builtin_presets: empty,
   looks_favourites: empty,
+  // No provider set, as for everyone who has not added one.
+  provider_looks: none,
   lens_builtin: () => ({ correction: null, defaultOn: false }),
   dng_standard_held_back: none,
   highlight_recovery: () => false,

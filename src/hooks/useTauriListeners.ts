@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { convertFileSrc } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
+import { agText } from '../argentum/locales';
 import { Status } from '../components/ui/ExportImportProperties';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorStore } from '../store/useEditorStore';
@@ -160,6 +161,9 @@ export function useTauriListeners({
       }),
       listen('batch-export-progress', (event: any) => {
         if (isEffectActive) useProcessStore.getState().setExportState({ progress: event.payload });
+      }),
+      listen<number>('provider-look-export-missing', (event) => {
+        if (isEffectActive) toast.info(agText('looksProviderExportMissing').replace('{count}', String(event.payload)));
       }),
       listen('export-complete', () => {
         if (isEffectActive) useProcessStore.getState().setExportState({ status: Status.Success });

@@ -865,6 +865,9 @@ commands! {
             .await
             .map_err(|e| e.to_string())??
     }
+    "provider_look_file" => (a: crate::mods::lut_provider::ProviderLookFileArgs) -> bool {
+        crate::mods::lut_provider::file_is_there(&a.path, &a.camera, &a.look)
+    }
     "provider_look_cancel" => (a: crate::mods::lut_provider::ProviderLookCancelArgs) -> () {
         crate::mods::lut_provider::cancel(a.job_id);
     }

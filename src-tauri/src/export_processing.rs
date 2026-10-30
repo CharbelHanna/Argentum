@@ -1394,6 +1394,7 @@ pub(crate) async fn export_images_impl(
 
     let context = Arc::new(context);
     let progress_counter = Arc::new(AtomicUsize::new(0));
+    let looks_missing = Arc::new(AtomicUsize::new(0));
 
     let available_cores = std::thread::available_parallelism()
         .map(|n| n.get())
@@ -1472,6 +1473,7 @@ pub(crate) async fn export_images_impl(
             let app_handle_clone = app_handle.clone();
             let context_clone = Arc::clone(&context);
             let progress_counter_clone = Arc::clone(&progress_counter);
+            let looks_missing_clone = Arc::clone(&looks_missing);
             let output_folder_path = output_folder_path.to_path_buf();
             let base_origin_folders = base_origin_folders.clone();
             let export_settings = export_settings.clone();
@@ -1516,6 +1518,14 @@ pub(crate) async fn export_images_impl(
                 };
 
                 hydrate_adjustments(&state, &mut js_adjustments);
+                if !crate::mods::lut_provider::look_file_ready(
+                    &app_handle_clone,
+                    &js_adjustments,
+                    &image_path_str,
+                    &cancellation_token_clone,
+                ) {
+                    looks_missing_clone.fetch_add(1, Ordering::SeqCst);
+                }
                 let is_raw = is_raw_file(&source_path_str);
                 let original_path = std::path::Path::new(&source_path_str);
                 let file_date = exif_processing::get_creation_date_from_path(original_path);
@@ -1766,6 +1776,11 @@ pub(crate) async fn export_images_impl(
                     log::info!("Batch export cancelled and worker cleanup completed");
                     let _ = app_handle.emit("export-cancelled", ());
                     return;
+                }
+
+                let looks_missing = looks_missing.load(Ordering::SeqCst);
+                if looks_missing > 0 {
+                    let _ = app_handle.emit("provider-look-export-missing", looks_missing);
                 }
 
                 for error in &errors {

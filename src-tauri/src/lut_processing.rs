@@ -66,6 +66,9 @@ fn library_manifest_lock() -> std::sync::MutexGuard<'static, ()> {
 pub struct LutPreviewRequest {
     pub path: String,
     pub is_built_in: bool,
+    /// Argentum: a provider look, shown on the rendering it goes on with.
+    #[serde(default)]
+    pub linear: bool,
 }
 
 #[derive(Serialize)]
@@ -933,6 +936,9 @@ pub fn generate_lut_previews(
                 "lutIsSceneReferred": request.is_built_in,
                 "sectionVisibility": { "effects": true }
             });
+            if request.linear {
+                swatch_lut_json["rawToneRendering"] = crate::mods::dng_standard::LINEAR_MODE.into();
+            }
             mark_baseline_exposure(&mut swatch_lut_json);
             let swatch_adjustments = get_all_adjustments_from_json(
                 &swatch_lut_json,
