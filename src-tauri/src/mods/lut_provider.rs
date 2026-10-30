@@ -457,7 +457,8 @@ pub struct Subject {
     make: String,
     model: String,
     iso: Option<f32>,
-    /// As-shot white balance: R, G1, G2, B, with G1 at 1.
+    /// As-shot white balance as the program is sent it: R, G, G, B, at the
+    /// decoder's scale, where green is 1 in most formats but not all.
     wb: [f32; 4],
     /// The exposure offset Linear gives this photo.
     offset_ev: f32,
@@ -1021,6 +1022,20 @@ fn refresh_thumbnail(app: &AppHandle, photo: &str, file: &Path) {
     crate::file_management::regenerate_thumbnails(photos, app, &settings, true);
 }
 
+/// The white balance as the program is told of it, from the decoder's R, G, B
+/// and fourth colour; None for a photo with none.
+fn wb_for_program(c: [f32; 4]) -> Option<[f32; 4]> {
+    let wb = if c[3].is_nan() {
+        [c[0], c[1], c[1], c[2]]
+    } else {
+        c
+    };
+    if wb.iter().any(|c| c.is_nan()) {
+        return None;
+    }
+    Some(wb)
+}
+
 /// One photo, read for a request; None for anything but a RAW with a white
 /// balance.
 fn subject_of(photo: &str) -> Option<Subject> {
@@ -1030,10 +1045,7 @@ fn subject_of(photo: &str) -> Option<Subject> {
     }
     let bytes = read_file_mapped(&source).ok()?;
     let facts = dng_standard::facts(&bytes).ok()?;
-    let wb = crate::as_shot::as_shot(photo).wb_coeffs;
-    if wb.iter().any(|c| c.is_nan()) {
-        return None;
-    }
+    let wb = wb_for_program(crate::as_shot::as_shot(photo).wb_coeffs)?;
     Some(Subject {
         photo: photo.to_string(),
         make: facts.make,
@@ -1619,6 +1631,30 @@ fn main() {
             wb: [1.8, 1.0, 1.0, 1.6],
             offset_ev: 0.25,
         }
+    }
+
+    /// A three-colour photo's white balance arrives as R, G, B, NaN, and that
+    /// NaN does not mean the photo has none.
+    #[test]
+    fn a_three_colour_white_balance_reaches_the_program_with_green_twice() {
+        for [r, g, b] in [[1.8, 1.0, 1.6], [1.5, 1.0, 2.25]] {
+            assert_eq!(wb_for_program([r, g, b, f32::NAN]), Some([r, g, g, b]));
+        }
+    }
+
+    #[test]
+    fn a_photo_with_no_white_balance_is_refused() {
+        assert_eq!(wb_for_program([f32::NAN; 4]), None);
+        assert_eq!(wb_for_program([1.8, f32::NAN, 1.6, 1.0]), None);
+    }
+
+    /// Four real numbers are not reshaped; the default for an unread file is
+    /// four ones.
+    #[test]
+    fn four_real_numbers_pass_unchanged() {
+        assert_eq!(wb_for_program([1.0; 4]), Some([1.0; 4]));
+        let four = [1.8, 1.0, 1.0, 1.6];
+        assert_eq!(wb_for_program(four), Some(four));
     }
 
     /// What a run of `kind` gives, and whether it left its scratch file.
