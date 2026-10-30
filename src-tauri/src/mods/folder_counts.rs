@@ -48,6 +48,14 @@ mod tests {
     }
 
     #[test]
+    fn a_look_file_is_not_counted() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("a.dng"), b"").unwrap();
+        fs::write(dir.path().join("a.dng.cam1.abc.lut.png"), b"").unwrap();
+        assert_eq!(photo_count(dir.path()), 1);
+    }
+
+    #[test]
     fn a_folder_that_is_not_there_holds_none() {
         let dir = tempfile::tempdir().unwrap();
         assert_eq!(photo_count(&dir.path().join("gone")), 0);

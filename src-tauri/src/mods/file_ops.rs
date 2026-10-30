@@ -2,12 +2,15 @@
 //! changes. Ours.
 //!
 //! A photo travels with its files: its edits (`IMG.CR2.agdata`, and one
-//! `IMG.CR2.<id>.agdata` per virtual copy), its EXIF cache (`IMG.CR2.agexif`)
-//! and its XMP (`IMG.xmp`). Delete, copy, move and rename in
-//! `file_management.rs` ask this module which files those are and where they
-//! go, and do only the disk work themselves:
+//! `IMG.CR2.<id>.agdata` per virtual copy), its EXIF cache (`IMG.CR2.agexif`),
+//! its XMP (`IMG.xmp`) and its look files (`IMG.CR2.<camera>.<look>.lut.png`).
+//! Delete, copy, move and rename in `file_management.rs` ask this module which
+//! files those are and where they go, and do only the disk work themselves:
 //!
 //! - [`is_sidecar_of`]: which `.agdata` files hold a photo's edits.
+//! - [`is_look_file_of`] and [`look_file_copies`]: which `.lut.png` files are
+//!   a photo's, and where a copy's go. Such a file is never a photo, and it
+//!   being there applies nothing.
 //! - [`files_to_delete_with_associated`]: what "Delete with associated" trashes.
 //! - [`xmp_still_used`] and [`xmp_after_rename`]: the XMP a RAW and its JPEG
 //!   share stays with the one that stays (ours).
@@ -82,16 +85,69 @@ pub fn is_sidecar_of(file_name: &str, image_name: &str) -> bool {
     parse_sidecar_name(file_name).is_some_and(|(name, _)| name == image_name)
 }
 
+/// Whether `part` can be the camera or look in a look file's name:
+/// `^[a-z0-9][a-z0-9-]{0,15}$`.
+fn is_look_name_part(part: &str) -> bool {
+    let alphanumeric = |c: char| c.is_ascii_lowercase() || c.is_ascii_digit();
+    part.len() <= 16
+        && part.starts_with(alphanumeric)
+        && part.chars().all(|c| alphanumeric(c) || c == '-')
+}
+
+/// The photo `file_name` is a look file of, the only place that reads such a
+/// name: `IMG.CR2` for `IMG.CR2.cam1.abc.lut.png`. None for any other file,
+/// such as `my.film.lut.png`, which names no photo.
+pub fn photo_of_look_file(file_name: &str) -> Option<&str> {
+    let (rest, look) = file_name.strip_suffix(".lut.png")?.rsplit_once('.')?;
+    let (photo, camera) = rest.rsplit_once('.')?;
+    (is_look_name_part(camera) && is_look_name_part(look) && is_supported_image_file(photo))
+        .then_some(photo)
+}
+
+/// Whether the file `file_name` is a look file of the photo `image_name`
+/// beside it. The look file of `IMG.CR2` (`IMG.CR2.cam1.abc.lut.png`) is not
+/// `IMG.CR2.jpg`'s.
+pub fn is_look_file_of(file_name: &str, image_name: &str) -> bool {
+    photo_of_look_file(file_name) == Some(image_name)
+}
+
+/// Where each look file of `photo` goes when `photo` is copied to `copy` in
+/// the same folder or another.
+pub fn look_file_copies(photo: &Path, copy: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let (Some(folder), Some(photo_name), Some(copy_name)) = (
+        photo.parent(),
+        photo.file_name().and_then(|name| name.to_str()),
+        copy.file_name().and_then(|name| name.to_str()),
+    ) else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let file_name = entry.file_name();
+            let file_name = file_name.to_str()?;
+            is_look_file_of(file_name, photo_name).then(|| {
+                let new_name = file_name.replacen(photo_name, copy_name, 1);
+                (entry.path(), copy.with_file_name(new_name))
+            })
+        })
+        .collect()
+}
+
 /// The name without extension that ties `file_name` to a photo for "Delete
 /// with associated": `IMG` for `IMG.CR2`, `IMG.jpg`, `IMG.xmp`,
-/// `IMG.CR2.agexif`, `IMG.CR2.agdata` and `IMG.CR2.a1b2c3.agdata`. None for a
-/// file that is neither a photo nor one of its sidecars, which is never
-/// deleted.
+/// `IMG.CR2.agexif`, `IMG.CR2.agdata`, `IMG.CR2.a1b2c3.agdata` and
+/// `IMG.CR2.cam1.abc.lut.png`. None for a file that is neither a photo nor one
+/// of its sidecars, which is never deleted.
 // RapidRAW 52138689 (1.6.6): src-tauri/src/file_management.rs `deletion_stem_for`;
 // its virtual copy rule is now parse_sidecar_name's.
 fn delete_stem(file_name: &str) -> Option<&str> {
     let image_name = parse_sidecar_name(file_name)
         .map(|(name, _)| name)
+        .or_else(|| photo_of_look_file(file_name))
         .or_else(|| file_name.strip_suffix(".agexif"))
         .or_else(|| file_name.strip_suffix(".xmp"))
         .or_else(|| file_name.strip_suffix(".XMP"))
@@ -397,8 +453,9 @@ pub fn trash_or_delete(paths: &[PathBuf]) {
 mod tests {
     use super::*;
     use crate::file_management::{
-        copy_files, files_to_delete_from_disk, find_all_associated_files, finish_import,
-        move_files_on_disk, rename_files_on_disk, sync_metadata_from_xmp, sync_metadata_to_xmp,
+        copy_files, duplicate_file_on_disk, files_to_delete_from_disk, find_all_associated_files,
+        finish_import, move_files_on_disk, rename_files_on_disk, sync_metadata_from_xmp,
+        sync_metadata_to_xmp,
     };
     use crate::image_processing::ImageMetadata;
 
@@ -452,6 +509,387 @@ mod tests {
         assert!(is_sidecar_of("IMG.CR2.jpg.a1b2c3.agdata", "IMG.CR2.jpg"));
         assert!(!is_sidecar_of("IMG.CR2.agexif", "IMG.CR2"));
         assert!(!is_sidecar_of("IMG.CR2", "IMG.CR2"));
+    }
+
+    #[test]
+    fn look_files_belong_to_the_photo_with_exactly_that_name() {
+        assert!(is_look_file_of("IMG.CR2.cam1.abc.lut.png", "IMG.CR2"));
+        assert!(is_look_file_of("IMG.CR2.cam-2.look-2.lut.png", "IMG.CR2"));
+        assert!(is_look_file_of(
+            "IMG.CR2.a234567890123456.b234567890123456.lut.png",
+            "IMG.CR2"
+        ));
+        assert!(is_look_file_of("IMG.CR2.jpg.cam1.x.lut.png", "IMG.CR2.jpg"));
+        assert!(!is_look_file_of("IMG.CR2.cam1.x.lut.png", "IMG.CR2.jpg"));
+        assert!(!is_look_file_of("IMG.CR2.jpg.cam1.x.lut.png", "IMG.CR2"));
+        assert!(!is_look_file_of("IMG.CR2.cam1.x.lut.png", "IMG.CR3"));
+        assert!(!is_look_file_of("IMG.CR2.agdata", "IMG.CR2"));
+        assert!(!is_look_file_of("IMG.CR2", "IMG.CR2"));
+    }
+
+    #[test]
+    fn a_look_file_needs_both_parts_valid_and_the_exact_ending() {
+        for name in [
+            "IMG.CR2.lut.png",
+            "IMG.CR2..lut.png",
+            "IMG.CR2..abc.lut.png",
+            "IMG.CR2.cam1..lut.png",
+            "IMG.CR2.-cam.abc.lut.png",
+            "IMG.CR2.cam1.-abc.lut.png",
+            "IMG.CR2.CAM.abc.lut.png",
+            "IMG.CR2.cam1.ABC.lut.png",
+            "IMG.CR2.a_b.abc.lut.png",
+            "IMG.CR2.cam1.a b.lut.png",
+            "IMG.CR2.cam1.é.lut.png",
+            "IMG.CR2.a2345678901234567.abc.lut.png",
+            "IMG.CR2.cam1.a2345678901234567.lut.png",
+            "IMG.CR2.cam1.abc.LUT.PNG",
+            "IMG.CR2.cam1.abc.lut.jpg",
+            "IMG.CR2.cam1.abc.png",
+            "IMG.CR2.more.cam1.abc.lut.png",
+        ] {
+            assert!(!is_look_file_of(name, "IMG.CR2"), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_name_with_one_part_is_not_a_look_file() {
+        assert!(!is_look_file_of("IMG.CR2.abc.lut.png", "IMG.CR2"));
+        assert!(!is_look_file_of("IMG.cr2.abc.lut.png", "IMG.cr2"));
+        assert!(is_supported_image_file("IMG.CR2.abc.lut.png"));
+        assert!(is_supported_image_file("IMG.cr2.abc.lut.png"));
+    }
+
+    #[test]
+    fn a_look_file_is_not_a_photo_however_it_is_asked() {
+        // By name, as `list_images_in_dir` asks, and by whole path, as
+        // `list_images_recursive` and the counts do.
+        assert!(!is_supported_image_file("IMG.CR2.cam1.abc.lut.png"));
+        assert!(!is_supported_image_file("/p/IMG.CR2.cam1.abc.lut.png"));
+        assert!(!is_supported_image_file(Path::new(
+            "/p/IMG.CR2.cam1.abc.lut.png"
+        )));
+    }
+
+    #[test]
+    fn a_png_that_names_no_photo_stays_a_photo() {
+        for name in [
+            "IMG.png",
+            "IMG.CR2.png",
+            "film.lut.png",
+            "my.film.lut.png",
+            "an.other.film.lut.png",
+            "IMG.CR2.cam1.ABC.lut.png",
+            "unknown.ext.cam1.abc.lut.png",
+        ] {
+            assert!(is_supported_image_file(name), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_photos_look_files_are_found_with_its_other_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.CR2.cam1.y.lut.png",
+            "IMG.CR2.jpg",
+            "IMG.CR2.jpg.cam-2.z.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+        let found = |photo: &str| {
+            let mut names: Vec<String> = find_all_associated_files(&folder.join(photo))
+                .unwrap()
+                .iter()
+                .map(|file| file.file_name().unwrap().to_string_lossy().into_owned())
+                .collect();
+            names.sort();
+            names
+        };
+
+        assert_eq!(
+            found("IMG.CR2"),
+            [
+                "IMG.CR2",
+                "IMG.CR2.cam1.x.lut.png",
+                "IMG.CR2.cam1.y.lut.png"
+            ]
+        );
+        assert_eq!(
+            found("IMG.CR2.jpg"),
+            ["IMG.CR2.jpg", "IMG.CR2.jpg.cam-2.z.lut.png"]
+        );
+    }
+
+    #[test]
+    fn a_moved_photo_takes_its_look_files_and_leaves_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.jpg",
+            "IMG.jpg.cam1.x.lut.png",
+            "OTHER.CR2.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+        fs::create_dir_all(&target).unwrap();
+
+        move_files_on_disk(&[text(&folder.join("IMG.CR2"))], &text(&target)).unwrap();
+
+        assert_eq!(names_in(&target), ["IMG.CR2", "IMG.CR2.cam1.x.lut.png"]);
+        assert_eq!(
+            read(&target.join("IMG.CR2.cam1.x.lut.png")),
+            "IMG.CR2.cam1.x.lut.png"
+        );
+        assert_eq!(
+            names_in(&folder),
+            [
+                "IMG.jpg",
+                "IMG.jpg.cam1.x.lut.png",
+                "OTHER.CR2.cam1.x.lut.png"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_look_file_already_at_the_destination_stops_the_move() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.CR2.cam1.x.lut.png"), "new");
+        write(&target.join("IMG.CR2.cam1.x.lut.png"), "already there");
+
+        let moved = move_files_on_disk(&[text(&folder.join("IMG.CR2"))], &text(&target));
+
+        assert!(
+            moved
+                .unwrap_err()
+                .contains("File already exists at destination")
+        );
+        assert_eq!(
+            read(&target.join("IMG.CR2.cam1.x.lut.png")),
+            "already there"
+        );
+        assert_eq!(names_in(&folder), ["IMG.CR2", "IMG.CR2.cam1.x.lut.png"]);
+    }
+
+    #[test]
+    fn a_copied_photo_takes_its_look_files_to_another_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.CR2.jpg.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+        fs::create_dir_all(&target).unwrap();
+
+        copy_files(vec![text(&folder.join("IMG.CR2"))], text(&target)).unwrap();
+
+        assert_eq!(names_in(&target), ["IMG.CR2", "IMG.CR2.cam1.x.lut.png"]);
+        assert_eq!(
+            read(&target.join("IMG.CR2.cam1.x.lut.png")),
+            "IMG.CR2.cam1.x.lut.png"
+        );
+        assert_eq!(names_in(&folder).len(), 3);
+    }
+
+    #[test]
+    fn a_photo_copied_in_its_folder_gets_its_own_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.CR2.cam1.x.lut.png"), "look");
+        // A leftover of a deleted first copy: its name is taken.
+        write(&folder.join("IMG_copy_1.CR2.cam1.x.lut.png"), "leftover");
+
+        copy_files(vec![text(&folder.join("IMG.CR2"))], text(folder)).unwrap();
+
+        assert_eq!(read(&folder.join("IMG_copy_2.CR2.cam1.x.lut.png")), "look");
+        assert_eq!(read(&folder.join("IMG.CR2.cam1.x.lut.png")), "look");
+        assert_eq!(
+            read(&folder.join("IMG_copy_1.CR2.cam1.x.lut.png")),
+            "leftover"
+        );
+    }
+
+    #[test]
+    fn a_duplicated_photo_gets_its_own_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.CR2.cam1.y.lut.png",
+            "IMG.CR2.jpg.cam-2.z.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+
+        let copy = duplicate_file_on_disk(&text(&folder.join("IMG.CR2"))).unwrap();
+
+        assert_eq!(copy, text(&folder.join("IMG_copy.CR2")));
+        assert_eq!(
+            names_in(folder),
+            [
+                "IMG.CR2",
+                "IMG.CR2.cam1.x.lut.png",
+                "IMG.CR2.cam1.y.lut.png",
+                "IMG.CR2.jpg.cam-2.z.lut.png",
+                "IMG_copy.CR2",
+                "IMG_copy.CR2.cam1.x.lut.png",
+                "IMG_copy.CR2.cam1.y.lut.png",
+            ]
+        );
+        assert_eq!(
+            read(&folder.join("IMG_copy.CR2.cam1.y.lut.png")),
+            "IMG.CR2.cam1.y.lut.png"
+        );
+    }
+
+    #[test]
+    fn a_renamed_photo_takes_its_look_files_and_leaves_the_others() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.CR2.jpg",
+            "IMG.CR2.jpg.cam1.x.lut.png",
+            "OTHER.CR2.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+
+        rename_files_on_disk(&[text(&folder.join("IMG.CR2"))], "trip").unwrap();
+
+        assert_eq!(
+            names_in(folder),
+            [
+                "IMG.CR2.jpg",
+                "IMG.CR2.jpg.cam1.x.lut.png",
+                "OTHER.CR2.cam1.x.lut.png",
+                "trip.CR2",
+                "trip.CR2.cam1.x.lut.png",
+            ]
+        );
+        assert_eq!(
+            read(&folder.join("trip.CR2.cam1.x.lut.png")),
+            "IMG.CR2.cam1.x.lut.png"
+        );
+    }
+
+    /// A photo open in another program keeps its name, so its look file must
+    /// too.
+    #[cfg(windows)]
+    #[test]
+    fn a_photo_that_cannot_be_renamed_keeps_its_look_files() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join("IMG.CR2.cam1.x.lut.png"), "look");
+
+        let held = fs::OpenOptions::new()
+            .read(true)
+            .share_mode(0)
+            .open(folder.join("IMG.CR2"))
+            .unwrap();
+        rename_files_on_disk(&[text(&folder.join("IMG.CR2"))], "trip").unwrap();
+        drop(held);
+
+        assert_eq!(names_in(folder), ["IMG.CR2", "IMG.CR2.cam1.x.lut.png"]);
+    }
+
+    #[test]
+    fn a_deleted_photo_takes_its_look_files_and_a_virtual_copy_leaves_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.a1b2c3.agdata",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.CR2.jpg.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+        let photo = text(&folder.join("IMG.CR2"));
+
+        assert_eq!(
+            files_to_delete_from_disk(&[format!("{photo}?vc=a1b2c3")]),
+            [folder.join("IMG.CR2.a1b2c3.agdata")]
+        );
+        assert_eq!(
+            files_to_delete_from_disk(&[photo]),
+            [
+                folder.join("IMG.CR2"),
+                folder.join("IMG.CR2.a1b2c3.agdata"),
+                folder.join("IMG.CR2.cam1.x.lut.png"),
+            ]
+        );
+    }
+
+    #[test]
+    fn delete_with_associated_takes_the_look_files_of_every_photo_of_that_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.cam1.x.lut.png",
+            "IMG.jpg",
+            "IMG.jpg.cam-2.look-2.lut.png",
+            "IMG.CR2.jpg",
+            "IMG.CR2.jpg.cam1.x.lut.png",
+            "OTHER.CR2.cam1.x.lut.png",
+            "IMG.lut.png",
+            "IMG.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+
+        let trashed = files_to_delete_with_associated(&[text(&folder.join("IMG.CR2"))]);
+
+        let mut expected = vec![
+            folder.join("IMG.CR2"),
+            folder.join("IMG.CR2.cam1.x.lut.png"),
+            folder.join("IMG.jpg"),
+            folder.join("IMG.jpg.cam-2.look-2.lut.png"),
+        ];
+        expected.sort();
+        assert_eq!(trashed, expected);
+    }
+
+    #[test]
+    fn delete_with_associated_leaves_a_look_file_of_a_shorter_named_photo() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        for name in [
+            "IMG.CR2.jpg",
+            "IMG.CR2.jpg.cam1.x.lut.png",
+            "IMG.CR2.cam1.x.lut.png",
+        ] {
+            write(&folder.join(name), name);
+        }
+
+        let trashed = files_to_delete_with_associated(&[text(&folder.join("IMG.CR2.jpg"))]);
+
+        assert_eq!(
+            trashed,
+            [
+                folder.join("IMG.CR2.jpg"),
+                folder.join("IMG.CR2.jpg.cam1.x.lut.png")
+            ]
+        );
     }
 
     #[test]
