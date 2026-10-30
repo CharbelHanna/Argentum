@@ -75,12 +75,6 @@ interface OverlayOption {
   tooltip: string;
 }
 
-export const parseExifNumber = (val: any): number => {
-  if (val === undefined || val === null) return 0;
-  const parsed = parseFloat(val);
-  return isNaN(parsed) ? 0 : parsed;
-};
-
 const greatestCommonDivisor = (a: number, b: number): number => (b === 0 ? a : greatestCommonDivisor(b, a % b));
 
 const formatRatioLabel = (width: number, height: number): string => {
@@ -639,9 +633,7 @@ export default function CropPanel() {
         const distParams: any = await invoke('get_lens_distortion_params', {
           maker,
           model,
-          focalLength: parseExifNumber(selectedImage?.exif?.FocalLength),
-          aperture: parseExifNumber(selectedImage?.exif?.FNumber),
-          distance: parseExifNumber(selectedImage?.exif?.SubjectDistance),
+          exif: selectedImage?.exif ?? {},
         });
         return distParams;
       } catch (error) {

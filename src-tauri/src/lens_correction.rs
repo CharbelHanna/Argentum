@@ -1,7 +1,9 @@
 use crate::AppState;
+use crate::mods::lens_shot::LensShot;
 use fuzzy_matcher::FuzzyMatcher;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 use std::fs;
 use tauri::{Manager, State};
 use walkdir::WalkDir;
@@ -826,42 +828,31 @@ pub fn autodetect_lens(
 pub fn get_lens_distortion_params(
     maker: String,
     model: String,
-    focal_length: f32,
-    aperture: Option<f32>,
-    distance: Option<f32>,
+    exif: HashMap<String, String>,
     state: State<AppState>,
 ) -> Result<Option<LensDistortionParams>, String> {
     let db_guard = state
         .lens_db
         .lock()
         .map_err(|e| format!("Lock poisoned: {}", e))?;
-    if let Some(db) = &*db_guard {
-        let maker_lenses = lenses_for_maker(db, &maker);
-
-        if let Some(lens) = maker_lenses
-            .iter()
-            .find(|l| l.get_display_name(&maker_lenses) == model)
-        {
-            return Ok(lens.get_distortion_params(focal_length, aperture, distance));
-        }
-    }
-    Ok(None)
+    Ok(db_guard
+        .as_ref()
+        .and_then(|db| resolve_lens_params(db, &maker, &model, &exif)))
 }
 
 pub fn resolve_lens_params(
     db: &LensDatabase,
     maker: &str,
     model: &str,
-    focal_length: f32,
-    aperture: Option<f32>,
-    distance: Option<f32>,
+    exif: &HashMap<String, String>,
 ) -> Option<LensDistortionParams> {
     let maker_lenses = lenses_for_maker(db, maker);
     if let Some(lens) = maker_lenses
         .iter()
         .find(|l| l.get_display_name(&maker_lenses) == model)
     {
-        lens.get_distortion_params(focal_length, aperture, distance)
+        let shot = LensShot::from_exif(exif);
+        lens.get_distortion_params(shot.focal_mm, shot.f_number, shot.distance_m)
     } else {
         None
     }
