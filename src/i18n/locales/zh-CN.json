@@ -2047,7 +2047,6 @@
         "expandRight": "展开右侧面板",
         "export": "导出",
         "pasteSettings": "粘贴设置",
-        "quickFilter": "快速筛选",
         "rateStars_one": "评分 1 星",
         "rateStars_other": "评分 {{count}} 星",
         "resetZoom": "重置缩放以适应窗口",

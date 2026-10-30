@@ -2047,7 +2047,6 @@
         "expandRight": "오른쪽 패널 펼치기",
         "export": "내보내기",
         "pasteSettings": "설정 붙여넣기",
-        "quickFilter": "빠른 필터",
         "rateStars_one": "1점 평가",
         "rateStars_other": "{{count}}점 평가",
         "resetZoom": "창에 맞게 확대/축소 초기화",

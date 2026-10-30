@@ -4,14 +4,11 @@ import {
   Panel,
   UiVisibility,
   CullingSuggestions,
-  PanelRegion,
   WorkspaceState,
   CollapsibleSectionsState,
 } from '../components/ui/AppProperties';
 import { useEditorStore } from './useEditorStore';
 import { columnOf } from '../argentum/modern/panels';
-
-export type SwitcherPlacement = 'bottom' | 'right' | 'left' | 'top';
 
 interface ConfirmModalState {
   confirmText?: string;
@@ -79,122 +76,14 @@ interface CullingModalState {
   pathsToCull: Array<string>;
 }
 
-const ALL_PANELS: Panel[] = [
-  Panel.Metadata,
-  Panel.FolderTree,
-  Panel.Export,
-  Panel.Tethering,
-  Panel.Adjustments,
-  Panel.Crop,
-  Panel.Masks,
-  Panel.Ai,
-  Panel.Presets,
-];
-
-const DEFAULT_PANEL_DEFAULT_REGIONS: Record<Panel, PanelRegion> = {
-  [Panel.Metadata]: 'leftTop',
-  [Panel.FolderTree]: 'leftTop',
-  [Panel.Export]: 'leftTop',
-  [Panel.Tethering]: 'leftTop',
-  [Panel.Adjustments]: 'rightTop',
-  [Panel.Crop]: 'rightTop',
-  [Panel.Masks]: 'rightTop',
-  [Panel.Ai]: 'rightTop',
-  [Panel.Presets]: 'rightTop',
-};
-
 export const DEFAULT_PANEL_WIDTH = 350;
-export const DEFAULT_PANEL_SECTION_HEIGHT = 450;
 export const DEFAULT_BOTTOM_PANEL_HEIGHT = 144;
 
-export function reconcileWorkspace(
-  savedWorkspace: WorkspaceState | undefined,
-  isTetheringSupported: boolean,
-): WorkspaceState {
-  const allowedPanels = new Set(ALL_PANELS.filter((p) => p !== Panel.Tethering || isTetheringSupported));
-
-  const defaultWorkspace: WorkspaceState = {
-    leftPanelWidth: DEFAULT_PANEL_WIDTH,
-    rightPanelWidth: DEFAULT_PANEL_WIDTH,
-    leftTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
-    rightTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
-    panelLayout: {
-      leftTop: [Panel.Metadata, Panel.FolderTree, Panel.Export, ...(isTetheringSupported ? [Panel.Tethering] : [])],
-      leftBottom: [],
-      rightTop: [Panel.Adjustments, Panel.Crop, Panel.Masks, Panel.Ai, Panel.Presets],
-      rightBottom: [],
-    },
-    activePanels: {
-      leftTop: Panel.FolderTree,
-      leftBottom: null,
-      rightTop: Panel.Adjustments,
-      rightBottom: null,
-    },
-    panelSwitcherPlacement: {
-      leftTop: 'bottom',
-      leftBottom: 'bottom',
-      rightTop: 'right',
-      rightBottom: 'right',
-    },
-  };
-
-  if (!savedWorkspace || !savedWorkspace.panelLayout) {
-    return defaultWorkspace;
-  }
-
-  const seenPanels = new Set<Panel>();
-  const sanitizedLayout: Record<PanelRegion, Panel[]> = {
-    leftTop: [],
-    leftBottom: [],
-    rightTop: [],
-    rightBottom: [],
-  };
-
-  (['leftTop', 'leftBottom', 'rightTop', 'rightBottom'] as PanelRegion[]).forEach((region) => {
-    const list = savedWorkspace.panelLayout[region] || [];
-    list.forEach((panel) => {
-      if (allowedPanels.has(panel) && !seenPanels.has(panel)) {
-        sanitizedLayout[region].push(panel);
-        seenPanels.add(panel);
-      }
-    });
-  });
-
-  allowedPanels.forEach((panel) => {
-    if (!seenPanels.has(panel)) {
-      const targetRegion = DEFAULT_PANEL_DEFAULT_REGIONS[panel] || 'leftTop';
-      sanitizedLayout[targetRegion].push(panel);
-      seenPanels.add(panel);
-    }
-  });
-
-  const sanitizedActive: Record<PanelRegion, Panel | null> = {
-    leftTop: null,
-    leftBottom: null,
-    rightTop: null,
-    rightBottom: null,
-  };
-
-  (['leftTop', 'leftBottom', 'rightTop', 'rightBottom'] as PanelRegion[]).forEach((region) => {
-    const currentActive = savedWorkspace.activePanels?.[region];
-    if (currentActive && sanitizedLayout[region].includes(currentActive)) {
-      sanitizedActive[region] = currentActive;
-    } else {
-      sanitizedActive[region] = sanitizedLayout[region].length > 0 ? sanitizedLayout[region][0] : null;
-    }
-  });
-
+/** The column widths in a saved workspace; what the Classic layout also saved is left behind here. */
+export function readWorkspace(saved: Partial<WorkspaceState> | undefined): WorkspaceState {
   return {
-    leftPanelWidth: savedWorkspace.leftPanelWidth || defaultWorkspace.leftPanelWidth,
-    rightPanelWidth: savedWorkspace.rightPanelWidth || defaultWorkspace.rightPanelWidth,
-    leftTopHeight: savedWorkspace.leftTopHeight || defaultWorkspace.leftTopHeight,
-    rightTopHeight: savedWorkspace.rightTopHeight || defaultWorkspace.rightTopHeight,
-    panelLayout: sanitizedLayout,
-    activePanels: sanitizedActive,
-    panelSwitcherPlacement: {
-      ...defaultWorkspace.panelSwitcherPlacement,
-      ...(savedWorkspace.panelSwitcherPlacement || {}),
-    },
+    leftPanelWidth: saved?.leftPanelWidth || DEFAULT_PANEL_WIDTH,
+    rightPanelWidth: saved?.rightPanelWidth || DEFAULT_PANEL_WIDTH,
   };
 }
 
@@ -209,15 +98,9 @@ export interface UIState {
   leftPanelWidth: number;
   rightPanelWidth: number;
   bottomPanelHeight: number;
-  leftTopHeight: number;
-  rightTopHeight: number;
 
-  panelLayout: Record<PanelRegion, Panel[]>;
   /** Argentum: whether this machine can tether a camera, asked once at start-up (useAppInitialization.ts). */
   isTetheringSupported: boolean;
-  activePanels: Record<PanelRegion, Panel | null>;
-
-  panelSwitcherPlacement: Record<PanelRegion, SwitcherPlacement>;
 
   activePanel: Panel | null;
   collapsibleSectionsState: CollapsibleSectionsState;
@@ -263,35 +146,13 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFullScreen: false,
   isWindowFullScreen: false,
   isInstantTransition: false,
-  uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true, quickFilter: false },
+  uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true },
   isSettingsOpen: false,
 
   leftPanelWidth: DEFAULT_PANEL_WIDTH,
   rightPanelWidth: DEFAULT_PANEL_WIDTH,
   bottomPanelHeight: DEFAULT_BOTTOM_PANEL_HEIGHT,
-  leftTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
-  rightTopHeight: DEFAULT_PANEL_SECTION_HEIGHT,
-
-  panelLayout: {
-    leftTop: [Panel.Metadata, Panel.FolderTree, Panel.Export],
-    leftBottom: [],
-    rightTop: [Panel.Adjustments, Panel.Crop, Panel.Masks, Panel.Ai, Panel.Presets],
-    rightBottom: [],
-  },
   isTetheringSupported: false,
-  activePanels: {
-    leftTop: Panel.FolderTree,
-    leftBottom: null,
-    rightTop: Panel.Adjustments,
-    rightBottom: null,
-  },
-
-  panelSwitcherPlacement: {
-    leftTop: 'bottom',
-    leftBottom: 'bottom',
-    rightTop: 'right',
-    rightBottom: 'right',
-  },
 
   activePanel: Panel.Adjustments,
   collapsibleSectionsState: { basic: true, color: false, curves: true, details: false, effects: false },
@@ -387,17 +248,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   resetWorkspaceLayout: () => {
-    const defaultWorkspace = reconcileWorkspace(undefined, get().isTetheringSupported);
+    const defaultWorkspace = readWorkspace(undefined);
     set({
-      leftPanelWidth: defaultWorkspace.leftPanelWidth,
-      rightPanelWidth: defaultWorkspace.rightPanelWidth,
-      leftTopHeight: defaultWorkspace.leftTopHeight,
-      rightTopHeight: defaultWorkspace.rightTopHeight,
-      panelLayout: defaultWorkspace.panelLayout,
-      activePanels: defaultWorkspace.activePanels,
-      panelSwitcherPlacement: defaultWorkspace.panelSwitcherPlacement,
-      uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true, quickFilter: false },
-      activePanel: defaultWorkspace.activePanels.rightTop || null,
+      ...defaultWorkspace,
+      uiVisibility: { filmstrip: true, leftPanel: true, rightPanel: true },
+      activePanel: Panel.Adjustments,
     });
     return defaultWorkspace;
   },

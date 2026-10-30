@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '../store/useSettingsStore';
-import { useUIStore, reconcileWorkspace } from '../store/useUIStore';
+import { useUIStore, readWorkspace } from '../store/useUIStore';
 import { useLibraryStore } from '../store/useLibraryStore';
 import { useEditorStore } from '../store/useEditorStore';
 import { useProcessStore } from '../store/useProcessStore';
@@ -77,11 +77,6 @@ export const useAppInitialization = ({
     useShallow((state) => ({
       leftPanelWidth: state.leftPanelWidth,
       rightPanelWidth: state.rightPanelWidth,
-      leftTopHeight: state.leftTopHeight,
-      rightTopHeight: state.rightTopHeight,
-      panelLayout: state.panelLayout,
-      activePanels: state.activePanels,
-      panelSwitcherPlacement: state.panelSwitcherPlacement,
     })),
   );
 
@@ -151,8 +146,8 @@ export const useAppInitialization = ({
           handleSettingsChange(settings);
         }
 
-        const reconciledWorkspace = reconcileWorkspace(settings?.workspace, isTetheringSupported);
-        settings.workspace = reconciledWorkspace;
+        const workspace = readWorkspace(settings?.workspace);
+        settings.workspace = workspace;
 
         setAppSettings(settings);
         switchLanguage(settings.language);
@@ -165,6 +160,8 @@ export const useAppInitialization = ({
         if (settings?.theme) setTheme(settings.theme);
 
         if (settings?.uiVisibility) {
+          // Argentum: the Classic layout's quick filter bar is gone, and its stored flag with it.
+          delete settings.uiVisibility.quickFilter;
           setUI((state) => ({ uiVisibility: { ...state.uiVisibility, ...settings.uiVisibility } }));
         }
 
@@ -176,13 +173,7 @@ export const useAppInitialization = ({
 
         setUI({
           isTetheringSupported,
-          leftPanelWidth: reconciledWorkspace.leftPanelWidth,
-          rightPanelWidth: reconciledWorkspace.rightPanelWidth,
-          leftTopHeight: reconciledWorkspace.leftTopHeight,
-          rightTopHeight: reconciledWorkspace.rightTopHeight,
-          panelLayout: reconciledWorkspace.panelLayout,
-          activePanels: reconciledWorkspace.activePanels,
-          panelSwitcherPlacement: reconciledWorkspace.panelSwitcherPlacement,
+          ...workspace,
         });
 
         if (settings?.isWaveformVisible !== undefined) setEditor({ isWaveformVisible: settings.isWaveformVisible });

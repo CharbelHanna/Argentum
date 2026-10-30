@@ -113,6 +113,36 @@ pub const DROPPED: &[Dropped] = &[
         reason: "no control ever wrote it; grouping no longer reads it (edited files always group)",
         pr: "#258",
     },
+    Dropped {
+        file: SETTINGS,
+        path: "/workspace/leftTopHeight",
+        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
+        pr: "#276",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/workspace/rightTopHeight",
+        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
+        pr: "#276",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/workspace/panelLayout",
+        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
+        pr: "#276",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/workspace/activePanels",
+        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
+        pr: "#276",
+    },
+    Dropped {
+        file: SETTINGS,
+        path: "/workspace/panelSwitcherPlacement",
+        reason: "the Classic layout stored it; the Modern window keeps only the two column widths",
+        pr: "#276",
+    },
 ];
 
 /// Lists held in a `HashSet`, written in no fixed order: compared as sets.
