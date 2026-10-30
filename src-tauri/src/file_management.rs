@@ -41,6 +41,7 @@ use crate::image_processing::{
     get_all_adjustments_from_json, perform_auto_analysis, resolve_render_options,
 };
 use crate::mask_generation::MaskDefinition;
+use crate::mods::edit_status::EditStatus;
 use crate::mods::file_ops::{self, Destinations};
 use crate::preset_converter;
 use crate::tagging::COLOR_TAG_PREFIX;
@@ -71,7 +72,7 @@ fn compute_thumbnail_cache_hash(path_str: &str, adjustments_bytes: &[u8]) -> Opt
 }
 
 struct ImageFileMetadata {
-    is_edited: bool,
+    edit: EditStatus,
     tags: Option<Vec<String>>,
     rating: u8,
     flag: Option<ImageFlag>,
@@ -93,10 +94,8 @@ fn resolve_image_metadata(
 
     let is_raw = crate::formats::is_raw_file(image_path);
     let tm_override = crate::image_processing::resolve_tonemapper_override(settings, is_raw);
-    let is_edited =
-        crate::image_processing::is_image_edited(&metadata.adjustments, is_raw, tm_override);
     ImageFileMetadata {
-        is_edited,
+        edit: EditStatus::of(&metadata.adjustments, is_raw, tm_override),
         tags: metadata.tags,
         rating: metadata.rating,
         flag: metadata.flag,
@@ -109,12 +108,19 @@ fn emit_image_metadata_loaded(
     path: &str,
     rating: u8,
     flag: Option<ImageFlag>,
-    is_edited: bool,
+    edit: EditStatus,
     tags: &Option<Vec<String>>,
 ) {
     let _ = app_handle.emit(
         "image-metadata-loaded",
-        serde_json::json!({ "path": path, "rating": rating, "flag": flag, "is_edited": is_edited, "tags": tags }),
+        serde_json::json!({
+            "path": path,
+            "rating": rating,
+            "flag": flag,
+            "is_edited": edit.is_edited,
+            "has_provider_look": edit.has_provider_look,
+            "tags": tags
+        }),
     );
 }
 
@@ -179,7 +185,7 @@ pub fn start_metadata_workers(app_handle: tauri::AppHandle) {
                     &item.virtual_path,
                     metadata.rating,
                     metadata.flag,
-                    metadata.is_edited,
+                    metadata.edit,
                     &metadata.tags,
                 );
 
@@ -273,7 +279,8 @@ impl fmt::Display for ReadFileError {
 pub struct ImageFile {
     pub path: String,
     modified: u64,
-    is_edited: bool,
+    #[serde(flatten)]
+    edit: EditStatus,
     rating: u8,
     flag: Option<ImageFlag>,
     tags: Option<Vec<String>>,
@@ -607,7 +614,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                         sidecar_path.clone(),
                     );
                     ImageFileMetadata {
-                        is_edited: false,
+                        edit: EditStatus::default(),
                         tags: None,
                         rating: 0,
                         flag: None,
@@ -620,7 +627,7 @@ pub fn list_images_in_dir(path: String, app_handle: AppHandle) -> Result<Vec<Ima
                 file_results.push(ImageFile {
                     path: virtual_path,
                     modified,
-                    is_edited: metadata.is_edited,
+                    edit: metadata.edit,
                     tags: metadata.tags,
                     exif: None,
                     is_virtual_copy,
@@ -720,7 +727,7 @@ pub fn list_images_recursive(
                         sidecar_path.clone(),
                     );
                     ImageFileMetadata {
-                        is_edited: false,
+                        edit: EditStatus::default(),
                         tags: None,
                         rating: 0,
                         flag: None,
@@ -733,7 +740,7 @@ pub fn list_images_recursive(
                 file_results.push(ImageFile {
                     path: virtual_path,
                     modified,
-                    is_edited: metadata.is_edited,
+                    edit: metadata.edit,
                     tags: metadata.tags,
                     exif: None,
                     is_virtual_copy,
@@ -993,7 +1000,7 @@ pub fn get_album_images(
                     sidecar_path.clone(),
                 );
                 ImageFileMetadata {
-                    is_edited: false,
+                    edit: EditStatus::default(),
                     tags: None,
                     rating: 0,
                     flag: None,
@@ -1006,7 +1013,7 @@ pub fn get_album_images(
             Some(ImageFile {
                 path: virtual_path.clone(),
                 modified,
-                is_edited: metadata.is_edited,
+                edit: metadata.edit,
                 tags: metadata.tags,
                 exif: None,
                 is_virtual_copy,
@@ -1724,27 +1731,27 @@ fn generate_single_thumbnail_and_cache(
     force_regenerate: bool,
     app_handle: &AppHandle,
     settings: &AppSettings,
-) -> Option<(String, String, u8, bool)> {
+) -> Option<(String, String, u8, EditStatus)> {
     let (source_path, sidecar_path) = parse_virtual_path(path_str);
 
-    let (rating, is_edited, adjustments_bytes) = if is_cloud_placeholder(&sidecar_path) {
+    let (rating, edit, adjustments_bytes) = if is_cloud_placeholder(&sidecar_path) {
         enqueue_metadata(
             app_handle,
             path_str.to_string(),
             source_path.clone(),
             sidecar_path.clone(),
         );
-        (0, false, Vec::new())
+        (0, EditStatus::default(), Vec::new())
     } else if let Some(meta) = crate::exif_processing::peek_sidecar(&sidecar_path) {
         let is_raw = crate::formats::is_raw_file(path_str);
         let tm = crate::image_processing::resolve_tonemapper_override(settings, is_raw);
         (
             meta.rating,
-            crate::image_processing::is_image_edited(&meta.adjustments, is_raw, tm),
+            EditStatus::of(&meta.adjustments, is_raw, tm),
             serde_json::to_vec(&meta.adjustments).unwrap_or_default(),
         )
     } else {
-        (0, false, Vec::new())
+        (0, EditStatus::default(), Vec::new())
     };
 
     let cache_hash = compute_thumbnail_cache_hash(path_str, &adjustments_bytes)?;
@@ -1757,7 +1764,7 @@ fn generate_single_thumbnail_and_cache(
             small_path.to_string_lossy().into_owned(),
             medium_path.to_string_lossy().into_owned(),
             rating,
-            is_edited,
+            edit,
         ));
     }
 
@@ -1781,7 +1788,7 @@ fn generate_single_thumbnail_and_cache(
             small_path.to_string_lossy().into_owned(),
             medium_path.to_string_lossy().into_owned(),
             rating,
-            is_edited,
+            edit,
         ));
     }
     None
@@ -1845,14 +1852,14 @@ pub fn start_thumbnail_workers(app_handle: tauri::AppHandle) {
                         &current_settings,
                     );
 
-                    if let Some((small_path, medium_path, rating, is_edited)) = result {
+                    if let Some((small_path, medium_path, rating, edit)) = result {
                         emit_thumbnail_generated(
                             &app_clone,
                             &path_to_process,
                             &small_path,
                             &medium_path,
                             rating,
-                            is_edited,
+                            edit,
                         );
                     }
                     increment_thumbnail_progress(&state, &app_clone);
@@ -1983,7 +1990,7 @@ fn emit_thumbnail_generated(
     small_thumbnail_path: &str,
     medium_thumbnail_path: &str,
     rating: u8,
-    is_edited: bool,
+    edit: EditStatus,
 ) {
     let _ = app_handle.emit(
         "thumbnail-generated",
@@ -1992,7 +1999,8 @@ fn emit_thumbnail_generated(
             "thumbnailPath": small_thumbnail_path,
             "previewPath": medium_thumbnail_path,
             "rating": rating,
-            "is_edited": is_edited
+            "is_edited": edit.is_edited,
+            "has_provider_look": edit.has_provider_look
         }),
     );
 }
@@ -2543,14 +2551,14 @@ pub fn save_metadata_and_update_thumbnail(
             &settings,
         );
 
-        if let Some((small_path, medium_path, rating, is_edited)) = result {
+        if let Some((small_path, medium_path, rating, edit)) = result {
             emit_thumbnail_generated(
                 &app_handle_clone,
                 &path_clone,
                 &small_path,
                 &medium_path,
                 rating,
-                is_edited,
+                edit,
             );
         }
 
@@ -2713,14 +2721,14 @@ pub(crate) fn regenerate_thumbnails(
             settings,
         );
 
-        if let Some((small_path, medium_path, rating, is_edited)) = result {
+        if let Some((small_path, medium_path, rating, edit)) = result {
             emit_thumbnail_generated(
                 app_handle,
                 path_str,
                 &small_path,
                 &medium_path,
                 rating,
-                is_edited,
+                edit,
             );
         }
 
@@ -2980,14 +2988,14 @@ async fn update_sidecars_from_images(
                 &settings,
             );
 
-            if let Some((small_path, medium_path, rating, is_edited)) = result {
+            if let Some((small_path, medium_path, rating, edit)) = result {
                 emit_thumbnail_generated(
                     &app_handle,
                     path,
                     &small_path,
                     &medium_path,
                     rating,
-                    is_edited,
+                    edit,
                 );
             }
 

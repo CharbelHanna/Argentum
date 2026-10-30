@@ -40,6 +40,7 @@ pub mod display_profile;
 pub mod dng_colour;
 pub mod dng_standard;
 pub mod drives;
+pub mod edit_status;
 pub mod editor_layout;
 pub mod engine_bridge;
 pub mod engine_frame;

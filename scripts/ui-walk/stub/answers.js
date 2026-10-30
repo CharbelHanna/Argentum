@@ -75,6 +75,7 @@ const imageFile = (photo) => ({
   path: photo.path,
   modified: photo.modified,
   is_edited: false,
+  has_provider_look: false,
   rating: 0,
   flag: null,
   tags: [],

@@ -334,6 +334,7 @@ export interface Folder {
 
 export interface ImageFile {
   is_edited: boolean;
+  has_provider_look: boolean;
   modified: number;
   path: string;
   rating: number;
