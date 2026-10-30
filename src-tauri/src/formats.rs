@@ -96,7 +96,9 @@ pub fn is_supported_image_file<P: AsRef<Path>>(path: P) -> bool {
     if path
         .file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| name.starts_with('.'))
+        .is_some_and(|name| {
+            name.starts_with('.') || crate::mods::file_ops::photo_of_look_file(name).is_some() // Argentum
+        })
     {
         return false;
     }

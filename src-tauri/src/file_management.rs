@@ -2201,7 +2201,18 @@ pub fn duplicate_file(
     target_album_id: Option<String>,
     app_handle: AppHandle,
 ) -> Result<String, String> {
-    let (source_path, source_sidecar_path) = parse_virtual_path(&path);
+    let dest_path_str = duplicate_file_on_disk(&path)?;
+
+    if let Some(album_id) = target_album_id {
+        let _ = add_to_album(album_id, vec![dest_path_str.clone()], app_handle);
+    }
+
+    Ok(dest_path_str)
+}
+
+/// Argentum: `duplicate_file` without the album update, so tests can run it.
+pub(crate) fn duplicate_file_on_disk(path: &str) -> Result<String, String> {
+    let (source_path, source_sidecar_path) = parse_virtual_path(path);
     if !source_path.is_file() {
         return Err("Source path is not a file.".to_string());
     }
@@ -2253,13 +2264,11 @@ pub fn duplicate_file(
         let _ = fs::copy(&source_rrexif, &dest_rrexif);
     }
 
-    let dest_path_str = dest_path.to_string_lossy().into_owned();
-
-    if let Some(album_id) = target_album_id {
-        let _ = add_to_album(album_id, vec![dest_path_str.clone()], app_handle);
+    for (look_file, dest_look_file) in file_ops::look_file_copies(&source_path, &dest_path) {
+        fs::copy(&look_file, &dest_look_file).map_err(|e| e.to_string())?;
     }
 
-    Ok(dest_path_str)
+    Ok(dest_path.to_string_lossy().into_owned())
 }
 
 pub(crate) fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<PathBuf>, String> {
@@ -2298,7 +2307,9 @@ pub(crate) fn find_all_associated_files(source_image_path: &Path) -> Result<Vec<
             let entry_os_filename = entry.file_name();
             let entry_filename = entry_os_filename.to_string_lossy();
 
-            if file_ops::is_sidecar_of(&entry_filename, &source_filename) {
+            if file_ops::is_sidecar_of(&entry_filename, &source_filename)
+                || file_ops::is_look_file_of(&entry_filename, &source_filename)
+            {
                 associated_files.push(entry_path);
             }
         }
@@ -4015,7 +4026,9 @@ pub(crate) fn rename_files_on_disk(
                 let entry_os_filename = entry.file_name();
                 let entry_filename = entry_os_filename.to_string_lossy();
 
-                if file_ops::is_sidecar_of(&entry_filename, &original_filename_str) {
+                if file_ops::is_sidecar_of(&entry_filename, &original_filename_str)
+                    || file_ops::is_look_file_of(&entry_filename, &original_filename_str)
+                {
                     let new_sidecar_filename =
                         entry_filename.replacen(&*original_filename_str, &new_filename_str, 1);
                     let new_sidecar_path = parent.join(new_sidecar_filename);
@@ -4499,6 +4512,30 @@ pub fn sync_metadata_to_xmp(source_path: &Path, metadata: &ImageMetadata, create
         if let Err(e) = crate::mods::atomic_write::write_atomic(&xmp_file, content) {
             log::warn!("Could not update {}: {}", xmp_file.display(), e);
         }
+    }
+}
+
+#[cfg(test)]
+mod folder_tree_count_tests {
+    use super::*;
+
+    #[test]
+    fn a_look_file_is_not_counted_in_the_folder_tree() {
+        let dir = tempfile::tempdir().unwrap();
+        let day = dir.path().join("day");
+        fs::create_dir_all(&day).unwrap();
+        for folder in [dir.path(), day.as_path()] {
+            fs::write(folder.join("IMG.CR2"), b"").unwrap();
+            fs::write(folder.join("IMG.CR2.cam1.abc.lut.png"), b"").unwrap();
+        }
+        let tree = |prefetch| scan_dir_lazy(dir.path(), &HashSet::new(), true, prefetch).unwrap();
+
+        // Its own files, then a subfolder read for the count (`prefetch`) and
+        // one walked for it.
+        let (children, own) = tree(true);
+        assert_eq!((own, children[0].image_count), (1, 1));
+        let (children, _) = tree(false);
+        assert_eq!(children[0].image_count, 1);
     }
 }
 
