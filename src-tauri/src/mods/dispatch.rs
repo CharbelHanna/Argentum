@@ -854,7 +854,7 @@ commands! {
     "provider_looks" => (a: crate::mods::lut_provider::ProviderLooksArgs) -> Option<crate::mods::lut_provider::ProviderLooks> {
         let app = app_handle.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            crate::mods::lut_provider::looks(&app, a.path.as_deref())
+            crate::mods::lut_provider::looks(&app, a.path.as_deref(), &a.options)
         })
         .await
         .map_err(|e| e.to_string())?
@@ -866,7 +866,7 @@ commands! {
             .map_err(|e| e.to_string())??
     }
     "provider_look_file" => (a: crate::mods::lut_provider::ProviderLookFileArgs) -> bool {
-        crate::mods::lut_provider::file_is_there(&a.path, &a.camera, &a.look)
+        crate::mods::lut_provider::file_is_there(&a.path, &a.camera, &a.look, &a.options)
     }
     "provider_look_cancel" => (a: crate::mods::lut_provider::ProviderLookCancelArgs) -> () {
         crate::mods::lut_provider::cancel(a.job_id);

@@ -24,6 +24,7 @@ const OFFER: Offer = {
     { id: 'look1', name: 'Invented Stock', group: null },
     { id: 'look2', name: 'Other Stock', group: null },
   ],
+  options: [],
   on: true,
   photo: { camera: 'cam1', files: [] },
 };
@@ -41,7 +42,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  offered({ offer: null, chosen: {}, waiting: {}, note: null, batch: null });
+  offered({ offer: null, chosen: {}, chosenOptions: {}, waiting: {}, note: null, batch: null });
 });
 
 describe('with the setting absent or empty', () => {
@@ -80,7 +81,7 @@ describe('with the switch on', () => {
   });
 
   it('shows the spinner only once a look is taking a while', () => {
-    const waited = { look: 'look1', name: 'Invented Stock', job: 1, then: 'put', batch: false } as const;
+    const waited = { look: 'look1', options: {}, name: 'Invented Stock', job: 1, then: 'put', batch: false } as const;
     offered({ waiting: { [OPEN]: { ...waited, spinning: false } } });
     expect(section()).not.toContain('agm-spin');
     offered({ waiting: { [OPEN]: { ...waited, spinning: true } } });
@@ -108,6 +109,60 @@ describe('with the switch off', () => {
     expect(html).toContain('Turn on to use these. Presets and LUTs go off.');
     expect(html).toContain('agm-look-dim');
     expect(html).toContain('agm-provider-camera agm-look-dim');
+  });
+});
+
+describe('an option the provider offers', () => {
+  const OPTION = { id: 'optionA', label: 'Invented <choice>', default: false };
+  const checkboxes = (html: string) => html.match(/<input[^>]*type="checkbox"[^>]*>/g) ?? [];
+
+  it('with none offered, no checkbox shows', () => {
+    offered({ offer: OFFER });
+    expect(checkboxes(section())).toEqual([]);
+  });
+
+  it('shows as a checkbox with the provider’s label, as text', () => {
+    offered({ offer: { ...OFFER, options: [OPTION] } });
+    const html = section();
+    expect(checkboxes(html)).toHaveLength(1);
+    expect(html).toContain('Invented &lt;choice&gt;');
+    expect(html).not.toContain('Invented <choice>');
+  });
+
+  it('starts unchecked when its default is off', () => {
+    offered({ offer: { ...OFFER, options: [OPTION] } });
+    expect(checkboxes(section())[0]).not.toContain('checked');
+  });
+
+  it('starts checked when its default is on', () => {
+    offered({ offer: { ...OFFER, options: [{ ...OPTION, default: true }] } });
+    expect(checkboxes(section())[0]).toContain('checked');
+  });
+
+  it('shows the hand choice for this photo', () => {
+    offered({ offer: { ...OFFER, options: [OPTION] }, chosenOptions: { [OPEN]: { optionA: true } } });
+    expect(checkboxes(section())[0]).toContain('checked');
+  });
+
+  it('is dimmed and disabled with the switch off', () => {
+    offered({ offer: { ...OFFER, on: false, options: [OPTION] } });
+    const html = section();
+    expect(checkboxes(html)[0]).toContain('disabled');
+    expect(html).toContain('agm-provider-option agm-look-dim');
+  });
+
+  it('is not dimmed with the switch on', () => {
+    offered({ offer: { ...OFFER, options: [OPTION] } });
+    const html = section();
+    expect(checkboxes(html)[0]).not.toContain('disabled');
+    expect(html).not.toContain('agm-look-dim');
+  });
+
+  it('sits after the camera and before the looks', () => {
+    offered({ offer: { ...OFFER, options: [OPTION] } });
+    const html = section();
+    expect(html.indexOf('Matched to this photo')).toBeLessThan(html.indexOf('Invented &lt;choice&gt;'));
+    expect(html.indexOf('Invented &lt;choice&gt;')).toBeLessThan(html.indexOf('Invented Stock'));
   });
 });
 

@@ -8,7 +8,8 @@
 //!
 //! Only this module runs the program, and nothing here can write the field, so
 //! no command, edit or answer can choose what runs. An edit can only name a
-//! camera and a look, and those count only if the program itself lists them.
+//! camera, a look and its options, and those count only if the program itself
+//! lists them.
 //! Whatever comes back is treated as untrusted: its size is capped, its ids must
 //! fit a file name, its PNG is checked, and no path is taken from it. The
 //! program writes one scratch file named here, and only Argentum writes beside a
@@ -39,6 +40,7 @@ use crate::file_management::{parse_virtual_path, read_file_mapped};
 use crate::lut_processing::{self, Lut};
 use crate::mods::ag_settings::Setting;
 use crate::mods::atomic_write::write_atomic;
+use crate::mods::file_ops::LookOptions;
 use crate::mods::profiles::{self, same_model};
 use crate::mods::{dng_standard, file_ops, provider_look};
 
@@ -60,6 +62,8 @@ const MAX_FILE_BYTES: usize = 2 * 1024 * 1024;
 /// What is read of stdout and of stderr (the log's, only).
 const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 const MAX_NAME_CHARS: usize = 80;
+/// What is kept of the options on a list.
+const MAX_OPTIONS: usize = 8;
 const RUNS_AT_ONCE: usize = 2;
 /// In a row, before the provider is off until the app closes.
 const CRASHES_TO_OFF: u32 = 2;
@@ -101,11 +105,38 @@ pub struct OfferedLook {
     pub group: Option<String>,
 }
 
+/// An on/off choice the program offers. What it means is the program's: only
+/// its label is shown and only its id and value are sent.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct OfferedOption {
+    pub id: String,
+    pub label: String,
+    pub default: bool,
+}
+
 /// What `list` answered, after validation.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Catalog {
     pub cameras: Vec<OfferedCamera>,
     pub looks: Vec<OfferedLook>,
+    pub options: Vec<OfferedOption>,
+}
+
+impl Catalog {
+    /// Whether the program lists this look and every one of `options`.
+    fn lists(&self, look: &str, options: &LookOptions) -> bool {
+        self.looks.iter().any(|l| l.id == look)
+            && options
+                .keys()
+                .all(|id| self.options.iter().any(|option| option.id == *id))
+    }
+
+    /// Every option it offers, at its default.
+    fn option_defaults(&self) -> LookOptions {
+        let defaults = self.options.iter();
+        defaults.map(|o| (o.id.clone(), o.default)).collect()
+    }
 }
 
 // ------------------------------------------------------------------ the setting
@@ -167,6 +198,16 @@ fn is_runnable(_path: &Path, meta: &std::fs::Metadata) -> bool {
     meta.permissions().mode() & 0o111 != 0
 }
 
+/// Whether `id` can name an option. It goes to the program and into an edit,
+/// never into a file name, so it need not fit one: `^[A-Za-z0-9][A-Za-z0-9_-]{0,31}$`.
+fn is_option_id(id: &str) -> bool {
+    id.len() <= 32
+        && id.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 /// The entries that read as a `T` and pass, the first of each id.
 fn kept<T: DeserializeOwned>(
     entries: Vec<Value>,
@@ -177,11 +218,7 @@ fn kept<T: DeserializeOwned>(
     entries
         .into_iter()
         .filter_map(|entry| serde_json::from_value::<T>(entry).ok())
-        .filter(|entry| {
-            file_ops::is_look_name_part(id_of(entry))
-                && good(entry)
-                && seen.insert(id_of(entry).to_string())
-        })
+        .filter(|entry| good(entry) && seen.insert(id_of(entry).to_string()))
         .collect()
 }
 
@@ -190,7 +227,8 @@ fn good_name(name: &str) -> bool {
 }
 
 /// What `list` answered. A bad entry is dropped and the rest stay; with no
-/// camera or no look left there is nothing to offer.
+/// camera or no look left there is nothing to offer. Options are extra: anything
+/// but a list of them is none.
 fn read_list(answer: &[u8]) -> Result<Catalog, String> {
     #[derive(Deserialize)]
     struct List {
@@ -200,6 +238,8 @@ fn read_list(answer: &[u8]) -> Result<Catalog, String> {
         cameras: Vec<Value>,
         #[serde(default)]
         looks: Vec<Value>,
+        #[serde(default)]
+        options: Value,
     }
     let list: List = serde_json::from_slice(answer).map_err(|e| e.to_string())?;
     if list.protocol != PROTOCOL {
@@ -208,16 +248,38 @@ fn read_list(answer: &[u8]) -> Result<Catalog, String> {
     let cameras = kept(
         list.cameras,
         |c: &OfferedCamera| &c.id,
-        |c| good_name(&c.name) && !c.make.trim().is_empty() && !c.model.trim().is_empty(),
+        |c| {
+            file_ops::is_look_name_part(&c.id)
+                && good_name(&c.name)
+                && !c.make.trim().is_empty()
+                && !c.model.trim().is_empty()
+        },
     );
-    let looks = kept(list.looks, |l: &OfferedLook| &l.id, |l| good_name(&l.name));
+    let looks = kept(
+        list.looks,
+        |l: &OfferedLook| &l.id,
+        |l| file_ops::is_look_name_part(&l.id) && good_name(&l.name),
+    );
+    let mut options = kept(
+        match list.options {
+            Value::Array(entries) => entries,
+            _ => Vec::new(),
+        },
+        |o: &OfferedOption| &o.id,
+        |o| is_option_id(&o.id) && good_name(&o.label),
+    );
+    options.truncate(MAX_OPTIONS);
     if cameras.is_empty() || looks.is_empty() {
         return Err("no camera or no look on the list".to_string());
     }
     if let Some(generator) = list.generator {
         log::info!("LUT provider: {generator}");
     }
-    Ok(Catalog { cameras, looks })
+    Ok(Catalog {
+        cameras,
+        looks,
+        options,
+    })
 }
 
 /// Checks the program and asks what it offers.
@@ -469,15 +531,15 @@ fn ask_for_lut(
     exe: &Path,
     limits: &Limits,
     subject: &Subject,
-    camera: &str,
-    look: &str,
+    key: &Key,
+    options: &LookOptions,
     scratch: &Path,
     cancel: &AtomicBool,
 ) -> Result<(Vec<u8>, Lut), Failure> {
-    let request = json!({
+    let mut request = json!({
         "protocol": PROTOCOL,
-        "camera": camera,
-        "look": look,
+        "camera": key.camera,
+        "look": key.look,
         "photo": {
             "path": parse_virtual_path(&subject.photo).0,
             "make": subject.make,
@@ -489,6 +551,9 @@ fn ask_for_lut(
         "output": scratch,
         "grid": GRID,
     });
+    if !options.is_empty() {
+        request["options"] = json!(options);
+    }
     let answer = run(
         exe,
         "lut",
@@ -509,7 +574,9 @@ fn ask_for_lut(
     })?;
     if !answer.ok {
         log::info!(
-            "LUT provider: {camera} {look}: {:?} {:?}",
+            "LUT provider: {} {}: {:?} {:?}",
+            key.camera,
+            key.look,
             answer.error,
             answer.message
         );
@@ -531,12 +598,12 @@ fn make_lut(
     exe: &Path,
     limits: &Limits,
     subject: &Subject,
-    camera: &str,
-    look: &str,
+    key: &Key,
+    options: &LookOptions,
     scratch: &Path,
     cancel: &AtomicBool,
 ) -> Result<(Vec<u8>, Lut), Failure> {
-    let made = ask_for_lut(exe, limits, subject, camera, look, scratch, cancel);
+    let made = ask_for_lut(exe, limits, subject, key, options, scratch, cancel);
     let _ = std::fs::remove_file(scratch);
     made
 }
@@ -552,6 +619,7 @@ pub struct LookProgress {
     pub path: String,
     pub camera: String,
     pub look: String,
+    pub options: LookOptions,
     pub outcome: LookOutcome,
 }
 
@@ -563,6 +631,8 @@ pub struct Request {
     subject: Subject,
     camera: String,
     look: String,
+    /// Its options away from their default, as the edit holds them.
+    options: LookOptions,
     /// Overwrite a file already there.
     remake: bool,
     /// The open photo: ahead of what is waiting.
@@ -576,6 +646,7 @@ pub struct Request {
 struct Key {
     camera: String,
     look: String,
+    options: LookOptions,
     make: String,
     model: String,
     wb: [u32; 4],
@@ -583,10 +654,11 @@ struct Key {
 }
 
 impl Key {
-    fn of(subject: &Subject, camera: &str, look: &str) -> Self {
+    fn of(subject: &Subject, camera: &str, look: &str, options: &LookOptions) -> Self {
         Self {
             camera: camera.to_string(),
             look: look.to_string(),
+            options: options.clone(),
             make: subject.make.clone(),
             model: subject.model.clone(),
             wb: subject.wb.map(f32::to_bits),
@@ -604,12 +676,13 @@ struct Waiter {
 }
 
 impl Waiter {
-    fn tell(&self, camera: &str, look: &str, outcome: LookOutcome) {
+    fn tell(&self, key: &Key, outcome: LookOutcome) {
         (self.report)(LookProgress {
             job_id: self.job,
             path: self.photo.clone(),
-            camera: camera.to_string(),
-            look: look.to_string(),
+            camera: key.camera.clone(),
+            look: key.look.clone(),
+            options: key.options.clone(),
             outcome,
         });
     }
@@ -630,8 +703,8 @@ struct State {
     running: Vec<Item>,
     crashes: u32,
     off: bool,
-    /// What the program said no to: (camera, look), not asked again.
-    refused: HashMap<(String, String), LookOutcome>,
+    /// What the program said no to: (camera, look, options), not asked again.
+    refused: HashMap<(String, String, LookOptions), LookOutcome>,
     scratch_files: u64,
 }
 
@@ -642,17 +715,13 @@ impl State {
 
     /// Takes the waiters `leaves` picks, and kills or forgets the items that
     /// leaves empty.
-    fn take_waiters(
-        &mut self,
-        leaves: impl Fn(&Item, &Waiter) -> bool,
-    ) -> Vec<(String, String, Waiter)> {
+    fn take_waiters(&mut self, leaves: impl Fn(&Item, &Waiter) -> bool) -> Vec<(Key, Waiter)> {
         let mut gone = Vec::new();
         for item in self.items() {
-            let (camera, look) = (item.key.camera.clone(), item.key.look.clone());
             let mut kept = Vec::new();
             for waiter in std::mem::take(&mut item.waiters) {
                 if leaves(item, &waiter) {
-                    gone.push((camera.clone(), look.clone(), waiter));
+                    gone.push((item.key.clone(), waiter));
                 } else {
                     kept.push(waiter);
                 }
@@ -679,19 +748,28 @@ pub struct Queue {
     exe: PathBuf,
     scratch: PathBuf,
     limits: Limits,
+    /// Every option the program offers, at its default.
+    option_defaults: LookOptions,
     placed: Placed,
     state: Mutex<State>,
 }
 
 impl Queue {
     /// A queue with an empty scratch folder: what a run left behind goes.
-    fn new(exe: PathBuf, scratch: PathBuf, limits: Limits, placed: Placed) -> Arc<Self> {
+    fn new(
+        exe: PathBuf,
+        scratch: PathBuf,
+        limits: Limits,
+        option_defaults: LookOptions,
+        placed: Placed,
+    ) -> Arc<Self> {
         let _ = std::fs::remove_dir_all(&scratch);
         let _ = std::fs::create_dir_all(&scratch);
         Arc::new(Self {
             exe,
             scratch,
             limits,
+            option_defaults,
             placed,
             state: Mutex::new(State::default()),
         })
@@ -720,14 +798,15 @@ impl Queue {
             subject,
             camera,
             look,
+            options,
             remake,
             front,
             job,
             report,
         } = request;
-        let key = Key::of(&subject, &camera, &look);
+        let key = Key::of(&subject, &camera, &look, &options);
         let source = parse_virtual_path(&subject.photo).0;
-        let Some(file) = file_ops::look_file_for(&source, &camera, &look) else {
+        let Some(file) = file_ops::look_file_for(&source, &camera, &look, &options) else {
             return;
         };
         let waiter = Waiter {
@@ -743,30 +822,30 @@ impl Queue {
             self.state()
                 .take_waiters(|item, w| w.photo == photo && item.key != same)
         };
-        for (camera, look, old) in replaced {
-            old.tell(&camera, &look, LookOutcome::Cancelled);
+        for (key, old) in replaced {
+            old.tell(&key, LookOutcome::Cancelled);
         }
 
         if !remake && std::fs::read(&waiter.file).is_ok_and(|bytes| checked_file(&bytes).is_ok()) {
-            waiter.tell(&camera, &look, LookOutcome::Done);
+            waiter.tell(&key, LookOutcome::Done);
             return;
         }
         if !folder_takes_files(&waiter.file) {
-            waiter.tell(&camera, &look, LookOutcome::Folder);
+            waiter.tell(&key, LookOutcome::Folder);
             return;
         }
 
         let mut state = self.state();
-        let refused = state.refused.get(&(camera.clone(), look.clone())).copied();
+        let refused = state.refused.get(&(camera, look, options)).copied();
         match (state.off, refused) {
             (true, _) => {
                 drop(state);
-                waiter.tell(&camera, &look, LookOutcome::Failed);
+                waiter.tell(&key, LookOutcome::Failed);
                 return;
             }
             (false, Some(outcome)) if !remake => {
                 drop(state);
-                waiter.tell(&camera, &look, outcome);
+                waiter.tell(&key, outcome);
                 return;
             }
             _ => {}
@@ -802,6 +881,7 @@ impl Queue {
         subject: Subject,
         camera: String,
         look: String,
+        options: LookOptions,
         cancel: &AtomicBool,
     ) -> LookOutcome {
         let job = NEXT_JOB.fetch_add(1, Ordering::SeqCst);
@@ -811,6 +891,7 @@ impl Queue {
             subject,
             camera,
             look,
+            options,
             remake: false,
             front: false,
             job,
@@ -838,8 +919,8 @@ impl Queue {
 
     fn cancel_where(&self, leaves: impl Fn(&Waiter) -> bool) {
         let gone = self.state().take_waiters(|_, waiter| leaves(waiter));
-        for (camera, look, waiter) in gone {
-            waiter.tell(&camera, &look, LookOutcome::Cancelled);
+        for (key, waiter) in gone {
+            waiter.tell(&key, LookOutcome::Cancelled);
         }
     }
 
@@ -871,6 +952,15 @@ impl Queue {
         }
     }
 
+    /// Every option the program offers, at the value `options` gives it.
+    fn options_to_send(&self, options: &LookOptions) -> LookOptions {
+        let mut sent = self.option_defaults.clone();
+        for (id, value) in &mut sent {
+            *value = options.get(id).copied().unwrap_or(*value);
+        }
+        sent
+    }
+
     /// One run, then its results.
     fn work(
         self: Arc<Self>,
@@ -883,8 +973,8 @@ impl Queue {
             &self.exe,
             &self.limits,
             subject,
-            &key.camera,
-            &key.look,
+            key,
+            &self.options_to_send(&key.options),
             scratch,
             cancel,
         );
@@ -907,7 +997,7 @@ impl Queue {
                 }
             }
             Err(failure) if failure.is_final() => {
-                let id = (key.camera.clone(), key.look.clone());
+                let id = (key.camera.clone(), key.look.clone(), key.options.clone());
                 state.refused.insert(id, failure.outcome());
             }
             Err(_) => {}
@@ -917,7 +1007,7 @@ impl Queue {
 
         for item in lost {
             for waiter in &item.waiters {
-                waiter.tell(&item.key.camera, &item.key.look, LookOutcome::Failed);
+                waiter.tell(&item.key, LookOutcome::Failed);
             }
         }
         match made {
@@ -934,12 +1024,12 @@ impl Queue {
                             LookOutcome::Folder
                         }
                     };
-                    waiter.tell(&key.camera, &key.look, outcome);
+                    waiter.tell(key, outcome);
                 }
             }
             Err(failure) => {
                 for waiter in waiters {
-                    waiter.tell(&key.camera, &key.look, failure.outcome());
+                    waiter.tell(key, failure.outcome());
                 }
             }
         }
@@ -1002,8 +1092,14 @@ fn provider(app: &AppHandle) -> Option<&'static Provider> {
         refresh_thumbnail(&handle, photo, file);
     });
     Some(READY.get_or_init(|| Provider {
+        queue: Queue::new(
+            PathBuf::from(&program),
+            scratch,
+            LIMITS,
+            catalog.option_defaults(),
+            placed,
+        ),
         catalog,
-        queue: Queue::new(PathBuf::from(&program), scratch, LIMITS, placed),
     }))
 }
 
@@ -1080,6 +1176,7 @@ pub struct PhotoLooks {
 pub struct ProviderLooks {
     pub cameras: Vec<OfferedCamera>,
     pub looks: Vec<OfferedLook>,
+    pub options: Vec<OfferedOption>,
     /// The switch.
     pub on: bool,
     /// None for no photo, a photo that is not a RAW, or one from no camera on
@@ -1091,6 +1188,8 @@ pub struct ProviderLooks {
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ProviderLooksArgs {
     pub path: Option<String>,
+    /// The options whose look files to report.
+    pub options: LookOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1100,6 +1199,7 @@ pub struct ProviderLookMakeArgs {
     /// None for each photo's own camera.
     pub camera: Option<String>,
     pub look: String,
+    pub options: LookOptions,
     pub remake: bool,
     pub front: bool,
 }
@@ -1110,6 +1210,7 @@ pub struct ProviderLookFileArgs {
     pub path: String,
     pub camera: String,
     pub look: String,
+    pub options: LookOptions,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1126,7 +1227,7 @@ pub struct ProviderLooksSwitchArgs {
 }
 
 /// What the provider offers `path`; None when there is no provider.
-pub fn looks(app: &AppHandle, path: Option<&str>) -> Option<ProviderLooks> {
+pub fn looks(app: &AppHandle, path: Option<&str>, options: &LookOptions) -> Option<ProviderLooks> {
     let provider = provider(app)?;
     let catalog = &provider.catalog;
     let photo = path.and_then(subject_of).and_then(|subject| {
@@ -1137,7 +1238,7 @@ pub fn looks(app: &AppHandle, path: Option<&str>) -> Option<ProviderLooks> {
             .iter()
             .flat_map(|c| catalog.looks.iter().map(move |l| (c, l)))
             .filter_map(|(c, l)| {
-                let file = file_ops::look_file_for(&source, &c.id, &l.id)?;
+                let file = file_ops::look_file_for(&source, &c.id, &l.id, options)?;
                 file.is_file().then(|| LookFile {
                     camera: c.id.clone(),
                     look: l.id.clone(),
@@ -1150,6 +1251,7 @@ pub fn looks(app: &AppHandle, path: Option<&str>) -> Option<ProviderLooks> {
     Some(ProviderLooks {
         cameras: catalog.cameras.clone(),
         looks: catalog.looks.clone(),
+        options: catalog.options.clone(),
         on: is_on(profiles::library()?),
         photo,
     })
@@ -1169,10 +1271,11 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
             let request = subject_of(&path).and_then(|subject| {
                 let chosen = args.camera.as_deref();
                 let camera = camera_for(&provider.catalog, chosen, &subject.make, &subject.model)?;
-                let listed = provider.catalog.looks.iter().any(|l| l.id == args.look);
+                let listed = provider.catalog.lists(&args.look, &args.options);
                 listed.then(|| Request {
                     camera: camera.to_string(),
                     look: args.look.clone(),
+                    options: args.options.clone(),
                     remake: args.remake,
                     front: args.front,
                     job,
@@ -1187,6 +1290,7 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                     path,
                     camera: args.camera.clone().unwrap_or_default(),
                     look: args.look.clone(),
+                    options: args.options.clone(),
                     outcome: LookOutcome::Unsupported,
                 }),
             }
@@ -1197,8 +1301,8 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
 
 /// Whether a photo has this look's file, with a provider or without one: the
 /// file is all a look needs to show.
-pub fn file_is_there(photo: &str, camera: &str, look: &str) -> bool {
-    file_ops::look_file_for(&parse_virtual_path(photo).0, camera, look)
+pub fn file_is_there(photo: &str, camera: &str, look: &str, options: &LookOptions) -> bool {
+    file_ops::look_file_for(&parse_virtual_path(photo).0, camera, look, options)
         .is_some_and(|file| file.is_file())
 }
 
@@ -1222,13 +1326,13 @@ pub fn look_file_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &Atomic
         return false;
     };
     let listed = provider.catalog.cameras.iter().any(|c| c.id == look.camera)
-        && provider.catalog.looks.iter().any(|l| l.id == look.look);
+        && provider.catalog.lists(&look.look, &look.options);
     let Some(subject) = subject_of(photo).filter(|_| listed) else {
         return false;
     };
     let made = provider
         .queue
-        .wait_for(subject, look.camera, look.look, cancel);
+        .wait_for(subject, look.camera, look.look, look.options, cancel);
     made == LookOutcome::Done
 }
 
@@ -1281,6 +1385,10 @@ fn main() {
         if kind == "crash" { std::process::exit(3); }
         if kind == "slowlist" { std::thread::sleep(std::time::Duration::from_secs(30)); }
         if kind == "badlist" { print!("not json"); return; }
+        if kind == "optioned" {
+            print!("{{\"protocol\":1,\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\"}}],\"options\":[{{\"id\":\"optionA\",\"label\":\"Invented choice\",\"default\":false}}]}}");
+            return;
+        }
         print!("{{\"protocol\":1,\"generator\":\"fake 1\",\"cameras\":[{{\"id\":\"cam1\",\"name\":\"Camera One\",\"make\":\"Acme\",\"model\":\"One\"}},{{\"id\":\"cam2\",\"name\":\"Camera Two\",\"make\":\"Acme\",\"model\":\"Two\"}}],\"looks\":[{{\"id\":\"look1\",\"name\":\"Invented Stock\",\"group\":\"Colour\"}},{{\"id\":\"look2\",\"name\":\"Other Stock\"}}]}}");
         return;
     }
@@ -1288,7 +1396,7 @@ fn main() {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     match kind.as_str() {
-        "good" => {
+        "good" | "optioned" => {
             std::fs::copy(dir.join("good.png"), &output).unwrap();
             write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
         }
@@ -1314,6 +1422,11 @@ fn main() {
         "unsupported" => write!(out, "{{\"ok\":false,\"error\":\"unsupported_camera\",\"message\":\"no\"}}").unwrap(),
         "unknown" => write!(out, "{{\"ok\":false,\"error\":\"unknown_look\"}}").unwrap(),
         "missing" => write!(out, "{{\"ok\":false,\"error\":\"data_missing\"}}").unwrap(),
+        "refuseson" if request.contains("\"optionA\":true") => write!(out, "{{\"ok\":false,\"error\":\"data_missing\"}}").unwrap(),
+        "refuseson" => {
+            std::fs::copy(dir.join("good.png"), &output).unwrap();
+            write!(out, "{{\"ok\":true}}").unwrap();
+        }
         "strange" => write!(out, "{{\"ok\":false,\"error\":\"a_code_nobody_knows\"}}").unwrap(),
         other => panic!("{other}"),
     }
@@ -1544,6 +1657,103 @@ fn main() {
         assert_eq!(catalog.looks[0].group.as_deref(), Some("Colour"));
     }
 
+    fn list_with_options(options: &str) -> String {
+        GOOD_LIST.replacen(
+            r#""protocol": 1,"#,
+            &format!(r#""protocol": 1, "options": {options},"#),
+            1,
+        )
+    }
+
+    fn options_kept(options: &str) -> Vec<OfferedOption> {
+        read_list(list_with_options(options).as_bytes())
+            .expect("a list")
+            .options
+    }
+
+    #[test]
+    fn a_list_offers_its_options_in_order() {
+        let kept = options_kept(
+            r#"[{ "id": "optionB", "label": "Second", "default": true },
+                { "id": "optionA", "label": "First", "default": false }]"#,
+        );
+        let ids: Vec<&str> = kept.iter().map(|option| option.id.as_str()).collect();
+        assert_eq!(ids, ["optionB", "optionA"]);
+        assert!(kept[0].default);
+        assert_eq!(kept[1].label, "First");
+    }
+
+    #[test]
+    fn a_list_with_no_options_is_as_it_was() {
+        assert_eq!(read_list(GOOD_LIST.as_bytes()).expect("a list").options, []);
+        assert_eq!(options_kept("[]"), []);
+    }
+
+    /// The whole list must not fall for one field of the wrong shape.
+    #[test]
+    fn options_of_the_wrong_shape_are_no_options() {
+        for bad in [
+            "7",
+            "true",
+            r#""optionA""#,
+            "{}",
+            "null",
+            r#"{ "id": "a" }"#,
+        ] {
+            assert_eq!(options_kept(bad), [], "{bad}");
+        }
+    }
+
+    #[test]
+    fn a_bad_option_is_dropped_and_the_rest_stay() {
+        let long = "x".repeat(81);
+        let kept = options_kept(&format!(
+            r#"[{{ "id": "optionA", "label": "Kept", "default": false }},
+                {{ "id": "optionA", "label": "Same id", "default": true }},
+                {{ "id": "../x", "label": "Bad id", "default": false }},
+                {{ "id": "a b", "label": "Bad id", "default": false }},
+                {{ "id": "", "label": "No id", "default": false }},
+                {{ "id": "x234567890123456789012345678901234", "label": "Long id", "default": false }},
+                {{ "id": "noLabel", "label": "", "default": false }},
+                {{ "id": "blank", "label": "   ", "default": false }},
+                {{ "id": "longLabel", "label": "{long}", "default": false }},
+                {{ "id": "numberLabel", "label": 7, "default": false }},
+                {{ "id": "noDefault", "label": "No default" }},
+                {{ "id": "stringDefault", "label": "Text", "default": "false" }},
+                {{ "label": "No id", "default": false }},
+                7, "optionB", null, [],
+                {{ "id": "optionC", "label": "Kept too", "default": true }}]"#
+        ));
+        let ids: Vec<&str> = kept.iter().map(|option| option.id.as_str()).collect();
+        assert_eq!(ids, ["optionA", "optionC"]);
+    }
+
+    /// An id goes to the program and to an edit, never into a file name, so
+    /// it need not fit one.
+    #[test]
+    fn an_options_id_may_be_in_mixed_case() {
+        let kept = options_kept(r#"[{ "id": "someOption_2", "label": "L", "default": false }]"#);
+        assert_eq!(kept.len(), 1);
+    }
+
+    #[test]
+    fn a_list_of_too_many_options_keeps_the_first() {
+        let many: Vec<String> = (0..MAX_OPTIONS + 5)
+            .map(|n| format!(r#"{{ "id": "option{n}", "label": "L", "default": false }}"#))
+            .collect();
+        let kept = options_kept(&format!("[{}]", many.join(",")));
+        assert_eq!(kept.len(), MAX_OPTIONS);
+        assert_eq!(kept[0].id, "option0");
+    }
+
+    #[test]
+    fn a_working_program_lists_its_options() {
+        let exe = fake("optioned");
+        let catalog = validate(&exe.to_string_lossy(), &ROOMY).expect("a list");
+        assert_eq!(catalog.options.len(), 1);
+        assert_eq!(catalog.options[0].id, "optionA");
+    }
+
     #[test]
     fn a_list_of_another_protocol_is_refused() {
         let other = GOOD_LIST.replace("\"protocol\": 1", "\"protocol\": 2");
@@ -1657,17 +1867,22 @@ fn main() {
         assert_eq!(wb_for_program(four), Some(four));
     }
 
+    fn plain_key(subject: &Subject) -> Key {
+        Key::of(subject, "cam1", "look1", &LookOptions::new())
+    }
+
     /// What a run of `kind` gives, and whether it left its scratch file.
     fn make_with(kind: &str) -> (bool, Result<(Vec<u8>, Lut), Failure>) {
         let limits = if kind == "slow" { QUICK } else { ROOMY };
         let exe = fake(kind);
         let scratch = exe.with_file_name("scratch.png");
+        let photo = subject("/photos/IMG.CR3");
         let got = make_lut(
             &exe,
             &limits,
-            &subject("/photos/IMG.CR3"),
-            "cam1",
-            "look1",
+            &photo,
+            &plain_key(&photo),
+            &LookOptions::new(),
             &scratch,
             &AtomicBool::new(false),
         );
@@ -1687,18 +1902,18 @@ fn main() {
     fn the_request_names_what_the_protocol_says() {
         let exe = fake("good");
         let scratch = exe.with_file_name("scratch.png");
+        let photo = subject("/photos/IMG.CR3");
         make_lut(
             &exe,
             &ROOMY,
-            &subject("/photos/IMG.CR3"),
-            "cam1",
-            "look1",
+            &photo,
+            &plain_key(&photo),
+            &LookOptions::new(),
             &scratch,
             &AtomicBool::new(false),
         )
         .expect("a LUT");
-        let line = std::fs::read_to_string(exe.with_file_name("calls.log")).expect("calls");
-        let sent: Value = serde_json::from_str(line.trim()).expect("JSON");
+        let sent = last_request(&exe);
         assert_eq!(sent["protocol"], 1);
         assert_eq!(sent["camera"], "cam1");
         assert_eq!(sent["look"], "look1");
@@ -1711,6 +1926,53 @@ fn main() {
         assert_eq!(sent["rendering"]["offsetEv"], 0.25);
         assert_eq!(sent["grid"], 64);
         assert_eq!(sent["output"], scratch.to_string_lossy().as_ref());
+        assert!(sent.get("options").is_none(), "{sent}");
+    }
+
+    /// The last request the fake was sent.
+    fn last_request(exe: &Path) -> Value {
+        let calls = std::fs::read_to_string(exe.with_file_name("calls.log")).expect("calls");
+        serde_json::from_str(calls.lines().last().expect("a call")).expect("JSON")
+    }
+
+    fn options(entries: &[(&str, bool)]) -> LookOptions {
+        entries
+            .iter()
+            .map(|(id, value)| (id.to_string(), *value))
+            .collect()
+    }
+
+    #[test]
+    fn every_offered_option_goes_with_its_value() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false), ("optionB", true)]);
+        heard.ask_with(&photo_beside(&exe, "A.CR3"), &LookOptions::new(), 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(
+            last_request(&exe)["options"],
+            json!({ "optionA": false, "optionB": true })
+        );
+        heard.ask_with(
+            &photo_beside(&exe, "B.CR3"),
+            &options(&[("optionA", true), ("optionB", false)]),
+            2,
+        );
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(
+            last_request(&exe)["options"],
+            json!({ "optionA": true, "optionB": false })
+        );
+    }
+
+    /// An edit can name anything; only what the program offers reaches it.
+    #[test]
+    fn an_option_it_does_not_offer_is_never_sent() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false)]);
+        let asked = options(&[("gone", true), ("optionA", true)]);
+        heard.ask_with(&photo_beside(&exe, "A.CR3"), &asked, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert_eq!(last_request(&exe)["options"], json!({ "optionA": true }));
     }
 
     #[test]
@@ -1739,7 +2001,9 @@ fn main() {
             let (exe, cancel) = (exe.to_path_buf(), Arc::clone(&cancel));
             std::thread::spawn(move || {
                 let subject = subject("/photos/IMG.CR3");
-                make_lut(&exe, &ROOMY, &subject, "cam1", "look1", &scratch, &cancel)
+                let key = plain_key(&subject);
+                let none = LookOptions::new();
+                make_lut(&exe, &ROOMY, &subject, &key, &none, &scratch, &cancel)
             })
         };
         wait_for("it never ran", || ticks.exists());
@@ -1796,6 +2060,11 @@ fn main() {
     }
 
     fn queue_of(exe: &Path) -> Heard {
+        queue_offering(exe, &[])
+    }
+
+    /// A queue for a program offering these options, with these defaults.
+    fn queue_offering(exe: &Path, offered: &[(&str, bool)]) -> Heard {
         let (tell, told) = channel();
         let tell = Mutex::new(tell);
         Heard {
@@ -1803,6 +2072,7 @@ fn main() {
                 exe.to_path_buf(),
                 exe.with_file_name("scratch"),
                 ROOMY,
+                options(offered),
                 Box::new(|_, _, _| {}),
             ),
             told,
@@ -1817,11 +2087,25 @@ fn main() {
             self.ask_for(photo, "look1", job, false, false);
         }
 
+        fn ask_with(&self, photo: &Path, options: &LookOptions, job: u64) {
+            self.queue.request(Request {
+                subject: subject(&photo.to_string_lossy()),
+                camera: "cam1".to_string(),
+                look: "look1".to_string(),
+                options: options.clone(),
+                remake: false,
+                front: false,
+                job,
+                report: Arc::clone(&self.report),
+            });
+        }
+
         fn ask_for(&self, photo: &Path, look: &str, job: u64, remake: bool, front: bool) {
             self.queue.request(Request {
                 subject: subject(&photo.to_string_lossy()),
                 camera: "cam1".to_string(),
                 look: look.to_string(),
+                options: LookOptions::new(),
                 remake,
                 front,
                 job,
@@ -1842,7 +2126,11 @@ fn main() {
     }
 
     fn look_file_of_photo(photo: &Path) -> PathBuf {
-        file_ops::look_file_for(photo, "cam1", "look1").expect("a name")
+        look_file_with(photo, &LookOptions::new())
+    }
+
+    fn look_file_with(photo: &Path, options: &LookOptions) -> PathBuf {
+        file_ops::look_file_for(photo, "cam1", "look1", options).expect("a name")
     }
 
     #[test]
@@ -1893,6 +2181,7 @@ fn main() {
             exe.to_path_buf(),
             exe.with_file_name("scratch"),
             ROOMY,
+            LookOptions::new(),
             Box::new(move |_, file, lut| {
                 let _ = tell.lock().unwrap().send((file.to_path_buf(), lut.size));
             }),
@@ -1905,6 +2194,7 @@ fn main() {
             subject: subject(&photo.to_string_lossy()),
             camera: "cam1".to_string(),
             look: "look1".to_string(),
+            options: LookOptions::new(),
             remake: true,
             front: false,
             job: 1,
@@ -1967,6 +2257,7 @@ fn main() {
                 subject: other,
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
+                options: LookOptions::new(),
                 remake: false,
                 front: false,
                 job: 1,
@@ -1995,6 +2286,7 @@ fn main() {
                 subject: other,
                 camera: "cam1".to_string(),
                 look: "look1".to_string(),
+                options: LookOptions::new(),
                 remake: false,
                 front: false,
                 job: 1,
@@ -2066,6 +2358,75 @@ fn main() {
         assert!(!look_file_of_photo(&photo).exists());
     }
 
+    /// Unchecking while the checked one is still being made, as a click on
+    /// another camera does.
+    #[test]
+    fn other_options_on_the_same_photo_replace_the_waiting_ones() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionA", true)]);
+        heard.ask_with(&photo, &on, 1);
+        heard.ask_with(&photo, &LookOptions::new(), 2);
+        let first = heard.next();
+        assert_eq!(first.outcome, LookOutcome::Cancelled);
+        assert_eq!(first.options, on);
+        release(&exe);
+        let told = heard.next();
+        assert_eq!(told.outcome, LookOutcome::Done);
+        assert_eq!(told.options, LookOptions::new());
+        assert!(look_file_of_photo(&photo).is_file());
+        assert!(!look_file_with(&photo, &on).exists());
+    }
+
+    #[test]
+    fn frames_with_other_options_do_not_share_a_run() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let (first, second) = (photo_beside(&exe, "A.CR3"), photo_beside(&exe, "B.CR3"));
+        let on = options(&[("optionA", true)]);
+        heard.ask_with(&first, &LookOptions::new(), 1);
+        heard.ask_with(&second, &on, 2);
+        release(&exe);
+        for _ in 0..2 {
+            assert_eq!(heard.next().outcome, LookOutcome::Done);
+        }
+        assert_eq!(calls(&exe), 2);
+        assert!(look_file_of_photo(&first).is_file());
+        assert!(look_file_with(&second, &on).is_file());
+    }
+
+    #[test]
+    fn a_file_for_other_options_is_not_used() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        write_png(&look_file_of_photo(&photo), 512);
+        let on = options(&[("optionA", true)]);
+        heard.ask_with(&photo, &on, 1);
+        let told = heard.next();
+        assert_eq!(told.outcome, LookOutcome::Done);
+        assert_eq!(told.options, on);
+        assert_eq!(calls(&exe), 1);
+        assert!(look_file_with(&photo, &on).is_file());
+    }
+
+    /// Saying no to the checked one says nothing about the unchecked one, and
+    /// it is not asked again.
+    #[test]
+    fn a_refusal_holds_for_its_own_options_only() {
+        let exe = fake("refuseson");
+        let heard = queue_offering(&exe, &[("optionA", false)]);
+        let on = options(&[("optionA", true)]);
+        heard.ask_with(&photo_beside(&exe, "A.CR3"), &on, 1);
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        heard.ask_with(&photo_beside(&exe, "B.CR3"), &LookOptions::new(), 2);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        heard.ask_with(&photo_beside(&exe, "C.CR3"), &on, 3);
+        assert_eq!(heard.next().outcome, LookOutcome::Failed);
+        assert_eq!(calls(&exe), 2);
+    }
+
     #[test]
     fn two_crashes_in_a_row_turn_the_provider_off() {
         let exe = fake("crash");
@@ -2133,10 +2494,29 @@ fn main() {
             subject(&photo.to_string_lossy()),
             "cam1".to_string(),
             "look1".to_string(),
+            LookOptions::new(),
             &never,
         );
         assert_eq!(got, LookOutcome::Done);
         assert!(look_file_of_photo(&photo).is_file());
+    }
+
+    #[test]
+    fn an_export_waits_for_the_file_of_its_options() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let on = options(&[("optionA", true)]);
+        let got = heard.queue.wait_for(
+            subject(&photo.to_string_lossy()),
+            "cam1".to_string(),
+            "look1".to_string(),
+            on.clone(),
+            &AtomicBool::new(false),
+        );
+        assert_eq!(got, LookOutcome::Done);
+        assert!(look_file_with(&photo, &on).is_file());
+        assert!(!look_file_of_photo(&photo).exists());
     }
 
     #[test]
@@ -2149,6 +2529,7 @@ fn main() {
             subject(&photo.to_string_lossy()),
             "cam1".to_string(),
             "look1".to_string(),
+            LookOptions::new(),
             &never,
         );
         assert_eq!(got, LookOutcome::Failed);
@@ -2164,7 +2545,14 @@ fn main() {
             let (queue, token) = (Arc::clone(&heard.queue), Arc::clone(&token));
             let subject = subject(&photo.to_string_lossy());
             std::thread::spawn(move || {
-                queue.wait_for(subject, "cam1".to_string(), "look1".to_string(), &token)
+                let none = LookOptions::new();
+                queue.wait_for(
+                    subject,
+                    "cam1".to_string(),
+                    "look1".to_string(),
+                    none,
+                    &token,
+                )
             })
         };
         wait_for("the run started", || calls(&exe) == 1);
@@ -2185,7 +2573,14 @@ fn main() {
             let subject = subject(&photo.to_string_lossy());
             std::thread::spawn(move || {
                 let never = AtomicBool::new(false);
-                queue.wait_for(subject, "cam1".to_string(), "look1".to_string(), &never)
+                let none = LookOptions::new();
+                queue.wait_for(
+                    subject,
+                    "cam1".to_string(),
+                    "look1".to_string(),
+                    none,
+                    &never,
+                )
             })
         };
         wait_for("both wait", || {
@@ -2206,12 +2601,26 @@ fn main() {
         let exe = fake("good");
         let photo = photo_beside(&exe, "IMG.CR3");
         let name = photo.to_string_lossy();
-        assert!(!file_is_there(&name, "cam1", "look1"));
+        let none = LookOptions::new();
+        assert!(!file_is_there(&name, "cam1", "look1", &none));
         write_png(&look_file_of_photo(&photo), 512);
-        assert!(file_is_there(&name, "cam1", "look1"));
-        assert!(file_is_there(&format!("{name}?vc=a1b2c3"), "cam1", "look1"));
-        assert!(!file_is_there(&name, "cam2", "look1"));
-        assert!(!file_is_there(&name, "../cam1", "look1"));
+        assert!(file_is_there(&name, "cam1", "look1", &none));
+        let copy = format!("{name}?vc=a1b2c3");
+        assert!(file_is_there(&copy, "cam1", "look1", &none));
+        assert!(!file_is_there(&name, "cam2", "look1", &none));
+        assert!(!file_is_there(&name, "../cam1", "look1", &none));
+    }
+
+    #[test]
+    fn a_look_file_is_found_for_its_options_alone() {
+        let exe = fake("good");
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let name = photo.to_string_lossy();
+        let on = options(&[("optionA", true)]);
+        write_png(&look_file_of_photo(&photo), 512);
+        assert!(!file_is_there(&name, "cam1", "look1", &on));
+        write_png(&look_file_with(&photo, &on), 512);
+        assert!(file_is_there(&name, "cam1", "look1", &on));
     }
 
     #[test]
@@ -2240,7 +2649,28 @@ fn main() {
                 name: "Invented Stock".to_string(),
                 group: None,
             }],
+            options: vec![OfferedOption {
+                id: "optionA".to_string(),
+                label: "Invented choice".to_string(),
+                default: false,
+            }],
         }
+    }
+
+    #[test]
+    fn a_catalog_gives_each_option_at_its_default() {
+        assert_eq!(catalog().option_defaults(), options(&[("optionA", false)]));
+    }
+
+    /// Its look stays on the photo through the file; the program is not asked
+    /// to make what it no longer offers.
+    #[test]
+    fn a_look_with_an_option_no_longer_offered_is_not_on_the_list() {
+        let catalog = catalog();
+        assert!(catalog.lists("look1", &LookOptions::new()));
+        assert!(catalog.lists("look1", &options(&[("optionA", true)])));
+        assert!(!catalog.lists("look1", &options(&[("gone", true)])));
+        assert!(!catalog.lists("other", &LookOptions::new()));
     }
 
     #[test]

@@ -2,7 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, type Adjustments } from '../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../editSections';
 import { presetAt } from './presetAmount';
-import { lookOnto, PROVIDER_LOOK_PATH, providerLookOff, sameProviderLook } from './providerLook';
+import {
+  lookKeys,
+  lookOnto,
+  offeredOptions,
+  optionIsOn,
+  PROVIDER_LOOK_PATH,
+  providerLookOff,
+  sameOptions,
+  sameProviderLook,
+  withOption,
+} from './providerLook';
 
 const curve = [
   { x: 0, y: 0 },
@@ -56,6 +66,89 @@ describe('sameProviderLook', () => {
   it('counts a look only while the marker is on', () => {
     expect(sameProviderLook({ ...withLook(), lutPath: '/luts/film.cube' }, {})).toBe(true);
     expect(sameProviderLook(withLook(), {})).toBe(false);
+  });
+});
+
+describe('an option on a look', () => {
+  const OFF_FIRST = { id: 'optionA', label: 'Invented choice', default: false };
+  const ON_FIRST = { id: 'optionB', label: 'Another choice', default: true };
+
+  const lookWith = (options: Record<string, boolean>): Partial<Adjustments> => ({
+    ...withLook(),
+    agProviderLook: { camera: 'cam1', look: 'abc', options, before: withLook().agProviderLook!.before },
+  });
+
+  it('with no stored value is at its default', () => {
+    expect(optionIsOn(OFF_FIRST, {})).toBe(false);
+    expect(optionIsOn(ON_FIRST, {})).toBe(true);
+  });
+
+  it('with a stored value is at that value', () => {
+    expect(optionIsOn(OFF_FIRST, { optionA: true })).toBe(true);
+    expect(optionIsOn(ON_FIRST, { optionB: false })).toBe(false);
+  });
+
+  it('is stored only while it is away from its default', () => {
+    expect(withOption({}, OFF_FIRST, true)).toEqual({ optionA: true });
+    expect(withOption({}, ON_FIRST, false)).toEqual({ optionB: false });
+    expect(withOption({ optionA: true }, OFF_FIRST, false)).toEqual({});
+    expect(withOption({}, OFF_FIRST, false)).toEqual({});
+    expect(withOption({ optionA: true }, ON_FIRST, false)).toEqual({ optionA: true, optionB: false });
+  });
+
+  it('keeps only what is still offered', () => {
+    expect(offeredOptions([OFF_FIRST], { optionA: true, gone: true })).toEqual({ optionA: true });
+    expect(offeredOptions([], { optionA: true })).toEqual({});
+    expect(offeredOptions([OFF_FIRST], undefined)).toEqual({});
+  });
+
+  it('compares by value, with none stored the same as an empty set', () => {
+    expect(sameOptions({ optionA: true }, { optionA: true })).toBe(true);
+    expect(sameOptions(undefined, {})).toBe(true);
+    expect(sameOptions({ optionA: true }, {})).toBe(false);
+    expect(sameOptions({ optionA: true }, { optionA: false })).toBe(false);
+    expect(sameOptions({ optionA: true, optionB: false }, { optionB: false, optionA: true })).toBe(true);
+  });
+
+  it('goes into the edit with its look', () => {
+    expect(lookKeys('cam1', 'abc', 'Invented Stock', { optionA: true }).agProviderLook?.options).toEqual({
+      optionA: true,
+    });
+  });
+
+  it('leaves a look with none as it was before options existed', () => {
+    expect(Object.keys(lookKeys('cam1', 'abc', 'Invented Stock').agProviderLook ?? {})).toEqual([
+      'camera',
+      'look',
+      'before',
+    ]);
+    expect(Object.keys(lookKeys('cam1', 'abc', 'Invented Stock', {}).agProviderLook ?? {})).toEqual([
+      'camera',
+      'look',
+      'before',
+    ]);
+  });
+
+  it('makes it another look to compare', () => {
+    expect(sameProviderLook(lookWith({ optionA: true }), lookWith({ optionA: true }))).toBe(true);
+    expect(sameProviderLook(lookWith({ optionA: true }), lookWith({}))).toBe(false);
+    expect(sameProviderLook(lookWith({}), withLook())).toBe(true);
+  });
+
+  it('travels with a preset, onto the target’s rendering', () => {
+    const put = lookOnto({ rawToneRendering: 'default' }, lookWith({ optionA: true }));
+    expect(put.agProviderLook?.options).toEqual({ optionA: true });
+    expect(put.agProviderLook?.before.rawToneRendering).toBe('default');
+  });
+
+  it('fades in with the Amount, as another look does', () => {
+    const before = { ...lookWith({}), lutIntensity: 80 } as Adjustments;
+    const preset = { ...lookWith({ optionA: true }), lutIntensity: 100 };
+    expect(presetAt(before, preset, 50).lutIntensity).toBe(50);
+  });
+
+  it('goes off with its look', () => {
+    expect(providerLookOff(lookWith({ optionA: true })).agProviderLook).toBeNull();
   });
 });
 

@@ -4,10 +4,10 @@
  *
  * It shows only when a provider is set and the photo can have its looks, so
  * with `lutProvider` absent or empty nothing here renders. Its switch picks
- * which list is usable: on, these looks and the Camera picker work and the
- * regular Presets and LUTs are off; off, the reverse. It never takes a look off
- * a photo. A click starts a job and the photo stays as it was; the store puts
- * the look on when its file is ready.
+ * which list is usable: on, these looks, the Camera picker and any options work
+ * and the regular Presets and LUTs are off; off, the reverse. It never takes a
+ * look off a photo. A click starts a job and the photo stays as it was; the
+ * store puts the look on when its file is ready.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -21,7 +21,7 @@ import { useUIStore } from '../../store/useUIStore';
 import { ag } from '../ag';
 import type { OfferedLook } from '../ag.generated';
 import { useAgTranslation } from '../locales';
-import { lookKeys, lookOf, lookOnto } from './providerLook';
+import { lookKeys, lookOf, lookOnto, offeredOptions, optionIsOn, sameOptions } from './providerLook';
 import { restoreLook, useProviderLooks } from './providerLooksStore';
 
 /** How long the pointer rests on a look before the photo shows it, as in the lists below. */
@@ -67,11 +67,29 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
   const setEditor = useEditorStore((s) => s.setEditor);
   const gridPhoto = useLibraryStore((s) => s.libraryActivePath ?? s.multiSelectedPaths[0] ?? null);
   const subject = photo ?? gridPhoto;
-  const { offer, waiting, note, batch, load, cameraOf, chooseCamera, pick, putOnSelection, cancelBatch, setOn } =
-    useProviderLooks();
+  const {
+    offer,
+    waiting,
+    note,
+    batch,
+    load,
+    cameraOf,
+    chooseCamera,
+    optionsOf,
+    chooseOption,
+    pick,
+    putOnSelection,
+    cancelBatch,
+    setOn,
+  } = useProviderLooks();
   const hover = useRef<number | undefined>(undefined);
   const files = offer?.photo?.files ?? [];
   const swatches = useFileSwatches(files, photo, ready);
+
+  // In the grid there is no open edit: what shows is the hand choice alone.
+  const edit = photo ? adjustments : {};
+  const options = subject ? optionsOf(subject, edit) : {};
+  const optionsKey = JSON.stringify(options);
 
   // A provider that fails its check is asked again when the tab next opens, not per photo.
   const available = !!offer;
@@ -79,8 +97,8 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
   useEffect(() => {
     if (asked.current && !available) return;
     asked.current = true;
-    load(subject);
-  }, [subject, available, load]);
+    load(subject, JSON.parse(optionsKey));
+  }, [subject, available, load, optionsKey]);
 
   useEffect(
     () => () => {
@@ -115,7 +133,10 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
   const camera = cameraOf(subject, adjustments) ?? own;
   const onPhoto = photo ? lookOf(adjustments) : null;
   const fileOf = (look: OfferedLook) => files.find((f) => f.camera === camera && f.look === look.id);
-  const isOn = (look: OfferedLook) => onPhoto?.camera === camera && onPhoto.look === look.id;
+  const isOn = (look: OfferedLook) =>
+    onPhoto?.camera === camera &&
+    onPhoto.look === look.id &&
+    sameOptions(offeredOptions(offer.options, onPhoto.options), options);
 
   const stopPreview = () => {
     window.clearTimeout(hover.current);
@@ -128,7 +149,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
       const now = useEditorStore.getState().adjustments;
-      setEditor({ previewOverride: { ...now, ...lookOnto(now, lookKeys(camera, look.id, look.name)) } });
+      setEditor({ previewOverride: { ...now, ...lookOnto(now, lookKeys(camera, look.id, look.name, options)) } });
     }, PREVIEW_AFTER_MS);
   };
 
@@ -138,9 +159,9 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
       const { multiSelectedPaths } = useLibraryStore.getState();
       const paths = multiSelectedPaths.length > 0 ? multiSelectedPaths : [subject];
       const chosen = useProviderLooks.getState().chosen[subject] ?? null;
-      putOnSelection(paths, look, chosen);
+      putOnSelection(paths, look, chosen, options);
     } else if (isOn(look)) onTakeOff();
-    else pick(photo, look, camera);
+    else pick(photo, look, camera, options);
   };
 
   return (
@@ -177,6 +198,17 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
           {t(camera === own ? 'looksProviderMatched' : 'looksProviderOther')}
         </span>
       </div>
+      {offer.options.map((option) => (
+        <label className={clsx('agm-provider-option', !on && 'agm-look-dim')} key={option.id}>
+          <input
+            checked={optionIsOn(option, options)}
+            disabled={!on}
+            onChange={(e) => chooseOption(subject, option, e.target.checked, edit)}
+            type="checkbox"
+          />
+          <span className="min-w-0">{option.label}</span>
+        </label>
+      ))}
       {offer.looks.map((look) => {
         const file = fileOf(look);
         const swatch = file && swatches[file.path];
@@ -278,29 +310,34 @@ export function OnPhotoLook({
   const on = lookOf(adjustments);
   const camera = on?.camera ?? '';
   const look = on?.look ?? '';
+  const optionsKey = JSON.stringify(on?.options ?? {});
   const [there, setThere] = useState(true);
 
   useEffect(() => {
     let current = true;
-    ag('provider_look_file', { path: photo, camera, look })
+    ag('provider_look_file', { path: photo, camera, look, options: JSON.parse(optionsKey) })
       .then((found) => current && setThere(found))
       .catch(() => current && setThere(false));
     return () => {
       current = false;
     };
-  }, [photo, camera, look, filesMade]);
+  }, [photo, camera, look, optionsKey, filesMade]);
 
   const file = offer?.photo?.files.find((f) => f.camera === camera && f.look === look);
   const swatches = useFileSwatches(file ? [file] : [], photo, true);
   const offered = offer?.looks.find((l) => l.id === look);
-  const listed = !!offered && !!offer?.cameras.some((c) => c.id === camera);
+  const lookOptions = on?.options ?? {};
+  const listed =
+    !!offered &&
+    !!offer?.cameras.some((c) => c.id === camera) &&
+    sameOptions(offeredOptions(offer.options, lookOptions), lookOptions);
 
   return (
     <LookStrip
       canMake={listed}
       kind={offer?.cameras.find((c) => c.id === camera)?.name ?? t('looksProviderKind')}
       name={adjustments.lutName ?? ''}
-      onMake={() => offered && keepLook([photo], offered, camera, true)}
+      onMake={() => offered && keepLook([photo], offered, camera, lookOptions, true)}
       onStrength={onStrength}
       onTakeOff={onTakeOff}
       strength={adjustments.lutIntensity ?? 100}
