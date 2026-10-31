@@ -65,7 +65,10 @@ use std::path::{Path, PathBuf};
 ///    with the picture (`effect_maps.rs`).
 /// 10. RapidRAW 1.6.7's camera colour the DNG way for photos with no edit yet
 ///     (`mods/dng_colour.rs`); edits saved before keep theirs.
-pub const PIPELINE: u32 = 11;
+/// 11. Noise below black is clipped after demosaicing on Bayer sensors, so very
+///     high ISO shadows carry less of a red and blue cast (rawler fork, from
+///     RAWmakase 4d3f6f8c: `crates/rawmakase-decode/src/demosaic.rs`).
+pub const PIPELINE: u32 = 12;
 
 /// Name of the stamp left beside the thumbnails recording what made them.
 const STAMP: &str = "argentum-pipeline";

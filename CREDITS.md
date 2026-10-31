@@ -155,6 +155,8 @@ rawler (`akhater/RapidRAW-DngLab`): the Canon EOS R8 Mark II's colour data
 (ColorData version 67, `canon_cr3.rs` @ `3c54413`), and the corrected colour
 matrices and white levels of a few bodies (`data/raw-matrices.toml` and
 `data/raw-cameras.toml` @ `a8c5d6d7`), which carry Adobe DNG Converter 18.7's.
+Noise below black is clipped where RAWmakase clips it, after demosaicing a Bayer
+sensor's samples (`crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`).
 
 **The names Adobe profiles some cameras under** - the Lumix G97 and its twins as
 the DC-G99, the E-M10 Mark III S as the Mark III, and a few more - are RAWmakase's

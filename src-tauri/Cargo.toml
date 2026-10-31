@@ -33,7 +33,7 @@ pollster = "1.0"
 bytemuck = { version = "1.25", features = ["derive"] }
 anyhow = "1.0.104"
 kamadak-exif = "0.6.1"
-rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "e865df57b7da0607e6c5c972c2a2ce47a486c2e3" }
+rawler = { git = "https://github.com/akhater/RapidRAW-DngLab.git", rev = "734763ba431111d0cfaa01b02152a5b6e7b834d3" }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.25", features = ["v4", "serde"] }
 walkdir = "2.5.0"

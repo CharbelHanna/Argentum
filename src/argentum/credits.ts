@@ -128,7 +128,8 @@ export const CREDITS: CreditGroup[] = [
           'about and how Lightroom frames the corrected photo. Some RAW files are read as ' +
           'RAWmakase measured them: the Canon EOS R8 Mark II’s colour data, and a few cameras’ colour ' +
           'matrices and white levels, and the names Adobe profiles some cameras under (the Lumix ' +
-          'G97 as the G99). The presets that come with Argentum (Color, Creative, B&W, ' +
+          'G97 as the G99). Noise below black is clipped where RAWmakase clips it, after ' +
+          'demosaicing. The presets that come with Argentum (Color, Creative, B&W, ' +
           'Curve, Grain and Vignetting, 26 Lightroom XMP files) are RAWmakase’s, shipped ' +
           'unchanged. RAWmakase is also where the comparison started. MIT.',
       },
