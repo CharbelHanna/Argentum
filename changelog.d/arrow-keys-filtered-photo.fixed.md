@@ -1,1 +1,0 @@
-- Left and Right no longer stop working when the photo on show has left the filtered list, for example once an edit takes it out of Unedited only, or when a filter hides the photo selected in the grid. They go to the nearest photo still in the list, either side of where it stood. From RAWmakase `src/app/library/metadata.rs` @ `49755bc4`.
