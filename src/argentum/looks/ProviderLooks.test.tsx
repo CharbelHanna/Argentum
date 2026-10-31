@@ -29,7 +29,7 @@ const OFFER: Offer = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [], beside: 0 },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
 };
 
 /** A server render reads the store's first state. */
@@ -174,7 +174,7 @@ describe('Preview all', () => {
 });
 
 describe('Delete all previews', () => {
-  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], beside: 2 } };
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
   const button = (html: string) => html.match(/<button[^>]*>[^<]*Delete[^<]*<\/button>/)?.[0] ?? '';
 
   it('shows beside Preview all, ready to press', () => {
@@ -186,14 +186,21 @@ describe('Delete all previews', () => {
     expect(html.indexOf('Delete all previews')).toBeLessThan(html.indexOf('Invented Stock'));
   });
 
-  it('is disabled with no look file beside the photo', () => {
+  it('is disabled with no look file or preview to clear', () => {
     offered({ offer: OFFER });
     expect(button(section())).toContain('disabled');
   });
 
-  it('counts a look file the current list does not show', () => {
+  it('counts what the current list does not show', () => {
     offered({ offer: WITH_FILES });
     expect(WITH_FILES.photo?.files).toEqual([]);
+    expect(WITH_FILES.photo?.previews).toEqual([]);
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('is on right after Preview all, with only temporary previews', () => {
+    const preview = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
+    offered({ offer: { ...OFFER, photo: { camera: 'cam1', files: [], previews: [preview], clearable: 1 } } });
     expect(button(section())).not.toContain('disabled');
   });
 
@@ -236,7 +243,7 @@ describe('Delete all previews', () => {
 });
 
 describe('folding the section', () => {
-  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], beside: 2 } };
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
   const RUNNING = { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 };
   const head = (html: string) => html.match(/<div class="agm-provider-head">.*?<\/div>/)?.[0] ?? '';
 

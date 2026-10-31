@@ -62,7 +62,7 @@ const OFFER: ProviderLooks = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [], beside: 0 },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
 };
 
 const OPTION = { id: 'optionA', label: 'Invented choice', default: false };
@@ -904,7 +904,7 @@ describe('the previews a photo shows', () => {
   const PREVIEW = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
 
   beforeEach(async () => {
-    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], beside: 0 } };
+    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], clearable: 1 } };
     await useProviderLooks.getState().load(OPEN, { optionA: true });
   });
 

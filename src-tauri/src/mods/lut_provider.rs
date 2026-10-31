@@ -986,6 +986,12 @@ impl Queue {
         }
     }
 
+    /// How many of `photo`'s look files and previews Delete all previews looks at.
+    fn clearable(&self, photo: &Path) -> usize {
+        let folder = self.scratch.join(PREVIEW_FOLDER);
+        file_ops::look_files_of(photo).len() + previews_of(&folder, photo).len()
+    }
+
     /// Clears what can go of one photo: the look files no edit uses, its
     /// previews, and what is on its way to them, first, so nothing lands after.
     /// A look an edit names is left to finish: an export may be waiting for it.
@@ -1001,9 +1007,14 @@ impl Queue {
         self.cancel_where(|waiter| {
             parse_virtual_path(&waiter.photo).0 == source && !used.contains(&waiter.file)
         });
-        clear_previews(&self.scratch.join(PREVIEW_FOLDER), &source);
 
         let mut result = LooksDeleted::default();
+        // One that will not go now goes when the app closes.
+        for preview in previews_of(&self.scratch.join(PREVIEW_FOLDER), &source) {
+            if std::fs::remove_file(preview).is_ok() {
+                result.deleted += 1;
+            }
+        }
         for file in file_ops::look_files_of(&source) {
             if used.contains(&file) {
                 result.kept += 1;
@@ -1228,18 +1239,18 @@ fn preview_stem(photo: &Path) -> String {
     format!(".{}", &hash[..PREVIEW_HASH_CHARS])
 }
 
-/// Drops every preview of `photo` in `folder`, whichever camera, look and
-/// options made it. What will not go now goes when the app closes.
-fn clear_previews(folder: &Path, photo: &Path) {
+/// Every preview of `photo` in `folder`, whichever camera, look and options
+/// made it.
+fn previews_of(folder: &Path, photo: &Path) -> Vec<PathBuf> {
     let Ok(entries) = std::fs::read_dir(folder) else {
-        return;
+        return Vec::new();
     };
     let start = format!("{}.", preview_stem(photo));
-    for entry in entries.flatten() {
-        if entry.file_name().to_string_lossy().starts_with(&start) {
-            let _ = std::fs::remove_file(entry.path());
-        }
-    }
+    entries
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(&start))
+        .map(|entry| entry.path())
+        .collect()
 }
 
 /// Drops the oldest previews in `folder` until it is within `budget_bytes`.
@@ -1406,8 +1417,9 @@ pub struct PhotoLooks {
     pub files: Vec<LookFile>,
     /// The temporary files of Preview all: to look at, never a look on a photo.
     pub previews: Vec<LookFile>,
-    /// Its look files, for any camera, look and options, listed or not.
-    pub beside: usize,
+    /// Its look files and previews, for any camera, look and options, listed
+    /// or not: what its Delete all previews looks at.
+    pub clearable: usize,
 }
 
 /// What the provider offers.
@@ -1461,10 +1473,11 @@ pub struct ProviderLookDeleteArgs {
     pub on_photo: Option<provider_look::ProviderLook>,
 }
 
-/// What became of a photo's look files.
+/// What became of a photo's look files and previews.
 #[derive(Debug, Clone, Default, PartialEq, Serialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct LooksDeleted {
+    /// Look files and previews, so right after Preview all it is the previews.
     pub deleted: usize,
     /// An edit uses these.
     pub kept: usize,
@@ -1531,7 +1544,7 @@ pub fn looks(app: &AppHandle, path: Option<&str>, options: &LookOptions) -> Opti
             camera,
             files,
             previews,
-            beside: file_ops::look_files_of(&source).len(),
+            clearable: provider.queue.clearable(&source),
         })
     });
     Some(ProviderLooks {
@@ -3289,7 +3302,7 @@ fn main() {
 
         let told = heard.queue.delete_looks(&delete_args(&copy), gone);
 
-        assert_eq!(told, deleted(1, 0, 0));
+        assert_eq!(told, deleted(2, 0, 0));
         assert!(!file.exists() && !preview.exists());
     }
 
@@ -3331,18 +3344,14 @@ fn main() {
         assert!(rest.iter().all(|file| !file.exists()), "{rest:?}");
     }
 
-    #[test]
-    fn every_preview_of_the_photo_goes_and_no_other() {
-        let exe = fake("good");
-        let heard = queue_of(&exe);
-        let photo = photo_beside(&exe, "IMG.CR2");
-        let other = photo_beside(&exe, "OTHER.CR2");
+    /// Previews of this photo for several cameras, looks and options.
+    fn with_previews(heard: &Heard, exe: &Path, photo: &Path) -> [PathBuf; 3] {
         let previews = [
-            heard.with_preview(&photo),
-            heard.preview_of(&photo, "look2"),
+            heard.with_preview(photo),
+            heard.preview_of(photo, "look2"),
             preview_file_for(
                 &exe.with_file_name("scratch").join(PREVIEW_FOLDER),
-                &photo,
+                photo,
                 "cam2",
                 "look1",
                 &options(&[("optionA", true)]),
@@ -3352,12 +3361,53 @@ fn main() {
         for file in &previews {
             write_png(file, 512);
         }
-        let kept = heard.with_preview(&other);
+        previews
+    }
 
-        heard.queue.delete_looks(&delete_args(&photo), gone);
+    /// Right after Preview all there are only these, and the result counts them.
+    #[test]
+    fn every_preview_of_the_photo_goes_and_no_other() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let previews = with_previews(&heard, &exe, &photo);
+        let kept = heard.with_preview(&photo_beside(&exe, "OTHER.CR2"));
 
+        let told = heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(told, deleted(3, 0, 0));
         assert!(previews.iter().all(|file| !file.exists()), "{previews:?}");
         assert!(kept.exists());
+    }
+
+    #[test]
+    fn the_button_has_nothing_to_clear_on_a_photo_with_neither() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        heard.with_preview(&photo_beside(&exe, "OTHER.CR2"));
+        std::fs::write(photo.with_file_name("my.film.lut.png"), "file").expect("file");
+        assert_eq!(heard.queue.clearable(&photo), 0);
+    }
+
+    /// In any camera or options, so another option set's previews count too.
+    #[test]
+    fn the_button_counts_previews_alone() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        with_previews(&heard, &exe, &photo);
+        assert_eq!(heard.queue.clearable(&photo), 3);
+    }
+
+    #[test]
+    fn the_button_counts_look_files_and_previews_together() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        std::fs::write(look_file_of_photo(&photo), "file").expect("file");
+        with_previews(&heard, &exe, &photo);
+        assert_eq!(heard.queue.clearable(&photo), 4);
     }
 
     #[test]

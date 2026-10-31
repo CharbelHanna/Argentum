@@ -429,9 +429,13 @@ export type LookProgress = { jobId: number, path: string, camera: string, look: 
 preview: boolean, };
 
 /**
- * What became of a photo's look files.
+ * What became of a photo's look files and previews.
  */
-export type LooksDeleted = { deleted: number, 
+export type LooksDeleted = { 
+/**
+ * Look files and previews, so right after Preview all it is the previews.
+ */
+deleted: number, 
 /**
  * An edit uses these.
  */
@@ -596,9 +600,10 @@ camera: string, files: Array<LookFile>,
  */
 previews: Array<LookFile>, 
 /**
- * Its look files, for any camera, look and options, listed or not.
+ * Its look files and previews, for any camera, look and options, listed
+ * or not: what its Delete all previews looks at.
  */
-beside: number, };
+clearable: number, };
 
 /**
  * The folder a file dialog opens in: the open photo's, when there is one.

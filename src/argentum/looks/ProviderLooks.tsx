@@ -273,7 +273,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
               </button>
               <button
                 className="agm-provider-delete"
-                disabled={!on || !ready || deleting || offer.photo.beside === 0}
+                disabled={!on || !ready || deleting || offer.photo.clearable === 0}
                 onClick={() => deleteLooks(photo)}
               >
                 {t('looksProviderDeleteAll')}
