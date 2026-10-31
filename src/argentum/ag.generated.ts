@@ -429,6 +429,23 @@ export type LookProgress = { jobId: number, path: string, camera: string, look: 
 preview: boolean, };
 
 /**
+ * What became of a photo's look files and previews.
+ */
+export type LooksDeleted = { 
+/**
+ * Look files and previews, so right after Preview all it is the previews.
+ */
+deleted: number, 
+/**
+ * An edit uses these.
+ */
+kept: number, 
+/**
+ * These would not go.
+ */
+failed: number, };
+
+/**
  * A photo to measure Auto white balance on, and the photo a pasted Auto came from.
  */
 export type MeasureWbArgs = { path: string, from: string | null, };
@@ -581,7 +598,12 @@ camera: string, files: Array<LookFile>,
 /**
  * The temporary files of Preview all: to look at, never a look on a photo.
  */
-previews: Array<LookFile>, };
+previews: Array<LookFile>, 
+/**
+ * Its look files and previews, for any camera, look and options, listed
+ * or not: what its Delete all previews looks at.
+ */
+clearable: number, };
 
 /**
  * The folder a file dialog opens in: the open photo's, when there is one.
@@ -617,6 +639,12 @@ export type ProviderLook = { camera: string, look: string,
 options?: { [key in string]?: boolean }, before: RenderingBefore, };
 
 export type ProviderLookCancelArgs = { jobId: number, };
+
+export type ProviderLookDeleteArgs = { path: string, 
+/**
+ * The look on the open edit: its save may still be on its way.
+ */
+onPhoto: ProviderLook | null, };
 
 export type ProviderLookFileArgs = { path: string, camera: string, look: string, options: { [key in string]?: boolean }, };
 
@@ -822,6 +850,7 @@ export interface AgCommands {
   modern_theme: { args: Record<string, never>; answer: ModernTheme };
   profiles_for_camera: { args: ModelArgs; answer: CameraProfiles };
   provider_look_cancel: { args: ProviderLookCancelArgs; answer: null };
+  provider_look_delete: { args: ProviderLookDeleteArgs; answer: LooksDeleted };
   provider_look_file: { args: ProviderLookFileArgs; answer: boolean };
   provider_look_make: { args: ProviderLookMakeArgs; answer: number };
   provider_look_preview: { args: ProviderLookPreviewArgs; answer: number };

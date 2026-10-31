@@ -98,6 +98,8 @@ interface ProviderLooksState {
   note: Note | null;
   batch: Batch | null;
   previewing: Previewing | null;
+  /** Delete all previews on its way. */
+  deleting: boolean;
   /** The last batch, for its Undo. */
   undoable: Before[];
   /** Counts the look files made, so what reads them reads again. */
@@ -122,6 +124,8 @@ interface ProviderLooksState {
   /** Every look of this photo as a temporary file, to compare: only the button asks. */
   previewAll: (photo: string, camera: string, options: LookOptions) => Promise<void>;
   stopPreviews: () => Promise<void>;
+  /** This photo's look files no edit uses, and its previews: only the button asks. */
+  deleteLooks: (photo: string) => Promise<void>;
   cancel: (photo: string) => Promise<void>;
   cancelBatch: () => Promise<void>;
   undoLast: () => Promise<void>;
@@ -137,6 +141,7 @@ const FIRST = {
   note: null,
   batch: null,
   previewing: null,
+  deleting: false,
   undoable: [],
   filesMade: 0,
 };
@@ -427,6 +432,28 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       if (previewing.job !== null) {
         await ag('provider_look_cancel', { jobId: previewing.job }).catch(() => undefined);
       }
+    },
+
+    deleteLooks: async (photo) => {
+      const { offer, deleting } = get();
+      if (!offer?.on || !offer.photo || deleting) return;
+      set({ deleting: true, note: null });
+      await get().stopPreviews();
+      const { adjustments } = useEditorStore.getState();
+      const onPhoto = photo === openPhoto() ? lookOf(adjustments) : null;
+      const result = await ag('provider_look_delete', { path: photo, onPhoto }).catch((err) => {
+        console.warn('Provider looks:', err);
+        return null;
+      });
+      set({ deleting: false });
+      if (photo === openPhoto()) await get().load(photo, get().optionsOf(photo, useEditorStore.getState().adjustments));
+      if (!result) return;
+      const text = agText(result.failed > 0 ? 'looksProviderDeleteFailed' : 'looksProviderDeleted')
+        .replace('{deleted}', String(result.deleted))
+        .replace('{kept}', String(result.kept))
+        .replace('{failed}', String(result.failed));
+      if (result.failed > 0) toast.error(text);
+      else toast.info(text);
     },
 
     cancel: async (photo) => {

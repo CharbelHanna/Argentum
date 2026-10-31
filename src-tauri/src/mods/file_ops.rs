@@ -9,9 +9,9 @@
 //! files those are and where they go, and do only the disk work themselves:
 //!
 //! - [`is_sidecar_of`]: which `.agdata` files hold a photo's edits.
-//! - [`look_file_for`], [`is_look_file_of`] and [`look_file_copies`]: which
-//!   `.lut.png` files are a photo's, and where a copy's go. Such a file is never
-//!   a photo, and it being there applies nothing.
+//! - [`look_file_for`], [`is_look_file_of`], [`look_files_of`] and
+//!   [`look_file_copies`]: which `.lut.png` files are a photo's, and where a
+//!   copy's go. Such a file is never a photo, and it being there applies nothing.
 //! - [`files_to_delete_with_associated`]: what "Delete with associated" trashes.
 //! - [`xmp_still_used`] and [`xmp_after_rename`]: the XMP a RAW and its JPEG
 //!   share stays with the one that stays (ours).
@@ -175,13 +175,12 @@ pub fn is_look_file_of(file_name: &str, image_name: &str) -> bool {
     photo_of_look_file(file_name) == Some(image_name)
 }
 
-/// Where each look file of `photo` goes when `photo` is copied to `copy` in
-/// the same folder or another.
-pub fn look_file_copies(photo: &Path, copy: &Path) -> Vec<(PathBuf, PathBuf)> {
-    let (Some(folder), Some(photo_name), Some(copy_name)) = (
+/// Every look file of `photo` beside it, whichever camera, look and options
+/// made it. The names decide, so a look its provider no longer lists counts.
+pub fn look_files_of(photo: &Path) -> Vec<PathBuf> {
+    let (Some(folder), Some(photo_name)) = (
         photo.parent(),
         photo.file_name().and_then(|name| name.to_str()),
-        copy.file_name().and_then(|name| name.to_str()),
     ) else {
         return Vec::new();
     };
@@ -190,13 +189,35 @@ pub fn look_file_copies(photo: &Path, copy: &Path) -> Vec<(PathBuf, PathBuf)> {
     };
     entries
         .filter_map(Result::ok)
-        .filter_map(|entry| {
+        .filter(|entry| {
             let file_name = entry.file_name();
-            let file_name = file_name.to_str()?;
-            is_look_file_of(file_name, photo_name).then(|| {
-                let new_name = file_name.replacen(photo_name, copy_name, 1);
-                (entry.path(), copy.with_file_name(new_name))
-            })
+            file_name
+                .to_str()
+                .is_some_and(|name| is_look_file_of(name, photo_name))
+        })
+        .map(|entry| entry.path())
+        .filter(|file| file.is_file())
+        .collect()
+}
+
+/// Where each look file of `photo` goes when `photo` is copied to `copy` in
+/// the same folder or another.
+pub fn look_file_copies(photo: &Path, copy: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let (Some(photo_name), Some(copy_name)) = (
+        photo.file_name().and_then(|name| name.to_str()),
+        copy.file_name().and_then(|name| name.to_str()),
+    ) else {
+        return Vec::new();
+    };
+    look_files_of(photo)
+        .into_iter()
+        .filter_map(|file| {
+            let new_name = file
+                .file_name()?
+                .to_str()?
+                .replacen(photo_name, copy_name, 1);
+            let to = copy.with_file_name(new_name);
+            Some((file, to))
         })
         .collect()
 }
@@ -588,6 +609,45 @@ mod tests {
         assert!(is_look_file_of(name, "IMG.CR2"));
         assert_eq!(look_file_for(photo, "../x", "abc", &no_options()), None);
         assert_eq!(look_file_for(photo, "cam1", "A", &no_options()), None);
+    }
+
+    #[test]
+    fn a_photos_look_files_are_all_of_its_own_and_nothing_else() {
+        let dir = tempfile::tempdir().expect("folder");
+        let photo = dir.path().join("IMG.CR2");
+        let own = [
+            "IMG.CR2.cam1.abc.lut.png",
+            "IMG.CR2.cam2.gone.lut.png",
+            WITH_OPTION,
+        ];
+        for name in own {
+            write(&dir.path().join(name), "look");
+        }
+        for name in [
+            "IMG.CR2",
+            "IMG.CR2.agdata",
+            "IMG.CR2.agexif",
+            "my.film.lut.png",
+            "IMG.CR2.jpg.cam1.abc.lut.png",
+            "IMG.CR3.cam1.abc.lut.png",
+            "OTHER.CR2.cam1.abc.lut.png",
+            "notes.txt",
+        ] {
+            write(&dir.path().join(name), "other");
+        }
+        fs::create_dir(dir.path().join("IMG.CR2.cam1.dir.lut.png")).expect("folder");
+
+        let mut found = look_files_of(&photo);
+        found.sort();
+        let mut want = own.map(|name| dir.path().join(name)).to_vec();
+        want.sort();
+        assert_eq!(found, want);
+    }
+
+    #[test]
+    fn a_photo_in_a_folder_that_will_not_read_has_no_look_files() {
+        let dir = tempfile::tempdir().expect("folder");
+        assert!(look_files_of(&dir.path().join("gone").join("IMG.CR2")).is_empty());
     }
 
     #[test]
