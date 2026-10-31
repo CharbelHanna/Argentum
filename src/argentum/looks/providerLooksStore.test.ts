@@ -65,7 +65,7 @@ const OFFER: ProviderLooks = {
   photo: { camera: 'cam1', files: [], previews: [], beside: 0 },
 };
 
-const OPTION ={ id: 'optionA', label: 'Invented choice', default: false };
+const OPTION = { id: 'optionA', label: 'Invented choice', default: false };
 const WITH_OPTION: ProviderLooks = { ...OFFER, options: [OPTION] };
 
 const LOOK = OFFER.looks[0];
@@ -846,7 +846,9 @@ describe('Delete all previews', () => {
     await state().chooseOption(OPEN, OPTION, true, {});
     const before = loads().length;
     await state().deleteLooks(OPEN);
-    expect(loads().slice(before)).toEqual([{ name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } }]);
+    expect(loads().slice(before)).toEqual([
+      { name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } },
+    ]);
   });
 
   it('says how many went and how many an edit keeps', async () => {
