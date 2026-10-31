@@ -1,10 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LookProgress, ProviderLook, ProviderLooks } from '../ag.generated';
+import { toast } from 'react-toastify';
+import type { LookProgress, LooksDeleted, ProviderLook, ProviderLooks } from '../ag.generated';
+
+const PREVIEW_JOB = 9;
 
 /** Every `ag` call, in order. */
 const calls: { name: string; args: unknown }[] = [];
 const invoked: { name: string; args: unknown }[] = [];
 let answerOffer: ProviderLooks | null = null;
+/** None for a refusal. */
+let answerDeleted: LooksDeleted | null = null;
 let fileThere = false;
 let hear: ((event: { payload: LookProgress }) => void) | null = null;
 const listened = vi.fn();
@@ -15,7 +20,12 @@ vi.mock('../ag', () => ({
     calls.push({ name, args });
     if (name === 'provider_looks') return answerOffer;
     if (name === 'provider_look_make') return 7;
+    if (name === 'provider_look_preview') return PREVIEW_JOB;
     if (name === 'provider_look_file') return fileThere;
+    if (name === 'provider_look_delete') {
+      if (!answerDeleted) throw new Error('refused');
+      return answerDeleted;
+    }
     return null;
   }),
 }));
@@ -36,7 +46,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), info: vi.fn(), error: vi.fn() } }));
 vi.mock('../locales', () => ({ agText: (key: string) => key }));
 
-const { useProviderLooks, regularLooksAreOff, takeFromPaste, lookFor, restoreLook, restoreLooks } =
+const { useProviderLooks, regularLooksAreOff, takeFromPaste, lookFor, previewsFor, restoreLook, restoreLooks } =
   await import('./providerLooksStore');
 const { useEditorStore } = await import('../../store/useEditorStore');
 const { PROVIDER_LOOK_PATH } = await import('./providerLook');
@@ -52,7 +62,7 @@ const OFFER: ProviderLooks = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [] },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
 };
 
 const OPTION = { id: 'optionA', label: 'Invented choice', default: false };
@@ -74,6 +84,7 @@ const progress = (
   look,
   options,
   outcome,
+  preview: false,
 });
 
 /** Lets the promises in flight settle. */
@@ -613,6 +624,306 @@ describe('opening a photo with a look whose file is missing', () => {
     await settled();
     expect(useEditorStore.getState().adjustments).toEqual(before);
     expect(useEditorStore.getState().adjustments).not.toBe(before);
+  });
+});
+
+describe('Preview all', () => {
+  const state = () => useProviderLooks.getState();
+  const previewed = (outcome: LookProgress['outcome'], look = 'look1', path = OPEN): LookProgress => ({
+    ...progress(path, outcome, look),
+    jobId: PREVIEW_JOB,
+    preview: true,
+  });
+  const starts = () => calls.filter((c) => c.name === 'provider_look_preview');
+  const cancels = () => calls.filter((c) => c.name === 'provider_look_cancel');
+  const loads = () => calls.filter((c) => c.name === 'provider_looks');
+  const hearAll = async (...heard: LookProgress[]) => {
+    heard.forEach((payload) => hear?.({ payload }));
+    await settled();
+  };
+
+  beforeEach(() => offered());
+
+  it('asks once, for this photo with its camera and options', async () => {
+    await state().previewAll(OPEN, 'cam2', { optionA: true });
+    expect(starts()).toEqual([
+      { name: 'provider_look_preview', args: { path: OPEN, camera: 'cam2', options: { optionA: true } } },
+    ]);
+  });
+
+  it('starts nothing on opening, browsing, a restored edit or a click', async () => {
+    const edit = { lutPath: PROVIDER_LOOK_PATH, agProviderLook: { camera: 'cam1', look: 'look1', before: {} } };
+    openPhoto(edit);
+    await restoreLook(OPEN, edit);
+    await state().load(OTHER);
+    await state().pick(OPEN, LOOK, 'cam1', {});
+    await state().chooseCamera(OPEN, 'cam2', {});
+    await settled();
+    expect(starts()).toEqual([]);
+  });
+
+  it('counts every look, from none', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    expect(state().previewing).toMatchObject({ photo: OPEN, ended: 0, total: 2 });
+    await hearAll(previewed('done'));
+    expect(state().previewing).toMatchObject({ ended: 1, total: 2 });
+  });
+
+  it('ends once every look has answered, one of them failing', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await hearAll(previewed('failed'), previewed('done', 'look2'));
+    expect(state().previewing).toBeNull();
+    expect(state().note).toBeNull();
+  });
+
+  it('reads the files again as each arrives', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    const before = loads().length;
+    await hearAll(previewed('done'));
+    expect(loads().length).toBe(before + 1);
+  });
+
+  it('leaves the photo as it is', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    const before = useEditorStore.getState().adjustments;
+    await hearAll(previewed('done'), previewed('done', 'look2'));
+    expect(useEditorStore.getState().adjustments).toBe(before);
+  });
+
+  it('runs once at a time', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().previewAll(OPEN, 'cam1', {});
+    expect(starts()).toHaveLength(1);
+  });
+
+  it('does nothing with no provider or with the switch off', async () => {
+    await offered(null);
+    await state().previewAll(OPEN, 'cam1', {});
+    await offered({ ...OFFER, on: false });
+    await state().previewAll(OPEN, 'cam1', {});
+    expect(starts()).toEqual([]);
+    expect(state().previewing).toBeNull();
+  });
+
+  it('stops when another photo opens', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    useEditorStore.setState({ selectedImage: { path: OTHER } as never });
+    await settled();
+    expect(cancels()).toEqual([{ name: 'provider_look_cancel', args: { jobId: PREVIEW_JOB } }]);
+    expect(state().previewing).toBeNull();
+  });
+
+  it('stops when the photo closes', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    useEditorStore.setState({ selectedImage: null });
+    await settled();
+    expect(cancels()).toHaveLength(1);
+  });
+
+  it('carries on through other changes to the editor', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    useEditorStore.setState({ adjustments: { exposure: 1 } as never });
+    await settled();
+    expect(cancels()).toEqual([]);
+    expect(state().previewing).not.toBeNull();
+  });
+
+  it('has nothing to stop once it has ended', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await hearAll(previewed('done'), previewed('done', 'look2'));
+    useEditorStore.setState({ selectedImage: { path: OTHER } as never });
+    await settled();
+    expect(cancels()).toEqual([]);
+  });
+
+  it('is called off when stopped before the queue answers', async () => {
+    const asking = state().previewAll(OPEN, 'cam1', {});
+    useEditorStore.setState({ selectedImage: { path: OTHER } as never });
+    await asking;
+    await settled();
+    expect(cancels()).toEqual([{ name: 'provider_look_cancel', args: { jobId: PREVIEW_JOB } }]);
+  });
+
+  it('stops on another camera, and does not start again', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().chooseCamera(OPEN, 'cam2', {});
+    expect(cancels()).toEqual([{ name: 'provider_look_cancel', args: { jobId: PREVIEW_JOB } }]);
+    expect(state().previewing).toBeNull();
+    expect(starts()).toHaveLength(1);
+  });
+
+  it('stops on another option, and does not start again', async () => {
+    await offered(WITH_OPTION);
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().chooseOption(OPEN, OPTION, true, {});
+    expect(cancels()).toEqual([{ name: 'provider_look_cancel', args: { jobId: PREVIEW_JOB } }]);
+    expect(starts()).toHaveLength(1);
+  });
+
+  it('stops with the switch', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().setOn(false);
+    expect(cancels()).toEqual([{ name: 'provider_look_cancel', args: { jobId: PREVIEW_JOB } }]);
+    expect(state().previewing).toBeNull();
+  });
+
+  it('carries on while a look is picked, and the look goes on as usual', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().pick(OPEN, LOOK, 'cam1', {});
+    await hearAll(progress(OPEN, 'done'));
+    expect(useEditorStore.getState().adjustments.lutPath).toBe(PROVIDER_LOOK_PATH);
+    expect(cancels()).toEqual([]);
+    expect(state().previewing).toMatchObject({ ended: 0, total: 2 });
+  });
+
+  it('never puts a look on from its own results, with a click waiting for the same look', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().pick(OPEN, OFFER.looks[1], 'cam1', {});
+    await hearAll(previewed('done', 'look2'));
+    expect(state().waiting[OPEN]?.look).toBe('look2');
+    expect(useEditorStore.getState().adjustments.lutPath).toBeUndefined();
+  });
+
+  it('does not count a result from a job it stopped', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await hearAll({ ...previewed('done'), jobId: 3 }, previewed('cancelled'));
+    expect(state().previewing).toMatchObject({ ended: 0 });
+  });
+});
+
+describe('Delete all previews', () => {
+  const state = () => useProviderLooks.getState();
+  const deletes = () => calls.filter((c) => c.name === 'provider_look_delete');
+  const loads = () => calls.filter((c) => c.name === 'provider_looks');
+  const ON_PHOTO = { camera: 'cam1', look: 'look1', before: {} };
+  const edit = { lutPath: PROVIDER_LOOK_PATH, agProviderLook: ON_PHOTO };
+
+  beforeEach(async () => {
+    vi.mocked(toast.info).mockClear();
+    vi.mocked(toast.error).mockClear();
+    answerDeleted = { deleted: 3, kept: 1, failed: 0 };
+    await offered();
+  });
+
+  it('asks once, for this photo', async () => {
+    await state().deleteLooks(OPEN);
+    expect(deletes()).toEqual([{ name: 'provider_look_delete', args: { path: OPEN, onPhoto: null } }]);
+  });
+
+  it('names the look on the open edit, whose save may be on its way', async () => {
+    openPhoto(edit);
+    await state().deleteLooks(OPEN);
+    expect(deletes()[0].args).toEqual({ path: OPEN, onPhoto: ON_PHOTO });
+  });
+
+  it('does nothing with no provider or with the switch off', async () => {
+    await offered(null);
+    await state().deleteLooks(OPEN);
+    await offered({ ...OFFER, on: false });
+    await state().deleteLooks(OPEN);
+    expect(deletes()).toEqual([]);
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('runs once at a time', async () => {
+    const first = state().deleteLooks(OPEN);
+    await state().deleteLooks(OPEN);
+    await first;
+    expect(deletes()).toHaveLength(1);
+    expect(state().deleting).toBe(false);
+  });
+
+  it('stops a running Preview all first', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().deleteLooks(OPEN);
+    expect(state().previewing).toBeNull();
+    const names = namesCalled();
+    expect(names.indexOf('provider_look_cancel')).toBeGreaterThan(-1);
+    expect(names.indexOf('provider_look_cancel')).toBeLessThan(names.indexOf('provider_look_delete'));
+  });
+
+  it('reads the files again straight away, with the photo’s options', async () => {
+    await state().chooseOption(OPEN, OPTION, true, {});
+    const before = loads().length;
+    await state().deleteLooks(OPEN);
+    expect(loads().slice(before)).toEqual([
+      { name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } },
+    ]);
+  });
+
+  it('says how many went and how many an edit keeps', async () => {
+    await state().deleteLooks(OPEN);
+    expect(toast.info).toHaveBeenCalledWith('looksProviderDeleted');
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('says so when a file would not go', async () => {
+    answerDeleted = { deleted: 2, kept: 1, failed: 1 };
+    await state().deleteLooks(OPEN);
+    expect(toast.error).toHaveBeenCalledWith('looksProviderDeleteFailed');
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('survives a refusal, and the files are read again', async () => {
+    answerDeleted = null;
+    const before = loads().length;
+    await state().deleteLooks(OPEN);
+    expect(state().deleting).toBe(false);
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(loads().length).toBe(before + 1);
+  });
+
+  it('starts nothing again: the look on the photo keeps its file', async () => {
+    fileThere = true;
+    openPhoto(edit);
+    await restoreLook(OPEN, edit);
+    await state().deleteLooks(OPEN);
+    await restoreLook(OPEN, edit);
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_make');
+    expect(namesCalled()).not.toContain('provider_look_preview');
+  });
+
+  it('starts nothing again for a photo with no look on it', async () => {
+    await state().deleteLooks(OPEN);
+    await restoreLook(OPEN, {});
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_make');
+    expect(namesCalled()).not.toContain('provider_look_preview');
+  });
+
+  it('leaves the photo as it is', async () => {
+    openPhoto(edit);
+    const before = useEditorStore.getState().adjustments;
+    await state().deleteLooks(OPEN);
+    expect(useEditorStore.getState().adjustments).toBe(before);
+  });
+});
+
+describe('the previews a photo shows', () => {
+  const PREVIEW = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
+
+  beforeEach(async () => {
+    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], clearable: 1 } };
+    await useProviderLooks.getState().load(OPEN, { optionA: true });
+  });
+
+  it('are those of the offer read for this photo and these options', () => {
+    expect(previewsFor(useProviderLooks.getState(), OPEN, { optionA: true })).toEqual([PREVIEW]);
+  });
+
+  it('are none while the offer is still another photo’s', () => {
+    expect(previewsFor(useProviderLooks.getState(), OTHER, { optionA: true })).toEqual([]);
+  });
+
+  it('are none while the offer is still for other options', () => {
+    expect(previewsFor(useProviderLooks.getState(), OPEN, {})).toEqual([]);
+  });
+
+  it('are none with no provider', async () => {
+    answerOffer = null;
+    await useProviderLooks.getState().load(OPEN, { optionA: true });
+    expect(previewsFor(useProviderLooks.getState(), OPEN, { optionA: true })).toEqual([]);
   });
 });
 

@@ -70,6 +70,16 @@ export const lookKeys = (camera: string, look: string, name: string, options: Lo
   agProviderLook: { camera, look, ...(Object.keys(options).length > 0 && { options }), before: LINEAR },
 });
 
+/**
+ * The edit a render shows for a look on hover. From a preview, `lutPath` is that
+ * temporary file: this edit is only ever shown, never saved, so no photo holds such a path.
+ */
+export const hoverEdit = (photo: Adjustments, keys: Edit, preview?: string): Adjustments => ({
+  ...photo,
+  ...lookOnto(photo, keys),
+  ...(preview && { lutPath: preview }),
+});
+
 /** Every key a provider look writes on a photo. */
 export const LOOK_KEYS = [...Object.keys(lookKeys('', '', '')), ...Object.keys(LINEAR), 'lutData'];
 

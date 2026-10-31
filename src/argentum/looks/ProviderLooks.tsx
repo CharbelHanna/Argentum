@@ -7,12 +7,16 @@
  * which list is usable: on, these looks, the Camera picker and any options work
  * and the regular Presets and LUTs are off; off, the reverse. It never takes a
  * look off a photo. A click starts a job and the photo stays as it was; the
- * store puts the look on when its file is ready.
+ * store puts the look on when its file is ready. Preview all makes every look
+ * of the open photo as a temporary file to compare by hover, and only its
+ * button starts it. Delete all previews sends that photo's look files to the
+ * Recycle Bin, but for those an edit uses, and drops its temporary files. The
+ * head folds the section away, switch left in place, and that stops nothing.
  */
 
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { X } from 'lucide-react';
+import { ChevronDown, ChevronRight, X } from 'lucide-react';
 import clsx from 'clsx';
 import Slider from '../../components/ui/Slider';
 import { useEditorStore } from '../../store/useEditorStore';
@@ -21,34 +25,53 @@ import { useUIStore } from '../../store/useUIStore';
 import { ag } from '../ag';
 import type { OfferedLook } from '../ag.generated';
 import { useAgTranslation } from '../locales';
-import { lookKeys, lookOf, lookOnto, offeredOptions, optionIsOn, sameOptions } from './providerLook';
-import { restoreLook, useProviderLooks } from './providerLooksStore';
+import { hoverEdit, lookKeys, lookOf, offeredOptions, optionIsOn, sameOptions } from './providerLook';
+import { previewsFor, restoreLook, useProviderLooks } from './providerLooksStore';
 
 /** How long the pointer rests on a look before the photo shows it, as in the lists below. */
 const PREVIEW_AFTER_MS = 120;
 const SWATCH_PX = 72;
+/**
+ * Kept beside the Edit panel's sections, as Profile is. Folded rather than open: they start
+ * without it, so it is saved for no one who has not folded this, and Focus mode, which shuts
+ * every section it finds, can only open this one.
+ */
+const FOLDED = 'providerLooksFolded';
 
-/** Swatches from the look files beside the open photo, by file. */
+/**
+ * Swatches from the look files of the open photo, by file, one at a time so a whole
+ * set of previews never holds the app up. Files added later only add their own.
+ */
 function useFileSwatches(files: { path: string }[], photo: string | null, ready: boolean) {
   const [swatches, setSwatches] = useState<Record<string, string>>({});
   const made = useProviderLooks((s) => s.filesMade);
+  const asked = useRef<{ round: number; paths: Set<string> }>({ round: 0, paths: new Set() });
   const key = files.map((f) => f.path).join('|');
 
   useEffect(() => {
+    asked.current = { round: asked.current.round + 1, paths: new Set() };
     setSwatches({});
+  }, [photo, made]);
+
+  useEffect(() => {
     if (!photo || !ready || !key) return;
-    let current = true;
-    invoke<{ path: string; thumb: string | null }[]>('generate_lut_previews', {
-      luts: key.split('|').map((path) => ({ path, isBuiltIn: false, linear: true })),
-      size: SWATCH_PX,
-    })
-      .then((results) => {
-        if (current) setSwatches(Object.fromEntries(results.flatMap((r) => (r.thumb ? [[r.path, r.thumb]] : []))));
-      })
-      .catch((err) => console.warn('Provider looks: swatches:', err));
-    return () => {
-      current = false;
-    };
+    const { round, paths } = asked.current;
+    const wanted = key.split('|').filter((path) => !paths.has(path));
+    wanted.forEach((path) => paths.add(path));
+    (async () => {
+      for (const path of wanted) {
+        const results = await invoke<{ path: string; thumb: string | null }[]>('generate_lut_previews', {
+          luts: [{ path, isBuiltIn: false, linear: true }],
+          size: SWATCH_PX,
+        }).catch((err) => {
+          console.warn('Provider looks: swatches:', err);
+          return [];
+        });
+        if (asked.current.round !== round) return;
+        const thumb = results[0]?.thumb;
+        if (thumb) setSwatches((was) => ({ ...was, [path]: thumb }));
+      }
+    })();
   }, [key, photo, ready, made]);
 
   return swatches;
@@ -69,6 +92,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
   const subject = photo ?? gridPhoto;
   const {
     offer,
+    offerOf,
     waiting,
     note,
     batch,
@@ -80,16 +104,25 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     pick,
     putOnSelection,
     cancelBatch,
+    previewing,
+    previewAll,
+    deleting,
+    deleteLooks,
     setOn,
   } = useProviderLooks();
+  const folded = useUIStore(
+    (s) => (s.collapsibleSectionsState as unknown as Record<string, boolean | undefined>)[FOLDED] === true,
+  );
   const hover = useRef<number | undefined>(undefined);
   const files = offer?.photo?.files ?? [];
-  const swatches = useFileSwatches(files, photo, ready);
 
   // In the grid there is no open edit: what shows is the hand choice alone.
   const edit = photo ? adjustments : {};
   const options = subject ? optionsOf(subject, edit) : {};
   const optionsKey = JSON.stringify(options);
+
+  const previews = previewsFor({ offer, offerOf }, photo, options);
+  const swatches = useFileSwatches([...files, ...previews], photo, ready);
 
   // A provider that fails its check is asked again when the tab next opens, not per photo.
   const available = !!offer;
@@ -133,6 +166,7 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
   const camera = cameraOf(subject, adjustments) ?? own;
   const onPhoto = photo ? lookOf(adjustments) : null;
   const fileOf = (look: OfferedLook) => files.find((f) => f.camera === camera && f.look === look.id);
+  const previewOf = (look: OfferedLook) => previews.find((f) => f.camera === camera && f.look === look.id);
   const isOn = (look: OfferedLook) =>
     onPhoto?.camera === camera &&
     onPhoto.look === look.id &&
@@ -145,11 +179,16 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
 
   /** Hover never starts a job: a look with no file has nothing to show. */
   const startPreview = (look: OfferedLook) => {
-    if (!photo || !on || !fileOf(look)) return;
+    const preview = fileOf(look) ? undefined : previewOf(look)?.path;
+    if (!photo || !on) return;
+    if (!fileOf(look) && !preview) {
+      stopPreview();
+      return;
+    }
     window.clearTimeout(hover.current);
     hover.current = window.setTimeout(() => {
       const now = useEditorStore.getState().adjustments;
-      setEditor({ previewOverride: { ...now, ...lookOnto(now, lookKeys(camera, look.id, look.name, options)) } });
+      setEditor({ previewOverride: hoverEdit(now, lookKeys(camera, look.id, look.name, options), preview) });
     }, PREVIEW_AFTER_MS);
   };
 
@@ -164,73 +203,107 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     else pick(photo, look, camera, options);
   };
 
+  const previewCount =
+    previewing &&
+    t('looksProviderPreviewing')
+      .replace('{done}', String(previewing.ended))
+      .replace('{total}', String(previewing.total));
+
+  const toggleFolded = () =>
+    useUIStore.setState((s) => ({
+      collapsibleSectionsState: { ...s.collapsibleSectionsState, [FOLDED]: !folded },
+    }));
+
   return (
     <div className="agm-provider" onMouseLeave={stopPreview}>
-      <div className="agm-provider-head">
+      <div className="agm-provider-head" onClick={toggleFolded}>
+        {folded ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
         <span className="min-w-0 truncate">{t('looksProvider')}</span>
+        {folded && previewCount && <span className="agm-provider-running">{previewCount}</span>}
         <button
           aria-checked={on}
           aria-label={t('looksProvider')}
           className="agm-switch"
-          onClick={() => setOn(!on)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOn(!on);
+          }}
           role="switch"
         >
           <span>{t(on ? 'looksProviderOn' : 'looksProviderOff')}</span>
           <i />
         </button>
       </div>
-      <div className="agm-provider-note">{t(on ? 'looksProviderOnNote' : 'looksProviderOffNote')}</div>
-      <div className={clsx('agm-provider-camera', !on && 'agm-look-dim')}>
-        <label htmlFor="agm-provider-camera">{t('looksProviderCamera')}</label>
-        <select
-          disabled={!on}
-          id="agm-provider-camera"
-          onChange={(e) => chooseCamera(subject, e.target.value, adjustments)}
-          value={camera}
-        >
-          {offer.cameras.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <span className={clsx('agm-provider-matched', camera !== own && 'agm-provider-other')}>
-          {t(camera === own ? 'looksProviderMatched' : 'looksProviderOther')}
-        </span>
-      </div>
-      {offer.options.map((option) => (
-        <label className={clsx('agm-provider-option', !on && 'agm-look-dim')} key={option.id}>
-          <input
-            checked={optionIsOn(option, options)}
-            disabled={!on}
-            onChange={(e) => chooseOption(subject, option, e.target.checked, edit)}
-            type="checkbox"
-          />
-          <span className="min-w-0">{option.label}</span>
-        </label>
-      ))}
-      {offer.looks.map((look) => {
-        const file = fileOf(look);
-        const swatch = file && swatches[file.path];
-        return (
-          <div key={look.id}>
-            <div
-              className={clsx('agm-look', isOn(look) && 'agm-on', !on && 'agm-look-dim')}
-              onClick={() => choose(look)}
-              onMouseEnter={() => startPreview(look)}
+      {!folded && (
+        <>
+          <div className="agm-provider-note">{t(on ? 'looksProviderOnNote' : 'looksProviderOffNote')}</div>
+          <div className={clsx('agm-provider-camera', !on && 'agm-look-dim')}>
+            <label htmlFor="agm-provider-camera">{t('looksProviderCamera')}</label>
+            <select
+              disabled={!on}
+              id="agm-provider-camera"
+              onChange={(e) => chooseCamera(subject, e.target.value, adjustments)}
+              value={camera}
             >
-              <span className="agm-swatch" style={swatch ? { backgroundImage: `url(${swatch})` } : undefined} />
-              <span className="agm-look-name">{look.name}</span>
-              {subject && waiting[subject]?.look === look.id && waiting[subject].spinning && (
-                <span aria-label={t('looksProviderMaking')} className="agm-spin" />
-              )}
-            </div>
-            {note?.photo === subject && note.look === look.id && (
-              <div className="agm-provider-rownote">{t(note.text)}</div>
-            )}
+              {offer.cameras.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <span className={clsx('agm-provider-matched', camera !== own && 'agm-provider-other')}>
+              {t(camera === own ? 'looksProviderMatched' : 'looksProviderOther')}
+            </span>
           </div>
-        );
-      })}
+          {offer.options.map((option) => (
+            <label className={clsx('agm-provider-option', !on && 'agm-look-dim')} key={option.id}>
+              <input
+                checked={optionIsOn(option, options)}
+                disabled={!on}
+                onChange={(e) => chooseOption(subject, option, e.target.checked, edit)}
+                type="checkbox"
+              />
+              <span className="min-w-0">{option.label}</span>
+            </label>
+          ))}
+          {photo && (
+            <div className={clsx('agm-provider-tools', !on && 'agm-look-dim')}>
+              <button disabled={!on || !ready || !!previewing} onClick={() => previewAll(photo, camera, options)}>
+                {previewCount || t('looksProviderPreviewAll')}
+              </button>
+              <button
+                className="agm-provider-delete"
+                disabled={!on || !ready || deleting || offer.photo.clearable === 0}
+                onClick={() => deleteLooks(photo)}
+              >
+                {t('looksProviderDeleteAll')}
+              </button>
+            </div>
+          )}
+          {offer.looks.map((look) => {
+            const file = fileOf(look) ?? previewOf(look);
+            const swatch = file && swatches[file.path];
+            return (
+              <div key={look.id}>
+                <div
+                  className={clsx('agm-look', isOn(look) && 'agm-on', !on && 'agm-look-dim')}
+                  onClick={() => choose(look)}
+                  onMouseEnter={() => startPreview(look)}
+                >
+                  <span className="agm-swatch" style={swatch ? { backgroundImage: `url(${swatch})` } : undefined} />
+                  <span className="agm-look-name">{look.name}</span>
+                  {subject && waiting[subject]?.look === look.id && waiting[subject].spinning && (
+                    <span aria-label={t('looksProviderMaking')} className="agm-spin" />
+                  )}
+                </div>
+                {note?.photo === subject && note.look === look.id && (
+                  <div className="agm-provider-rownote">{t(note.text)}</div>
+                )}
+              </div>
+            );
+          })}
+        </>
+      )}
       {batch && (
         <div className="agm-provider-batch">
           <span>

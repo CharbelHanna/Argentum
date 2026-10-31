@@ -20,6 +20,18 @@
 //! for any more is killed. Rust only makes files. Putting a look on a photo is
 //! the interface's, as for any look, so Undo stays in one place
 //! (src/argentum/looks/).
+//!
+//! Preview all goes through the same queue, when its button asks and never
+//! otherwise: every look of one photo, each to a temporary file to compare by
+//! hover. Those files have hidden names keyed on the photo's whole path, the
+//! camera, the look and the options ([`preview_file_for`]), so one is never a
+//! photo, a look file or another setting's preview. They are kept to a budget
+//! and go at close and at the next start, whatever ended the last one. Only
+//! putting a look on leaves a file beside the photo, reusing the preview.
+//!
+//! Delete all previews clears one photo when its button asks and never
+//! otherwise: its look files go to the Recycle Bin, but for those an edit uses,
+//! and its previews and what is on its way to them go too.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::{Cursor, Read, Write};
@@ -64,7 +76,18 @@ const MAX_OUTPUT_BYTES: usize = 64 * 1024;
 const MAX_NAME_CHARS: usize = 80;
 /// What is kept of the options on a list.
 const MAX_OPTIONS: usize = 8;
+/// For what was asked for by hand: a click, a batch, an export.
 const RUNS_AT_ONCE: usize = 2;
+/// For everything together, with Preview all: more would hold up a smaller machine.
+const RUNS_WITH_PREVIEWS: usize = 4;
+/// The folder under the app's cache: scratch files, and previews in `PREVIEW_FOLDER`.
+const SCRATCH_FOLDER: &str = "lut_provider";
+const PREVIEW_FOLDER: &str = "previews";
+/// Past this, a press of Preview all drops the oldest: a look's file is about
+/// 170 KB, so about 18 photos' sets of ten looks.
+const MAX_PREVIEW_BYTES: u64 = 32 * 1024 * 1024;
+/// Of the hash of the photo's path in a preview's name.
+const PREVIEW_HASH_CHARS: usize = 32;
 /// In a row, before the provider is off until the app closes.
 const CRASHES_TO_OFF: u32 = 2;
 /// How long a closing app waits for its runs to go.
@@ -621,6 +644,8 @@ pub struct LookProgress {
     pub look: String,
     pub options: LookOptions,
     pub outcome: LookOutcome,
+    /// For Preview all: nothing goes on a photo.
+    pub preview: bool,
 }
 
 /// Where one request's result goes.
@@ -637,6 +662,8 @@ pub struct Request {
     remake: bool,
     /// The open photo: ahead of what is waiting.
     front: bool,
+    /// For Preview all: the file goes to the temporary folder, not beside the photo.
+    preview: bool,
     job: u64,
     report: Report,
 }
@@ -671,7 +698,9 @@ impl Key {
 struct Waiter {
     photo: String,
     job: u64,
+    /// Where its file goes.
     file: PathBuf,
+    preview: bool,
     report: Report,
 }
 
@@ -684,6 +713,7 @@ impl Waiter {
             look: key.look.clone(),
             options: key.options.clone(),
             outcome,
+            preview: self.preview,
         });
     }
 }
@@ -695,6 +725,13 @@ struct Item {
     waiters: Vec<Waiter>,
     /// Set once nobody waits: the run is killed.
     cancel: Arc<AtomicBool>,
+}
+
+impl Item {
+    /// Whether only Preview all wants it.
+    fn is_preview(&self) -> bool {
+        self.waiters.iter().all(|waiter| waiter.preview)
+    }
 }
 
 #[derive(Default)]
@@ -801,37 +838,54 @@ impl Queue {
             options,
             remake,
             front,
+            preview,
             job,
             report,
         } = request;
         let key = Key::of(&subject, &camera, &look, &options);
         let source = parse_virtual_path(&subject.photo).0;
-        let Some(file) = file_ops::look_file_for(&source, &camera, &look, &options) else {
+        let (Some(beside), Some(previewed)) = (
+            file_ops::look_file_for(&source, &camera, &look, &options),
+            self.preview_file(&source, &camera, &look, &options),
+        ) else {
             return;
         };
         let waiter = Waiter {
             photo: subject.photo.clone(),
             job,
-            file,
+            file: if preview { &previewed } else { &beside }.clone(),
+            preview,
             report,
         };
 
-        let replaced = {
-            let photo = subject.photo.clone();
-            let same = key.clone();
-            self.state()
-                .take_waiters(|item, w| w.photo == photo && item.key != same)
-        };
-        for (key, old) in replaced {
-            old.tell(&key, LookOutcome::Cancelled);
+        // Preview all goes on beside whatever is asked for by hand.
+        if !preview {
+            let replaced = {
+                let photo = subject.photo.clone();
+                let same = key.clone();
+                self.state()
+                    .take_waiters(|item, w| !w.preview && w.photo == photo && item.key != same)
+            };
+            for (key, old) in replaced {
+                old.tell(&key, LookOutcome::Cancelled);
+            }
         }
 
-        if !remake && std::fs::read(&waiter.file).is_ok_and(|bytes| checked_file(&bytes).is_ok()) {
+        if !remake && good_file(&beside).is_some() {
             waiter.tell(&key, LookOutcome::Done);
             return;
         }
         if !folder_takes_files(&waiter.file) {
             waiter.tell(&key, LookOutcome::Folder);
+            return;
+        }
+        if !remake && let Some((bytes, lut)) = good_file(&previewed) {
+            let outcome = if preview {
+                LookOutcome::Done
+            } else {
+                self.place(&waiter, &bytes, &Arc::new(lut))
+            };
+            waiter.tell(&key, outcome);
             return;
         }
 
@@ -874,6 +928,108 @@ impl Queue {
         self.start_more(&mut state);
     }
 
+    /// Where Preview all keeps a look of `photo`.
+    fn preview_file(
+        &self,
+        photo: &Path,
+        camera: &str,
+        look: &str,
+        options: &LookOptions,
+    ) -> Option<PathBuf> {
+        let folder = self.scratch.join(PREVIEW_FOLDER);
+        preview_file_for(&folder, photo, camera, look, options)
+    }
+
+    /// Asks for every look on the list as a temporary file: what the button
+    /// does, and nothing else does. Each look answers once, whatever the photo
+    /// is, so the interface can count them.
+    fn preview_all(
+        self: &Arc<Self>,
+        catalog: &Catalog,
+        subject: Option<Subject>,
+        args: &ProviderLookPreviewArgs,
+        job: u64,
+        report: Report,
+    ) {
+        let folder = self.scratch.join(PREVIEW_FOLDER);
+        let _ = std::fs::create_dir_all(&folder);
+        trim_previews(&folder, MAX_PREVIEW_BYTES);
+        let chosen = Some(args.camera.as_str());
+        let camera = subject
+            .as_ref()
+            .and_then(|s| camera_for(catalog, chosen, &s.make, &s.model));
+        for look in &catalog.looks {
+            match (&subject, camera) {
+                (Some(subject), Some(camera)) if catalog.lists(&look.id, &args.options) => {
+                    self.request(Request {
+                        subject: subject.clone(),
+                        camera: camera.to_string(),
+                        look: look.id.clone(),
+                        options: args.options.clone(),
+                        remake: false,
+                        front: false,
+                        preview: true,
+                        job,
+                        report: Arc::clone(&report),
+                    });
+                }
+                _ => report(LookProgress {
+                    job_id: job,
+                    path: args.path.clone(),
+                    camera: args.camera.clone(),
+                    look: look.id.clone(),
+                    options: args.options.clone(),
+                    outcome: LookOutcome::Unsupported,
+                    preview: true,
+                }),
+            }
+        }
+    }
+
+    /// How many of `photo`'s look files and previews Delete all previews looks at.
+    fn clearable(&self, photo: &Path) -> usize {
+        let folder = self.scratch.join(PREVIEW_FOLDER);
+        file_ops::look_files_of(photo).len() + previews_of(&folder, photo).len()
+    }
+
+    /// Clears what can go of one photo: the look files no edit uses, its
+    /// previews, and what is on its way to them, first, so nothing lands after.
+    /// A look an edit names is left to finish: an export may be waiting for it.
+    /// `remove` takes one file, so one that will not go leaves the rest to go.
+    fn delete_looks(&self, args: &ProviderLookDeleteArgs, remove: impl Fn(&Path)) -> LooksDeleted {
+        let source = parse_virtual_path(&args.path).0;
+        let mut used = provider_look::files_in_use(&source);
+        used.extend(
+            args.on_photo
+                .as_ref()
+                .and_then(|on| file_ops::look_file_for(&source, &on.camera, &on.look, &on.options)),
+        );
+        self.cancel_where(|waiter| {
+            parse_virtual_path(&waiter.photo).0 == source && !used.contains(&waiter.file)
+        });
+
+        let mut result = LooksDeleted::default();
+        // One that will not go now goes when the app closes.
+        for preview in previews_of(&self.scratch.join(PREVIEW_FOLDER), &source) {
+            if std::fs::remove_file(preview).is_ok() {
+                result.deleted += 1;
+            }
+        }
+        for file in file_ops::look_files_of(&source) {
+            if used.contains(&file) {
+                result.kept += 1;
+                continue;
+            }
+            remove(&file);
+            if file.exists() {
+                result.failed += 1;
+            } else {
+                result.deleted += 1;
+            }
+        }
+        result
+    }
+
     /// Asks for a photo's look file and waits for the answer, or for `cancel`.
     /// For an export, which has its own thread to wait on.
     fn wait_for(
@@ -894,6 +1050,7 @@ impl Queue {
             options,
             remake: false,
             front: false,
+            preview: false,
             job,
             report: Arc::new(move |progress| {
                 let _ = lock(&tell).send(progress.outcome);
@@ -925,18 +1082,28 @@ impl Queue {
     }
 
     /// The app is closing: nothing stays behind it, so this returns once the
-    /// runs are gone, or after a moment if one will not go.
+    /// runs are gone, or after a moment if one will not go, and its temporary
+    /// files are gone with them.
     fn stop_all(&self) {
         self.cancel_where(|_| true);
         let deadline = Instant::now() + STOP_WAIT;
         while !self.state().running.is_empty() && Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(5));
         }
+        let _ = std::fs::remove_dir_all(&self.scratch);
     }
 
+    /// Runs what fits, first come first: previews up to the limit for all, and
+    /// what is asked for by hand up to its own, so with no previews about, that
+    /// is just what it would get alone.
     fn start_more(self: &Arc<Self>, state: &mut State) {
-        while state.running.len() < RUNS_AT_ONCE {
-            let Some(item) = state.waiting.pop_front() else {
+        while state.running.len() < RUNS_WITH_PREVIEWS {
+            let by_hand = state.running.iter().filter(|i| !i.is_preview()).count();
+            let next = state
+                .waiting
+                .iter()
+                .position(|item| item.is_preview() || by_hand < RUNS_AT_ONCE);
+            let Some(item) = next.and_then(|at| state.waiting.remove(at)) else {
                 return;
             };
             let (subject, key, cancel) = (
@@ -959,6 +1126,23 @@ impl Queue {
             *value = options.get(id).copied().unwrap_or(*value);
         }
         sent
+    }
+
+    /// Writes a checked LUT where `waiter` wants it. Beside a photo it also
+    /// replaces any in memory; a preview is read when it is looked at.
+    fn place(&self, waiter: &Waiter, bytes: &[u8], lut: &Arc<Lut>) -> LookOutcome {
+        match write_atomic(&waiter.file, bytes) {
+            Ok(()) => {
+                if !waiter.preview {
+                    (self.placed)(&waiter.photo, &waiter.file, Arc::clone(lut));
+                }
+                LookOutcome::Done
+            }
+            Err(e) => {
+                log::warn!("LUT provider: {}: {e}", waiter.file.display());
+                LookOutcome::Folder
+            }
+        }
     }
 
     /// One run, then its results.
@@ -1014,17 +1198,7 @@ impl Queue {
             Ok((bytes, lut)) => {
                 let lut = Arc::new(lut);
                 for waiter in waiters {
-                    let outcome = match write_atomic(&waiter.file, &bytes) {
-                        Ok(()) => {
-                            (self.placed)(&waiter.photo, &waiter.file, Arc::clone(&lut));
-                            LookOutcome::Done
-                        }
-                        Err(e) => {
-                            log::warn!("LUT provider: {}: {e}", waiter.file.display());
-                            LookOutcome::Folder
-                        }
-                    };
-                    waiter.tell(key, outcome);
+                    waiter.tell(key, self.place(&waiter, &bytes, &lut));
                 }
             }
             Err(failure) => {
@@ -1034,6 +1208,79 @@ impl Queue {
             }
         }
     }
+}
+
+/// The file's bytes and LUT, if it is a good look file.
+fn good_file(file: &Path) -> Option<(Vec<u8>, Lut)> {
+    let bytes = std::fs::read(file).ok()?;
+    let lut = checked_file(&bytes).ok()?;
+    Some((bytes, lut))
+}
+
+/// A preview's file in `folder`: [`file_ops::look_file_for`] on a stem made of a
+/// dot and a hash of the photo's whole path. So the camera, the look and the
+/// options are in the name as for any look, and photos with one name in two
+/// folders never meet. A name with a dot first is never listed as a photo
+/// (`is_supported_image_file`), and that stem names no photo, so it is no
+/// photo's look file either: nothing travels, is deleted or is read with it.
+fn preview_file_for(
+    folder: &Path,
+    photo: &Path,
+    camera: &str,
+    look: &str,
+    options: &LookOptions,
+) -> Option<PathBuf> {
+    file_ops::look_file_for(&folder.join(preview_stem(photo)), camera, look, options)
+}
+
+/// What the name of every preview of `photo` starts with.
+fn preview_stem(photo: &Path) -> String {
+    let hash = blake3::hash(photo.as_os_str().as_encoded_bytes()).to_hex();
+    format!(".{}", &hash[..PREVIEW_HASH_CHARS])
+}
+
+/// Every preview of `photo` in `folder`, whichever camera, look and options
+/// made it.
+fn previews_of(folder: &Path, photo: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
+    let start = format!("{}.", preview_stem(photo));
+    entries
+        .flatten()
+        .filter(|entry| entry.file_name().to_string_lossy().starts_with(&start))
+        .map(|entry| entry.path())
+        .collect()
+}
+
+/// Drops the oldest previews in `folder` until it is within `budget_bytes`.
+fn trim_previews(folder: &Path, budget_bytes: u64) {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return;
+    };
+    let mut files: Vec<_> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let meta = entry.metadata().ok()?;
+            Some((meta.modified().ok()?, meta.len(), entry.path()))
+        })
+        .collect();
+    files.sort();
+    let mut total: u64 = files.iter().map(|(_, bytes, _)| bytes).sum();
+    for (_, bytes, file) in files {
+        if total <= budget_bytes {
+            return;
+        }
+        if std::fs::remove_file(file).is_ok() {
+            total -= bytes;
+        }
+    }
+}
+
+/// What a crash left in `cache`, the app's cache folder: only this module's own
+/// folder, gone at start-up whether or not there is a provider now.
+pub fn clear_leftovers(cache: &Path) {
+    let _ = std::fs::remove_dir_all(cache.join(SCRATCH_FOLDER));
 }
 
 /// Whether a file can be created beside `file`: asked before any run.
@@ -1084,7 +1331,7 @@ fn provider(app: &AppHandle) -> Option<&'static Provider> {
         return ready(provider);
     }
     let (program, catalog) = offered(profiles::library()?, &LIMITS)?;
-    let scratch = app.path().app_cache_dir().ok()?.join("lut_provider");
+    let scratch = app.path().app_cache_dir().ok()?.join(SCRATCH_FOLDER);
     let handle = app.clone();
     let placed = Box::new(move |photo: &str, file: &Path, lut: Arc<Lut>| {
         let state = handle.state::<AppState>();
@@ -1152,7 +1399,7 @@ fn subject_of(photo: &str) -> Option<Subject> {
     })
 }
 
-/// A look's file that is already beside a photo.
+/// A look's file that is already there.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
 pub struct LookFile {
@@ -1168,6 +1415,11 @@ pub struct PhotoLooks {
     /// Its own camera on the list.
     pub camera: String,
     pub files: Vec<LookFile>,
+    /// The temporary files of Preview all: to look at, never a look on a photo.
+    pub previews: Vec<LookFile>,
+    /// Its look files and previews, for any camera, look and options, listed
+    /// or not: what its Delete all previews looks at.
+    pub clearable: usize,
 }
 
 /// What the provider offers.
@@ -1206,6 +1458,35 @@ pub struct ProviderLookMakeArgs {
 
 #[derive(Debug, Deserialize)]
 #[cfg_attr(test, derive(ts_rs::TS))]
+pub struct ProviderLookPreviewArgs {
+    pub path: String,
+    pub camera: String,
+    pub options: LookOptions,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderLookDeleteArgs {
+    pub path: String,
+    /// The look on the open edit: its save may still be on its way.
+    pub on_photo: Option<provider_look::ProviderLook>,
+}
+
+/// What became of a photo's look files and previews.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
+pub struct LooksDeleted {
+    /// Look files and previews, so right after Preview all it is the previews.
+    pub deleted: usize,
+    /// An edit uses these.
+    pub kept: usize,
+    /// These would not go.
+    pub failed: usize,
+}
+
+#[derive(Debug, Deserialize)]
+#[cfg_attr(test, derive(ts_rs::TS))]
 pub struct ProviderLookFileArgs {
     pub path: String,
     pub camera: String,
@@ -1226,6 +1507,26 @@ pub struct ProviderLooksSwitchArgs {
     pub on: bool,
 }
 
+/// The files that are there of those `name_of` gives, for each camera and look.
+fn files_there(
+    catalog: &Catalog,
+    name_of: impl Fn(&str, &str) -> Option<PathBuf>,
+) -> Vec<LookFile> {
+    catalog
+        .cameras
+        .iter()
+        .flat_map(|c| catalog.looks.iter().map(move |l| (c, l)))
+        .filter_map(|(c, l)| {
+            let file = name_of(&c.id, &l.id)?;
+            file.is_file().then(|| LookFile {
+                camera: c.id.clone(),
+                look: l.id.clone(),
+                path: file.to_string_lossy().into_owned(),
+            })
+        })
+        .collect()
+}
+
 /// What the provider offers `path`; None when there is no provider.
 pub fn looks(app: &AppHandle, path: Option<&str>, options: &LookOptions) -> Option<ProviderLooks> {
     let provider = provider(app)?;
@@ -1233,20 +1534,18 @@ pub fn looks(app: &AppHandle, path: Option<&str>, options: &LookOptions) -> Opti
     let photo = path.and_then(subject_of).and_then(|subject| {
         let camera = camera_for(catalog, None, &subject.make, &subject.model)?.to_string();
         let source = parse_virtual_path(&subject.photo).0;
-        let files = catalog
-            .cameras
-            .iter()
-            .flat_map(|c| catalog.looks.iter().map(move |l| (c, l)))
-            .filter_map(|(c, l)| {
-                let file = file_ops::look_file_for(&source, &c.id, &l.id, options)?;
-                file.is_file().then(|| LookFile {
-                    camera: c.id.clone(),
-                    look: l.id.clone(),
-                    path: file.to_string_lossy().into_owned(),
-                })
-            })
-            .collect();
-        Some(PhotoLooks { camera, files })
+        let files = files_there(catalog, |camera, look| {
+            file_ops::look_file_for(&source, camera, look, options)
+        });
+        let previews = files_there(catalog, |camera, look| {
+            provider.queue.preview_file(&source, camera, look, options)
+        });
+        Some(PhotoLooks {
+            camera,
+            files,
+            previews,
+            clearable: provider.queue.clearable(&source),
+        })
     });
     Some(ProviderLooks {
         cameras: catalog.cameras.clone(),
@@ -1278,6 +1577,7 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                     options: args.options.clone(),
                     remake: args.remake,
                     front: args.front,
+                    preview: false,
                     job,
                     report: Arc::clone(&report),
                     subject,
@@ -1292,10 +1592,28 @@ pub fn make(app: &AppHandle, args: ProviderLookMakeArgs) -> Result<u64, String> 
                     look: args.look.clone(),
                     options: args.options.clone(),
                     outcome: LookOutcome::Unsupported,
+                    preview: false,
                 }),
             }
         }
     });
+    Ok(job)
+}
+
+/// Queues every look of one photo as a temporary file. The job's id comes back
+/// once all are queued, so cancelling it reaches every one of them; each look's
+/// result comes as an [`EVENT`]. Reads the photo: call it off the UI thread.
+pub fn preview_all(app: &AppHandle, args: ProviderLookPreviewArgs) -> Result<u64, String> {
+    let provider = provider(app).ok_or("no provider")?;
+    let job = NEXT_JOB.fetch_add(1, Ordering::SeqCst);
+    let app = app.clone();
+    let report: Report = Arc::new(move |progress| {
+        let _ = app.emit(EVENT, progress);
+    });
+    let subject = subject_of(&args.path);
+    provider
+        .queue
+        .preview_all(&provider.catalog, subject, &args, job, report);
     Ok(job)
 }
 
@@ -1334,6 +1652,27 @@ pub fn look_file_ready(app: &AppHandle, js: &Value, photo: &str, cancel: &Atomic
         .queue
         .wait_for(subject, look.camera, look.look, look.options, cancel);
     made == LookOutcome::Done
+}
+
+/// [`Queue::delete_looks`], for someone with a provider.
+fn delete_looks_with(
+    queue: Option<&Queue>,
+    args: &ProviderLookDeleteArgs,
+    remove: impl Fn(&Path),
+) -> Result<LooksDeleted, String> {
+    Ok(queue.ok_or("no provider")?.delete_looks(args, remove))
+}
+
+/// Delete all previews, on one photo: only its button asks. Reads its folder
+/// and the Recycle Bin is slow: call it off the UI thread.
+pub fn delete_looks(
+    app: &AppHandle,
+    args: &ProviderLookDeleteArgs,
+) -> Result<LooksDeleted, String> {
+    let queue = provider(app).map(|provider| provider.queue.as_ref());
+    delete_looks_with(queue, args, |file| {
+        file_ops::trash_or_delete(&[file.to_path_buf()]);
+    })
 }
 
 /// Takes a job's photos out of the queue.
@@ -1396,12 +1735,18 @@ fn main() {
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
     match kind.as_str() {
-        "good" | "optioned" => {
+        "onebad" if request.contains("\"look\":\"look2\"") => std::process::exit(3),
+        "good" | "optioned" | "onebad" => {
             std::fs::copy(dir.join("good.png"), &output).unwrap();
             write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
         }
         "paced" => {
-            while !dir.join("go").exists() { std::thread::sleep(std::time::Duration::from_millis(5)); }
+            // A test that failed never says go, and this must not outlive it.
+            let started = std::time::Instant::now();
+            while !dir.join("go").exists() {
+                if started.elapsed().as_secs() > 120 { std::process::exit(3); }
+                std::thread::sleep(std::time::Duration::from_millis(5));
+            }
             std::fs::copy(dir.join("good.png"), &output).unwrap();
             write!(out, "{{\"ok\":true,\"seconds\":0.1}}").unwrap();
         }
@@ -2095,6 +2440,7 @@ fn main() {
                 options: options.clone(),
                 remake: false,
                 front: false,
+                preview: false,
                 job,
                 report: Arc::clone(&self.report),
             });
@@ -2108,6 +2454,7 @@ fn main() {
                 options: LookOptions::new(),
                 remake,
                 front,
+                preview: false,
                 job,
                 report: Arc::clone(&self.report),
             });
@@ -2197,6 +2544,7 @@ fn main() {
             options: LookOptions::new(),
             remake: true,
             front: false,
+            preview: false,
             job: 1,
             report: Arc::new(move |progress| {
                 let _ = reply.lock().unwrap().send(progress);
@@ -2260,6 +2608,7 @@ fn main() {
                 options: LookOptions::new(),
                 remake: false,
                 front: false,
+                preview: false,
                 job: 1,
                 report: Arc::clone(&heard.report),
             });
@@ -2289,6 +2638,7 @@ fn main() {
                 options: LookOptions::new(),
                 remake: false,
                 front: false,
+                preview: false,
                 job: 1,
                 report: Arc::clone(&heard.report),
             });
@@ -2631,6 +2981,928 @@ fn main() {
         std::fs::write(scratch.join("old.png"), "left").expect("file");
         let _heard = queue_of(&exe);
         assert_eq!(std::fs::read_dir(&scratch).expect("folder").count(), 0);
+    }
+
+    // ------------------------------------------------------------ Preview all
+
+    fn numbered(count: usize) -> Catalog {
+        let look = |n: usize| OfferedLook {
+            id: format!("look{n}"),
+            name: format!("Invented Stock {n}"),
+            group: None,
+        };
+        Catalog {
+            looks: (1..=count).map(look).collect(),
+            ..catalog()
+        }
+    }
+
+    fn preview_args(photo: &Path) -> ProviderLookPreviewArgs {
+        ProviderLookPreviewArgs {
+            path: photo.to_string_lossy().into_owned(),
+            camera: "cam1".to_string(),
+            options: LookOptions::new(),
+        }
+    }
+
+    impl Heard {
+        /// Preview all on `photo`, for a provider with `count` looks.
+        fn preview_all(&self, photo: &Path, count: usize, job: u64) {
+            self.queue.preview_all(
+                &numbered(count),
+                Some(subject(&photo.to_string_lossy())),
+                &preview_args(photo),
+                job,
+                Arc::clone(&self.report),
+            );
+        }
+
+        fn preview_of(&self, photo: &Path, look: &str) -> PathBuf {
+            let none = LookOptions::new();
+            let file = self.queue.preview_file(photo, "cam1", look, &none);
+            file.expect("a name")
+        }
+
+        /// A good preview of `look1`, as a press of the button left it.
+        fn with_preview(&self, photo: &Path) -> PathBuf {
+            let file = self.preview_of(photo, "look1");
+            std::fs::create_dir_all(file.parent().expect("folder")).expect("folder");
+            write_png(&file, 512);
+            file
+        }
+
+        fn all_done(&self, count: usize) -> Vec<LookProgress> {
+            let told: Vec<LookProgress> = (0..count).map(|_| self.next()).collect();
+            for progress in &told {
+                assert_eq!(progress.outcome, LookOutcome::Done, "{}", progress.look);
+            }
+            told
+        }
+    }
+
+    #[test]
+    fn a_preview_is_kept_apart_by_photo_camera_look_and_options() {
+        let name = |photo: &str, camera: &str, look: &str, set: &LookOptions| {
+            let folder = Path::new("/cache/previews");
+            preview_file_for(folder, Path::new(photo), camera, look, set).expect("a name")
+        };
+        let none = LookOptions::new();
+        let one = name("/a/IMG.CR3", "cam1", "look1", &none);
+        assert_eq!(one, name("/a/IMG.CR3", "cam1", "look1", &none));
+        assert_eq!(one.parent(), Some(Path::new("/cache/previews")));
+        let others = [
+            name("/b/IMG.CR3", "cam1", "look1", &none),
+            name("/a/IMG.CR2", "cam1", "look1", &none),
+            name("/a/IMG.CR3", "cam2", "look1", &none),
+            name("/a/IMG.CR3", "cam1", "look2", &none),
+            name(
+                "/a/IMG.CR3",
+                "cam1",
+                "look1",
+                &options(&[("optionA", true)]),
+            ),
+            name(
+                "/a/IMG.CR3",
+                "cam1",
+                "look1",
+                &options(&[("optionA", false)]),
+            ),
+        ];
+        let mut all: Vec<&PathBuf> = others.iter().chain([&one]).collect();
+        all.sort();
+        all.dedup();
+        assert_eq!(all.len(), others.len() + 1);
+    }
+
+    #[test]
+    fn an_id_that_could_not_be_a_file_name_has_no_preview() {
+        let none = LookOptions::new();
+        let photo = Path::new("/a/IMG.CR3");
+        assert_eq!(
+            preview_file_for(Path::new("/c"), photo, "../x", "look1", &none),
+            None
+        );
+    }
+
+    #[test]
+    fn a_preview_is_never_listed_as_a_photo() {
+        let on = options(&[("optionA", true)]);
+        for set in [LookOptions::new(), on] {
+            let photo = Path::new("/a/IMG.CR3");
+            let file = preview_file_for(Path::new("/c"), photo, "cam1", "look1", &set);
+            let file = file.expect("a name");
+            assert!(!crate::formats::is_supported_image_file(&file), "{file:?}");
+        }
+    }
+
+    /// Beside the very photo it was made for, it still belongs to nothing:
+    /// not listed, not copied, not moved and not deleted with it.
+    #[test]
+    fn a_preview_is_no_companion_of_a_photo() {
+        let dir = tempfile::tempdir().expect("folder");
+        let photo = dir.path().join("IMG.CR3");
+        std::fs::write(&photo, "photo").expect("photo");
+        let none = LookOptions::new();
+        let file = preview_file_for(dir.path(), &photo, "cam1", "look1", &none).expect("a name");
+        write_png(&file, 512);
+
+        let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert_eq!(file_ops::photo_of_look_file(name), None);
+        assert!(file_ops::look_file_copies(&photo, &dir.path().join("B.CR3")).is_empty());
+        let deleted =
+            file_ops::files_to_delete_with_associated(&[photo.to_string_lossy().into_owned()]);
+        assert_eq!(deleted, [photo]);
+    }
+
+    /// For its swatch and for hover, through the same load as any LUT.
+    #[test]
+    fn a_preview_loads_as_a_lut() {
+        let dir = tempfile::tempdir().expect("folder");
+        let none = LookOptions::new();
+        let photo = Path::new("/a/IMG.CR3");
+        let file = preview_file_for(dir.path(), photo, "cam1", "look1", &none).expect("a name");
+        write_png(&file, 512);
+        let lut = lut_processing::parse_lut_file(&file.to_string_lossy()).expect("a LUT");
+        assert_eq!(lut.size, 64);
+    }
+
+    /// Only the file beside the photo counts as its look.
+    #[test]
+    fn a_preview_is_never_read_as_an_applied_look() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let preview = heard.with_preview(&photo);
+        let name = photo.to_string_lossy();
+        assert!(!file_is_there(&name, "cam1", "look1", &LookOptions::new()));
+        let edit = json!({
+            "lutPath": provider_look::MARKER,
+            provider_look::KEY: { "camera": "cam1", "look": "look1" },
+        });
+        assert_ne!(provider_look::look_file(&edit, &name), Some(preview));
+    }
+
+    #[test]
+    fn a_preview_lands_in_the_temporary_folder_with_nothing_beside_the_photo() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 1, 1);
+        let told = heard.all_done(1).remove(0);
+        assert!(told.preview);
+        assert_eq!(told.job_id, 1);
+        assert_eq!(told.path, photo.to_string_lossy());
+        assert!(heard.preview_of(&photo, "look1").is_file());
+        assert!(!look_file_of_photo(&photo).exists());
+    }
+
+    /// The temporary file is the program's scratch file's whole purpose, and
+    /// a run of Preview all is the normal one for that photo.
+    #[test]
+    fn a_preview_is_asked_for_like_any_look() {
+        let exe = fake("good");
+        let heard = queue_offering(&exe, &[("optionA", false)]);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let mut args = preview_args(&photo);
+        args.options = options(&[("optionA", true)]);
+        heard.queue.preview_all(
+            &numbered(1),
+            Some(subject(&photo.to_string_lossy())),
+            &args,
+            1,
+            Arc::clone(&heard.report),
+        );
+        heard.all_done(1);
+        let sent = last_request(&exe);
+        assert_eq!(sent["camera"], "cam1");
+        assert_eq!(sent["look"], "look1");
+        assert_eq!(sent["asShotWb"].as_array().expect("WB").len(), 4);
+        assert_eq!(sent["rendering"]["offsetEv"], 0.25);
+        assert_eq!(sent["options"], json!({ "optionA": true }));
+    }
+
+    // ------------------------------------------------------ Delete all previews
+
+    /// Stands in for the Recycle Bin, which a test must not fill.
+    fn gone(file: &Path) {
+        std::fs::remove_file(file).expect("delete");
+    }
+
+    fn delete_args(photo: &Path) -> ProviderLookDeleteArgs {
+        ProviderLookDeleteArgs {
+            path: photo.to_string_lossy().into_owned(),
+            on_photo: None,
+        }
+    }
+
+    fn look_on(camera: &str, look: &str) -> Value {
+        json!({
+            "lutPath": provider_look::MARKER,
+            provider_look::KEY: { "camera": camera, "look": look },
+        })
+    }
+
+    /// Saves `js` as the edit of `photo`, which a virtual copy's path names.
+    fn save_edit(photo: &str, js: &Value) {
+        let text = json!({ "version": 1, "rating": 0, "adjustments": js }).to_string();
+        std::fs::write(parse_virtual_path(photo).1, text).expect("sidecar");
+    }
+
+    fn deleted(deleted: usize, kept: usize, failed: usize) -> LooksDeleted {
+        LooksDeleted {
+            deleted,
+            kept,
+            failed,
+        }
+    }
+
+    #[test]
+    fn only_the_photos_own_look_files_go() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let own = [
+            look_file_of_photo(&photo),
+            photo.with_file_name("IMG.CR2.cam2.gone.lut.png"),
+            look_file_with(&photo, &options(&[("optionA", true)])),
+        ];
+        let others = [
+            "IMG.CR2",
+            "IMG.CR2.agexif",
+            "my.film.lut.png",
+            "IMG.CR2.jpg.cam1.look1.lut.png",
+            "IMG.CR3.cam1.look1.lut.png",
+            "OTHER.CR2.cam1.look1.lut.png",
+            "notes.txt",
+        ]
+        .map(|name| photo.with_file_name(name));
+        for file in own.iter().chain(&others) {
+            std::fs::write(file, "file").expect("file");
+        }
+
+        let told = heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(told, deleted(3, 0, 0));
+        assert!(own.iter().all(|file| !file.exists()), "{own:?}");
+        assert!(others.iter().all(|file| file.exists()), "{others:?}");
+    }
+
+    #[test]
+    fn a_look_the_edit_or_a_virtual_copy_uses_stays() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let name = photo.to_string_lossy();
+        save_edit(&name, &look_on("cam1", "look1"));
+        save_edit(&format!("{name}?vc=a1b2c3"), &look_on("cam2", "look2"));
+        let (main, copy, spare) = (
+            photo.with_file_name("IMG.CR2.cam1.look1.lut.png"),
+            photo.with_file_name("IMG.CR2.cam2.look2.lut.png"),
+            photo.with_file_name("IMG.CR2.cam2.look1.lut.png"),
+        );
+        for file in [&main, &copy, &spare] {
+            std::fs::write(file, "file").expect("file");
+        }
+
+        let told = heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(told, deleted(1, 2, 0));
+        assert!(main.exists() && copy.exists());
+        assert!(!spare.exists());
+    }
+
+    /// A look goes on and its save follows a moment later.
+    #[test]
+    fn the_look_on_the_open_edit_stays_before_it_is_saved() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let file = look_file_of_photo(&photo);
+        std::fs::write(&file, "file").expect("file");
+        let on_photo = serde_json::from_value(json!({ "camera": "cam1", "look": "look1" }));
+        let args = ProviderLookDeleteArgs {
+            on_photo: Some(on_photo.expect("a look")),
+            ..delete_args(&photo)
+        };
+
+        assert_eq!(heard.queue.delete_looks(&args, gone), deleted(0, 1, 0));
+        assert!(file.exists());
+    }
+
+    /// A virtual copy is open: the files and the jobs are its photo's.
+    #[test]
+    fn a_virtual_copys_path_reaches_its_photos_files() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let file = look_file_of_photo(&photo);
+        std::fs::write(&file, "file").expect("file");
+        let preview = heard.with_preview(&photo);
+        let copy = PathBuf::from(format!("{}?vc=a1b2c3", photo.display()));
+
+        let told = heard.queue.delete_looks(&delete_args(&copy), gone);
+
+        assert_eq!(told, deleted(2, 0, 0));
+        assert!(!file.exists() && !preview.exists());
+    }
+
+    #[test]
+    fn with_no_provider_nothing_happens() {
+        let dir = tempfile::tempdir().expect("folder");
+        let photo = dir.path().join("IMG.CR2");
+        let file = look_file_of_photo(&photo);
+        std::fs::write(&file, "file").expect("file");
+
+        let told = delete_looks_with(None, &delete_args(&photo), |_| panic!("removed"));
+
+        assert!(told.is_err());
+        assert!(file.exists());
+    }
+
+    /// One at a time, and what is left afterwards is what failed, as the trash
+    /// says nothing of how a file went.
+    #[test]
+    fn a_file_that_will_not_go_leaves_the_rest_to_go_and_is_counted() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let stuck = photo.with_file_name("IMG.CR2.cam1.look2.lut.png");
+        let rest = ["look1", "look3", "look4"]
+            .map(|look| photo.with_file_name(format!("IMG.CR2.cam1.{look}.lut.png")));
+        for file in rest.iter().chain([&stuck]) {
+            std::fs::write(file, "file").expect("file");
+        }
+
+        let told = delete_looks_with(Some(&heard.queue), &delete_args(&photo), |file| {
+            if file != stuck {
+                gone(file);
+            }
+        });
+
+        assert_eq!(told, Ok(deleted(3, 0, 1)));
+        assert!(stuck.exists());
+        assert!(rest.iter().all(|file| !file.exists()), "{rest:?}");
+    }
+
+    /// Previews of this photo for several cameras, looks and options.
+    fn with_previews(heard: &Heard, exe: &Path, photo: &Path) -> [PathBuf; 3] {
+        let previews = [
+            heard.with_preview(photo),
+            heard.preview_of(photo, "look2"),
+            preview_file_for(
+                &exe.with_file_name("scratch").join(PREVIEW_FOLDER),
+                photo,
+                "cam2",
+                "look1",
+                &options(&[("optionA", true)]),
+            )
+            .expect("a name"),
+        ];
+        for file in &previews {
+            write_png(file, 512);
+        }
+        previews
+    }
+
+    /// Right after Preview all there are only these, and the result counts them.
+    #[test]
+    fn every_preview_of_the_photo_goes_and_no_other() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        let previews = with_previews(&heard, &exe, &photo);
+        let kept = heard.with_preview(&photo_beside(&exe, "OTHER.CR2"));
+
+        let told = heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(told, deleted(3, 0, 0));
+        assert!(previews.iter().all(|file| !file.exists()), "{previews:?}");
+        assert!(kept.exists());
+    }
+
+    #[test]
+    fn the_button_has_nothing_to_clear_on_a_photo_with_neither() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        heard.with_preview(&photo_beside(&exe, "OTHER.CR2"));
+        std::fs::write(photo.with_file_name("my.film.lut.png"), "file").expect("file");
+        assert_eq!(heard.queue.clearable(&photo), 0);
+    }
+
+    /// In any camera or options, so another option set's previews count too.
+    #[test]
+    fn the_button_counts_previews_alone() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        with_previews(&heard, &exe, &photo);
+        assert_eq!(heard.queue.clearable(&photo), 3);
+    }
+
+    #[test]
+    fn the_button_counts_look_files_and_previews_together() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        std::fs::write(look_file_of_photo(&photo), "file").expect("file");
+        with_previews(&heard, &exe, &photo);
+        assert_eq!(heard.queue.clearable(&photo), 4);
+    }
+
+    #[test]
+    fn a_look_on_its_way_to_the_photo_is_called_off() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        heard.ask(&photo, 1);
+        wait_for("the run to start", || calls(&exe) == 1);
+
+        heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        let told = heard.next();
+        assert_eq!((told.job_id, told.outcome), (1, LookOutcome::Cancelled));
+        wait_for("the run to go", || !heard.queue.is_busy());
+        assert!(!look_file_of_photo(&photo).exists());
+    }
+
+    #[test]
+    fn a_running_preview_is_called_off_with_its_photo() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        heard.preview_all(&photo, 1, 1);
+        wait_for("the run to start", || calls(&exe) == 1);
+
+        heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(heard.next().outcome, LookOutcome::Cancelled);
+        release(&exe);
+        wait_for("the queue to empty", || !heard.queue.is_busy());
+        assert!(!heard.preview_of(&photo, "look1").exists());
+    }
+
+    /// Both ask for the same thing, so they share a run, and it goes on for one.
+    #[test]
+    fn another_photos_look_carries_on() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let (photo, other) = (
+            photo_beside(&exe, "IMG.CR2"),
+            photo_beside(&exe, "OTHER.CR2"),
+        );
+        heard.ask(&photo, 1);
+        heard.ask(&other, 2);
+        wait_for("the run to start", || calls(&exe) == 1);
+
+        heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        assert_eq!(heard.next().outcome, LookOutcome::Cancelled);
+        release(&exe);
+        let told = heard.next();
+        assert_eq!((told.job_id, told.outcome), (2, LookOutcome::Done));
+        assert!(look_file_of_photo(&other).is_file());
+        assert!(!look_file_of_photo(&photo).exists());
+    }
+
+    /// What an edit names is being made for it, and an export may be waiting.
+    #[test]
+    fn a_look_an_edit_is_waiting_for_carries_on() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR2");
+        save_edit(&photo.to_string_lossy(), &look_on("cam1", "look1"));
+        heard.ask(&photo, 1);
+        wait_for("the run to start", || calls(&exe) == 1);
+
+        heard.queue.delete_looks(&delete_args(&photo), gone);
+
+        release(&exe);
+        assert_eq!(heard.next().outcome, LookOutcome::Done);
+        assert!(look_file_of_photo(&photo).is_file());
+    }
+
+    #[test]
+    fn a_look_with_its_file_beside_the_photo_is_not_remade() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        write_png(&look_file_of_photo(&photo), 512);
+        heard.preview_all(&photo, 1, 1);
+        assert!(heard.all_done(1)[0].preview);
+        assert_eq!(calls(&exe), 0);
+        assert!(!heard.preview_of(&photo, "look1").exists());
+    }
+
+    #[test]
+    fn a_broken_file_beside_the_photo_does_not_stop_a_preview() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        std::fs::write(look_file_of_photo(&photo), "half").expect("file");
+        heard.preview_all(&photo, 1, 1);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 1);
+    }
+
+    #[test]
+    fn a_second_press_makes_nothing_again() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 2, 1);
+        heard.all_done(2);
+        heard.preview_all(&photo, 2, 2);
+        heard.all_done(2);
+        assert_eq!(calls(&exe), 2);
+    }
+
+    #[test]
+    fn another_photo_with_the_same_name_gets_its_own_preview() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let first = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&first, 1, 1);
+        heard.all_done(1);
+        let folder = exe.with_file_name("elsewhere");
+        std::fs::create_dir_all(&folder).expect("folder");
+        heard.preview_all(&folder.join("IMG.CR3"), 1, 2);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 2);
+    }
+
+    #[test]
+    fn four_previews_run_at_a_time() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        heard.preview_all(&photo_beside(&exe, "IMG.CR3"), 6, 1);
+        wait_for("four runs", || calls(&exe) >= 4);
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(calls(&exe), 4);
+        release(&exe);
+        heard.all_done(6);
+        assert_eq!(calls(&exe), 6);
+    }
+
+    /// What a click, a batch or an export asks for never gets more than it
+    /// does today, and the four is for everything together.
+    #[test]
+    fn what_is_asked_by_hand_stays_two_at_a_time_beside_previews() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        for n in 0..3 {
+            let mut other = subject(&photo_beside(&exe, &format!("IMG_{n}.CR3")).to_string_lossy());
+            other.wb[0] += n as f32;
+            heard.queue.request(Request {
+                subject: other,
+                camera: "cam1".to_string(),
+                look: "look1".to_string(),
+                options: LookOptions::new(),
+                remake: false,
+                front: false,
+                preview: false,
+                job: 1,
+                report: Arc::clone(&heard.report),
+            });
+        }
+        wait_for("two runs", || calls(&exe) >= 2);
+        heard.preview_all(&photo_beside(&exe, "OPEN.CR3"), 3, 2);
+        wait_for("four runs", || calls(&exe) >= 4);
+        std::thread::sleep(Duration::from_millis(200));
+        assert_eq!(calls(&exe), 4);
+        {
+            let state = heard.queue.state();
+            let by_hand = state.running.iter().filter(|item| !item.is_preview());
+            assert_eq!(by_hand.count(), 2);
+        }
+        release(&exe);
+        heard.all_done(6);
+    }
+
+    #[test]
+    fn a_click_goes_ahead_of_the_previews_waiting() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 6, 1);
+        wait_for("four runs", || calls(&exe) >= 4);
+        heard.ask_for(&photo, "look9", 2, false, true);
+        assert!(!heard.queue.state().waiting[0].is_preview());
+        release(&exe);
+        heard.all_done(7);
+    }
+
+    #[test]
+    fn a_click_leaves_the_previews_of_its_photo_running() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 2, 1);
+        heard.ask_for(&photo, "look3", 2, false, false);
+        release(&exe);
+        let told = heard.all_done(3);
+        assert_eq!(told.iter().filter(|p| p.preview).count(), 2);
+        assert!(heard.preview_of(&photo, "look2").is_file());
+    }
+
+    #[test]
+    fn previews_leave_a_click_waiting_on_their_photo_alone() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.ask_for(&photo, "look3", 2, false, false);
+        heard.preview_all(&photo, 2, 1);
+        release(&exe);
+        let told = heard.all_done(3);
+        assert_eq!(told.iter().filter(|p| !p.preview).count(), 1);
+    }
+
+    #[test]
+    fn a_click_during_a_preview_of_that_look_shares_its_run() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 1, 1);
+        wait_for("the run started", || calls(&exe) == 1);
+        heard.ask(&photo, 2);
+        release(&exe);
+        let told = heard.all_done(2);
+        assert_eq!(told.iter().filter(|p| p.preview).count(), 1);
+        assert_eq!(calls(&exe), 1);
+        assert!(look_file_of_photo(&photo).is_file());
+        assert!(heard.preview_of(&photo, "look1").is_file());
+    }
+
+    #[test]
+    fn taking_a_click_back_leaves_the_preview_it_joined_running() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 1, 1);
+        wait_for("the run started", || calls(&exe) == 1);
+        heard.ask(&photo, 2);
+        heard.queue.cancel(2);
+        assert_eq!(heard.next().outcome, LookOutcome::Cancelled);
+        release(&exe);
+        heard.all_done(1);
+        assert!(heard.preview_of(&photo, "look1").is_file());
+        assert!(!look_file_of_photo(&photo).exists());
+    }
+
+    #[test]
+    fn applying_a_look_reuses_its_preview_with_no_run() {
+        let exe = fake("crash");
+        let (tell, placed) = channel();
+        let tell = Mutex::new(tell);
+        let queue = Queue::new(
+            exe.to_path_buf(),
+            exe.with_file_name("scratch"),
+            ROOMY,
+            LookOptions::new(),
+            Box::new(move |_, file, _| {
+                let _ = tell.lock().unwrap().send(file.to_path_buf());
+            }),
+        );
+        let heard = Heard {
+            queue,
+            ..queue_of(&exe)
+        };
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let preview = heard.with_preview(&photo);
+        heard.ask(&photo, 1);
+        assert!(!heard.all_done(1)[0].preview);
+        assert_eq!(calls(&exe), 0);
+        let file = look_file_of_photo(&photo);
+        assert_eq!(
+            std::fs::read(&file).expect("the file"),
+            std::fs::read(&preview).expect("the preview")
+        );
+        let told = placed.recv_timeout(Duration::from_secs(1)).expect("placed");
+        assert_eq!(told, file);
+    }
+
+    #[test]
+    fn applying_a_look_whose_preview_has_gone_makes_it() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let preview = heard.with_preview(&photo);
+        std::fs::remove_file(preview).expect("delete");
+        heard.ask(&photo, 1);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 1);
+        assert!(look_file_of_photo(&photo).is_file());
+    }
+
+    #[test]
+    fn a_broken_preview_is_never_applied() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let preview = heard.with_preview(&photo);
+        std::fs::write(preview, "half").expect("file");
+        heard.ask(&photo, 1);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 1);
+        let bytes = std::fs::read(look_file_of_photo(&photo)).expect("file");
+        assert!(checked_file(&bytes).is_ok());
+    }
+
+    #[test]
+    fn a_preview_for_another_camera_or_option_is_not_applied() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.with_preview(&photo);
+        heard.ask_with(&photo, &options(&[("optionA", true)]), 1);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 1);
+    }
+
+    /// Remake means run the program again.
+    #[test]
+    fn a_remake_does_not_take_the_preview() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.with_preview(&photo);
+        heard.ask_for(&photo, "look1", 1, true, false);
+        heard.all_done(1);
+        assert_eq!(calls(&exe), 1);
+    }
+
+    #[test]
+    fn stopping_takes_what_has_not_started_and_stops_what_has() {
+        let exe = fake("paced");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 6, 1);
+        wait_for("four runs", || calls(&exe) >= 4);
+        heard.queue.cancel(1);
+        for _ in 0..6 {
+            assert_eq!(heard.next().outcome, LookOutcome::Cancelled);
+        }
+        wait_for("the runs stopped", || !heard.queue.is_busy());
+        assert_eq!(calls(&exe), 4);
+        assert!(!heard.preview_of(&photo, "look1").exists());
+    }
+
+    #[test]
+    fn a_failed_look_stays_blank_and_the_others_carry_on() {
+        let exe = fake("onebad");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 3, 1);
+        let told: Vec<LookProgress> = (0..3).map(|_| heard.next()).collect();
+        for progress in told {
+            let want = match progress.look.as_str() {
+                "look2" => LookOutcome::Failed,
+                _ => LookOutcome::Done,
+            };
+            assert_eq!(progress.outcome, want, "{}", progress.look);
+        }
+        assert!(heard.preview_of(&photo, "look1").is_file());
+        assert!(!heard.preview_of(&photo, "look2").exists());
+        assert!(heard.preview_of(&photo, "look3").is_file());
+    }
+
+    /// The button counts one answer per look, so every look answers.
+    #[test]
+    fn a_photo_it_cannot_do_answers_for_every_look_with_no_run() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let mut other = subject(&photo.to_string_lossy());
+        other.model = "Three".to_string();
+        for from in [None, Some(other)] {
+            heard.queue.preview_all(
+                &numbered(2),
+                from,
+                &preview_args(&photo),
+                1,
+                Arc::clone(&heard.report),
+            );
+            for _ in 0..2 {
+                let told = heard.next();
+                assert_eq!(told.outcome, LookOutcome::Unsupported);
+                assert!(told.preview);
+            }
+        }
+        assert_eq!(calls(&exe), 0);
+    }
+
+    #[test]
+    fn an_option_it_does_not_offer_answers_with_no_run() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let mut args = preview_args(&photo);
+        args.options = options(&[("gone", true)]);
+        heard.queue.preview_all(
+            &numbered(1),
+            Some(subject(&photo.to_string_lossy())),
+            &args,
+            1,
+            Arc::clone(&heard.report),
+        );
+        assert_eq!(heard.next().outcome, LookOutcome::Unsupported);
+        assert_eq!(calls(&exe), 0);
+    }
+
+    #[test]
+    fn previews_are_listed_for_their_own_options_alone() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let preview = heard.with_preview(&photo);
+        let list = |set: &LookOptions| {
+            files_there(&numbered(2), |camera, look| {
+                heard.queue.preview_file(&photo, camera, look, set)
+            })
+        };
+        assert_eq!(
+            list(&LookOptions::new()),
+            [LookFile {
+                camera: "cam1".to_string(),
+                look: "look1".to_string(),
+                path: preview.to_string_lossy().into_owned(),
+            }]
+        );
+        assert_eq!(list(&options(&[("optionA", true)])), []);
+    }
+
+    #[test]
+    fn past_the_budget_the_oldest_previews_go() {
+        let dir = tempfile::tempdir().expect("folder");
+        let now = std::time::SystemTime::now();
+        for n in 0..4u64 {
+            let path = dir.path().join(format!("{n}.lut.png"));
+            std::fs::write(&path, [0u8; 100]).expect("file");
+            let file = std::fs::File::options()
+                .write(true)
+                .open(&path)
+                .expect("file");
+            file.set_modified(now - Duration::from_secs(3600 * n))
+                .expect("date");
+        }
+        trim_previews(dir.path(), 400);
+        assert_eq!(std::fs::read_dir(dir.path()).expect("folder").count(), 4);
+        trim_previews(dir.path(), 250);
+        assert!(dir.path().join("0.lut.png").exists());
+        assert!(dir.path().join("1.lut.png").exists());
+        assert!(!dir.path().join("2.lut.png").exists());
+        assert!(!dir.path().join("3.lut.png").exists());
+    }
+
+    /// North star 5: however many photos are previewed, the folder holds its
+    /// budget and one set.
+    #[test]
+    fn a_press_brings_the_folder_back_within_its_budget() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        let old = heard.with_preview(&photo_beside(&exe, "OLD.CR3"));
+        let file = std::fs::File::options()
+            .write(true)
+            .open(&old)
+            .expect("file");
+        file.set_len(MAX_PREVIEW_BYTES + 1).expect("size");
+        drop(file);
+        heard.preview_all(&photo, 1, 1);
+        heard.all_done(1);
+        assert!(!old.exists());
+        assert!(heard.preview_of(&photo, "look1").is_file());
+    }
+
+    #[test]
+    fn a_closing_app_leaves_no_temporary_file_and_nothing_else_goes() {
+        let exe = fake("good");
+        let heard = queue_of(&exe);
+        let photo = photo_beside(&exe, "IMG.CR3");
+        heard.preview_all(&photo, 1, 1);
+        heard.all_done(1);
+        let outside = exe.with_file_name("outside.png");
+        write_png(&outside, 64);
+        heard.queue.stop_all();
+        assert!(!exe.with_file_name("scratch").exists());
+        assert!(outside.is_file());
+    }
+
+    #[test]
+    fn what_a_crash_left_goes_at_the_next_start_and_nothing_else() {
+        let cache = tempfile::tempdir().expect("folder");
+        let left = cache.path().join(SCRATCH_FOLDER).join("previews");
+        std::fs::create_dir_all(&left).expect("folder");
+        std::fs::write(left.join(".a.cam1.look1.lut.png"), "left").expect("file");
+        let thumbnails = cache.path().join("thumbnails");
+        std::fs::create_dir_all(&thumbnails).expect("folder");
+        std::fs::write(thumbnails.join("a.jpg"), "kept").expect("file");
+
+        clear_leftovers(cache.path());
+        assert!(!cache.path().join(SCRATCH_FOLDER).exists());
+        assert!(thumbnails.join("a.jpg").is_file());
+        // Everyone without a provider: nothing there, nothing to do.
+        clear_leftovers(cache.path());
     }
 
     // ---------------------------------------------------------- which camera

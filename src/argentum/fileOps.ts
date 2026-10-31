@@ -1,3 +1,4 @@
+import { nearestThatStays } from './nearestPhoto';
 import { physicalPathOf } from './paths';
 /**
  * What the library shows after a delete or a rename. Ours.
@@ -21,10 +22,7 @@ export function activePathAfterDelete(
   deleted: readonly string[],
 ): string | null {
   if (!isDeletedWith(activePath, deleted)) return activePath;
-  const index = order.indexOf(activePath);
-  if (index === -1) return null;
-  const stays = (path: string) => !isDeletedWith(path, deleted);
-  return order.slice(index + 1).find(stays) ?? order.slice(0, index).reverse().find(stays) ?? null;
+  return nearestThatStays(order, activePath, (path) => !isDeletedWith(path, deleted));
 }
 
 /** Whether `path` is the folder `folder` or inside it. `/photos/trip2` is not inside `/photos/trip`. */

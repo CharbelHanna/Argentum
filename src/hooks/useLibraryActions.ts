@@ -19,6 +19,7 @@ import { computeSortedLibrary } from './useSortedLibrary';
 import { expandGroupedPaths } from '../utils/imageGrouping';
 import { getImageFlag } from '../utils/imageFlags';
 import { showFilterExitToast, snapshotMetadata } from '../argentum/filterExitUndo';
+import { nearestThatStays } from '../argentum/nearestPhoto';
 import { physicalPathOf } from '../argentum/paths';
 
 const resolveTargetPaths = (paths?: string[]) => {
@@ -65,13 +66,16 @@ export const clearLibrarySelection = () => {
   });
 };
 
+/** The photo on show: the one open in the editor, or the one active in the grid. */
+export const activePhotoPath = (): string | null =>
+  useUIStore.getState().activeView === 'editor'
+    ? (useEditorStore.getState().selectedImage?.path ?? null)
+    : useLibraryStore.getState().libraryActivePath;
+
 // RapidRAW 4eb6b2da: src/hooks/useLibraryActions.ts (undoable: a pop-up offers Undo when the change hides photos)
 const applyWithAutoAdvance = (changedPaths: string[], undoable: boolean, applyChange: () => void) => {
   const { activeView, cullingModalState } = useUIStore.getState();
-  const activePath =
-    activeView === 'editor'
-      ? (useEditorStore.getState().selectedImage?.path ?? null)
-      : useLibraryStore.getState().libraryActivePath;
+  const activePath = activePhotoPath();
 
   if (!activePath || !changedPaths.includes(activePath) || cullingModalState.isOpen) {
     applyChange();
@@ -96,18 +100,17 @@ const applyWithAutoAdvance = (changedPaths: string[], undoable: boolean, applyCh
     showFilterExitToast(activePath, hiddenCount, snapshot, multiSelectedPaths);
   }
 
-  const next =
-    before.slice(activeIndex + 1).find((img) => visible.has(img.path)) ??
-    before
-      .slice(0, activeIndex)
-      .reverse()
-      .find((img) => visible.has(img.path));
+  const next = nearestThatStays(
+    before.map((img) => img.path),
+    activePath,
+    (path) => visible.has(path),
+  );
 
   if (next) {
     useLibraryStore
       .getState()
-      .setLibrary({ libraryActivePath: next.path, multiSelectedPaths: [next.path], selectionAnchorPath: next.path });
-    useUIStore.getState().imageSelectHandler?.(next.path, activeView === 'editor');
+      .setLibrary({ libraryActivePath: next, multiSelectedPaths: [next], selectionAnchorPath: next });
+    useUIStore.getState().imageSelectHandler?.(next, activeView === 'editor');
   } else if (activeView === 'library') {
     clearLibrarySelection();
   }
