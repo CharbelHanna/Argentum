@@ -7,7 +7,9 @@
 //! engine's tests and, through `#[path]`, the app's `speed_budgets.rs`, so
 //! the app itself never asks.
 
+// Every engine test binary builds this file, and most never call it.
 #[cfg(windows)]
+#[allow(unused_imports)]
 pub use win32::{held, hold};
 
 /// Nothing to ask for off Windows.
