@@ -301,6 +301,8 @@
   "looksProviderMissing": "Look file missing. Showing Linear without the look.",
   "looksProviderRemake": "Remake",
   "looksProviderMakeAgain": "Make it again",
+  "looksProviderPreviewAll": "Preview all",
+  "looksProviderPreviewing": "Previewing {done} of {total}",
   "looksProviderKind": "Provider look",
   "looksProviderBatch": "Provider look: {done} of {total}",
   "looksProviderCancel": "Cancel",

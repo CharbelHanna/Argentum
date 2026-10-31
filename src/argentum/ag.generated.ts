@@ -405,7 +405,7 @@ other: Array<Leftover>,
 downloading: Progress | null, };
 
 /**
- * A look's file that is already beside a photo.
+ * A look's file that is already there.
  */
 export type LookFile = { camera: string, look: string, path: string, };
 
@@ -422,7 +422,11 @@ export type LookPickArgs = { path: string, lut: string, };
 /**
  * One photo's result, as the interface hears it.
  */
-export type LookProgress = { jobId: number, path: string, camera: string, look: string, options: { [key in string]?: boolean }, outcome: LookOutcome, };
+export type LookProgress = { jobId: number, path: string, camera: string, look: string, options: { [key in string]?: boolean }, outcome: LookOutcome, 
+/**
+ * For Preview all: nothing goes on a photo.
+ */
+preview: boolean, };
 
 /**
  * A photo to measure Auto white balance on, and the photo a pasted Auto came from.
@@ -573,7 +577,11 @@ export type PhotoLooks = {
 /**
  * Its own camera on the list.
  */
-camera: string, files: Array<LookFile>, };
+camera: string, files: Array<LookFile>, 
+/**
+ * The temporary files of Preview all: to look at, never a look on a photo.
+ */
+previews: Array<LookFile>, };
 
 /**
  * The folder a file dialog opens in: the open photo's, when there is one.
@@ -617,6 +625,8 @@ export type ProviderLookMakeArgs = { paths: Array<string>,
  * None for each photo's own camera.
  */
 camera: string | null, look: string, options: { [key in string]?: boolean }, remake: boolean, front: boolean, };
+
+export type ProviderLookPreviewArgs = { path: string, camera: string, options: { [key in string]?: boolean }, };
 
 /**
  * What the provider offers.
@@ -814,6 +824,7 @@ export interface AgCommands {
   provider_look_cancel: { args: ProviderLookCancelArgs; answer: null };
   provider_look_file: { args: ProviderLookFileArgs; answer: boolean };
   provider_look_make: { args: ProviderLookMakeArgs; answer: number };
+  provider_look_preview: { args: ProviderLookPreviewArgs; answer: number };
   provider_looks: { args: ProviderLooksArgs; answer: ProviderLooks | null };
   provider_looks_switch: { args: ProviderLooksSwitchArgs; answer: null };
   raw_decoder: { args: Record<string, never>; answer: RawDecoder };

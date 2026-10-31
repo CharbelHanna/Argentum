@@ -865,6 +865,12 @@ commands! {
             .await
             .map_err(|e| e.to_string())??
     }
+    "provider_look_preview" => (a: crate::mods::lut_provider::ProviderLookPreviewArgs) -> u64 {
+        let app = app_handle.clone();
+        tauri::async_runtime::spawn_blocking(move || crate::mods::lut_provider::preview_all(&app, a))
+            .await
+            .map_err(|e| e.to_string())??
+    }
     "provider_look_file" => (a: crate::mods::lut_provider::ProviderLookFileArgs) -> bool {
         crate::mods::lut_provider::file_is_there(&a.path, &a.camera, &a.look, &a.options)
     }
