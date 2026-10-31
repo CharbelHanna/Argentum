@@ -1,3 +1,4 @@
+import type { ReactElement, ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { initReactI18next } from 'react-i18next';
@@ -13,6 +14,7 @@ vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), info: vi.fn(), err
 const { default: ProviderLooks, LookStrip } = await import('./ProviderLooks');
 const { useProviderLooks } = await import('./providerLooksStore');
 const { useLibraryStore } = await import('../../store/useLibraryStore');
+const { useUIStore } = await import('../../store/useUIStore');
 
 const OPEN = 'D:/photos/open.cr3';
 
@@ -27,7 +29,7 @@ const OFFER: Offer = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [] },
+  photo: { camera: 'cam1', files: [], previews: [], clearable: 0 },
 };
 
 /** A server render reads the store's first state. */
@@ -38,12 +40,39 @@ function offered(state: Partial<ReturnType<typeof useProviderLooks.getState>>) {
 
 const section = () => renderToStaticMarkup(<ProviderLooks photo={OPEN} ready onTakeOff={() => {}} />);
 
+const FIRST_SECTIONS = { ...useUIStore.getState().collapsibleSectionsState };
+
+/** The store's sections, for a server render too. */
+function syncFold() {
+  Object.assign(useUIStore.getInitialState(), {
+    collapsibleSectionsState: useUIStore.getState().collapsibleSectionsState,
+  });
+}
+
+function folded(value: boolean) {
+  useUIStore.setState((s) => ({
+    collapsibleSectionsState: { ...s.collapsibleSectionsState, providerLooksFolded: value },
+  }));
+  syncFold();
+}
+
 beforeAll(async () => {
   await i18n.use(initReactI18next).init({ lng: 'en', resources: { en: { [AG_NS]: en } } });
 });
 
 beforeEach(() => {
-  offered({ offer: null, chosen: {}, chosenOptions: {}, waiting: {}, note: null, batch: null, previewing: null });
+  offered({
+    offer: null,
+    chosen: {},
+    chosenOptions: {},
+    waiting: {},
+    note: null,
+    batch: null,
+    previewing: null,
+    deleting: false,
+  });
+  useUIStore.setState({ collapsibleSectionsState: { ...FIRST_SECTIONS } });
+  syncFold();
 });
 
 describe('with the setting absent or empty', () => {
@@ -141,6 +170,190 @@ describe('Preview all', () => {
     Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
     expect(html).toContain('Invented Stock');
     expect(html).not.toContain('Preview all');
+  });
+});
+
+describe('Delete all previews', () => {
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
+  const button = (html: string) => html.match(/<button[^>]*>[^<]*Delete[^<]*<\/button>/)?.[0] ?? '';
+
+  it('shows beside Preview all, ready to press', () => {
+    offered({ offer: WITH_FILES });
+    const html = section();
+    expect(button(html)).toContain('Delete all previews');
+    expect(button(html)).not.toContain('disabled');
+    expect(html.indexOf('Preview all')).toBeLessThan(html.indexOf('Delete all previews'));
+    expect(html.indexOf('Delete all previews')).toBeLessThan(html.indexOf('Invented Stock'));
+  });
+
+  it('is disabled with no look file or preview to clear', () => {
+    offered({ offer: OFFER });
+    expect(button(section())).toContain('disabled');
+  });
+
+  it('counts what the current list does not show', () => {
+    offered({ offer: WITH_FILES });
+    expect(WITH_FILES.photo?.files).toEqual([]);
+    expect(WITH_FILES.photo?.previews).toEqual([]);
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('is on right after Preview all, with only temporary previews', () => {
+    const preview = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
+    offered({ offer: { ...OFFER, photo: { camera: 'cam1', files: [], previews: [preview], clearable: 1 } } });
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('is disabled with the switch off', () => {
+    offered({ offer: { ...WITH_FILES, on: false } });
+    const html = section();
+    expect(button(html)).toContain('disabled');
+    expect(html).toContain('agm-provider-tools agm-look-dim');
+  });
+
+  it('waits for the photo', () => {
+    offered({ offer: WITH_FILES });
+    const html = renderToStaticMarkup(<ProviderLooks photo={OPEN} ready={false} onTakeOff={() => {}} />);
+    expect(button(html)).toContain('disabled');
+  });
+
+  it('cannot be pressed again while it runs', () => {
+    offered({ offer: WITH_FILES, deleting: true });
+    expect(button(section())).toContain('disabled');
+  });
+
+  it('can stop a running Preview all', () => {
+    offered({ offer: WITH_FILES, previewing: { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 } });
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('has no place in the grid, where there is no one photo', () => {
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: OPEN });
+    offered({ offer: WITH_FILES });
+    const html = renderToStaticMarkup(<ProviderLooks photo={null} ready={false} onTakeOff={() => {}} />);
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
+    expect(html).toContain('Invented Stock');
+    expect(html).not.toContain('Delete all previews');
+  });
+
+  it('shows nothing with no provider', () => {
+    offered({ offer: null });
+    expect(section()).toBe('');
+  });
+});
+
+describe('folding the section', () => {
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], clearable: 2 } };
+  const RUNNING = { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 };
+  const head = (html: string) => html.match(/<div class="agm-provider-head">.*?<\/div>/)?.[0] ?? '';
+
+  type Node = ReactElement<{ className?: string; role?: string; children?: ReactNode; onClick?(e?: unknown): void }>;
+
+  /** The element in `node` that `is` picks. */
+  function found(node: ReactNode, is: (el: Node) => boolean): Node | undefined {
+    if (Array.isArray(node)) return node.map((child) => found(child, is)).find(Boolean);
+    if (typeof node !== 'object' || node === null || !('type' in node)) return undefined;
+    const element = node as Node;
+    return is(element) ? element : found(element.props.children, is);
+  }
+
+  /** The section's elements, with hooks running as they do in a render. */
+  function rendered() {
+    let tree: ReactNode;
+    const Probe = () => {
+      tree = ProviderLooks({ photo: OPEN, ready: true, onTakeOff: () => {} });
+      return <>{tree}</>;
+    };
+    renderToStaticMarkup(<Probe />);
+    return tree;
+  }
+
+  const clickHead = () => {
+    found(rendered(), (el) => el.props.className === 'agm-provider-head')?.props.onClick?.();
+    syncFold();
+  };
+
+  it('is open at first, with nothing kept for it', () => {
+    offered({ offer: WITH_FILES });
+    const html = section();
+    expect(useUIStore.getState().collapsibleSectionsState).not.toHaveProperty('providerLooksFolded');
+    expect(html).toContain('lucide-chevron-down');
+    expect(html).toContain('Invented Stock');
+    expect(html).toContain('Preview all');
+  });
+
+  it('shows only the head and its switch once folded', () => {
+    offered({ offer: WITH_FILES });
+    folded(true);
+    const html = section();
+    expect(html).toContain('lucide-chevron-right');
+    expect(html).toContain('Provider looks');
+    expect(html).toContain('role="switch"');
+    for (const gone of ['Invented Stock', 'Preview all', 'Delete all previews', 'Camera One', 'Presets and LUTs']) {
+      expect(html).not.toContain(gone);
+    }
+  });
+
+  it('a click on the head folds it, and another opens it', () => {
+    offered({ offer: WITH_FILES });
+    clickHead();
+    expect(useUIStore.getState().collapsibleSectionsState).toMatchObject({ providerLooksFolded: true });
+    expect(section()).not.toContain('Invented Stock');
+    clickHead();
+    expect(section()).toContain('Invented Stock');
+  });
+
+  it('keeps the Edit panel’s sections as they are', () => {
+    offered({ offer: WITH_FILES });
+    const before = useUIStore.getState().collapsibleSectionsState;
+    clickHead();
+    expect(useUIStore.getState().collapsibleSectionsState).toMatchObject(before);
+  });
+
+  it('the switch works and does not fold it', async () => {
+    offered({ offer: WITH_FILES });
+    const stopPropagation = vi.fn();
+    const button = found(rendered(), (el) => el.props.role === 'switch');
+    button?.props.onClick?.({ stopPropagation });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(useProviderLooks.getState().offer?.on).toBe(false);
+    expect(useUIStore.getState().collapsibleSectionsState).not.toHaveProperty('providerLooksFolded');
+  });
+
+  it('cancels nothing, and the head says Preview all is still running', () => {
+    offered({ offer: WITH_FILES, previewing: RUNNING });
+    clickHead();
+    expect(useProviderLooks.getState().previewing).toEqual(RUNNING);
+    expect(head(section())).toContain('Previewing 3 of 10');
+  });
+
+  it('says nothing in the head while open, as the button shows it', () => {
+    offered({ offer: WITH_FILES, previewing: RUNNING });
+    expect(head(section())).not.toContain('Previewing');
+  });
+
+  it('says nothing in the head with nothing running', () => {
+    offered({ offer: WITH_FILES });
+    folded(true);
+    expect(head(section())).not.toContain('Previewing');
+  });
+
+  it('still counts a batch, with its Cancel', () => {
+    offered({
+      offer: WITH_FILES,
+      batch: { name: 'Invented Stock', job: 1, done: 12, ended: 12, total: 40, before: [] },
+    });
+    folded(true);
+    const html = section();
+    expect(html).toContain('Provider look: 12 of 40');
+    expect(html).toContain('Cancel');
+  });
+
+  it('shows nothing with no provider, folded or not', () => {
+    offered({ offer: null });
+    folded(true);
+    expect(section()).toBe('');
   });
 });
 

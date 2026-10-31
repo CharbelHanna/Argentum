@@ -871,6 +871,12 @@ commands! {
             .await
             .map_err(|e| e.to_string())??
     }
+    "provider_look_delete" => (a: crate::mods::lut_provider::ProviderLookDeleteArgs) -> crate::mods::lut_provider::LooksDeleted {
+        let app = app_handle.clone();
+        tauri::async_runtime::spawn_blocking(move || crate::mods::lut_provider::delete_looks(&app, &a))
+            .await
+            .map_err(|e| e.to_string())??
+    }
     "provider_look_file" => (a: crate::mods::lut_provider::ProviderLookFileArgs) -> bool {
         crate::mods::lut_provider::file_is_there(&a.path, &a.camera, &a.look, &a.options)
     }
