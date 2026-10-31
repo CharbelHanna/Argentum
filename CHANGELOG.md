@@ -4,6 +4,26 @@ Newest first.
 
 **Forked from RapidRAW `1.6.6` @ `52138689`**; later releases are harvested by hand, read up to `v1.6.7`.
 
+## 26.44.3 — 2026-10-31
+
+### Added
+
+- An active library filter now shows: the View button names it, and when it leaves the grid empty the grid says "No photos match" with a Show all action that clears it.
+
+### Changed
+
+- A `.lut.png` file named after a photo (`IMG.CR2.<camera>.<look>.lut.png`) is treated as that photo's companion: it is no longer listed or counted as a photo, and it follows the photo on move, copy, duplicate, rename and delete.
+
+### Fixed
+
+- Very high ISO photos from Bayer sensors show less of a red and blue cast in their deepest shadows. Noise below black was clipped on each sensor sample before demosaicing, which lifted dark areas and let white balance tint the lift; it is now clipped once, after demosaicing, in Argentum's rawler fork. Thumbnails are made again once. X-Trans sensors are unchanged. From RAWmakase `crates/rawmakase-decode/src/demosaic.rs` @ `4d3f6f8c`.
+- Lens correction now uses the aperture and subject distance the photo was actually shot at. Auto was reading the aperture as 0, so a stopped-down photo got the lens's wide-open vignette profile and brighter corners, then changed when saved and reopened. Photos already saved in Auto pick up the right profile the next time they are saved.
+- A photo whose LUT file is missing no longer renders black: it shows without the look. LUTs kept in memory are now limited to 32, about 100 MB.
+
+### Removed
+
+- Old panel arrangement data left by the removed Classic layout is cleared from saved settings; the two column widths are kept.
+
 ## 26.44.2 — 2026-10-29
 
 ### Added

@@ -32,6 +32,17 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.44.3',
+    date: '2026-10-31',
+    notes: [
+      'Lens correction now uses the aperture and distance a photo was shot at, so new photos and Auto ' +
+        'no longer get corners that are too bright and change when the photo is reopened.',
+      'Very high ISO photos show less of a red and blue cast in their deepest shadows. Thumbnails are made again once.',
+      'An active library filter now shows: the View button names it, and an empty grid offers Show all.',
+      'A photo whose LUT file is missing shows without the look instead of black.',
+    ],
+  },
+  {
     version: '26.44.2',
     date: '2026-10-29',
     notes: [
