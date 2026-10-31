@@ -1395,7 +1395,20 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   font-size: calc(10.5px * var(--agm-text-scale, 1));
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  cursor: pointer;
   user-select: none;
+}
+
+.agm-provider-head:hover {
+  color: var(--agm-sec);
+}
+
+.agm-provider-running {
+  flex: none;
+  color: var(--agm-marker);
+  font-size: calc(11.5px * var(--agm-text-scale, 1));
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .agm-switch {
@@ -1558,7 +1571,12 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 }
 
 .agm-provider .agm-provider-tools {
+  gap: 12px;
   padding: 0 10px 4px;
+}
+
+.agm-provider-tools:not(.agm-look-dim) .agm-provider-delete:disabled {
+  opacity: 0.38;
 }
 
 .agm-look-folder {
