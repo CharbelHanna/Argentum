@@ -2107,6 +2107,7 @@ mod tests {
     #[ignore = "timing against the reference laptop's budgets; run by hand"]
     fn where_the_time_goes() {
         use super::super::speed_budgets;
+        speed_budgets::full_speed::hold();
         let gpu_ms = |ctx: &GpuContext, started: Instant| {
             let _ = ctx.device.poll(wgpu::PollType::wait_indefinitely());
             started.elapsed().as_secs_f32() * 1000.0

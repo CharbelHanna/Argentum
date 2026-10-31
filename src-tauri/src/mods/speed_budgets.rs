@@ -25,6 +25,9 @@
 //! change makes a row faster, measure again and lower its budget: the test
 //! prints what it measured as lines of this table.
 
+#[path = "../../engine/tests/common/full_speed.rs"]
+pub mod full_speed;
+
 /// What `where_the_time_goes` times, in this order everywhere below.
 pub const ROWS: [&str; 10] = [
     "theirs alone",
@@ -108,4 +111,13 @@ pub fn assert_none(breaches: &[String]) {
     } else {
         panic!("over budget:\n{lines}");
     }
+}
+
+/// Windows takes the request and keeps it, so a timing test that makes it
+/// runs on every core with any window in front.
+#[cfg(windows)]
+#[test]
+fn windows_keeps_a_timing_test_at_full_speed() {
+    full_speed::hold();
+    assert!(full_speed::held());
 }
