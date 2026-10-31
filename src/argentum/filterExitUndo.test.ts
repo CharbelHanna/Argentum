@@ -129,6 +129,21 @@ describe('undo when a photo leaves the filter', () => {
     expect(popup.shown).toHaveLength(0);
   });
 
+  it('opens the nearest photo shown when a rating hides the one open in the editor', () => {
+    const opened: [string, boolean | undefined][] = [];
+    useUIStore.setState({
+      activeView: 'editor',
+      imageSelectHandler: (path, openInEditor) => opened.push([path, openInEditor]),
+    });
+    useEditorStore.setState({ selectedImage: { path: '/p/b.CR2' } as never });
+    showOnly({ rating: 3 });
+
+    actions().handleRate(2);
+
+    expect(opened).toEqual([['/p/c.CR2', true]]);
+    expect(useLibraryStore.getState().libraryActivePath).toBe('/p/c.CR2');
+  });
+
   it('sends the reject flag again after restoring a rating, which clears it on disk', async () => {
     useLibraryStore.setState({
       imageList: [photo('/p/a.CR2'), photo('/p/b.CR2', ImageFlag.Reject), photo('/p/c.CR2')],

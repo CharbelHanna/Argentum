@@ -8,8 +8,9 @@ import { useSettingsStore } from '../store/useSettingsStore';
 import { useUIStore } from '../store/useUIStore';
 import { useProcessStore } from '../store/useProcessStore';
 import { useEditorActions } from './useEditorActions';
-import { useLibraryActions } from './useLibraryActions';
+import { activePhotoPath, useLibraryActions } from './useLibraryActions';
 import { rowNeighbour } from '../argentum/modern/gridRows';
+import { lastOrderHolding, stepFrom } from '../argentum/nearestPhoto';
 import { physicalPathOf } from '../argentum/paths';
 
 const getParentFolder = (path: string) => {
@@ -18,6 +19,8 @@ const getParentFolder = (path: string) => {
   const lastSep = physicalPath.lastIndexOf(separator);
   return lastSep === -1 ? physicalPath : physicalPath.slice(0, lastSep);
 };
+
+const pathsOf = (images: ReadonlyArray<ImageFile>) => images.map((image) => image.path);
 
 interface KeyboardShortcutsProps {
   sortedImageList: Array<ImageFile>;
@@ -45,7 +48,10 @@ export const useKeyboardShortcuts = ({
   const { handleRate, handleSetFlag, handleToggleFlag, handleSetColorLabel } = useLibraryActions();
 
   const sortedListRef = useRef(sortedImageList);
+  // The last list the photo on show was in: once it leaves the list, the only record of where it stood.
+  const lastOrderRef = useRef<readonly string[]>([]);
   useEffect(() => {
+    lastOrderRef.current = lastOrderHolding(lastOrderRef.current, pathsOf(sortedListRef.current), activePhotoPath());
     sortedListRef.current = sortedImageList;
   }, [sortedImageList]);
 
@@ -97,6 +103,12 @@ export const useKeyboardShortcuts = ({
         );
       }
       return libraryActivePath ? [libraryActivePath] : [];
+    };
+
+    const stepInEditor = (e: KeyboardEvent, s: ShortcutState, step: 1 | -1) => {
+      e.preventDefault();
+      const target = stepFrom(pathsOf(sortedListRef.current), lastOrderRef.current, s.editor.selectedImage!.path, step);
+      if (target) handleImageSelect(target, true);
     };
 
     const actions: Record<string, any> = {
@@ -170,23 +182,11 @@ export const useKeyboardShortcuts = ({
       },
       preview_prev: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const currentIndex = sortedListRef.current.findIndex((img) => img.path === s.editor.selectedImage!.path);
-          if (currentIndex === -1) return;
-          const nextIndex = currentIndex - 1 < 0 ? sortedListRef.current.length - 1 : currentIndex - 1;
-          handleImageSelect(sortedListRef.current[nextIndex].path, true);
-        },
+        execute: (e: KeyboardEvent, s: ShortcutState) => stepInEditor(e, s, -1),
       },
       preview_next: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
-        execute: (e: any, s: any) => {
-          e.preventDefault();
-          const currentIndex = sortedListRef.current.findIndex((img) => img.path === s.editor.selectedImage!.path);
-          if (currentIndex === -1) return;
-          const nextIndex = currentIndex + 1 >= sortedListRef.current.length ? 0 : currentIndex + 1;
-          handleImageSelect(sortedListRef.current[nextIndex].path, true);
-        },
+        execute: (e: KeyboardEvent, s: ShortcutState) => stepInEditor(e, s, 1),
       },
       zoom_in_step: {
         shouldFire: (s: any) => s.ui.activeView === 'editor' && !!s.editor.selectedImage,
@@ -679,13 +679,8 @@ export const useKeyboardShortcuts = ({
           const navigationList = recursive
             ? sortedListRef.current.filter((img) => getParentFolder(img.path) === getParentFolder(activePath))
             : sortedListRef.current;
-          const currentIndex = navigationList.findIndex((img) => img.path === activePath);
-          if (currentIndex === -1) return;
-          let nextIndex = isNext ? currentIndex + 1 : currentIndex - 1;
-          if (nextIndex >= navigationList.length) nextIndex = 0;
-          if (nextIndex < 0) nextIndex = navigationList.length - 1;
-          const nextImage = navigationList[nextIndex];
-          if (nextImage) selectPath(nextImage.path);
+          const target = stepFrom(pathsOf(navigationList), lastOrderRef.current, activePath, isNext ? 1 : -1);
+          if (target) selectPath(target);
         },
       },
     ];
