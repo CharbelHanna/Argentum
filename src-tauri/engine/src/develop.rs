@@ -29,7 +29,7 @@ pub(crate) enum Scale {
 
 /// Bumped whenever `develop` would give a different picture, so cached
 /// results made by an older one are not reused.
-pub(crate) const DEVELOP_VERSION: u32 = 1;
+pub(crate) const DEVELOP_VERSION: u32 = 2;
 
 /// The ceiling on a developed value. The app's full-quality decode keeps
 /// scene-linear values far above white for its tone mapping, and so does the
@@ -327,6 +327,88 @@ pub(crate) fn resize(rgb: &Rgb, w: usize, h: usize) -> Option<Rgb> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const BLACK: u16 = 1000;
+    const WHITE: u32 = 16000;
+
+    /// A mosaic with no colour matrix, so a develop gives its demosaiced
+    /// camera colours: repeatable noise of about 60 counts, 20 above black.
+    fn dark_noisy_mosaic() -> (RawImage, Vec<u16>) {
+        use rawler::cfa::PlaneColor;
+        use rawler::decoders::Camera;
+        use rawler::rawimage::{BlackLevel, CFAConfig, WhiteLevel};
+
+        let (width, height) = (64, 64);
+        let mut state = 12345_u32;
+        let mut uniform = move || {
+            state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+            (state >> 16) as f32 / 65536.0
+        };
+        let samples: Vec<u16> = (0..width * height)
+            .map(|_| {
+                let sum: f32 = (0..12).map(|_| uniform()).sum();
+                (BLACK as f32 + 20.0 + (sum - 6.0) * 60.0) as u16
+            })
+            .collect();
+        let cfa = rawler::CFA::new("RGGB");
+        let colors = PlaneColor::new("RGB");
+        let raw = RawImage::new_with_data(
+            Camera {
+                cfa: cfa.clone(),
+                plane_color: colors.clone(),
+                ..Default::default()
+            },
+            RawImageData::Integer(samples.clone()),
+            width,
+            height,
+            1,
+            [1.0; 4],
+            RawPhotometricInterpretation::Cfa(CFAConfig::new(&cfa, &colors)),
+            Some(BlackLevel::new(&[BLACK], 1, 1, 1)),
+            Some(WhiteLevel::new(vec![WHITE])),
+            false,
+        );
+        (raw, samples)
+    }
+
+    fn clipped_at_black(sample: u16) -> f32 {
+        sample.saturating_sub(BLACK) as f32 / (WHITE - BLACK as u32) as f32
+    }
+
+    /// Noise below black is averaged by the demosaic and only then clipped,
+    /// so a dark area comes out below what its samples average once each is
+    /// clipped, and nothing comes out negative.
+    #[test]
+    fn a_full_develop_clips_noise_after_demosaicing() {
+        let (raw, samples) = dark_noisy_mosaic();
+        let clipped_first =
+            samples.iter().map(|&v| clipped_at_black(v)).sum::<f32>() / samples.len() as f32;
+        let out = develop(&raw, Scale::Full).unwrap().pixels;
+        let mean = out.iter().flatten().sum::<f32>() / (out.len() * 3) as f32;
+        assert!(
+            mean < clipped_first * 0.95,
+            "mean {mean}, clipped first {clipped_first}"
+        );
+        assert!(out.iter().flatten().all(|v| *v >= 0.0));
+    }
+
+    /// Each sample clipped, then the two greens averaged: at half size red
+    /// and blue are single samples, so clipping after averaging would lower
+    /// green alone and leave a dark area more magenta.
+    #[test]
+    fn a_half_develop_clips_each_sample() {
+        let (raw, samples) = dark_noisy_mosaic();
+        let out = develop(&raw, Scale::Half).unwrap().pixels;
+        let at = |x: usize, y: usize| clipped_at_black(samples[y * 64 + x]);
+        for (i, got) in out.iter().enumerate() {
+            let (x, y) = (i % 32 * 2, i / 32 * 2);
+            let green = (at(x + 1, y) + at(x, y + 1)) / 2.0;
+            let want = [at(x, y), green, at(x + 1, y + 1)];
+            for c in 0..3 {
+                assert!((got[c] - want[c]).abs() < 1e-6, "{got:?} is not {want:?}");
+            }
+        }
+    }
 
     #[test]
     fn a_preview_keeps_its_shape_and_its_full_width() {
