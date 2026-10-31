@@ -16,6 +16,7 @@
 //! in a folder with `..` in its name still finds its file. It needs no provider,
 //! so a look stays on after its provider drops an option.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +25,7 @@ use serde_json::{Value, json};
 use tauri::State;
 
 use crate::AppState;
+use crate::exif_processing::peek_sidecar;
 use crate::file_management::parse_virtual_path;
 use crate::lut_processing::{self, Lut, get_or_load_lut};
 use crate::mods::file_ops::{self, LookOptions};
@@ -84,6 +86,35 @@ pub fn look_file(js: &Value, photo: &str) -> Option<PathBuf> {
         &look.look,
         &look.options,
     )
+}
+
+/// The look files the edits of `photo` use: its own and every virtual copy's,
+/// which shares its files. An edit that does not read could use any of them.
+pub fn files_in_use(photo: &Path) -> HashSet<PathBuf> {
+    let (Some(folder), Some(photo_name)) = (
+        photo.parent(),
+        photo.file_name().and_then(|name| name.to_str()),
+    ) else {
+        return HashSet::new();
+    };
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return HashSet::new();
+    };
+    let mut used = HashSet::new();
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        if !name
+            .to_str()
+            .is_some_and(|name| file_ops::is_sidecar_of(name, photo_name))
+        {
+            continue;
+        }
+        let Some(meta) = peek_sidecar(&entry.path()) else {
+            return file_ops::look_files_of(photo).into_iter().collect();
+        };
+        used.extend(look_file(&meta.adjustments, &photo.to_string_lossy()));
+    }
+    used
 }
 
 /// The LUT an edit asks for: a provider look's file beside the photo, else
@@ -261,6 +292,93 @@ mod tests {
             js[KEY]["options"] = bad;
             assert_eq!(look_file(&js, "/photos/IMG.CR3"), None);
         }
+    }
+
+    /// Saves `js` as the edit of `photo`, which a virtual copy's path names.
+    fn save_edit(photo: &str, js: &Value) -> PathBuf {
+        let sidecar = parse_virtual_path(photo).1;
+        let text = json!({ "version": 1, "rating": 0, "adjustments": js }).to_string();
+        std::fs::write(&sidecar, text).expect("sidecar");
+        sidecar
+    }
+
+    #[test]
+    fn the_photos_edit_uses_its_look_file() {
+        let dir = scratch("in-use-own");
+        let photo = dir.join("IMG.CR3");
+        save_edit(&photo.to_string_lossy(), &edit("cam1", "abc"));
+        assert_eq!(
+            files_in_use(&photo),
+            HashSet::from([dir.join("IMG.CR3.cam1.abc.lut.png")])
+        );
+    }
+
+    /// A copy shares the photo's files, so its look is the photo's to keep,
+    /// options and all.
+    #[test]
+    fn every_virtual_copys_edit_uses_its_look_file_too() {
+        let dir = scratch("in-use-copies");
+        let photo = dir.join("IMG.CR3");
+        let name = photo.to_string_lossy();
+        save_edit(&name, &edit("cam1", "abc"));
+        save_edit(&format!("{name}?vc=a1b2c3"), &edit("cam2", "other"));
+        let with_option = edit_with("optionA", true);
+        save_edit(&format!("{name}?vc=d4e5f6"), &with_option);
+        assert_eq!(
+            files_in_use(&photo),
+            HashSet::from([
+                dir.join("IMG.CR3.cam1.abc.lut.png"),
+                dir.join("IMG.CR3.cam2.other.lut.png"),
+                look_file(&with_option, &name).expect("a file"),
+            ])
+        );
+    }
+
+    #[test]
+    fn an_edit_with_no_provider_look_uses_no_look_file() {
+        let dir = scratch("in-use-none");
+        let photo = dir.join("IMG.CR3");
+        save_edit(
+            &photo.to_string_lossy(),
+            &json!({ "lutPath": "film.cube", "exposure": 1.0 }),
+        );
+        assert!(files_in_use(&photo).is_empty());
+    }
+
+    #[test]
+    fn another_photos_edits_use_nothing_of_this_ones() {
+        let dir = scratch("in-use-other");
+        let photo = dir.join("IMG.CR3");
+        let jpeg = dir.join("IMG.CR3.jpg");
+        save_edit(&jpeg.to_string_lossy(), &edit("cam1", "abc"));
+        save_edit(
+            &dir.join("OTHER.CR3").to_string_lossy(),
+            &edit("cam1", "abc"),
+        );
+        assert!(files_in_use(&photo).is_empty());
+    }
+
+    #[test]
+    fn a_photo_with_no_edit_uses_no_look_file() {
+        let dir = scratch("in-use-no-edit");
+        assert!(files_in_use(&dir.join("IMG.CR3")).is_empty());
+    }
+
+    /// There is no telling what it uses, so nothing of the photo's is spare.
+    #[test]
+    fn an_edit_that_does_not_read_could_use_any_look_file() {
+        let dir = scratch("in-use-broken");
+        let photo = dir.join("IMG.CR3");
+        let file = dir.join("IMG.CR3.cam1.abc.lut.png");
+        write_look_file(&file);
+        let sidecar = parse_virtual_path(&photo.to_string_lossy()).1;
+        std::fs::write(&sidecar, "half an edit").expect("sidecar");
+        assert_eq!(files_in_use(&photo), HashSet::from([file]));
+        assert_eq!(
+            std::fs::read_dir(&dir).expect("folder").count(),
+            2,
+            "reads only"
+        );
     }
 
     /// The file is all a look needs, so the render never asks what a provider

@@ -9,7 +9,8 @@
  * look off a photo. A click starts a job and the photo stays as it was; the
  * store puts the look on when its file is ready. Preview all makes every look
  * of the open photo as a temporary file to compare by hover, and only its
- * button starts it.
+ * button starts it. Delete all previews sends that photo's look files to the
+ * Recycle Bin, but for those an edit uses, and drops its temporary files.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -98,6 +99,8 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
     cancelBatch,
     previewing,
     previewAll,
+    deleting,
+    deleteLooks,
     setOn,
   } = useProviderLooks();
   const hover = useRef<number | undefined>(undefined);
@@ -243,6 +246,13 @@ export default function ProviderLooks({ photo, ready, onTakeOff }: Props) {
                   .replace('{done}', String(previewing.ended))
                   .replace('{total}', String(previewing.total))
               : t('looksProviderPreviewAll')}
+          </button>
+          <button
+            className="agm-provider-delete"
+            disabled={!on || !ready || deleting || offer.photo.beside === 0}
+            onClick={() => deleteLooks(photo)}
+          >
+            {t('looksProviderDeleteAll')}
           </button>
         </div>
       )}

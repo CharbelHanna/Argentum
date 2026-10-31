@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LookProgress, ProviderLook, ProviderLooks } from '../ag.generated';
+import { toast } from 'react-toastify';
+import type { LookProgress, LooksDeleted, ProviderLook, ProviderLooks } from '../ag.generated';
 
 const PREVIEW_JOB = 9;
 
@@ -7,6 +8,8 @@ const PREVIEW_JOB = 9;
 const calls: { name: string; args: unknown }[] = [];
 const invoked: { name: string; args: unknown }[] = [];
 let answerOffer: ProviderLooks | null = null;
+/** None for a refusal. */
+let answerDeleted: LooksDeleted | null = null;
 let fileThere = false;
 let hear: ((event: { payload: LookProgress }) => void) | null = null;
 const listened = vi.fn();
@@ -19,6 +22,10 @@ vi.mock('../ag', () => ({
     if (name === 'provider_look_make') return 7;
     if (name === 'provider_look_preview') return PREVIEW_JOB;
     if (name === 'provider_look_file') return fileThere;
+    if (name === 'provider_look_delete') {
+      if (!answerDeleted) throw new Error('refused');
+      return answerDeleted;
+    }
     return null;
   }),
 }));
@@ -55,10 +62,10 @@ const OFFER: ProviderLooks = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [] },
+  photo: { camera: 'cam1', files: [], previews: [], beside: 0 },
 };
 
-const OPTION = { id: 'optionA', label: 'Invented choice', default: false };
+const OPTION ={ id: 'optionA', label: 'Invented choice', default: false };
 const WITH_OPTION: ProviderLooks = { ...OFFER, options: [OPTION] };
 
 const LOOK = OFFER.looks[0];
@@ -784,11 +791,118 @@ describe('Preview all', () => {
   });
 });
 
+describe('Delete all previews', () => {
+  const state = () => useProviderLooks.getState();
+  const deletes = () => calls.filter((c) => c.name === 'provider_look_delete');
+  const loads = () => calls.filter((c) => c.name === 'provider_looks');
+  const ON_PHOTO = { camera: 'cam1', look: 'look1', before: {} };
+  const edit = { lutPath: PROVIDER_LOOK_PATH, agProviderLook: ON_PHOTO };
+
+  beforeEach(async () => {
+    vi.mocked(toast.info).mockClear();
+    vi.mocked(toast.error).mockClear();
+    answerDeleted = { deleted: 3, kept: 1, failed: 0 };
+    await offered();
+  });
+
+  it('asks once, for this photo', async () => {
+    await state().deleteLooks(OPEN);
+    expect(deletes()).toEqual([{ name: 'provider_look_delete', args: { path: OPEN, onPhoto: null } }]);
+  });
+
+  it('names the look on the open edit, whose save may be on its way', async () => {
+    openPhoto(edit);
+    await state().deleteLooks(OPEN);
+    expect(deletes()[0].args).toEqual({ path: OPEN, onPhoto: ON_PHOTO });
+  });
+
+  it('does nothing with no provider or with the switch off', async () => {
+    await offered(null);
+    await state().deleteLooks(OPEN);
+    await offered({ ...OFFER, on: false });
+    await state().deleteLooks(OPEN);
+    expect(deletes()).toEqual([]);
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('runs once at a time', async () => {
+    const first = state().deleteLooks(OPEN);
+    await state().deleteLooks(OPEN);
+    await first;
+    expect(deletes()).toHaveLength(1);
+    expect(state().deleting).toBe(false);
+  });
+
+  it('stops a running Preview all first', async () => {
+    await state().previewAll(OPEN, 'cam1', {});
+    await state().deleteLooks(OPEN);
+    expect(state().previewing).toBeNull();
+    const names = namesCalled();
+    expect(names.indexOf('provider_look_cancel')).toBeGreaterThan(-1);
+    expect(names.indexOf('provider_look_cancel')).toBeLessThan(names.indexOf('provider_look_delete'));
+  });
+
+  it('reads the files again straight away, with the photo’s options', async () => {
+    await state().chooseOption(OPEN, OPTION, true, {});
+    const before = loads().length;
+    await state().deleteLooks(OPEN);
+    expect(loads().slice(before)).toEqual([{ name: 'provider_looks', args: { path: OPEN, options: { optionA: true } } }]);
+  });
+
+  it('says how many went and how many an edit keeps', async () => {
+    await state().deleteLooks(OPEN);
+    expect(toast.info).toHaveBeenCalledWith('looksProviderDeleted');
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it('says so when a file would not go', async () => {
+    answerDeleted = { deleted: 2, kept: 1, failed: 1 };
+    await state().deleteLooks(OPEN);
+    expect(toast.error).toHaveBeenCalledWith('looksProviderDeleteFailed');
+    expect(toast.info).not.toHaveBeenCalled();
+  });
+
+  it('survives a refusal, and the files are read again', async () => {
+    answerDeleted = null;
+    const before = loads().length;
+    await state().deleteLooks(OPEN);
+    expect(state().deleting).toBe(false);
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(loads().length).toBe(before + 1);
+  });
+
+  it('starts nothing again: the look on the photo keeps its file', async () => {
+    fileThere = true;
+    openPhoto(edit);
+    await restoreLook(OPEN, edit);
+    await state().deleteLooks(OPEN);
+    await restoreLook(OPEN, edit);
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_make');
+    expect(namesCalled()).not.toContain('provider_look_preview');
+  });
+
+  it('starts nothing again for a photo with no look on it', async () => {
+    await state().deleteLooks(OPEN);
+    await restoreLook(OPEN, {});
+    await settled();
+    expect(namesCalled()).not.toContain('provider_look_make');
+    expect(namesCalled()).not.toContain('provider_look_preview');
+  });
+
+  it('leaves the photo as it is', async () => {
+    openPhoto(edit);
+    const before = useEditorStore.getState().adjustments;
+    await state().deleteLooks(OPEN);
+    expect(useEditorStore.getState().adjustments).toBe(before);
+  });
+});
+
 describe('the previews a photo shows', () => {
   const PREVIEW = { camera: 'cam1', look: 'look1', path: 'C:/cache/.a.cam1.look1.lut.png' };
 
   beforeEach(async () => {
-    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW] } };
+    answerOffer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [PREVIEW], beside: 0 } };
     await useProviderLooks.getState().load(OPEN, { optionA: true });
   });
 

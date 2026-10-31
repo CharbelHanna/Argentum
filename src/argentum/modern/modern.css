@@ -1558,7 +1558,12 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
 }
 
 .agm-provider .agm-provider-tools {
+  gap: 12px;
   padding: 0 10px 4px;
+}
+
+.agm-provider-tools:not(.agm-look-dim) .agm-provider-delete:disabled {
+  opacity: 0.38;
 }
 
 .agm-look-folder {

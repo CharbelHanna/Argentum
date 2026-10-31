@@ -27,7 +27,7 @@ const OFFER: Offer = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [], previews: [] },
+  photo: { camera: 'cam1', files: [], previews: [], beside: 0 },
 };
 
 /** A server render reads the store's first state. */
@@ -43,7 +43,16 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  offered({ offer: null, chosen: {}, chosenOptions: {}, waiting: {}, note: null, batch: null, previewing: null });
+  offered({
+    offer: null,
+    chosen: {},
+    chosenOptions: {},
+    waiting: {},
+    note: null,
+    batch: null,
+    previewing: null,
+    deleting: false,
+  });
 });
 
 describe('with the setting absent or empty', () => {
@@ -141,6 +150,68 @@ describe('Preview all', () => {
     Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
     expect(html).toContain('Invented Stock');
     expect(html).not.toContain('Preview all');
+  });
+});
+
+describe('Delete all previews', () => {
+  const WITH_FILES: Offer = { ...OFFER, photo: { camera: 'cam1', files: [], previews: [], beside: 2 } };
+  const button = (html: string) => html.match(/<button[^>]*>[^<]*Delete[^<]*<\/button>/)?.[0] ?? '';
+
+  it('shows beside Preview all, ready to press', () => {
+    offered({ offer: WITH_FILES });
+    const html = section();
+    expect(button(html)).toContain('Delete all previews');
+    expect(button(html)).not.toContain('disabled');
+    expect(html.indexOf('Preview all')).toBeLessThan(html.indexOf('Delete all previews'));
+    expect(html.indexOf('Delete all previews')).toBeLessThan(html.indexOf('Invented Stock'));
+  });
+
+  it('is disabled with no look file beside the photo', () => {
+    offered({ offer: OFFER });
+    expect(button(section())).toContain('disabled');
+  });
+
+  it('counts a look file the current list does not show', () => {
+    offered({ offer: WITH_FILES });
+    expect(WITH_FILES.photo?.files).toEqual([]);
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('is disabled with the switch off', () => {
+    offered({ offer: { ...WITH_FILES, on: false } });
+    const html = section();
+    expect(button(html)).toContain('disabled');
+    expect(html).toContain('agm-provider-tools agm-look-dim');
+  });
+
+  it('waits for the photo', () => {
+    offered({ offer: WITH_FILES });
+    const html = renderToStaticMarkup(<ProviderLooks photo={OPEN} ready={false} onTakeOff={() => {}} />);
+    expect(button(html)).toContain('disabled');
+  });
+
+  it('cannot be pressed again while it runs', () => {
+    offered({ offer: WITH_FILES, deleting: true });
+    expect(button(section())).toContain('disabled');
+  });
+
+  it('can stop a running Preview all', () => {
+    offered({ offer: WITH_FILES, previewing: { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 } });
+    expect(button(section())).not.toContain('disabled');
+  });
+
+  it('has no place in the grid, where there is no one photo', () => {
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: OPEN });
+    offered({ offer: WITH_FILES });
+    const html = renderToStaticMarkup(<ProviderLooks photo={null} ready={false} onTakeOff={() => {}} />);
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
+    expect(html).toContain('Invented Stock');
+    expect(html).not.toContain('Delete all previews');
+  });
+
+  it('shows nothing with no provider', () => {
+    offered({ offer: null });
+    expect(section()).toBe('');
   });
 });
 
