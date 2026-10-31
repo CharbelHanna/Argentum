@@ -422,7 +422,7 @@ export type LookPickArgs = { path: string, lut: string, };
 /**
  * One photo's result, as the interface hears it.
  */
-export type LookProgress = { jobId: number, path: string, camera: string, look: string, outcome: LookOutcome, };
+export type LookProgress = { jobId: number, path: string, camera: string, look: string, options: { [key in string]?: boolean }, outcome: LookOutcome, };
 
 /**
  * A photo to measure Auto white balance on, and the photo a pasted Auto came from.
@@ -518,6 +518,12 @@ export type OfferedCamera = { id: string, name: string, make: string, model: str
 export type OfferedLook = { id: string, name: string, group: string | null, };
 
 /**
+ * An on/off choice the program offers. What it means is the program's: only
+ * its label is shown and only its id and value are sent.
+ */
+export type OfferedOption = { id: string, label: string, default: boolean, };
+
+/**
  * An old edit found on disk, and what it becomes.
  */
 export type OldWhiteBalanceEdit = { path: string, 
@@ -596,22 +602,26 @@ id: string, done: number, total: number, };
 /**
  * A provider look as an edit holds it, under `agProviderLook`.
  */
-export type ProviderLook = { camera: string, look: string, before: RenderingBefore, };
+export type ProviderLook = { camera: string, look: string, 
+/**
+ * Its options away from their default. Edits saved before options have none.
+ */
+options?: { [key in string]?: boolean }, before: RenderingBefore, };
 
 export type ProviderLookCancelArgs = { jobId: number, };
 
-export type ProviderLookFileArgs = { path: string, camera: string, look: string, };
+export type ProviderLookFileArgs = { path: string, camera: string, look: string, options: { [key in string]?: boolean }, };
 
 export type ProviderLookMakeArgs = { paths: Array<string>, 
 /**
  * None for each photo's own camera.
  */
-camera: string | null, look: string, remake: boolean, front: boolean, };
+camera: string | null, look: string, options: { [key in string]?: boolean }, remake: boolean, front: boolean, };
 
 /**
  * What the provider offers.
  */
-export type ProviderLooks = { cameras: Array<OfferedCamera>, looks: Array<OfferedLook>, 
+export type ProviderLooks = { cameras: Array<OfferedCamera>, looks: Array<OfferedLook>, options: Array<OfferedOption>, 
 /**
  * The switch.
  */
@@ -622,7 +632,11 @@ on: boolean,
  */
 photo: PhotoLooks | null, };
 
-export type ProviderLooksArgs = { path: string | null, };
+export type ProviderLooksArgs = { path: string | null, 
+/**
+ * The options whose look files to report.
+ */
+options: { [key in string]?: boolean }, };
 
 export type ProviderLooksSwitchArgs = { on: boolean, };
 

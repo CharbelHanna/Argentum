@@ -20,9 +20,18 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { globalImageCache } from '../../utils/ImageLRUCache';
 import { ag } from '../ag';
-import type { LookProgress, OfferedLook, ProviderLook, ProviderLooks } from '../ag.generated';
+import type { LookProgress, OfferedLook, OfferedOption, ProviderLook, ProviderLooks } from '../ag.generated';
 import { type AgKey, agText } from '../locales';
-import { LOOK_KEYS, lookKeys, lookOf, lookOnto } from './providerLook';
+import {
+  LOOK_KEYS,
+  lookKeys,
+  lookOf,
+  lookOnto,
+  type LookOptions,
+  offeredOptions,
+  sameOptions,
+  withOption,
+} from './providerLook';
 
 /** As `EVENT` in mods/lut_provider.rs. */
 const PROGRESS_EVENT = 'provider-look-progress';
@@ -34,6 +43,7 @@ type Edit = Partial<Adjustments>;
 
 interface Waiting {
   look: string;
+  options: LookOptions;
   name: string;
   /** None until the queue answers. */
   job: number | null;
@@ -68,6 +78,8 @@ interface ProviderLooksState {
   offer: ProviderLooks | null;
   /** A hand choice of camera lasts for its photo. */
   chosen: Record<string, string>;
+  /** So does one of options, until the look that has them is on it. */
+  chosenOptions: Record<string, LookOptions>;
   /** By photo: a photo waits for one look. */
   waiting: Record<string, Waiting>;
   note: Note | null;
@@ -76,14 +88,23 @@ interface ProviderLooksState {
   undoable: Before[];
   /** Counts the look files made, so what reads them reads again. */
   filesMade: number;
-  load: (photo: string | null) => Promise<void>;
+  /** What is offered, with the look files of `options`. */
+  load: (photo: string | null, options?: LookOptions) => Promise<void>;
   reset: () => void;
   cameraOf: (photo: string, edit: Edit) => string | null;
   chooseCamera: (photo: string, camera: string, edit: Edit) => Promise<void>;
-  pick: (photo: string, look: OfferedLook, camera: string) => Promise<void>;
+  optionsOf: (photo: string, edit: Edit) => LookOptions;
+  chooseOption: (photo: string, option: OfferedOption, on: boolean, edit: Edit) => Promise<void>;
+  pick: (photo: string, look: OfferedLook, camera: string, options: LookOptions) => Promise<void>;
   /** Files for a look already in these photos' edits, or a remake of one. */
-  keepLook: (paths: string[], look: OfferedLook, camera: string, remake?: boolean) => Promise<void>;
-  putOnSelection: (paths: string[], look: OfferedLook, camera: string | null) => Promise<void>;
+  keepLook: (
+    paths: string[],
+    look: OfferedLook,
+    camera: string,
+    options: LookOptions,
+    remake?: boolean,
+  ) => Promise<void>;
+  putOnSelection: (paths: string[], look: OfferedLook, camera: string | null, options: LookOptions) => Promise<void>;
   cancel: (photo: string) => Promise<void>;
   cancelBatch: () => Promise<void>;
   undoLast: () => Promise<void>;
@@ -93,6 +114,7 @@ interface ProviderLooksState {
 const FIRST = {
   offer: null,
   chosen: {},
+  chosenOptions: {},
   waiting: {},
   note: null,
   batch: null,
@@ -121,14 +143,32 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       waiting: Object.fromEntries(Object.entries(state.waiting).filter(([photo]) => !photos.includes(photo))),
     }));
 
+  const forgetChosenOptions = (photo: string) =>
+    set((state) => ({
+      chosenOptions: Object.fromEntries(Object.entries(state.chosenOptions).filter(([path]) => path !== photo)),
+    }));
+
   /** Waits for `look` on `paths`; each answer comes through `settle`. */
   async function ask(
     paths: string[],
     camera: string | null,
     look: OfferedLook,
+    options: LookOptions,
     how: { remake?: boolean; front: boolean; then: Waiting['then']; batch?: boolean },
   ) {
-    const entry = { look: look.id, name: look.name, job: null, spinning: false, then: how.then, batch: !!how.batch };
+    const entry = {
+      look: look.id,
+      options,
+      name: look.name,
+      job: null,
+      spinning: false,
+      then: how.then,
+      batch: !!how.batch,
+    };
+    const stillWanted = (path: string) => {
+      const now = get().waiting[path];
+      return now?.look === look.id && sameOptions(now.options, options);
+    };
     set((state) => ({
       note: null,
       waiting: { ...state.waiting, ...Object.fromEntries(paths.map((path) => [path, entry])) },
@@ -136,9 +176,8 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     if (how.front) {
       const [photo] = paths;
       setTimeout(() => {
-        const now = get().waiting[photo];
-        if (now?.look === look.id)
-          set((state) => ({ waiting: { ...state.waiting, [photo]: { ...now, spinning: true } } }));
+        if (stillWanted(photo))
+          set((state) => ({ waiting: { ...state.waiting, [photo]: { ...state.waiting[photo], spinning: true } } }));
       }, SPIN_AFTER_MS);
     }
     let job: number;
@@ -147,6 +186,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
         paths,
         camera,
         look: look.id,
+        options,
         remake: how.remake ?? false,
         front: how.front,
       });
@@ -155,7 +195,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       forget(paths);
       return;
     }
-    const ours = paths.filter((path) => get().waiting[path]?.look === look.id);
+    const ours = paths.filter(stillWanted);
     if (ours.length === 0) {
       // Called off while the queue was answering.
       await ag('provider_look_cancel', { jobId: job }).catch(() => undefined);
@@ -172,7 +212,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
   /** The look onto its photo, open or left, with what it changed kept for a batch. */
   async function putOn(progress: LookProgress, name: string, batch: boolean) {
-    const keys = lookKeys(progress.camera, progress.look, name);
+    const keys = lookKeys(progress.camera, progress.look, name, progress.options);
     const keep = (was: Edit, own: Edit) => {
       if (!batch) return;
       const values = Object.fromEntries(Object.keys(own).map((k) => [k, was[k] ?? INITIAL_ADJUSTMENTS[k] ?? null]));
@@ -216,18 +256,24 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
   async function settle(progress: LookProgress) {
     const waited = get().waiting[progress.path];
-    if (waited?.look !== progress.look) return;
+    if (waited?.look !== progress.look || !sameOptions(waited.options, progress.options)) return;
+    if (waited.job !== null && waited.job !== progress.jobId) return;
     forget([progress.path]);
     const note = (text: AgKey) => set({ note: { photo: progress.path, look: progress.look, text } });
     if (progress.outcome === 'done') {
       set((state) => ({ filesMade: state.filesMade + 1 }));
-      if (waited.then === 'put') await putOn(progress, waited.name, waited.batch);
-      else if (progress.path === openPhoto()) {
+      if (waited.then === 'put') {
+        await putOn(progress, waited.name, waited.batch);
+        // The edit has them now, so an Undo shows on the checkbox.
+        if (!waited.batch) forgetChosenOptions(progress.path);
+      } else if (progress.path === openPhoto()) {
         // The same edit, with its picture to draw again.
         const { adjustments, setEditor } = useEditorStore.getState();
         setEditor({ adjustments: { ...adjustments } });
       }
-      if (progress.path === openPhoto()) await get().load(progress.path);
+      if (progress.path === openPhoto()) {
+        await get().load(progress.path, get().optionsOf(progress.path, useEditorStore.getState().adjustments));
+      }
     } else if (progress.outcome === 'folder') note('looksProviderFolder');
     else if (progress.outcome !== 'cancelled') note('looksProviderFailed');
     if (!waited.batch) return;
@@ -258,9 +304,9 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
   return {
     ...FIRST,
 
-    load: async (photo) => {
+    load: async (photo, options = {}) => {
       const mine = ++loads;
-      const offer = await ag('provider_looks', { path: photo }).catch(() => null);
+      const offer = await ag('provider_looks', { path: photo, options }).catch(() => null);
       if (mine !== loads) return;
       if (offer && !listening) startListening();
       set({ offer });
@@ -284,17 +330,31 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       set((state) => ({ chosen: { ...state.chosen, [photo]: camera }, note: null }));
       const on = lookOf(edit);
       const look = get().offer?.looks.find((l) => l.id === on?.look);
-      if (look) await get().pick(photo, look, camera);
+      if (look) await get().pick(photo, look, camera, get().optionsOf(photo, edit));
     },
 
-    pick: (photo, look, camera) => ask([photo], camera, look, { front: true, then: 'put' }),
+    optionsOf: (photo, edit) => {
+      const { chosenOptions, offer } = get();
+      return chosenOptions[photo] ?? offeredOptions(offer?.options ?? [], lookOf(edit)?.options);
+    },
 
-    keepLook: (paths, look, camera, remake = false) =>
-      ask(paths, camera, look, { remake, front: paths.length === 1, then: 'keep' }),
+    chooseOption: async (photo, option, on, edit) => {
+      const options = withOption(get().optionsOf(photo, edit), option, on);
+      await get().cancel(photo);
+      set((state) => ({ chosenOptions: { ...state.chosenOptions, [photo]: options }, note: null }));
+      const look = get().offer?.looks.find((l) => l.id === lookOf(edit)?.look);
+      const camera = get().cameraOf(photo, edit);
+      if (look && camera) await get().pick(photo, look, camera, options);
+    },
 
-    putOnSelection: async (paths, look, camera) => {
+    pick: (photo, look, camera, options) => ask([photo], camera, look, options, { front: true, then: 'put' }),
+
+    keepLook: (paths, look, camera, options, remake = false) =>
+      ask(paths, camera, look, options, { remake, front: paths.length === 1, then: 'keep' }),
+
+    putOnSelection: async (paths, look, camera, options) => {
       set({ batch: { name: look.name, job: null, done: 0, ended: 0, total: paths.length, before: [] } });
-      await ask(paths, camera, look, { front: false, then: 'put', batch: true });
+      await ask(paths, camera, look, options, { front: false, then: 'put', batch: true });
     },
 
     cancel: async (photo) => {
@@ -348,25 +408,34 @@ export function takeFromPaste(paths: string[], changes: Edit): Edit {
   const on = lookOf(changes);
   if (!offer || !on) return changes;
   const look = offer.looks.find((l) => l.id === on.look);
-  if (look) void putOnSelection(paths, look, on.camera);
+  if (look) void putOnSelection(paths, look, on.camera, offeredOptions(offer.options, on.options));
   return Object.fromEntries(Object.entries(changes).filter(([key]) => !LOOK_KEYS.includes(key)));
+}
+
+/** Its options, if the provider still offers them all: a file for others would not be this look's. */
+function optionsToMake(offer: ProviderLooks, on: ProviderLook): LookOptions | null {
+  const options = on.options ?? {};
+  return sameOptions(offeredOptions(offer.options, options), options) ? options : null;
 }
 
 /**
  * The open photo's edit names a look with no file: it asks for it, when the
  * photo opens or a preset brings the look. This runs the program with no click,
- * so only for a camera and look it lists, and once a session.
+ * so only for a camera, look and options it lists, and once a session.
  */
 export async function restoreLook(photo: string, edit: Edit) {
   const { offer, keepLook } = useProviderLooks.getState();
   const on = lookOf(edit);
   if (!offer?.photo || !on) return;
-  const key = `${photo}|${on.camera}|${on.look}`;
+  const options = optionsToMake(offer, on);
+  const key = JSON.stringify([photo, on.camera, on.look, options]);
   const look = offer.looks.find((l) => l.id === on.look);
-  const there = offer.photo.files.some((f) => f.camera === on.camera && f.look === on.look);
-  if (there || !look || !offer.cameras.some((c) => c.id === on.camera) || asked.has(key)) return;
+  if (!options || !look || !offer.cameras.some((c) => c.id === on.camera) || asked.has(key)) return;
   asked.add(key);
-  await keepLook([photo], look, on.camera);
+  const there = await ag('provider_look_file', { path: photo, camera: on.camera, look: on.look, options }).catch(
+    () => false,
+  );
+  if (!there) await keepLook([photo], look, on.camera, options);
 }
 
 /** A preset that brings a look, on photos in the grid: each asks for its file. */
@@ -374,5 +443,6 @@ export function restoreLooks(paths: string[], edit: Edit) {
   const { offer, keepLook } = useProviderLooks.getState();
   const on = lookOf(edit);
   const look = offer?.looks.find((l) => l.id === on?.look);
-  if (on && look) void keepLook(paths, look, on.camera);
+  const options = offer && on && optionsToMake(offer, on);
+  if (on && look && options) void keepLook(paths, look, on.camera, options);
 }

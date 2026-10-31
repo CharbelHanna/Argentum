@@ -3,7 +3,8 @@
 //!
 //! A photo travels with its files: its edits (`IMG.CR2.agdata`, and one
 //! `IMG.CR2.<id>.agdata` per virtual copy), its EXIF cache (`IMG.CR2.agexif`),
-//! its XMP (`IMG.xmp`) and its look files (`IMG.CR2.<camera>.<look>.lut.png`).
+//! its XMP (`IMG.xmp`) and its look files (`IMG.CR2.<camera>.<look>.lut.png`,
+//! with a marker before `.lut.png` for a look made with options).
 //! Delete, copy, move and rename in `file_management.rs` ask this module which
 //! files those are and where they go, and do only the disk work themselves:
 //!
@@ -25,7 +26,7 @@
 //! (fefb6a1b, 4f64511a); each copied rule names its commit.
 
 use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -94,20 +95,74 @@ pub fn is_look_name_part(part: &str) -> bool {
         && part.chars().all(|c| alphanumeric(c) || c == '-')
 }
 
+/// The options a look file was made with, by id: only those away from their
+/// default, so a look with every option at its default has none.
+pub type LookOptions = BTreeMap<String, bool>;
+
 /// The look file of `photo` for this camera and look, beside it, the only
 /// place that writes such a name. None when `camera` or `look` could not be
 /// part of one.
-pub fn look_file_for(photo: &Path, camera: &str, look: &str) -> Option<PathBuf> {
+pub fn look_file_for(
+    photo: &Path,
+    camera: &str,
+    look: &str,
+    options: &LookOptions,
+) -> Option<PathBuf> {
     let photo_name = photo.file_name()?.to_str()?;
-    (is_look_name_part(camera) && is_look_name_part(look))
-        .then(|| photo.with_file_name(format!("{photo_name}.{camera}.{look}.lut.png")))
+    (is_look_name_part(camera) && is_look_name_part(look)).then(|| {
+        let name = format!("{photo_name}.{camera}.{look}");
+        photo.with_file_name(match options_mark(options) {
+            Some(mark) => format!("{name}.{mark}.lut.png"),
+            None => format!("{name}.lut.png"),
+        })
+    })
+}
+
+const MARK_START: &str = "opt_";
+const MARK_HEX_CHARS: usize = 8;
+
+/// The part of a look file's name that tells `options` apart: `opt_` and a
+/// hash, so an id from an edit never reaches a file name, and `_`, which no
+/// camera or look can hold, so the name reads only one way. None for no options.
+fn options_mark(options: &LookOptions) -> Option<String> {
+    if options.is_empty() {
+        return None;
+    }
+    let mut hasher = blake3::Hasher::new();
+    for (id, value) in options {
+        hasher.update(
+            format!(
+                "{id}={value}
+"
+            )
+            .as_bytes(),
+        );
+    }
+    let hex = hasher.finalize().to_hex();
+    Some(format!("{MARK_START}{}", &hex[..MARK_HEX_CHARS]))
+}
+
+fn is_options_mark(part: &str) -> bool {
+    part.strip_prefix(MARK_START).is_some_and(|hex| {
+        hex.len() == MARK_HEX_CHARS
+            && hex
+                .chars()
+                .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+    })
 }
 
 /// The photo `file_name` is a look file of, the only place that reads such a
 /// name: `IMG.CR2` for `IMG.CR2.cam1.abc.lut.png`. None for any other file,
-/// such as `my.film.lut.png`, which names no photo.
+/// such as `my.film.lut.png`, which names no photo. An options marker before
+/// the ending changes nothing: `IMG.CR2.cam1.abc.opt_0a1b2c3d.lut.png` is
+/// `IMG.CR2`'s too.
 pub fn photo_of_look_file(file_name: &str) -> Option<&str> {
-    let (rest, look) = file_name.strip_suffix(".lut.png")?.rsplit_once('.')?;
+    let name = file_name.strip_suffix(".lut.png")?;
+    let name = match name.rsplit_once('.') {
+        Some((rest, mark)) if is_options_mark(mark) => rest,
+        _ => name,
+    };
+    let (rest, look) = name.rsplit_once('.')?;
     let (photo, camera) = rest.rsplit_once('.')?;
     (is_look_name_part(camera) && is_look_name_part(look) && is_supported_image_file(photo))
         .then_some(photo)
@@ -509,19 +564,201 @@ mod tests {
         path.to_string_lossy().into_owned()
     }
 
+    fn no_options() -> LookOptions {
+        LookOptions::new()
+    }
+
+    fn options(entries: &[(&str, bool)]) -> LookOptions {
+        entries
+            .iter()
+            .map(|(id, value)| (id.to_string(), *value))
+            .collect()
+    }
+
+    /// A look file with an option away from its default, as `look_file_for`
+    /// names one.
+    const WITH_OPTION: &str = "IMG.CR2.cam1.x.opt_0a1b2c3d.lut.png";
+
     #[test]
     fn a_look_files_name_is_read_back_as_its_photos() {
-        let file = look_file_for(Path::new("/photos/IMG.CR2"), "cam-1", "abc").expect("a name");
+        let photo = Path::new("/photos/IMG.CR2");
+        let file = look_file_for(photo, "cam-1", "abc", &no_options()).expect("a name");
         assert_eq!(file, Path::new("/photos/IMG.CR2.cam-1.abc.lut.png"));
         let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
         assert!(is_look_file_of(name, "IMG.CR2"));
+        assert_eq!(look_file_for(photo, "../x", "abc", &no_options()), None);
+        assert_eq!(look_file_for(photo, "cam1", "A", &no_options()), None);
+    }
+
+    #[test]
+    fn a_look_file_with_an_option_keeps_its_start_and_end_and_is_read_back() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let file =
+            look_file_for(photo, "cam1", "abc", &options(&[("optionA", true)])).expect("a name");
+        let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(name.starts_with("IMG.CR2.cam1.abc."), "{name}");
+        assert!(name.ends_with(".lut.png"), "{name}");
+        assert_ne!(name, "IMG.CR2.cam1.abc.lut.png");
+        assert!(is_look_file_of(name, "IMG.CR2"));
+    }
+
+    /// On and off must not overwrite each other, and the name must not change
+    /// with the order a map came in.
+    #[test]
+    fn each_set_of_options_has_its_own_name() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let name_of = |set: &LookOptions| look_file_for(photo, "cam1", "abc", set);
+        let names = [
+            name_of(&no_options()),
+            name_of(&options(&[("optionA", true)])),
+            name_of(&options(&[("optionA", false)])),
+            name_of(&options(&[("optionB", true)])),
+            name_of(&options(&[("optionA", true), ("optionB", true)])),
+        ];
+        for (i, one) in names.iter().enumerate() {
+            for other in &names[i + 1..] {
+                assert_ne!(one, other);
+            }
+        }
         assert_eq!(
-            look_file_for(Path::new("/photos/IMG.CR2"), "../x", "abc"),
-            None
+            name_of(&options(&[("optionA", true), ("optionB", true)])),
+            name_of(&options(&[("optionB", true), ("optionA", true)]))
+        );
+    }
+
+    /// A name written today must still be found by every later version.
+    #[test]
+    fn the_name_of_a_set_of_options_never_changes() {
+        let file = look_file_for(
+            Path::new("IMG.CR2"),
+            "cam1",
+            "abc",
+            &options(&[("optionA", true), ("optionB", false)]),
         );
         assert_eq!(
-            look_file_for(Path::new("/photos/IMG.CR2"), "cam1", "A"),
-            None
+            file.expect("a name"),
+            Path::new("IMG.CR2.cam1.abc.opt_688a154f.lut.png")
+        );
+    }
+
+    /// An option's id can hold anything an edit file says; what reaches the
+    /// disk is the marker alone.
+    #[test]
+    fn an_options_id_never_reaches_the_file_name() {
+        let photo = Path::new("/photos/IMG.CR2");
+        let set = options(&[(r"..\..\evil/name", true)]);
+        let file = look_file_for(photo, "cam1", "abc", &set).expect("a name");
+        assert_eq!(file.parent(), Some(Path::new("/photos")));
+        let name = file.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(is_look_file_of(name, "IMG.CR2"), "{name}");
+    }
+
+    #[test]
+    fn a_marked_look_file_belongs_to_the_photo_with_exactly_that_name() {
+        assert!(is_look_file_of(WITH_OPTION, "IMG.CR2"));
+        assert!(!is_look_file_of(WITH_OPTION, "IMG.CR2.jpg"));
+        assert!(!is_look_file_of(WITH_OPTION, "IMG.CR3"));
+        let of_jpeg = "IMG.CR2.jpg.cam1.x.opt_0a1b2c3d.lut.png";
+        assert!(is_look_file_of(of_jpeg, "IMG.CR2.jpg"));
+        assert!(!is_look_file_of(of_jpeg, "IMG.CR2"));
+    }
+
+    /// A look's id can't hold `_`, so a marked name can't be read as the plain
+    /// name of a longer photo.
+    #[test]
+    fn a_marker_could_not_be_a_look() {
+        assert!(!is_look_name_part("opt_0a1b2c3d"));
+        assert!(!is_look_file_of(
+            "IMG.CR2.cam1.opt_0a1b2c3d.lut.png",
+            "IMG.CR2"
+        ));
+    }
+
+    #[test]
+    fn a_marker_must_be_exact() {
+        for name in [
+            "IMG.CR2.cam1.x.opt_.lut.png",
+            "IMG.CR2.cam1.x.opt_0a1b2c3.lut.png",
+            "IMG.CR2.cam1.x.opt_0a1b2c3d4.lut.png",
+            "IMG.CR2.cam1.x.opt_0A1B2C3D.lut.png",
+            "IMG.CR2.cam1.x.opt_0a1b2c3g.lut.png",
+            "IMG.CR2.cam1.x.opt-0a1b2c3d.lut.png",
+            "IMG.CR2.cam1.x.opt_0a1b2c3d.opt_0a1b2c3d.lut.png",
+            "IMG.CR2.more.cam1.x.opt_0a1b2c3d.lut.png",
+        ] {
+            assert!(!is_look_file_of(name, "IMG.CR2"), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_marked_look_file_is_not_a_photo() {
+        assert!(!is_supported_image_file(WITH_OPTION));
+        assert!(!is_supported_image_file(format!("/p/{WITH_OPTION}")));
+    }
+
+    #[test]
+    fn a_moved_photo_takes_its_marked_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join(WITH_OPTION), "look");
+        write(
+            &folder.join("OTHER.CR2.cam1.x.opt_0a1b2c3d.lut.png"),
+            "other",
+        );
+        fs::create_dir_all(&target).unwrap();
+
+        move_files_on_disk(&[text(&folder.join("IMG.CR2"))], &text(&target)).unwrap();
+
+        assert_eq!(names_in(&target), ["IMG.CR2", WITH_OPTION]);
+        assert_eq!(names_in(&folder), ["OTHER.CR2.cam1.x.opt_0a1b2c3d.lut.png"]);
+    }
+
+    #[test]
+    fn a_copied_photo_takes_its_marked_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("a");
+        let target = dir.path().join("target");
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join(WITH_OPTION), "look");
+        fs::create_dir_all(&target).unwrap();
+
+        copy_files(vec![text(&folder.join("IMG.CR2"))], text(&target)).unwrap();
+
+        assert_eq!(names_in(&target), ["IMG.CR2", WITH_OPTION]);
+        assert_eq!(read(&target.join(WITH_OPTION)), "look");
+    }
+
+    #[test]
+    fn a_renamed_photo_takes_its_marked_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join(WITH_OPTION), "look");
+
+        rename_files_on_disk(&[text(&folder.join("IMG.CR2"))], "trip").unwrap();
+
+        assert_eq!(
+            names_in(folder),
+            ["trip.CR2", "trip.CR2.cam1.x.opt_0a1b2c3d.lut.png"]
+        );
+    }
+
+    #[test]
+    fn a_deleted_photo_takes_its_marked_look_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path();
+        write(&folder.join("IMG.CR2"), "raw");
+        write(&folder.join(WITH_OPTION), "look");
+
+        assert_eq!(
+            files_to_delete_from_disk(&[text(&folder.join("IMG.CR2"))]),
+            [folder.join("IMG.CR2"), folder.join(WITH_OPTION)]
+        );
+        assert_eq!(
+            files_to_delete_with_associated(&[text(&folder.join("IMG.CR2"))]),
+            [folder.join("IMG.CR2"), folder.join(WITH_OPTION)]
         );
     }
 

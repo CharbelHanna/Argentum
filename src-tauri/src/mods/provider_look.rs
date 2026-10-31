@@ -6,14 +6,15 @@
 //!
 //! - `lutPath` is exactly [`MARKER`]. The marker is the switch: anything that
 //!   writes a real `lutPath` turns the look off, with no code of its own.
-//! - `agProviderLook` ([`KEY`]) names the camera and the look, and keeps what
-//!   the look replaced, so taking it off restores the rendering
-//!   (src/argentum/looks/providerLook.ts).
+//! - `agProviderLook` ([`KEY`]) names the camera, the look and any options away
+//!   from their default, and keeps what the look replaced, so taking it off
+//!   restores the rendering (src/argentum/looks/providerLook.ts).
 //!
 //! Every load of an edit's LUT goes through [`lut_of_edit`]. A path from an edit
 //! is refused if it could point anywhere (`parse_lut_file`); this one is built
-//! from the photo and two checked ids, so a photo on a network share or in a
-//! folder with `..` in its name still finds its file.
+//! from the photo, two checked ids and a hash, so a photo on a network share or
+//! in a folder with `..` in its name still finds its file. It needs no provider,
+//! so a look stays on after its provider drops an option.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -25,7 +26,7 @@ use tauri::State;
 use crate::AppState;
 use crate::file_management::parse_virtual_path;
 use crate::lut_processing::{self, Lut, get_or_load_lut};
-use crate::mods::file_ops;
+use crate::mods::file_ops::{self, LookOptions};
 use crate::mods::lut_cache::LutCache;
 use crate::mods::raw_tone::ToneCurvePoint;
 
@@ -42,6 +43,10 @@ pub const KEY: &str = "agProviderLook";
 pub struct ProviderLook {
     pub camera: String,
     pub look: String,
+    /// Its options away from their default. Edits saved before options have none.
+    #[serde(default)]
+    #[cfg_attr(test, ts(as = "Option<LookOptions>", optional))]
+    pub options: LookOptions,
     #[serde(default)]
     pub before: RenderingBefore,
 }
@@ -73,7 +78,12 @@ pub fn has_look(js: &Value) -> bool {
 /// none, or one whose ids could not be part of a file name.
 pub fn look_file(js: &Value, photo: &str) -> Option<PathBuf> {
     let look = look_of(js)?;
-    file_ops::look_file_for(&parse_virtual_path(photo).0, &look.camera, &look.look)
+    file_ops::look_file_for(
+        &parse_virtual_path(photo).0,
+        &look.camera,
+        &look.look,
+        &look.options,
+    )
 }
 
 /// The LUT an edit asks for: a provider look's file beside the photo, else
@@ -208,6 +218,65 @@ mod tests {
         }
     }
 
+    fn edit_with(option: &str, value: bool) -> Value {
+        let mut js = edit("cam1", "abc");
+        js[KEY]["options"] = json!({ option: value });
+        js
+    }
+
+    #[test]
+    fn an_edit_with_an_option_names_another_file_than_one_without() {
+        let plain = look_file(&edit("cam1", "abc"), "/photos/IMG.CR3").expect("a file");
+        let with = look_file(&edit_with("optionA", true), "/photos/IMG.CR3").expect("a file");
+        assert_ne!(plain, with);
+        let name = with.file_name().and_then(|n| n.to_str()).expect("a name");
+        assert!(file_ops::is_look_file_of(name, "IMG.CR3"), "{name}");
+    }
+
+    /// Saved before options existed: exactly today's file.
+    #[test]
+    fn an_edit_with_no_options_names_todays_file() {
+        let mut js = edit("cam1", "abc");
+        assert!(js[KEY].get("options").is_none());
+        let today = Some(PathBuf::from("/photos/IMG.CR3.cam1.abc.lut.png"));
+        assert_eq!(look_file(&js, "/photos/IMG.CR3"), today);
+        js[KEY]["options"] = json!({});
+        assert_eq!(look_file(&js, "/photos/IMG.CR3"), today);
+    }
+
+    #[test]
+    fn a_virtual_copy_with_an_option_shares_its_photos_file() {
+        let js = edit_with("optionA", true);
+        assert_eq!(
+            look_file(&js, "/photos/IMG.CR3?vc=a1b2c3"),
+            look_file(&js, "/photos/IMG.CR3")
+        );
+    }
+
+    /// An edit file from elsewhere: nothing to load, and nothing breaks.
+    #[test]
+    fn options_that_do_not_read_name_nothing() {
+        for bad in [json!("optionA"), json!(7), json!({ "optionA": "yes" })] {
+            let mut js = edit("cam1", "abc");
+            js[KEY]["options"] = bad;
+            assert_eq!(look_file(&js, "/photos/IMG.CR3"), None);
+        }
+    }
+
+    /// The file is all a look needs, so the render never asks what a provider
+    /// offers: with no provider, or one that dropped the option, it still loads.
+    #[test]
+    fn a_look_with_an_option_loads_with_no_provider_at_all() {
+        let dir = scratch("gone-option");
+        let photo = dir.join("IMG.CR3");
+        let js = edit_with("optionA", true);
+        let file = look_file(&js, &photo.to_string_lossy()).expect("a file");
+        assert_ne!(file, dir.join("IMG.CR3.cam1.abc.lut.png"));
+        write_look_file(&file);
+        let cache = Mutex::new(LutCache::default());
+        assert!(load_look_file(&cache, &file).is_some());
+    }
+
     #[test]
     fn only_the_exact_marker_counts() {
         let mut js = edit("cam1", "abc");
@@ -324,6 +393,20 @@ mod tests {
         let found = look_file(&js, &enlarged.to_string_lossy()).expect("a file");
         assert!(found.is_file());
         assert_eq!(js[KEY]["before"]["rawToneRendering"], "default");
+    }
+
+    #[test]
+    fn an_enlargement_keeps_the_look_of_its_options() {
+        let dir = scratch("enlarge-option");
+        let (photo, enlarged) = (dir.join("IMG.CR3"), dir.join("IMG_2x.tif"));
+        let mut js = edit_with("optionA", true);
+        let file = look_file(&js, &photo.to_string_lossy()).expect("a file");
+        assert_ne!(file, dir.join("IMG.CR3.cam1.abc.lut.png"));
+        write_look_file(&file);
+        carry_to_enlargement(&mut js, &photo, &enlarged);
+        let found = look_file(&js, &enlarged.to_string_lossy()).expect("a file");
+        assert!(found.is_file());
+        assert_eq!(js[KEY]["options"], json!({ "optionA": true }));
     }
 
     #[test]
