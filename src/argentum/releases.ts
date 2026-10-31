@@ -32,6 +32,14 @@ export interface Release {
 
 export const RELEASES: Release[] = [
   {
+    version: '26.44.4',
+    date: '2026-10-31',
+    notes: [
+      'Left and Right keep working when the photo on show leaves the filtered list: they go to the nearest photo still shown.',
+      'Import Images is gone: Shoebox does the importing. Copy, move, paste and importing presets, LUTs and profiles are unchanged.',
+    ],
+  },
+  {
     version: '26.44.3',
     date: '2026-10-31',
     notes: [
