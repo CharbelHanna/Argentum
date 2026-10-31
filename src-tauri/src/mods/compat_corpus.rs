@@ -147,7 +147,7 @@ pub const DROPPED: &[Dropped] = &[
         file: SETTINGS,
         path: "/lastImportSettings",
         reason: "the Import dialog stored it; Import is gone, Shoebox does the importing",
-        pr: "#294",
+        pr: "#296",
     },
 ];
 
