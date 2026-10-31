@@ -12,6 +12,7 @@ vi.mock('react-toastify', () => ({ toast: { success: vi.fn(), info: vi.fn(), err
 
 const { default: ProviderLooks, LookStrip } = await import('./ProviderLooks');
 const { useProviderLooks } = await import('./providerLooksStore');
+const { useLibraryStore } = await import('../../store/useLibraryStore');
 
 const OPEN = 'D:/photos/open.cr3';
 
@@ -26,7 +27,7 @@ const OFFER: Offer = {
   ],
   options: [],
   on: true,
-  photo: { camera: 'cam1', files: [] },
+  photo: { camera: 'cam1', files: [], previews: [] },
 };
 
 /** A server render reads the store's first state. */
@@ -42,7 +43,7 @@ beforeAll(async () => {
 });
 
 beforeEach(() => {
-  offered({ offer: null, chosen: {}, chosenOptions: {}, waiting: {}, note: null, batch: null });
+  offered({ offer: null, chosen: {}, chosenOptions: {}, waiting: {}, note: null, batch: null, previewing: null });
 });
 
 describe('with the setting absent or empty', () => {
@@ -98,6 +99,48 @@ describe('with the switch on', () => {
     const html = section();
     expect(html).toContain('Provider look: 12 of 40');
     expect(html).toContain('Cancel');
+  });
+});
+
+describe('Preview all', () => {
+  const button = (html: string) => html.match(/<button[^>]*>[^<]*Preview[^<]*<\/button>/)?.[0] ?? '';
+
+  it('shows after the options and before the looks, ready to press', () => {
+    offered({ offer: { ...OFFER, options: [{ id: 'optionA', label: 'Invented choice', default: false }] } });
+    const html = section();
+    expect(button(html)).toContain('Preview all');
+    expect(button(html)).not.toContain('disabled');
+    expect(html.indexOf('Invented choice')).toBeLessThan(html.indexOf('Preview all'));
+    expect(html.indexOf('Preview all')).toBeLessThan(html.indexOf('Invented Stock'));
+  });
+
+  it('is dimmed and disabled with the switch off', () => {
+    offered({ offer: { ...OFFER, on: false } });
+    const html = section();
+    expect(button(html)).toContain('disabled');
+    expect(html).toContain('agm-provider-tools agm-look-dim');
+  });
+
+  it('waits for the photo', () => {
+    offered({ offer: OFFER });
+    const html = renderToStaticMarkup(<ProviderLooks photo={OPEN} ready={false} onTakeOff={() => {}} />);
+    expect(button(html)).toContain('disabled');
+  });
+
+  it('counts on the button while it runs, and cannot be pressed again', () => {
+    offered({ offer: OFFER, previewing: { run: 1, photo: OPEN, job: 1, ended: 3, total: 10 } });
+    const html = section();
+    expect(button(html)).toContain('Previewing 3 of 10');
+    expect(button(html)).toContain('disabled');
+  });
+
+  it('has no place in the grid, where there is no one photo', () => {
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: OPEN });
+    offered({ offer: OFFER });
+    const html = renderToStaticMarkup(<ProviderLooks photo={null} ready={false} onTakeOff={() => {}} />);
+    Object.assign(useLibraryStore.getInitialState(), { libraryActivePath: null });
+    expect(html).toContain('Invented Stock');
+    expect(html).not.toContain('Preview all');
   });
 });
 

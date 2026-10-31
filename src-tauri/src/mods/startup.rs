@@ -43,6 +43,8 @@ pub fn init(app: &AppHandle) {
 
     if let Ok(cache) = app.path().app_cache_dir() {
         super::cache_version::clear_thumbnails_if_pipeline_changed(&cache);
+        // Temporary files the last run could not clear, if it crashed.
+        super::lut_provider::clear_leftovers(&cache);
     }
 
     // Imported profiles are user data, not cache.

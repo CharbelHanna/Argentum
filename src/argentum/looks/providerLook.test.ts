@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { COPYABLE_ADJUSTMENT_KEYS, ADJUSTMENT_GROUPS, type Adjustments } from '../../utils/adjustments';
+import {
+  COPYABLE_ADJUSTMENT_KEYS,
+  ADJUSTMENT_GROUPS,
+  INITIAL_ADJUSTMENTS,
+  type Adjustments,
+} from '../../utils/adjustments';
 import { EDIT_SECTION_KEYS } from '../editSections';
 import { presetAt } from './presetAmount';
 import {
+  hoverEdit,
   lookKeys,
+  lookOf,
   lookOnto,
   offeredOptions,
   optionIsOn,
@@ -240,5 +247,29 @@ describe('agProviderLook in the edit’s key lists', () => {
 
   it('is in no section’s reset, copy or eye', () => {
     expect(Object.values(EDIT_SECTION_KEYS).flat()).not.toContain('agProviderLook');
+  });
+});
+
+describe('a look on hover', () => {
+  const photo: Adjustments = { ...INITIAL_ADJUSTMENTS, exposure: 1, rawToneRendering: 'dngStandard' };
+  const keys = lookKeys('cam1', 'abc', 'Invented Stock');
+
+  it('from the file beside the photo, is the look itself', () => {
+    const shown = hoverEdit(photo, keys);
+    expect(shown.lutPath).toBe(PROVIDER_LOOK_PATH);
+    expect(lookOf(shown)?.look).toBe('abc');
+    expect(shown.exposure).toBe(1);
+  });
+
+  it('from a preview, names that file for the render and goes on as the look would', () => {
+    const shown = hoverEdit(photo, keys, 'C:/cache/.a.cam1.abc.lut.png');
+    expect(shown.lutPath).toBe('C:/cache/.a.cam1.abc.lut.png');
+    expect(shown.rawToneRendering).toBe('linear');
+    expect(shown.lutIntensity).toBe(100);
+    expect(shown.agLutDeclaredInput).toBe(true);
+  });
+
+  it('from a preview, does not read as a look on the photo', () => {
+    expect(lookOf(hoverEdit(photo, keys, 'C:/cache/.a.cam1.abc.lut.png'))).toBeNull();
   });
 });

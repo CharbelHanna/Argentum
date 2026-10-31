@@ -1557,6 +1557,10 @@ html[data-ag-look='modern'] .agm-left .lucide-star {
   justify-content: flex-end;
 }
 
+.agm-provider .agm-provider-tools {
+  padding: 0 10px 4px;
+}
+
 .agm-look-folder {
   height: 26px;
   display: flex;

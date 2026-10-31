@@ -20,7 +20,7 @@ import { useEditorStore } from '../../store/useEditorStore';
 import { type Adjustments, getActiveTools, INITIAL_ADJUSTMENTS, setToolActive } from '../../utils/adjustments';
 import { globalImageCache } from '../../utils/ImageLRUCache';
 import { ag } from '../ag';
-import type { LookProgress, OfferedLook, OfferedOption, ProviderLook, ProviderLooks } from '../ag.generated';
+import type { LookFile, LookProgress, OfferedLook, OfferedOption, ProviderLook, ProviderLooks } from '../ag.generated';
 import { type AgKey, agText } from '../locales';
 import {
   LOOK_KEYS,
@@ -74,8 +74,21 @@ interface Batch {
   before: Before[];
 }
 
+/** Preview all on its way, for the open photo. */
+interface Previewing {
+  /** Tells this press from a later one. */
+  run: number;
+  photo: string;
+  /** None until the queue answers. */
+  job: number | null;
+  ended: number;
+  total: number;
+}
+
 interface ProviderLooksState {
   offer: ProviderLooks | null;
+  /** What `offer` was read for. */
+  offerOf: { photo: string | null; options: LookOptions } | null;
   /** A hand choice of camera lasts for its photo. */
   chosen: Record<string, string>;
   /** So does one of options, until the look that has them is on it. */
@@ -84,6 +97,7 @@ interface ProviderLooksState {
   waiting: Record<string, Waiting>;
   note: Note | null;
   batch: Batch | null;
+  previewing: Previewing | null;
   /** The last batch, for its Undo. */
   undoable: Before[];
   /** Counts the look files made, so what reads them reads again. */
@@ -105,6 +119,9 @@ interface ProviderLooksState {
     remake?: boolean,
   ) => Promise<void>;
   putOnSelection: (paths: string[], look: OfferedLook, camera: string | null, options: LookOptions) => Promise<void>;
+  /** Every look of this photo as a temporary file, to compare: only the button asks. */
+  previewAll: (photo: string, camera: string, options: LookOptions) => Promise<void>;
+  stopPreviews: () => Promise<void>;
   cancel: (photo: string) => Promise<void>;
   cancelBatch: () => Promise<void>;
   undoLast: () => Promise<void>;
@@ -113,11 +130,13 @@ interface ProviderLooksState {
 
 const FIRST = {
   offer: null,
+  offerOf: null,
   chosen: {},
   chosenOptions: {},
   waiting: {},
   note: null,
   batch: null,
+  previewing: null,
   undoable: [],
   filesMade: 0,
 };
@@ -126,6 +145,9 @@ const FIRST = {
 const asked = new Set<string>();
 let listening = false;
 let loads = 0;
+let previewRuns = 0;
+/** Ends the watch on the open photo that a running Preview all keeps. */
+let stopWatching = () => {};
 
 const openPhoto = () => useEditorStore.getState().selectedImage?.path ?? null;
 
@@ -254,7 +276,23 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     );
   }
 
+  /** One look of Preview all: nothing goes on the photo, and a failed look stays blank. */
+  async function settlePreview(progress: LookProgress) {
+    const running = get().previewing;
+    if (!running || running.photo !== progress.path || progress.outcome === 'cancelled') return;
+    if (running.job !== null && running.job !== progress.jobId) return;
+    const ended = running.ended + 1;
+    if (ended >= running.total) {
+      stopWatching();
+      set({ previewing: null });
+    } else set({ previewing: { ...running, ended } });
+    if (progress.outcome === 'done' && progress.path === openPhoto()) {
+      await get().load(progress.path, get().optionsOf(progress.path, useEditorStore.getState().adjustments));
+    }
+  }
+
   async function settle(progress: LookProgress) {
+    if (progress.preview) return settlePreview(progress);
     const waited = get().waiting[progress.path];
     if (waited?.look !== progress.look || !sameOptions(waited.options, progress.options)) return;
     if (waited.job !== null && waited.job !== progress.jobId) return;
@@ -309,11 +347,12 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
       const offer = await ag('provider_looks', { path: photo, options }).catch(() => null);
       if (mine !== loads) return;
       if (offer && !listening) startListening();
-      set({ offer });
+      set({ offer, offerOf: { photo, options } });
     },
 
     reset: () => {
       asked.clear();
+      stopWatching();
       set(FIRST);
     },
 
@@ -326,6 +365,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     },
 
     chooseCamera: async (photo, camera, edit) => {
+      await get().stopPreviews();
       await get().cancel(photo);
       set((state) => ({ chosen: { ...state.chosen, [photo]: camera }, note: null }));
       const on = lookOf(edit);
@@ -340,6 +380,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
     chooseOption: async (photo, option, on, edit) => {
       const options = withOption(get().optionsOf(photo, edit), option, on);
+      await get().stopPreviews();
       await get().cancel(photo);
       set((state) => ({ chosenOptions: { ...state.chosenOptions, [photo]: options }, note: null }));
       const look = get().offer?.looks.find((l) => l.id === lookOf(edit)?.look);
@@ -355,6 +396,37 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
     putOnSelection: async (paths, look, camera, options) => {
       set({ batch: { name: look.name, job: null, done: 0, ended: 0, total: paths.length, before: [] } });
       await ask(paths, camera, look, options, { front: false, then: 'put', batch: true });
+    },
+
+    previewAll: async (photo, camera, options) => {
+      const { offer, previewing } = get();
+      if (!offer?.on || !offer.photo || previewing) return;
+      const run = ++previewRuns;
+      set({ previewing: { run, photo, job: null, ended: 0, total: offer.looks.length } });
+      stopWatching = useEditorStore.subscribe((editor) => {
+        if ((editor.selectedImage?.path ?? null) !== photo) void get().stopPreviews();
+      });
+      const job = await ag('provider_look_preview', { path: photo, camera, options }).catch((err) => {
+        console.warn('Provider looks:', err);
+        return null;
+      });
+      if (get().previewing?.run === run) {
+        if (job === null) await get().stopPreviews();
+        else set((state) => ({ previewing: state.previewing && { ...state.previewing, job } }));
+      } else if (job !== null) {
+        // Stopped while the queue was answering.
+        await ag('provider_look_cancel', { jobId: job }).catch(() => undefined);
+      }
+    },
+
+    stopPreviews: async () => {
+      const { previewing } = get();
+      if (!previewing) return;
+      stopWatching();
+      set({ previewing: null });
+      if (previewing.job !== null) {
+        await ag('provider_look_cancel', { jobId: previewing.job }).catch(() => undefined);
+      }
     },
 
     cancel: async (photo) => {
@@ -384,6 +456,7 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 
     setOn: async (on) => {
       set((state) => ({ offer: state.offer && { ...state.offer, on }, note: null }));
+      await get().stopPreviews();
       await cancelAll();
       endBatch();
       await ag('provider_looks_switch', { on }).catch((err) => console.warn('Provider looks:', err));
@@ -394,6 +467,19 @@ export const useProviderLooks = create<ProviderLooksState>((set, get) => {
 /** Whether the regular Presets and LUTs are the list that can't be used now. */
 export const regularLooksAreOff = (state: Pick<ProviderLooksState, 'offer'>): boolean =>
   !!state.offer?.on && !!state.offer.photo;
+
+/**
+ * The previews of `photo` with `options`. The offer can still be the last photo's or
+ * the last options' for a moment, and a preview from then is not this look.
+ */
+export const previewsFor = (
+  state: Pick<ProviderLooksState, 'offer' | 'offerOf'>,
+  photo: string | null,
+  options: LookOptions,
+): LookFile[] =>
+  state.offerOf?.photo === photo && sameOptions(state.offerOf.options, options)
+    ? (state.offer?.photo?.previews ?? [])
+    : [];
 
 /** The edit's provider look, or null. */
 export const lookFor = (edit: Edit): ProviderLook | null => lookOf(edit);
