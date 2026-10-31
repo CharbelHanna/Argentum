@@ -431,11 +431,12 @@ export async function restoreLook(photo: string, edit: Edit) {
   const key = JSON.stringify([photo, on.camera, on.look, options]);
   const look = offer.looks.find((l) => l.id === on.look);
   if (!options || !look || !offer.cameras.some((c) => c.id === on.camera) || asked.has(key)) return;
-  asked.add(key);
   const there = await ag('provider_look_file', { path: photo, camera: on.camera, look: on.look, options }).catch(
     () => false,
   );
-  if (!there) await keepLook([photo], look, on.camera, options);
+  if (there || asked.has(key)) return;
+  asked.add(key);
+  await keepLook([photo], look, on.camera, options);
 }
 
 /** A preset that brings a look, on photos in the grid: each asks for its file. */

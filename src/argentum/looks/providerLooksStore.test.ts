@@ -448,6 +448,14 @@ describe('an option', () => {
     expect(makes()).toMatchObject([{ options: { optionA: true } }, { options: {} }]);
   });
 
+  it('asks again if a file that was there is gone later', async () => {
+    fileThere = true;
+    await restoreLook(OPEN, onPhoto({ optionA: true }));
+    fileThere = false;
+    await restoreLook(OPEN, onPhoto({ optionA: true }));
+    expect(makes()).toMatchObject([{ options: { optionA: true } }]);
+  });
+
   it('looks for the file of the edit’s options', async () => {
     fileThere = true;
     await restoreLook(OPEN, onPhoto({ optionA: true }));
