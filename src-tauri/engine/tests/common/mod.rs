@@ -1,10 +1,12 @@
 //! What the integration tests share: local RAWs from the environment, a GPU
-//! if there is one, synthetic sensor data for everything else, and the
-//! app's own shader functions to compare with (`app_shader`).
+//! if there is one, synthetic sensor data for everything else, the app's own
+//! shader functions to compare with (`app_shader`), and what keeps a timing
+//! test on every core (`full_speed`).
 
 #![allow(dead_code)]
 
 pub mod app_shader;
+pub mod full_speed;
 
 use std::collections::HashMap;
 use std::path::PathBuf;

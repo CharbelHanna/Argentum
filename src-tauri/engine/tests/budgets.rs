@@ -77,6 +77,7 @@ fn ms(d: &Duration) -> f64 {
 #[test]
 #[ignore = "times a RAW on the reference laptop's GPU: set AG_RAW and run with --ignored"]
 fn a_slider_tick_at_preview_size() {
+    common::full_speed::hold();
     let path = common::raw("a_slider_tick_at_preview_size")
         .expect("a RAW to time: set AG_RAW to a RAW file");
     let (tx, rx) = channel();
