@@ -1,1 +1,0 @@
-- Lens correction now uses the aperture and subject distance the photo was actually shot at. Auto was reading the aperture as 0, so a stopped-down photo got the lens's wide-open vignette profile and brighter corners, then changed when saved and reopened. Photos already saved in Auto pick up the right profile the next time they are saved.

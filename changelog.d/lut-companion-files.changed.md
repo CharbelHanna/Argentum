@@ -1,1 +1,0 @@
-- A `.lut.png` file named after a photo (`IMG.CR2.<camera>.<look>.lut.png`) is treated as that photo's companion: it is no longer listed or counted as a photo, and it follows the photo on move, copy, duplicate, rename and delete.
